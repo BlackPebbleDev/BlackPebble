@@ -16,6 +16,7 @@ import InvestmentStrategy from "@/pages/investment-strategy";
 import Vault from "@/pages/vault";
 import Insights from "@/pages/insights";
 import Community from "@/pages/community";
+import TradingDesk from "@/pages/trading";
 
 const queryClient = new QueryClient();
 
@@ -28,6 +29,7 @@ function Router() {
         <Route path="/investment-strategy" component={InvestmentStrategy} />
         <Route path="/vault" component={Vault} />
         <Route path="/insights" component={Insights} />
+        <Route path="/trading" component={TradingDesk} />
         <Route path="/community" component={Community} />
         <Route component={NotFound} />
       </Switch>

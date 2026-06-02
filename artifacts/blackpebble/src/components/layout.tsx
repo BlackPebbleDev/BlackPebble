@@ -15,6 +15,7 @@ const navLinks = [
   { href: "/investment-strategy", label: "Investment Strategy" },
   { href: "/vault", label: "The Vault" },
   { href: "/insights", label: "Insights" },
+  { href: "/trading", label: "Trading Desk" },
   { href: "/community", label: "Community" },
 ];
 

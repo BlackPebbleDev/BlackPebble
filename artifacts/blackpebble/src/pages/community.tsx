@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { SiX, SiTelegram } from "react-icons/si";
-import { Pill, Lock, BarChart2 } from "lucide-react";
+import { Pill, BarChart2 } from "lucide-react";
 
 const fadeIn = {
   hidden: { opacity: 0, y: 24 },
@@ -194,29 +194,6 @@ export default function Community() {
         </div>
       </section>
 
-      {/* PFP Generator teaser */}
-      <section className="py-[80px] px-6 bg-card border-t border-border">
-        <div className="max-w-[1200px] mx-auto">
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, margin: "-80px" }}
-            variants={fadeIn}
-            className="border border-border bg-background p-10 md:p-14 opacity-60 pointer-events-none select-none"
-          >
-            <div className="flex items-start gap-6">
-              <Lock size={20} className="text-muted-foreground flex-shrink-0 mt-1" />
-              <div>
-                <p className="text-xs uppercase tracking-widest text-muted-foreground mb-3">Coming Soon</p>
-                <h3 className="text-2xl font-serif mb-3">Institutional Profile Generator</h3>
-                <p className="text-muted-foreground text-sm leading-relaxed">
-                  Generate your official Blackpebble shareholder profile image.
-                </p>
-              </div>
-            </div>
-          </motion.div>
-        </div>
-      </section>
     </div>
   );
 }
