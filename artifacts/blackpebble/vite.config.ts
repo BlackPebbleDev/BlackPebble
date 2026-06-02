@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
+import { nodePolyfills } from "vite-plugin-node-polyfills";
 
 const rawPort = process.env.PORT;
 
@@ -29,6 +30,10 @@ if (!basePath) {
 export default defineConfig({
   base: basePath,
   plugins: [
+    nodePolyfills({
+      include: ["buffer", "process", "util", "stream", "events"],
+      globals: { Buffer: true, process: true, global: true }
+    }),
     react(),
     tailwindcss(),
     runtimeErrorOverlay(),
@@ -46,6 +51,13 @@ export default defineConfig({
         ]
       : []),
   ],
+  optimizeDeps: {
+    include: ["chart.js", "react-chartjs-2"],
+    esbuildOptions: {
+      target: "esnext",
+      define: { global: "globalThis" }
+    }
+  },
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "src"),

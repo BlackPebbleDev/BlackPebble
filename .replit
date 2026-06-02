@@ -30,3 +30,10 @@ externalPort = 8081
 [[ports]]
 localPort = 22779
 externalPort = 3000
+
+[userenv]
+
+[userenv.shared]
+BLK_MINT_ADDRESS = "TBA"
+MINIMUM_BLK_BALANCE = "100000"
+FUND_WALLET_ADDRESS = ""

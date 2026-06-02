@@ -4,6 +4,7 @@ import { SiX, SiTelegram } from "react-icons/si";
 import { Pill, Menu, X, BarChart2 } from "lucide-react";
 import logoFlat from "@assets/D911D882-6C4D-49D9-8A77-DA7A52962ABA_1780370693314.png";
 import { Button } from "@/components/ui/button";
+import { CABar } from "@/components/ca-bar";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -34,9 +35,10 @@ export function Layout({ children }: LayoutProps) {
 
   return (
     <div className="min-h-[100dvh] flex flex-col w-full bg-background text-foreground selection:bg-accent/30 selection:text-accent dark">
+      <CABar />
       {/* Navigation */}
       <header
-        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+        className={`fixed top-[36px] left-0 right-0 z-50 transition-all duration-300 ${
           scrolled ? "bg-background/90 backdrop-blur-md border-b border-border" : "bg-transparent"
         }`}
       >
@@ -113,8 +115,8 @@ export function Layout({ children }: LayoutProps) {
         )}
       </header>
 
-      {/* Main Content */}
-      <main className="flex-1 flex flex-col mt-20">
+      {/* Main Content — 36px CA bar + 80px nav = 116px */}
+      <main className="flex-1 flex flex-col mt-[116px]">
         {children}
       </main>
 
