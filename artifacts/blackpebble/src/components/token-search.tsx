@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Search, Loader2 } from "lucide-react";
 import { api, type SearchResult } from "@/lib/api";
-import { fmtUsd } from "@/lib/format";
+import { fmtMarketCap } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 interface TokenSearchProps {
@@ -114,7 +114,7 @@ export function TokenSearch({
               </div>
               {r.marketCapUsd != null && (
                 <div className="text-xs text-muted-foreground font-mono flex-shrink-0">
-                  {fmtUsd(r.marketCapUsd)}
+                  {fmtMarketCap(r.marketCapUsd)}
                 </div>
               )}
             </button>

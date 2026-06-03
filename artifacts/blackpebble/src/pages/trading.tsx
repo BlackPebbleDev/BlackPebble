@@ -25,6 +25,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   fmtSol,
   fmtUsd,
+  fmtMarketCap,
   fmtPercent,
   fmtPrice,
   fmtTokenAmount,
@@ -90,7 +91,7 @@ function TokenHeader({ info }: { info: TokenInfo }) {
           <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
             Price
           </div>
-          <div className="font-mono text-sm">{fmtUsd(info.priceUsd)}</div>
+          <div className="font-mono text-sm">{fmtPrice(info.priceUsd)}</div>
         </div>
         <div>
           <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
@@ -622,7 +623,7 @@ function ActivityTabs() {
               symbol: w.symbol ?? shortAddr(w.mint),
               name: w.name,
               cols: [
-                fmtUsd(w.priceUsd),
+                fmtPrice(w.priceUsd),
                 { value: fmtPercent(w.priceChange24h), cls: pnlColor(w.priceChange24h) },
               ],
             }))}
@@ -761,8 +762,10 @@ export default function TradingDesk() {
               )}
               <div className="min-w-0 flex-1">
                 <div className="font-medium truncate">{t.symbol ?? "Unknown"}</div>
-                <div className="text-xs text-muted-foreground truncate">
-                  {fmtUsd(t.priceUsd)}
+                <div className="text-xs text-muted-foreground truncate font-mono">
+                  {t.marketCapUsd != null
+                    ? `${fmtMarketCap(t.marketCapUsd).replace("$", "")} MC`
+                    : fmtPrice(t.priceUsd)}
                 </div>
               </div>
               <div className={cn("text-xs font-mono", pnlColor(t.priceChange24h))}>
