@@ -1,49 +1,57 @@
 import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useMemo } from "react";
-import { ConnectionProvider, WalletProvider } from "@solana/wallet-adapter-react";
+import {
+  ConnectionProvider,
+  WalletProvider,
+} from "@solana/wallet-adapter-react";
 import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
-import { PhantomWalletAdapter } from "@solana/wallet-adapter-wallets";
+import {
+  PhantomWalletAdapter,
+  SolflareWalletAdapter,
+} from "@solana/wallet-adapter-wallets";
 import { clusterApiUrl } from "@solana/web3.js";
 import "@solana/wallet-adapter-react-ui/styles.css";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { Layout } from "@/components/layout";
+import { AppShell } from "@/components/app-shell";
+import { AccountProvider } from "@/hooks/use-account";
 import NotFound from "@/pages/not-found";
-import Home from "@/pages/home";
-import About from "@/pages/about";
-import InvestmentStrategy from "@/pages/investment-strategy";
-import Vault from "@/pages/vault";
-import Insights from "@/pages/insights";
-import Community from "@/pages/community";
 import TradingDesk from "@/pages/trading";
+import Markets from "@/pages/markets";
+import Portfolio from "@/pages/portfolio";
+import Leaderboard from "@/pages/leaderboard";
+import Utilities from "@/pages/utilities";
 
 const queryClient = new QueryClient();
 
 function Router() {
   return (
-    <Layout>
+    <AppShell>
       <Switch>
-        <Route path="/" component={Home} />
-        <Route path="/about" component={About} />
-        <Route path="/investment-strategy" component={InvestmentStrategy} />
-        <Route path="/vault" component={Vault} />
-        <Route path="/insights" component={Insights} />
-        <Route path="/trading" component={TradingDesk} />
-        <Route path="/community" component={Community} />
+        <Route path="/" component={TradingDesk} />
+        <Route path="/markets" component={Markets} />
+        <Route path="/portfolio" component={Portfolio} />
+        <Route path="/leaderboard" component={Leaderboard} />
+        <Route path="/utilities" component={Utilities} />
         <Route component={NotFound} />
       </Switch>
-    </Layout>
+    </AppShell>
   );
 }
 
 function SolanaProviders({ children }: { children: React.ReactNode }) {
-  const endpoint = clusterApiUrl("mainnet-beta");
-  const wallets = useMemo(() => [new PhantomWalletAdapter()], []);
+  const endpoint =
+    (import.meta.env.VITE_HELIUS_RPC_URL as string | undefined) ||
+    clusterApiUrl("mainnet-beta");
+  const wallets = useMemo(
+    () => [new PhantomWalletAdapter(), new SolflareWalletAdapter()],
+    [],
+  );
 
   return (
     <ConnectionProvider endpoint={endpoint}>
-      <WalletProvider wallets={wallets} autoConnect={false}>
+      <WalletProvider wallets={wallets} autoConnect>
         <WalletModalProvider>{children}</WalletModalProvider>
       </WalletProvider>
     </ConnectionProvider>
@@ -55,9 +63,11 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <SolanaProviders>
-          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-            <Router />
-          </WouterRouter>
+          <AccountProvider>
+            <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+              <Router />
+            </WouterRouter>
+          </AccountProvider>
         </SolanaProviders>
         <Toaster />
       </TooltipProvider>

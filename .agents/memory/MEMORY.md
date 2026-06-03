@@ -1,0 +1,1 @@
+- [BlackPebble design decisions](blackpebble-design-decisions.md) — paper-trade app: wallet connect is identity-only (no signature auth, intentional); trade execution must be atomic inside one better-sqlite3 txn.

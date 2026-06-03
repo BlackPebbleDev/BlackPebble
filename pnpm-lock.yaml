@@ -208,6 +208,9 @@ importers:
       uuid:
         specifier: ^14.0.0
         version: 14.0.0
+      ws:
+        specifier: 8.18.0
+        version: 8.18.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
     devDependencies:
       '@types/cookie-parser':
         specifier: ^1.4.10
@@ -221,6 +224,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 25.6.2
+      '@types/ws':
+        specifier: ^8.18.1
+        version: 8.18.1
       esbuild:
         specifier: 0.27.3
         version: 0.27.3
@@ -10795,7 +10801,7 @@ snapshots:
 
   isows@1.0.6(ws@8.18.0(bufferutil@4.1.0)):
     dependencies:
-      ws: 8.18.0(bufferutil@4.1.0)
+      ws: 8.18.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
 
   isows@1.0.7(ws@8.20.1(bufferutil@4.1.0)):
     dependencies:
@@ -12370,7 +12376,7 @@ snapshots:
       abitype: 1.0.8(typescript@5.9.3)(zod@3.25.76)
       isows: 1.0.6(ws@8.18.0(bufferutil@4.1.0))
       ox: 0.6.7(typescript@5.9.3)(zod@3.25.76)
-      ws: 8.18.0(bufferutil@4.1.0)
+      ws: 8.18.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
     optionalDependencies:
       typescript: 5.9.3
     transitivePeerDependencies:
@@ -12493,9 +12499,10 @@ snapshots:
     optionalDependencies:
       bufferutil: 4.1.0
 
-  ws@8.18.0(bufferutil@4.1.0):
+  ws@8.18.0(bufferutil@4.1.0)(utf-8-validate@6.0.6):
     optionalDependencies:
       bufferutil: 4.1.0
+      utf-8-validate: 6.0.6
 
   ws@8.20.1(bufferutil@4.1.0):
     optionalDependencies:

@@ -1,4 +1,4 @@
-modules = ["nodejs-24"]
+modules = ["nodejs-24", "python-3.11"]
 
 [deployment]
 router = "application"
@@ -37,3 +37,6 @@ externalPort = 3000
 BLK_MINT_ADDRESS = "TBA"
 MINIMUM_BLK_BALANCE = "100000"
 FUND_WALLET_ADDRESS = ""
+
+[nix]
+channel = "stable-25_05"

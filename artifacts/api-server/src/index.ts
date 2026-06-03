@@ -1,6 +1,7 @@
 import app from "./app.js";
 import { logger } from "./lib/logger.js";
 import { startCron } from "./lib/cron.js";
+import { pumpportal } from "./lib/pumpportal.js";
 
 const rawPort = process.env["PORT"];
 
@@ -24,4 +25,5 @@ app.listen(port, (err) => {
 
   logger.info({ port }, "Server listening");
   startCron();
+  pumpportal.start();
 });
