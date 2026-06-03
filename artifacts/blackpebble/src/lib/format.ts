@@ -9,12 +9,26 @@ export function fmtSol(value: number | null | undefined, digits = 2): string {
   });
 }
 
+/** Compact shorthand for large USD amounts: $50K, $1.2M, $15M. Never scientific notation. */
+export function fmtMarketCap(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value) || value === 0) return "—";
+  const abs = Math.abs(value);
+  if (abs >= 1_000_000_000) return `$${(value / 1_000_000_000).toFixed(2)}B`;
+  if (abs >= 1_000_000) return `$${(value / 1_000_000).toFixed(2)}M`;
+  if (abs >= 1_000) return `$${(value / 1_000).toFixed(1)}K`;
+  return `$${value.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+}
+
+/** Same compact shorthand as fmtMarketCap, for volume columns. */
+export const fmtVolume = fmtMarketCap;
+
+/** Generic USD display — compact for large values, fixed decimals for small. Never scientific. */
 export function fmtUsd(value: number | null | undefined): string {
   if (value == null || !Number.isFinite(value)) return "—";
   const abs = Math.abs(value);
+  if (abs >= 1_000_000_000) return `$${(value / 1_000_000_000).toFixed(2)}B`;
   if (abs >= 1_000_000) return `$${(value / 1_000_000).toFixed(2)}M`;
   if (abs >= 1_000) return `$${(value / 1_000).toFixed(1)}K`;
-  if (abs > 0 && abs < 0.01) return `$${value.toExponential(2)}`;
   return `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
@@ -38,13 +52,32 @@ export function fmtPercent(value: number | null | undefined, digits = 2): string
   return `${sign}${value.toFixed(digits)}%`;
 }
 
+/**
+ * Token price display — never scientific notation.
+ * $0.0000118   $0.25   $1.42   $1,234
+ */
 export function fmtPrice(value: number | null | undefined): string {
   if (value == null || !Number.isFinite(value)) return "—";
+  if (value === 0) return "$0.00";
   const abs = Math.abs(value);
-  if (abs === 0) return "0";
-  if (abs < 0.000001) return value.toExponential(2);
-  if (abs < 1) return value.toFixed(8).replace(/0+$/, "").replace(/\.$/, "");
-  return value.toLocaleString("en-US", { maximumFractionDigits: 4 });
+  const sign = value < 0 ? "-" : "";
+  if (abs >= 1_000) {
+    return `$${sign}${abs.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
+  }
+  if (abs >= 1) {
+    const s = abs.toFixed(4).replace(/\.?0+$/, "");
+    return `$${sign}${s}`;
+  }
+  if (abs >= 0.001) {
+    const s = abs.toFixed(6).replace(/0+$/, "").replace(/\.$/, "");
+    return `$${sign}${s}`;
+  }
+  // Very small: count leading fractional zeros to decide how many decimal places.
+  // e.g. 0.0000118 -> floor(log10(0.0000118)) = -5 -> need 5+4 = 9 decimal places
+  const leadingZeros = -Math.floor(Math.log10(abs));
+  const decimalPlaces = Math.min(leadingZeros + 4, 12);
+  const s = abs.toFixed(decimalPlaces).replace(/0+$/, "").replace(/\.$/, "");
+  return `$${sign}${s}`;
 }
 
 export function shortAddr(addr: string | null | undefined, chars = 4): string {
