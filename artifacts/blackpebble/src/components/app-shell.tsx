@@ -10,6 +10,7 @@ import {
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import logoFlat from "@assets/D911D882-6C4D-49D9-8A77-DA7A52962ABA_1780370693314.png";
 import { TokenSearch } from "@/components/token-search";
+import { XLoginButton } from "@/components/x-login-button";
 import { useAccount } from "@/hooks/use-account";
 import { cn } from "@/lib/utils";
 
@@ -44,7 +45,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <img
               src={logoFlat}
               alt="Blackpebble"
-              className="h-7 w-auto object-contain"
+              className="h-6 md:h-7 w-auto object-contain"
             />
           </Link>
 
@@ -52,7 +53,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <TokenSearch onSelect={handleSearchSelect} wallet={wallet} />
           </div>
 
-          <div className="flex-shrink-0 ml-auto">
+          <div className="flex-shrink-0 ml-auto flex items-center gap-2">
+            <XLoginButton className="hidden lg:inline-flex" />
             <WalletMultiButton />
           </div>
         </div>

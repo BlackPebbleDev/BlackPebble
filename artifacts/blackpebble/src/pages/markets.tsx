@@ -48,7 +48,49 @@ function MarketTable({ tokens, navigate }: { tokens: TokenInfo[]; navigate: (p: 
   }
 
   return (
-    <div className="border border-border bg-card overflow-x-auto">
+    <>
+      {/* Mobile: card layout (no horizontal scroll under 768px) */}
+      <div className="md:hidden flex flex-col gap-2">
+        {tokens.map((t: TokenInfo, idx: number) => (
+          <button
+            key={t.mint}
+            type="button"
+            onClick={() => navigate(`/?token=${t.mint}`)}
+            data-testid={`card-token-${t.mint}`}
+            className="w-full border border-border bg-card p-3 flex items-center gap-3 text-left active:bg-accent/5 transition-colors"
+          >
+            <span className="text-xs text-muted-foreground tabular-nums w-5 text-center flex-shrink-0">
+              {idx + 1}
+            </span>
+            <TokenLogo token={t} />
+            <div className="min-w-0 flex-1">
+              <div className="font-medium text-foreground truncate">
+                {t.symbol ?? "Unknown"}
+              </div>
+              <div className="text-xs text-muted-foreground truncate">
+                {t.name ?? shortAddr(t.mint)}
+              </div>
+              {t.priceUsd != null && (
+                <div className="text-xs text-muted-foreground/70 font-mono truncate">
+                  {fmtPrice(t.priceUsd)}
+                </div>
+              )}
+            </div>
+            <div className="text-right flex-shrink-0">
+              <div className="font-mono text-sm text-foreground">
+                {fmtMarketCap(t.marketCapUsd)}
+                <span className="text-[10px] text-muted-foreground ml-1">MC</span>
+              </div>
+              <div className={cn("font-mono text-xs", pnlColor(t.priceChange24h))}>
+                {fmtPercent(t.priceChange24h)}
+              </div>
+            </div>
+          </button>
+        ))}
+      </div>
+
+      {/* Desktop: table layout */}
+      <div className="hidden md:block border border-border bg-card overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
           <tr className="text-left text-muted-foreground border-b border-border">
@@ -114,7 +156,8 @@ function MarketTable({ tokens, navigate }: { tokens: TokenInfo[]; navigate: (p: 
           ))}
         </tbody>
       </table>
-    </div>
+      </div>
+    </>
   );
 }
 

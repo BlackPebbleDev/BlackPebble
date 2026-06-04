@@ -118,3 +118,39 @@
     @apply font-serif tracking-[0.02em];
   }
 }
+
+/* ── Compact wallet button (black / graphite / gold) ───────────────────── */
+.wallet-adapter-button-trigger {
+  background: hsl(var(--secondary)) !important;
+  color: hsl(var(--accent)) !important;
+  height: 36px !important;
+  padding: 0 14px !important;
+  font-family: var(--app-font-sans) !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  line-height: 36px !important;
+  border: 1px solid hsl(var(--border)) !important;
+  border-radius: 0 !important;
+}
+.wallet-adapter-button-trigger:not([disabled]):hover {
+  background: hsl(var(--accent)) !important;
+  color: hsl(var(--accent-foreground)) !important;
+  border-color: hsl(var(--accent)) !important;
+}
+.wallet-adapter-button {
+  font-family: var(--app-font-sans) !important;
+}
+.wallet-adapter-button .wallet-adapter-button-start-icon {
+  width: 16px !important;
+  height: 16px !important;
+  margin-right: 6px !important;
+}
+.wallet-adapter-button .wallet-adapter-button-start-icon img {
+  width: 16px !important;
+  height: 16px !important;
+}
+.wallet-adapter-dropdown-list,
+.wallet-adapter-modal-wrapper {
+  font-family: var(--app-font-sans) !important;
+  border-radius: 0 !important;
+}

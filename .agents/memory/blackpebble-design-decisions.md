@@ -32,3 +32,32 @@ inside the transaction makes the read-check-write atomic.
 
 **How to apply:** Never validate balance/position outside the transaction and then
 mutate inside it. Keep the authoritative guard inside the txn.
+
+## Responsive token lists: dual render, not one overflowing table
+Token lists (Markets, etc.) render TWO siblings: a `md:hidden` card list and a
+`hidden md:block` table — not a single table inside `overflow-x-auto`.
+
+**Why:** Spec requires zero horizontal scroll under 768px. A 6-column table can't
+collapse cleanly; a card (rank+logo+symbol+name+price left / marketcap+24h right)
+fits any width. Tailwind `md` = 768px = the breakpoint.
+
+**How to apply:** New token-discovery surfaces should follow this dual-render
+pattern. Market Cap is the primary metric; price is secondary/muted.
+
+## Wallet button is styled via global CSS overrides, not props
+`@solana/wallet-adapter-react-ui`'s `WalletMultiButton` is restyled with
+`!important` overrides on `.wallet-adapter-button-trigger` in `src/index.css`
+(graphite bg, gold text, 36px height, square corners). The component takes no
+style props.
+
+**Why:** The adapter ships its own large purple stylesheet; the only reliable way
+to match the black/graphite/gold theme is CSS overrides.
+
+## X login is intentionally inert scaffolding
+`x-login-button.tsx` has `X_LOGIN_ENABLED = false` and shows "Login with X
+(Coming Soon)". `users` + `user_identities` tables exist in `database.ts` as
+additive scaffold. No OAuth is implemented — do NOT build fake/simulated X auth.
+Wallet stays the primary identity. `pnl-card.tsx` is a `return null` placeholder.
+
+**How to apply:** Only flip the flag once real server-side X OAuth (PKCE) and
+`/auth/x/*` routes exist.

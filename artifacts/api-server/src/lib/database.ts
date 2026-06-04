@@ -156,6 +156,31 @@ db.exec(`
     updated_at INTEGER
   );
 
+  -- Identity scaffold (future). Unified user profiles that can link a wallet
+  -- and/or an X (Twitter) account to the same person, for leaderboards and
+  -- shareable PnL cards. Additive only — existing paper-trading accounts stay
+  -- keyed by wallet and are NOT migrated or touched. No OAuth is implemented
+  -- yet; these tables exist so the feature can be built without a later
+  -- schema change.
+  CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    display_name TEXT,
+    avatar_url TEXT,
+    created_at INTEGER DEFAULT (unixepoch()),
+    last_active INTEGER DEFAULT (unixepoch())
+  );
+
+  CREATE TABLE IF NOT EXISTS user_identities (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    provider TEXT NOT NULL, -- 'wallet' | 'x'
+    provider_user_id TEXT NOT NULL,
+    wallet_address TEXT, -- nullable; set for provider='wallet'
+    x_username TEXT,      -- nullable; set for provider='x'
+    created_at INTEGER DEFAULT (unixepoch()),
+    UNIQUE(provider, provider_user_id)
+  );
+
   CREATE INDEX IF NOT EXISTS idx_positions_wallet ON positions(wallet);
   CREATE INDEX IF NOT EXISTS idx_trades_wallet ON trades(wallet);
   CREATE INDEX IF NOT EXISTS idx_trades_executed ON trades(executed_at);
@@ -164,6 +189,7 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_portfolio_wallet ON portfolio_snapshots(wallet);
   CREATE INDEX IF NOT EXISTS idx_leaderboard_period ON leaderboard_snapshots(period, period_start);
   CREATE INDEX IF NOT EXISTS idx_comp_results_comp ON competition_results(competition_id);
+  CREATE INDEX IF NOT EXISTS idx_user_identities_user ON user_identities(user_id);
 `);
 
 export default db;
