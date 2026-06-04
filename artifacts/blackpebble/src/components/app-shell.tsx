@@ -8,7 +8,7 @@ import {
   Wrench,
 } from "lucide-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
-import logoFlat from "@assets/D911D882-6C4D-49D9-8A77-DA7A52962ABA_1780370693314.png";
+import logoFlat from "@assets/E4772800-2295-459C-A05B-A20CCA59AA60_1780532736287.jpeg";
 import { TokenSearch } from "@/components/token-search";
 import { XLoginButton } from "@/components/x-login-button";
 import { useAccount } from "@/hooks/use-account";
@@ -45,7 +45,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <img
               src={logoFlat}
               alt="Blackpebble"
-              className="h-6 md:h-7 w-auto object-contain"
+              className="h-10 sm:h-12 w-auto object-contain mix-blend-screen"
             />
           </Link>
 
