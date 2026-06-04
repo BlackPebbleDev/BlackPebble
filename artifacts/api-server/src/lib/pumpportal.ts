@@ -45,6 +45,14 @@ const MAX_MIGRATIONS = 60;
 const MAX_TRADES_PER_TOKEN = 60;
 const MAX_SUBSCRIPTIONS = 50;
 
+// In development / preview the pump.fun firehose (hundreds of create + trade
+// events per second) can choke the preview. Throttle the two high-volume event
+// types so the UI stays responsive while still showing live activity.
+// Production processes every event (interval = 0).
+const IS_PROD = process.env.NODE_ENV === "production";
+const NEW_TOKEN_MIN_INTERVAL_MS = IS_PROD ? 0 : 1500;
+const TRADE_MIN_INTERVAL_MS = IS_PROD ? 0 : 400;
+
 class PumpPortalService {
   private ws: WebSocket | null = null;
   private connected = false;
@@ -55,6 +63,8 @@ class PumpPortalService {
   private bonding = new Map<string, BondingPrice>();
   private subscribed = new Set<string>();
   private subOrder: string[] = [];
+  private lastNewTokenAt = 0;
+  private lastTradeAt = new Map<string, number>();
 
   start(): void {
     if (this.ws) return;
@@ -158,6 +168,11 @@ class PumpPortalService {
   private onNewToken(msg: Record<string, unknown>): void {
     const mint = String(msg["mint"] || "");
     if (!mint) return;
+    if (NEW_TOKEN_MIN_INTERVAL_MS > 0) {
+      const now = Date.now();
+      if (now - this.lastNewTokenAt < NEW_TOKEN_MIN_INTERVAL_MS) return;
+      this.lastNewTokenAt = now;
+    }
     const bonding = this.deriveBonding(msg);
     if (bonding) this.bonding.set(mint, bonding);
 
@@ -193,6 +208,14 @@ class PumpPortalService {
   private onTrade(msg: Record<string, unknown>, side: "buy" | "sell"): void {
     const mint = String(msg["mint"] || "");
     if (!mint) return;
+    if (TRADE_MIN_INTERVAL_MS > 0) {
+      // Throttle per-mint so the token the user is actively viewing keeps
+      // receiving updates and cannot be starved by noisier unrelated tokens.
+      const now = Date.now();
+      const last = this.lastTradeAt.get(mint) ?? 0;
+      if (now - last < TRADE_MIN_INTERVAL_MS) return;
+      this.lastTradeAt.set(mint, now);
+    }
     const bonding = this.deriveBonding(msg);
     if (bonding) this.bonding.set(mint, bonding);
 

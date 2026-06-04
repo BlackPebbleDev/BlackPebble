@@ -467,3 +467,63 @@ export function getHistory(wallet: string, limit = 100) {
     )
     .all(wallet, limit);
 }
+
+export interface ClosedTradeStats {
+  closedTrades: number;
+  winningTrades: number;
+  winRate: number;
+  realizedPnl: number;
+  bestTrade: number;
+  worstTrade: number;
+}
+
+/**
+ * Closed-trade statistics derived directly from the immutable `trades` table
+ * (every sell row carries its realized pnl). This is the source of truth, so
+ * the numbers survive page refreshes, wallet reconnects and redeploys and never
+ * drift the way incrementally-updated account counter columns can.
+ *
+ * Only trades executed AFTER the last account reset are counted: a reset wipes
+ * the balance back to STARTING_BALANCE, so counting pre-reset realized pnl would
+ * make Total PnL (realized + unrealized) disagree with the equity-based ROI.
+ *
+ * - closedTrades: number of sell executions — a buy alone is NOT a closed trade
+ * - winRate:      winning sells / closed sells * 100
+ * - bestTrade:    largest positive realized pnl, or 0 when there are no wins
+ * - worstTrade:   most negative realized pnl, or 0 when there are no losses
+ */
+export function getClosedTradeStats(wallet: string): ClosedTradeStats {
+  const acct = db
+    .prepare("SELECT last_reset_at FROM accounts WHERE wallet = ?")
+    .get(wallet) as { last_reset_at: number | null } | undefined;
+  const since = acct?.last_reset_at ?? 0;
+
+  const row = db
+    .prepare(
+      `SELECT
+         COUNT(*) AS closedTrades,
+         COALESCE(SUM(CASE WHEN pnl > 0 THEN 1 ELSE 0 END), 0) AS winningTrades,
+         COALESCE(SUM(pnl), 0) AS realizedPnl,
+         COALESCE(MAX(pnl), 0) AS maxPnl,
+         COALESCE(MIN(pnl), 0) AS minPnl
+       FROM trades
+       WHERE wallet = ? AND side = 'sell' AND pnl IS NOT NULL AND executed_at > ?`,
+    )
+    .get(wallet, since) as {
+    closedTrades: number;
+    winningTrades: number;
+    realizedPnl: number;
+    maxPnl: number;
+    minPnl: number;
+  };
+
+  const closedTrades = row.closedTrades;
+  return {
+    closedTrades,
+    winningTrades: row.winningTrades,
+    winRate: closedTrades > 0 ? (row.winningTrades / closedTrades) * 100 : 0,
+    realizedPnl: row.realizedPnl,
+    bestTrade: row.maxPnl > 0 ? row.maxPnl : 0,
+    worstTrade: row.minPnl < 0 ? row.minPnl : 0,
+  };
+}

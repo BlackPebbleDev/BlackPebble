@@ -1,8 +1,14 @@
 import { Router, type IRouter } from "express";
 import { asyncHandler } from "../lib/asyncHandler.js";
 import db from "../lib/database.js";
-import { getPortfolio, ensureAccount } from "../lib/trading.js";
+import {
+  getPortfolio,
+  ensureAccount,
+  getClosedTradeStats,
+  STARTING_BALANCE,
+} from "../lib/trading.js";
 import { getSolPriceUsd } from "../lib/prices.js";
+import { logger } from "../lib/logger.js";
 
 const router: IRouter = Router();
 
@@ -56,22 +62,47 @@ router.get(
     const a = ensureAccount(wallet);
     const portfolio = await getPortfolio(wallet);
     const solUsd = await getSolPriceUsd();
-    const winRate = a.total_trades > 0 ? (a.winning_trades / a.total_trades) * 100 : 0;
-    const roi = ((portfolio.equitySol - 100) / 100) * 100;
+
+    // Closed-trade stats come from the trades table (source of truth) rather
+    // than the account counter columns: total_trades used to include buys, and
+    // best_trade could go stale. Deriving keeps Best Trade / Win Rate accurate
+    // and consistent across refreshes, reconnects and redeploys.
+    const cs = getClosedTradeStats(wallet);
+    const realizedPnlSol = cs.realizedPnl;
+    const totalPnlSol = realizedPnlSol + portfolio.unrealizedPnlSol;
+    const roi =
+      ((portfolio.equitySol - STARTING_BALANCE) / STARTING_BALANCE) * 100;
+
+    if (process.env.NODE_ENV !== "production") {
+      logger.debug(
+        {
+          wallet,
+          closedTrades: cs.closedTrades,
+          winningTrades: cs.winningTrades,
+          bestTradeSource: "MAX(pnl) over closed sell trades",
+          bestTrade: cs.bestTrade,
+          realizedPnl: realizedPnlSol,
+          unrealizedPnl: portfolio.unrealizedPnlSol,
+          currentEquity: portfolio.equitySol,
+        },
+        "[stats-debug] portfolio stats",
+      );
+    }
+
     return res.json({
       wallet,
       balance: a.paper_balance,
       equitySol: portfolio.equitySol,
       equityUsd: portfolio.equitySol * solUsd,
-      totalPnlSol: portfolio.totalPnlSol,
-      realizedPnlSol: a.realized_pnl,
+      totalPnlSol,
+      realizedPnlSol,
       unrealizedPnlSol: portfolio.unrealizedPnlSol,
       roiPercent: roi,
-      totalTrades: a.total_trades,
-      winningTrades: a.winning_trades,
-      winRate,
-      bestTrade: a.best_trade,
-      worstTrade: a.worst_trade,
+      totalTrades: cs.closedTrades,
+      winningTrades: cs.winningTrades,
+      winRate: cs.winRate,
+      bestTrade: cs.bestTrade,
+      worstTrade: cs.worstTrade,
       currentStreak: a.current_streak,
       participationPoints: a.participation_points,
       graduationTier: a.graduation_tier,

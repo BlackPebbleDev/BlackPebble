@@ -1,1 +1,2 @@
-- [BlackPebble design decisions](blackpebble-design-decisions.md) — paper-trade app: wallet connect is identity-only (no signature auth, intentional); trade execution must be atomic inside one better-sqlite3 txn.
+- [BlackPebble portfolio stats](blackpebble-portfolio-stats.md) — derive stats from `trades` table (sells w/ pnl, after last_reset_at), never account counter columns.
+- [BlackPebble dev feed throttle](blackpebble-dev-feed-throttle.md) — pumpportal feeds throttled only in dev (NODE_ENV!=production); trade throttle must be per-mint.

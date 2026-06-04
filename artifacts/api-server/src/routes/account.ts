@@ -1,13 +1,29 @@
 import { Router, type IRouter } from "express";
 import { asyncHandler } from "../lib/asyncHandler.js";
-import { ensureAccount, getAccount, resetAccount } from "../lib/trading.js";
+import {
+  ensureAccount,
+  getAccount,
+  resetAccount,
+  getClosedTradeStats,
+} from "../lib/trading.js";
 
 const router: IRouter = Router();
 
 function shape(wallet: string) {
   const a = ensureAccount(wallet);
-  const winRate = a.total_trades > 0 ? (a.winning_trades / a.total_trades) * 100 : 0;
-  return { ...a, win_rate: winRate };
+  // Derive closed-trade stats from the trades table so trade count, win rate
+  // and best trade stay accurate and consistent with the Portfolio page.
+  const cs = getClosedTradeStats(wallet);
+  return {
+    ...a,
+    total_trades: cs.closedTrades,
+    winning_trades: cs.winningTrades,
+    best_trade: cs.bestTrade,
+    worst_trade: cs.worstTrade,
+    realized_pnl: cs.realizedPnl,
+    total_pnl: cs.realizedPnl,
+    win_rate: cs.winRate,
+  };
 }
 
 router.post(
