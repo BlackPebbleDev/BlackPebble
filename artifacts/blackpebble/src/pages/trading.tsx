@@ -20,6 +20,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { api, type TokenInfo } from "@/lib/api";
+import { LiveIndicator } from "@/components/live-indicator";
 import { useAccount } from "@/hooks/use-account";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -721,10 +722,11 @@ export default function TradingDesk() {
     refetchInterval: 15_000,
   });
 
-  const { data: trending } = useQuery({
+  const { data: trending, dataUpdatedAt: trendingUpdatedAt } = useQuery({
     queryKey: ["trending-quick"],
     queryFn: () => api.trending(),
     enabled: !mint,
+    refetchInterval: 30_000,
   });
 
   const navigate = useNavigate();
@@ -735,6 +737,7 @@ export default function TradingDesk() {
         <div className="flex items-center gap-3 mb-6">
           <LineChart className="w-6 h-6 text-accent" />
           <h1 className="text-2xl font-semibold">Trading Desk</h1>
+          <LiveIndicator dataUpdatedAt={trendingUpdatedAt} />
         </div>
         <div className="border border-border bg-card p-8 text-center mb-8">
           <p className="text-muted-foreground">

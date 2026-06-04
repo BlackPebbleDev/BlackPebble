@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { asyncHandler } from "../lib/asyncHandler.js";
-import { getTrendingTokens } from "../lib/prices.js";
+import { getTrendingTokens, getMarketStatus } from "../lib/prices.js";
 import { pumpportal } from "../lib/pumpportal.js";
 
 const router: IRouter = Router();
@@ -46,6 +46,13 @@ router.get(
   "/markets/migrated",
   asyncHandler((_req, res) => {
     return res.json({ tokens: pumpportal.getMigrations(40) });
+  }),
+);
+
+router.get(
+  "/markets/status",
+  asyncHandler((_req, res) => {
+    return res.json(getMarketStatus());
   }),
 );
 

@@ -36,7 +36,7 @@ export function XLoginButton({ className }: { className?: string }) {
       )}
     >
       <XLogo className="w-3.5 h-3.5 flex-shrink-0" />
-      <span className="whitespace-nowrap">
+      <span className="hidden lg:inline whitespace-nowrap">
         {X_LOGIN_ENABLED ? "Login with X" : "Login with X (Coming Soon)"}
       </span>
     </button>

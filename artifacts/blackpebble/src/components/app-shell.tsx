@@ -45,7 +45,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <img
               src={logoFlat}
               alt="Blackpebble"
-              className="h-10 sm:h-12 w-auto object-contain mix-blend-screen"
+              className="h-10 sm:h-12 md:h-14 w-auto object-contain mix-blend-screen"
             />
           </Link>
 
@@ -54,7 +54,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="flex-shrink-0 ml-auto flex items-center gap-2">
-            <XLoginButton className="hidden lg:inline-flex" />
+            <XLoginButton />
             <WalletMultiButton />
           </div>
         </div>

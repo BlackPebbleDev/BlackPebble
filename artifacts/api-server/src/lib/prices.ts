@@ -285,31 +285,90 @@ function pairToMarketToken(p: DexPair & { txns?: { h24?: { buys?: number; sells?
   };
 }
 
-/** Boosted / trending Solana tokens from DexScreener, enriched with pair stats. Cached 60s. */
+// ── Market status tracking ────────────────────────────────────────────────
+let lastTrendingUpdate: number | null = null;
+let trendingTokenCount = 0;
+
+export function getMarketStatus(): {
+  lastUpdated: number | null;
+  tokenCount: number;
+  pumpportalConnected: boolean;
+  cacheAge: number | null;
+} {
+  return {
+    lastUpdated: lastTrendingUpdate,
+    tokenCount: trendingTokenCount,
+    pumpportalConnected: pumpportal.isConnected(),
+    cacheAge:
+      lastTrendingUpdate != null
+        ? Math.floor((Date.now() - lastTrendingUpdate) / 1000)
+        : null,
+  };
+}
+
+/**
+ * Exclude tokens that are effectively dead: no symbol/name, no price, no
+ * market cap, or insufficient liquidity (< $200).
+ */
+function isDeadToken(t: MarketToken): boolean {
+  if (!t.symbol || !t.name) return true;
+  if (t.priceUsd == null || t.priceUsd === 0) return true;
+  if (t.marketCapUsd == null) return true;
+  if (t.liquidityUsd == null || t.liquidityUsd < 200) return true;
+  return false;
+}
+
+/**
+ * Trending Solana tokens. Merges "latest" boosts (fresh activity) with "top"
+ * boosts (sustained momentum), hydrates via DexScreener pair stats, then
+ * filters dead tokens. Result is cached 60 s.
+ */
 export async function getTrendingTokens(): Promise<MarketToken[]> {
   const key = "market_trending";
   if (isCacheFresh(key, 60 * 1000)) {
     const v = getCacheValue(key);
     if (v) {
       try {
-        return JSON.parse(v) as MarketToken[];
+        const cached = JSON.parse(v) as MarketToken[];
+        trendingTokenCount = cached.length;
+        return cached;
       } catch {
         // refetch
       }
     }
   }
   try {
-    const boosted = await axios.get(
-      "https://api.dexscreener.com/token-boosts/top/v1",
-      { timeout: 8000 },
-    );
-    const mints: string[] = (boosted.data ?? [])
-      .filter((b: { chainId: string }) => b.chainId === "solana")
-      .map((b: { tokenAddress: string }) => b.tokenAddress)
-      .slice(0, 30);
+    // Pull from both endpoints concurrently: latest = freshest activity,
+    // top = tokens with sustained community boost spend.
+    const [latestRes, topRes] = await Promise.allSettled([
+      axios.get("https://api.dexscreener.com/token-boosts/latest/v1", { timeout: 8000 }),
+      axios.get("https://api.dexscreener.com/token-boosts/top/v1", { timeout: 8000 }),
+    ]);
+
+    const latestData: unknown[] =
+      latestRes.status === "fulfilled" ? (latestRes.value.data ?? []) : [];
+    const topData: unknown[] =
+      topRes.status === "fulfilled" ? (topRes.value.data ?? []) : [];
+
+    // Interleave latest + top so the feed mixes freshness with sustained momentum.
+    const seen = new Set<string>();
+    const mints: string[] = [];
+    const max = Math.max(latestData.length, topData.length);
+    for (let i = 0; i < max && mints.length < 50; i++) {
+      for (const item of [latestData[i], topData[i]]) {
+        if (!item || typeof item !== "object") continue;
+        const b = item as { chainId?: string; tokenAddress?: string };
+        if (b.chainId !== "solana" || !b.tokenAddress) continue;
+        if (!seen.has(b.tokenAddress)) {
+          seen.add(b.tokenAddress);
+          mints.push(b.tokenAddress);
+        }
+      }
+    }
 
     const results: MarketToken[] = [];
-    const seen = new Set<string>();
+    const resultSeen = new Set<string>();
+
     // DexScreener allows up to 30 comma-separated addresses per request.
     for (let i = 0; i < mints.length; i += 30) {
       const chunk = mints.slice(i, i + 30);
@@ -329,19 +388,26 @@ export async function getTrendingTokens(): Promise<MarketToken[]> {
         }
       }
       for (const p of byMint.values()) {
-        if (seen.has(p.baseToken.address)) continue;
-        seen.add(p.baseToken.address);
+        if (resultSeen.has(p.baseToken.address)) continue;
+        resultSeen.add(p.baseToken.address);
         results.push(pairToMarketToken(p));
       }
     }
-    setCacheValue(key, JSON.stringify(results));
-    return results;
+
+    // Strip dead / incomplete tokens before caching.
+    const live = results.filter((t) => !isDeadToken(t));
+    setCacheValue(key, JSON.stringify(live));
+    lastTrendingUpdate = Date.now();
+    trendingTokenCount = live.length;
+    return live;
   } catch (e) {
     logger.warn({ err: e }, "Trending fetch failed");
     const last = getCacheValue(key);
     if (last) {
       try {
-        return JSON.parse(last) as MarketToken[];
+        const cached = JSON.parse(last) as MarketToken[];
+        trendingTokenCount = cached.length;
+        return cached;
       } catch {
         // ignore
       }

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2, TrendingUp, Zap } from "lucide-react";
+import { LiveIndicator } from "@/components/live-indicator";
 import { api, type TokenInfo, type NewToken } from "@/lib/api";
 import {
   fmtMarketCap,
@@ -262,7 +263,7 @@ export default function Markets() {
   const [tab, setTab] = useState<Tab>("trending");
   const [, navigate] = useLocation();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, dataUpdatedAt } = useQuery({
     queryKey: ["markets", tab],
     queryFn: () =>
       tab === "trending"
@@ -283,6 +284,9 @@ export default function Markets() {
       <div className="flex items-center gap-3 mb-6">
         <TrendingUp className="w-6 h-6 text-accent" />
         <h1 className="text-2xl font-semibold">Markets</h1>
+        {tab !== "new" && dataUpdatedAt > 0 && (
+          <LiveIndicator dataUpdatedAt={dataUpdatedAt} />
+        )}
       </div>
 
       <div className="flex gap-1 mb-4 border-b border-border">

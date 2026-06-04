@@ -61,3 +61,25 @@ Wallet stays the primary identity. `pnl-card.tsx` is a `return null` placeholder
 
 **How to apply:** Only flip the flag once real server-side X OAuth (PKCE) and
 `/auth/x/*` routes exist.
+
+## LIVE indicator uses client-side dataUpdatedAt, not a dedicated poll
+`LiveIndicator` derives feed freshness from TanStack Query's `dataUpdatedAt`
+timestamp (ms). The status tooltip fetches `/api/markets/status` only on
+click (enabled only when panel is open). No extra background polling.
+
+**Why:** Spec forbids extra API requests for the indicator. TanStack Query
+provides `dataUpdatedAt` for free; comparing it against `Date.now()` in a
+1-second interval gives the "Updated Xs ago" counter without any network call.
+
+## Dead token filter in getTrendingTokens (prices.ts)
+Tokens are excluded from the market lists when: no symbol, no name,
+no priceUsd, no marketCapUsd, or liquidityUsd < $200.
+
+**Why:** Boosted-token endpoints return tokens regardless of activity — many are
+abandoned. The $200 liquidity floor is intentionally low to allow tiny new
+tokens while excluding truly dead pools.
+
+## Trending uses both boost endpoints interleaved
+`getTrendingTokens` fetches `token-boosts/latest/v1` (freshest activity) and
+`token-boosts/top/v1` (sustained momentum) concurrently, interleaves them, then
+hydrates the top-50 mints via `latest/dex/tokens/{addresses}`. Cache TTL = 60s.

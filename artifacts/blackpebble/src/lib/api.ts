@@ -236,6 +236,13 @@ export const api = {
   trending: () => request<{ tokens: TokenInfo[] }>(`/markets/trending`),
   gainers: () => request<{ tokens: TokenInfo[] }>(`/markets/gainers`),
   volume: () => request<{ tokens: TokenInfo[] }>(`/markets/volume`),
+  marketStatus: () =>
+    request<{
+      lastUpdated: number | null;
+      tokenCount: number;
+      pumpportalConnected: boolean;
+      cacheAge: number | null;
+    }>(`/markets/status`),
 
   portfolio: (wallet: string) => request<Portfolio>(`/portfolio/${wallet}`),
   portfolioChart: (wallet: string) =>
