@@ -1,1 +1,3 @@
-- [Guest mode anti-cheat migration](guest-mode-migration.md) — guest→wallet save must re-buy positions via real server execute and NEVER import client trade history/realized P&L (leaderboard exploit).
+- [Leaderboard tier consistency](leaderboard-tier-consistency.md) — tier badges must render the stored all-time graduation_tier, never period-scoped realized_pnl, or tabs disagree with portfolio.
+- [Tier thresholds lockstep](tier-thresholds-lockstep.md) — tier cutoffs are duplicated in api trading.ts and web lib/tiers.ts; changing one without the other silently drifts.
+- [.replit userenv secret leak](replit-userenv-secret-leak.md) — sensitive values placed in env-var scopes get serialized as plaintext into committed .replit; keep secrets as managed Secrets only.

@@ -204,6 +204,7 @@ function PositionTableRow({
               currentUsd={currentUsd}
               trades={trades}
               onNavigate={onNavigate}
+              variant="table"
             />
           </td>
         </tr>
@@ -276,11 +277,14 @@ function PositionCard({
         </button>
       </div>
 
-      {/* Market cap is the headline metric for a memecoin position. */}
+      {/* Market cap is the headline metric for a memecoin position. The
+          collapsed card deliberately shows only the MC block + P&L (in the
+          header) — all the granular fields live in the expanded Position
+          Analytics so nothing is duplicated. */}
       <button
         type="button"
         onClick={onToggle}
-        className="w-full text-left px-4 pb-3 space-y-2"
+        className="w-full text-left px-4 pb-3"
       >
         <div className="border border-border/60 bg-background/40 px-3 py-2">
           <div className="flex items-baseline justify-between gap-2">
@@ -298,17 +302,6 @@ function PositionCard({
             </span>
           </div>
         </div>
-
-        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-          <Field label="Quantity" value={fmtTokenAmount(p.total_tokens)} />
-          <Field label="Value" value={`${fmtSol(p.currentValueSol)} SOL`} />
-          <Field label="Cost" value={`${fmtSol(p.total_sol_spent)} SOL`} />
-          <Field label="Avg Entry" value={fmtPrice(avgEntryUsd)} />
-          <Field
-            label="Current"
-            value={currentUsd != null ? fmtPrice(currentUsd) : "—"}
-          />
-        </div>
       </button>
 
       {open && (
@@ -319,6 +312,7 @@ function PositionCard({
             currentUsd={currentUsd}
             trades={trades}
             onNavigate={onNavigate}
+            variant="card"
           />
         </div>
       )}
@@ -332,40 +326,51 @@ function PositionDetails({
   currentUsd,
   trades,
   onNavigate,
+  variant,
 }: {
   p: Position;
   avgEntryUsd: number;
   currentUsd: number | null;
   trades: Trade[];
   onNavigate: (mint: string) => void;
+  /**
+   * "card" (mobile): the collapsed view shows Market Cap + P&L (P&L lives in
+   * the header), so the analytics grid carries every other field and never
+   * repeats P&L. "table" (desktop): the row already shows
+   * qty/value/cost/avg/current/P&L/MC, so the grid only adds the fields the row
+   * omits (entry MC, opened). Either way, no field is repeated.
+   */
+  variant: "card" | "table";
 }) {
   return (
     <div className="space-y-4 pt-3">
       {/* Position Analytics */}
       <Section title="Position Analytics">
         <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
-          <Field label="Opened" value={timeAgo(p.opened_at) || "—"} />
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-muted-foreground">Market cap change</span>
-            <McChange pct={p.marketCapChangePercent} />
-          </div>
-          <Field label="Entry market cap" value={fmtMarketCap(p.entry_market_cap)} />
-          <Field
-            label="Current market cap"
-            value={fmtMarketCap(p.currentMarketCapUsd)}
-          />
-          <Field label="Avg entry" value={fmtPrice(avgEntryUsd)} />
-          <Field
-            label="Current price"
-            value={currentUsd != null ? fmtPrice(currentUsd) : "—"}
-          />
-          <Field label="Cost basis" value={`${fmtSol(p.total_sol_spent)} SOL`} />
-          <Field label="Position value" value={`${fmtSol(p.currentValueSol)} SOL`} />
-          <Field
-            label="Unrealized P&L"
-            value={`${fmtSol(p.unrealizedPnlSol)} SOL (${fmtPercent(p.unrealizedPnlPercent)})`}
-            cls={pnlColor(p.unrealizedPnlSol)}
-          />
+          {variant === "card" ? (
+            <>
+              <Field label="Quantity" value={fmtTokenAmount(p.total_tokens)} />
+              <Field label="Avg entry" value={fmtPrice(avgEntryUsd)} />
+              <Field
+                label="Current price"
+                value={currentUsd != null ? fmtPrice(currentUsd) : "—"}
+              />
+              <Field label="Cost basis" value={`${fmtSol(p.total_sol_spent)} SOL`} />
+              <Field
+                label="Position value"
+                value={`${fmtSol(p.currentValueSol)} SOL`}
+              />
+              <Field label="Opened" value={timeAgo(p.opened_at) || "—"} />
+            </>
+          ) : (
+            <>
+              <Field
+                label="Entry market cap"
+                value={fmtMarketCap(p.entry_market_cap)}
+              />
+              <Field label="Opened" value={timeAgo(p.opened_at) || "—"} />
+            </>
+          )}
         </div>
       </Section>
 

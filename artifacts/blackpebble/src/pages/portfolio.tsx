@@ -38,12 +38,6 @@ ChartJS.register(
   TimeScale,
 );
 
-/** Display-only tier label: the backend "none" tier reads as "Unranked". */
-function fmtTier(tier: string | null | undefined): string {
-  if (!tier || tier.toLowerCase() === "none") return "Unranked";
-  return tier.charAt(0).toUpperCase() + tier.slice(1);
-}
-
 function Stat({
   label,
   value,

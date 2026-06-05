@@ -714,7 +714,8 @@ function TradePanel({ info }: { info: TokenInfo }) {
           <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
           BlackPebble simulates slippage from each token's available liquidity, so
           larger orders fill at a worse price — just like a real swap. Trades above
-          20% of liquidity are blocked.
+          20% of liquidity, or that would leave you holding more than 4% of a
+          token's supply, are blocked.
         </p>
 
         {position && (

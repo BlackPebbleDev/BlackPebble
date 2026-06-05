@@ -211,6 +211,7 @@ export interface LeaderboardEntry {
   win_rate: number;
   total_closed_trades: number;
   best_trade: number;
+  graduation_tier: string;
   created_at: number;
   updated_at: number;
 }

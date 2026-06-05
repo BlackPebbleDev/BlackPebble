@@ -784,6 +784,33 @@ export async function getTradeQuote(opts: {
   }
   const { priceUsd, solUsd, liquidityUsd, marketCapUsd } = px;
 
+  // Defensive: stale/garbage feed data must not feed NaN/Infinity into the
+  // preview math below (token/SOL estimates divide by price and solUsd). The
+  // execute path already rejects non-finite/non-positive prices; mirror that
+  // here so the preview fails loudly instead of rendering nonsense.
+  if (
+    !Number.isFinite(priceUsd) ||
+    priceUsd <= 0 ||
+    !Number.isFinite(solUsd) ||
+    solUsd <= 0
+  ) {
+    return {
+      ok: false,
+      error: "Price data unavailable.",
+      side,
+      rawPriceUsd: 0,
+      effectivePriceUsd: 0,
+      slippagePercent: 0,
+      tradeImpactPercent: 0,
+      liquidityUsd: Number.isFinite(liquidityUsd) ? (liquidityUsd ?? 0) : 0,
+      solUsd: Number.isFinite(solUsd) && solUsd > 0 ? solUsd : 0,
+      tradeUsdValue: 0,
+      warningLevel: "none",
+      estimatedTokens: null,
+      estimatedSol: null,
+    };
+  }
+
   // Resolve the trade's USD value from the requested order.
   let tradeUsdValue: number;
   if (side === "buy") {
@@ -1031,6 +1058,7 @@ export interface LeaderboardEntry {
   win_rate: number;
   total_closed_trades: number;
   best_trade: number;
+  graduation_tier: string;
   created_at: number;
   updated_at: number;
 }
@@ -1071,6 +1099,7 @@ export async function getLeaderboard(
     best_trade: number;
     cost_basis: number;
     updated_at: number;
+    graduation_tier: string;
     x_username: string | null;
     x_avatar_url: string | null;
     x_display_name: string | null;
@@ -1079,6 +1108,7 @@ export async function getLeaderboard(
        SELECT
          a.wallet AS wallet,
          a.created_at AS created_at,
+         a.graduation_tier AS graduation_tier,
          COUNT(*) AS total_closed_trades,
          COALESCE(SUM(CASE WHEN t.pnl > 0 THEN 1 ELSE 0 END), 0) AS winning_trades,
          COALESCE(SUM(t.pnl), 0) AS realized_pnl,
@@ -1094,7 +1124,7 @@ export async function getLeaderboard(
            ELSE COALESCE(a.last_reset_at, 0)
          END
          AND a.created_at <= $2
-       GROUP BY a.wallet
+       GROUP BY a.wallet, a.graduation_tier
        HAVING COUNT(*) >= $3
      ),
      ident AS (
@@ -1113,6 +1143,7 @@ export async function getLeaderboard(
      SELECT
        agg.wallet AS wallet,
        agg.created_at AS created_at,
+       agg.graduation_tier AS graduation_tier,
        agg.total_closed_trades AS total_closed_trades,
        agg.winning_trades AS winning_trades,
        agg.realized_pnl AS realized_pnl,
@@ -1143,6 +1174,7 @@ export async function getLeaderboard(
         : 0,
     total_closed_trades: r.total_closed_trades,
     best_trade: r.best_trade > 0 ? r.best_trade : 0,
+    graduation_tier: r.graduation_tier ?? "Unranked",
     created_at: r.created_at,
     updated_at: r.updated_at,
   }));

@@ -4,6 +4,7 @@ import { Trophy, Loader2 } from "lucide-react";
 import { useAccount } from "@/hooks/use-account";
 import { api, type LeaderboardPeriod, type LeaderboardEntry } from "@/lib/api";
 import { fmtSol, fmtPercent, shortAddr } from "@/lib/format";
+import { TierBadge } from "@/components/tier-badge";
 import { cn } from "@/lib/utils";
 
 const tabs: { id: LeaderboardPeriod; label: string }[] = [
@@ -133,6 +134,7 @@ export default function Leaderboard() {
               <tr className="text-left text-muted-foreground border-b border-border">
                 <th className="font-medium px-4 py-3 w-16">Rank</th>
                 <th className="font-medium px-4 py-3">Trader</th>
+                <th className="font-medium px-4 py-3 hidden sm:table-cell">Tier</th>
                 <th className="font-medium px-4 py-3 text-right">P&L</th>
                 <th className="font-medium px-4 py-3 text-right">ROI</th>
                 <th className="font-medium px-4 py-3 text-right hidden sm:table-cell">
@@ -168,6 +170,9 @@ export default function Leaderboard() {
                           You
                         </span>
                       )}
+                    </td>
+                    <td className="px-4 py-3 hidden sm:table-cell">
+                      <TierBadge tier={e.graduation_tier} size="sm" />
                     </td>
                     <td
                       className={cn(
