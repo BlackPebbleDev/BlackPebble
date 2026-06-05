@@ -192,12 +192,12 @@ export function SupportSection({
             <span>
               Founder:{" "}
               <a
-                href="https://x.com/trevorrenaud"
+                href="https://x.com/pumpgunna"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-foreground hover:text-accent transition-colors underline underline-offset-2"
               >
-                @trevorrenaud
+                @pumpgunna
               </a>
             </span>
           </div>
