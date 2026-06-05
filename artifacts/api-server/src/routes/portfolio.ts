@@ -98,7 +98,10 @@ router.get(
       realizedPnlSol,
       unrealizedPnlSol: portfolio.unrealizedPnlSol,
       roiPercent: roi,
-      totalTrades: cs.closedTrades,
+      // Two distinct counts so the UI can be unambiguous:
+      // executions = every buy/sell action; closedTrades = realized exits.
+      totalExecutions: cs.executions,
+      closedTrades: cs.closedTrades,
       winningTrades: cs.winningTrades,
       winRate: cs.winRate,
       bestTrade: cs.bestTrade,

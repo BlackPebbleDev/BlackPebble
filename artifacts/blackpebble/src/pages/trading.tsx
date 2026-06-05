@@ -23,6 +23,8 @@ import {
 } from "lucide-react";
 import { api, type TokenInfo, type Trade, type TradeQuote } from "@/lib/api";
 import { LiveIndicator } from "@/components/live-indicator";
+import { TradeList } from "@/components/trade-list";
+import { OpenPositions } from "@/components/open-positions";
 import { useAccount } from "@/hooks/use-account";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -244,57 +246,16 @@ function RecentPaperTrades() {
           {isLive ? "Live" : "Idle"}
         </span>
       </div>
-      <div className="max-h-[300px] overflow-y-auto divide-y divide-border/50">
+      <div className="max-h-[340px] overflow-y-auto">
         {!wallet ? (
           <div className="px-4 py-8 text-center text-muted-foreground text-sm">
             Connect your wallet to see your paper trades.
           </div>
-        ) : trades.length === 0 ? (
-          <div className="px-4 py-8 text-center text-muted-foreground text-sm">
-            No paper trades yet. Buy or sell a token to see it here.
-          </div>
         ) : (
-          trades.map((t: Trade) => {
-            const isBuy = t.side === "buy";
-            const sym = t.token_symbol ?? shortAddr(t.token_mint);
-            return (
-              <div
-                key={t.id}
-                className="px-4 py-2.5 flex items-center justify-between gap-2 text-xs"
-              >
-                <span
-                  className={cn(
-                    "flex items-center gap-1.5 font-medium shrink-0",
-                    isBuy ? "text-emerald-400" : "text-red-400",
-                  )}
-                >
-                  {isBuy ? (
-                    <ArrowUpRight className="w-3.5 h-3.5" />
-                  ) : (
-                    <ArrowDownRight className="w-3.5 h-3.5" />
-                  )}
-                  {isBuy ? "Bought" : "Sold"}
-                </span>
-                <span className="font-medium text-foreground truncate flex-1 min-w-0">
-                  {sym}
-                </span>
-                <span className="font-mono text-muted-foreground hidden sm:inline whitespace-nowrap">
-                  {isBuy
-                    ? `${fmtSol(t.sol_amount, 2)} SOL → ${fmtTokenAmount(t.token_amount)}`
-                    : `${fmtTokenAmount(t.token_amount)} → ${fmtSol(t.sol_amount, 2)} SOL`}
-                </span>
-                {!isBuy && t.pnl != null && (
-                  <span className={cn("font-mono shrink-0", pnlColor(t.pnl))}>
-                    {t.pnl >= 0 ? "+" : ""}
-                    {fmtSol(t.pnl, 2)}
-                  </span>
-                )}
-                <span className="text-muted-foreground shrink-0 whitespace-nowrap">
-                  {timeAgo(t.executed_at)}
-                </span>
-              </div>
-            );
-          })
+          <TradeList
+            trades={trades}
+            empty="No paper trades yet. Buy or sell a token to see it here."
+          />
         )}
       </div>
     </div>
@@ -778,6 +739,7 @@ function WatchButton({ info }: { info: TokenInfo }) {
 
 function ActivityTabs() {
   const { wallet } = useAccount();
+  const navigate = useNavigate();
   const [tab, setTab] = useState<"positions" | "history" | "watchlist">(
     "positions",
   );
@@ -827,58 +789,38 @@ function ActivityTabs() {
         ))}
       </div>
 
-      <div className="overflow-x-auto">
+      <div className={cn(tab === "positions" && "p-3 md:p-0")}>
         {tab === "positions" && (
-          <ActivityTable
+          <OpenPositions
+            positions={posData?.positions ?? []}
+            solUsd={posData?.solUsd ?? 0}
             empty="No open positions."
-            rows={(posData?.positions ?? []).map((p) => ({
-              key: String(p.id),
-              mint: p.token_mint,
-              symbol: p.token_symbol ?? shortAddr(p.token_mint),
-              name: p.token_name,
-              cols: [
-                fmtSol(p.currentValueSol),
-                fmtSol(p.total_sol_spent),
-                { value: fmtSol(p.unrealizedPnlSol), cls: pnlColor(p.unrealizedPnlSol) },
-                { value: fmtPercent(p.unrealizedPnlPercent), cls: pnlColor(p.unrealizedPnlPercent) },
-              ],
-            }))}
-            headers={["Token", "Value", "Cost", "P&L", "%"]}
+            onNavigate={(mint) => navigate(`/?token=${mint}`)}
           />
         )}
         {tab === "history" && (
-          <ActivityTable
+          <TradeList
+            trades={histData?.trades ?? []}
             empty="No trade history yet."
-            rows={(histData?.trades ?? []).map((t) => ({
-              key: String(t.id),
-              mint: t.token_mint,
-              symbol: t.token_symbol ?? shortAddr(t.token_mint),
-              name: timeAgo(t.executed_at),
-              cols: [
-                { value: t.side.toUpperCase(), cls: t.side === "buy" ? "text-emerald-400" : "text-red-400" },
-                `${fmtSol(t.sol_amount)} SOL`,
-                fmtTokenAmount(t.token_amount),
-                t.pnl != null ? { value: fmtSol(t.pnl), cls: pnlColor(t.pnl) } : "—",
-              ],
-            }))}
-            headers={["Token", "Side", "SOL", "Tokens", "P&L"]}
           />
         )}
         {tab === "watchlist" && (
-          <ActivityTable
-            empty="Your watchlist is empty."
-            rows={(watchData?.watchlist ?? []).map((w) => ({
-              key: w.mint,
-              mint: w.mint,
-              symbol: w.symbol ?? shortAddr(w.mint),
-              name: w.name,
-              cols: [
-                fmtPrice(w.priceUsd),
-                { value: fmtPercent(w.priceChange24h), cls: pnlColor(w.priceChange24h) },
-              ],
-            }))}
-            headers={["Token", "Price", "24h"]}
-          />
+          <div className="overflow-x-auto">
+            <ActivityTable
+              empty="Your watchlist is empty."
+              rows={(watchData?.watchlist ?? []).map((w) => ({
+                key: w.mint,
+                mint: w.mint,
+                symbol: w.symbol ?? shortAddr(w.mint),
+                name: w.name,
+                cols: [
+                  fmtPrice(w.priceUsd),
+                  { value: fmtPercent(w.priceChange24h), cls: pnlColor(w.priceChange24h) },
+                ],
+              }))}
+              headers={["Token", "Price", "24h"]}
+            />
+          </div>
         )}
       </div>
     </div>

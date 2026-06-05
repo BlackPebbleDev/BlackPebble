@@ -788,11 +788,19 @@ export function getHistory(wallet: string, limit = 100) {
 }
 
 export interface ClosedTradeStats {
+  /** Number of CLOSED trades (sell executions) since the last reset. */
   closedTrades: number;
+  /** All buy + sell executions since the last reset. */
+  executions: number;
   winningTrades: number;
   winRate: number;
   realizedPnl: number;
-  bestTrade: number;
+  /**
+   * Largest positive realized pnl, or null when there are no winning closed
+   * trades. Null is meaningful: the UI distinguishes "no winners yet" from
+   * "no closed trades yet" — it must never render a misleading 0.00.
+   */
+  bestTrade: number | null;
   worstTrade: number;
 }
 
@@ -807,8 +815,9 @@ export interface ClosedTradeStats {
  * make Total PnL (realized + unrealized) disagree with the equity-based ROI.
  *
  * - closedTrades: number of sell executions — a buy alone is NOT a closed trade
+ * - executions:   every buy + sell action since the last reset
  * - winRate:      winning sells / closed sells * 100
- * - bestTrade:    largest positive realized pnl, or 0 when there are no wins
+ * - bestTrade:    largest positive realized pnl, or null when there are no wins
  * - worstTrade:   most negative realized pnl, or 0 when there are no losses
  */
 export function getClosedTradeStats(wallet: string): ClosedTradeStats {
@@ -836,13 +845,25 @@ export function getClosedTradeStats(wallet: string): ClosedTradeStats {
     minPnl: number;
   };
 
+  // All executions (buys + sells) over the same post-reset window.
+  const executions = (
+    db
+      .prepare(
+        "SELECT COUNT(*) AS c FROM trades WHERE wallet = ? AND executed_at > ?",
+      )
+      .get(wallet, since) as { c: number }
+  ).c;
+
   const closedTrades = row.closedTrades;
   return {
     closedTrades,
+    executions,
     winningTrades: row.winningTrades,
     winRate: closedTrades > 0 ? (row.winningTrades / closedTrades) * 100 : 0,
     realizedPnl: row.realizedPnl,
-    bestTrade: row.maxPnl > 0 ? row.maxPnl : 0,
+    // null (not 0) when there is no winning closed trade, so the UI can show
+    // "No winning trades yet" instead of a misleading 0.00 SOL.
+    bestTrade: row.maxPnl > 0 ? row.maxPnl : null,
     worstTrade: row.minPnl < 0 ? row.minPnl : 0,
   };
 }

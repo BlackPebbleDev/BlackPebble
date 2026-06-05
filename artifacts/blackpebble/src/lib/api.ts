@@ -144,10 +144,14 @@ export interface PortfolioStats {
   realizedPnlSol: number;
   unrealizedPnlSol: number;
   roiPercent: number;
-  totalTrades: number;
+  /** Every buy + sell action (post-reset). */
+  totalExecutions: number;
+  /** Realized position exits (sell trades, post-reset). */
+  closedTrades: number;
   winningTrades: number;
   winRate: number;
-  bestTrade: number;
+  /** Largest winning trade, or null when there are no winning closed trades. */
+  bestTrade: number | null;
   worstTrade: number;
   currentStreak: number;
   participationPoints: number;

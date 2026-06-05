@@ -14,15 +14,9 @@ import {
 } from "chart.js";
 import { Wallet, Loader2 } from "lucide-react";
 import { useAccount } from "@/hooks/use-account";
-import { api } from "@/lib/api";
-import {
-  fmtSol,
-  fmtUsd,
-  fmtPercent,
-  fmtPrice,
-  pnlColor,
-  shortAddr,
-} from "@/lib/format";
+import { api, type PortfolioStats } from "@/lib/api";
+import { OpenPositions } from "@/components/open-positions";
+import { fmtSol, fmtUsd, fmtPercent, pnlColor } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 ChartJS.register(
@@ -50,6 +44,35 @@ function Stat({
         {label}
       </div>
       <div className={cn("text-lg font-mono", className)}>{value}</div>
+    </div>
+  );
+}
+
+/**
+ * Best Trade is tri-state so it never shows a misleading 0.00:
+ *  - a winning closed trade exists  → show the SOL amount (green)
+ *  - closed trades exist but none won → "No winning trades yet"
+ *  - no closed trades at all          → "No closed trades yet"
+ */
+function BestTradeStat({ stats }: { stats?: PortfolioStats }) {
+  if (stats?.bestTrade != null) {
+    return (
+      <Stat
+        label="Best Trade"
+        value={`+${fmtSol(stats.bestTrade)} SOL`}
+        className="text-emerald-400"
+      />
+    );
+  }
+  const hasClosed = (stats?.closedTrades ?? 0) > 0;
+  return (
+    <div className="border border-border bg-card px-4 py-3">
+      <div className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1">
+        Best Trade
+      </div>
+      <div className="text-sm text-muted-foreground">
+        {hasClosed ? "No winning trades yet" : "No closed trades yet"}
+      </div>
     </div>
   );
 }
@@ -149,16 +172,19 @@ export default function Portfolio() {
               value={fmtPercent(stats?.roiPercent)}
               className={pnlColor(stats?.roiPercent)}
             />
-            <Stat label="Total Trades" value={String(stats?.totalTrades ?? 0)} />
+            <Stat
+              label="Executions"
+              value={String(stats?.totalExecutions ?? 0)}
+            />
+            <Stat
+              label="Closed Trades"
+              value={String(stats?.closedTrades ?? 0)}
+            />
             <Stat
               label="Win Rate"
               value={`${(stats?.winRate ?? 0).toFixed(1)}%`}
             />
-            <Stat
-              label="Best Trade"
-              value={`${fmtSol(stats?.bestTrade)} SOL`}
-              className={pnlColor(stats?.bestTrade)}
-            />
+            <BestTradeStat stats={stats} />
             <Stat label="Tier" value={stats?.graduationTier ?? "—"} />
           </div>
 
@@ -191,70 +217,15 @@ export default function Portfolio() {
           <h2 className="text-lg font-semibold mb-3">
             Open Positions ({positions.length})
           </h2>
-          {positions.length === 0 ? (
-            <div className="border border-border bg-card text-center py-12 text-muted-foreground text-sm">
-              No open positions. Head to the Trading Desk to start.
-            </div>
-          ) : (
-            <div className="border border-border bg-card overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-muted-foreground border-b border-border">
-                    <th className="font-medium px-4 py-3">Token</th>
-                    <th className="font-medium px-4 py-3 text-right">Value</th>
-                    <th className="font-medium px-4 py-3 text-right hidden sm:table-cell">
-                      Cost
-                    </th>
-                    <th className="font-medium px-4 py-3 text-right">P&L</th>
-                    <th className="font-medium px-4 py-3 text-right">%</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {positions.map((p) => (
-                    <tr
-                      key={p.id}
-                      onClick={() => navigate(`/?token=${p.token_mint}`)}
-                      data-testid={`row-position-${p.token_mint}`}
-                      className="border-b border-border/50 last:border-0 hover:bg-accent/5 cursor-pointer transition-colors"
-                    >
-                      <td className="px-4 py-3">
-                        <div className="text-foreground font-medium">
-                          {p.token_symbol ?? shortAddr(p.token_mint)}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {p.token_name ?? ""}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-right font-mono">
-                        {fmtSol(p.currentValueSol)}
-                      </td>
-                      <td className="px-4 py-3 text-right font-mono hidden sm:table-cell">
-                        {fmtSol(p.total_sol_spent)}
-                      </td>
-                      <td
-                        className={cn(
-                          "px-4 py-3 text-right font-mono",
-                          pnlColor(p.unrealizedPnlSol),
-                        )}
-                      >
-                        {fmtSol(p.unrealizedPnlSol)}
-                      </td>
-                      <td
-                        className={cn(
-                          "px-4 py-3 text-right font-mono",
-                          pnlColor(p.unrealizedPnlPercent),
-                        )}
-                      >
-                        {fmtPercent(p.unrealizedPnlPercent)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <OpenPositions
+            positions={positions}
+            solUsd={portfolio?.solUsd ?? 0}
+            empty="No open positions. Head to the Trading Desk to start."
+            onNavigate={(mint) => navigate(`/?token=${mint}`)}
+          />
         </>
       )}
     </div>
   );
 }
+

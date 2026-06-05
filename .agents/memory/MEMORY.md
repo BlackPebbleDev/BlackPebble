@@ -1,1 +1,2 @@
-- [Slippage simulation model](blackpebble-slippage.md) — liquidity-impact slippage is the single anti-farming lever; quote and execution MUST share one engine or fills diverge from previews.
+- [Trade count semantics](blackpebble-trade-stats.md) — BlackPebble: "executions" (all buy+sell) vs "closedTrades" (sells only); bestTrade is null (never 0) when no winner.
+- [Dev env conventions](blackpebble-dev-conventions.md) — BlackPebble SQLite path, api-server route shape, curl base URL.
