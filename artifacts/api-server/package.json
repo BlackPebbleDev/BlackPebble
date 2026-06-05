@@ -18,6 +18,7 @@
     "cors": "^2.8.6",
     "drizzle-orm": "catalog:",
     "express": "^5.2.1",
+    "jose": "^6.2.3",
     "node-cron": "^4.2.1",
     "pg": "^8.20.0",
     "pino": "^9.14.0",
