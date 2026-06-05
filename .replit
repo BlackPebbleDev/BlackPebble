@@ -43,15 +43,9 @@ MINIMUM_BLK_BALANCE = "100000"
 FUND_WALLET_ADDRESS = ""
 
 [userenv.development]
-X_CLIENT_ID = "OHAtWExqQmY3R2lmYXZnZHFST2s6MTpjaQ"
-X_CLIENT_SECRET = "9C6hSbKf7SiSTBx6bwyQlFHEPqUmgOhgy29RRcOLOuGhVZyd5U"
-JWT_SECRET = "_Pwv_MZ5DjX2FEwykyPqLZ4gNYEOw8U-YwC3p5wcrmedok9a_6HryZgtLFsIdqqn"
 FRONTEND_URL = "https://blackpebble.fun"
 
 [userenv.production]
-X_CLIENT_ID = "OHAtWExqQmY3R2lmYXZnZHFST2s6MTpjaQ"
-X_CLIENT_SECRET = "9C6hSbKf7SiSTBx6bwyQlFHEPqUmgOhgy29RRcOLOuGhVZyd5U"
-JWT_SECRET = "_Pwv_MZ5DjX2FEwykyPqLZ4gNYEOw8U-YwC3p5wcrmedok9a_6HryZgtLFsIdqqn"
 FRONTEND_URL = "https://blackpebble.fun"
 
 [nix]
