@@ -12,6 +12,17 @@ export const MAX_POINTS_PER_DAY = 5;
 export const RESET_THRESHOLD = 1.0; // balance below this allows a reset
 export const RESET_COOLDOWN_DAYS = 7;
 
+// --- Leaderboard anti-cheat thresholds ---
+// A trader must have at least this many CLOSED (sell) trades before they appear
+// on any leaderboard, so a single lucky trade cannot top the rankings.
+export const MIN_LEADERBOARD_TRADES = 5;
+// An account must be at least this old before it can be ranked, to blunt
+// throwaway-account farming.
+export const MIN_ACCOUNT_AGE_SECONDS = 60 * 60; // 1 hour
+// Identical trades submitted within this window are treated as an accidental
+// double-submit and rejected (idempotency guard).
+export const DUPLICATE_WINDOW_SECONDS = 2;
+
 export interface AccountRow {
   wallet: string;
   paper_balance: number;
@@ -217,6 +228,11 @@ export async function executeBuy(
     return { ok: false, error: "Price data unavailable. Trade not executed." };
   }
   const { priceSol, priceUsd, solUsd, source, pair } = px;
+  // Never trade on a non-finite or non-positive price — a bad upstream feed
+  // could otherwise produce NaN/Infinity/zero token amounts and poison stats.
+  if (![priceSol, priceUsd, solUsd].every((v) => Number.isFinite(v) && v > 0)) {
+    return { ok: false, error: "Price data unavailable. Trade not executed." };
+  }
   const price = priceSol;
 
   // Quantity is computed from the trusted USD price, never market cap / FDV /
@@ -252,6 +268,22 @@ export async function executeBuy(
       .get(wallet) as { paper_balance: number } | undefined;
     if (!acct || acct.paper_balance < solAmount) {
       return { ok: false, error: "Insufficient paper balance" };
+    }
+
+    // Idempotency guard: reject an identical buy submitted within the dedupe
+    // window (accidental double-click / double-submit).
+    const dup = db
+      .prepare(
+        `SELECT 1 FROM trades
+         WHERE wallet = ? AND token_mint = ? AND side = 'buy'
+           AND sol_amount = ? AND executed_at >= ? LIMIT 1`,
+      )
+      .get(wallet, mint, solAmount, now - DUPLICATE_WINDOW_SECONDS);
+    if (dup) {
+      return {
+        ok: false,
+        error: "Duplicate trade ignored. Please wait a moment before retrying.",
+      };
     }
 
     const existing = db
@@ -353,6 +385,11 @@ export async function executeSell(
     return { ok: false, error: "Price data unavailable. Trade not executed." };
   }
   const { priceSol, priceUsd, solUsd, source, pair } = px;
+  // Never trade on a non-finite or non-positive price — a bad upstream feed
+  // could otherwise produce NaN/Infinity/zero proceeds and poison stats.
+  if (![priceSol, priceUsd, solUsd].every((v) => Number.isFinite(v) && v > 0)) {
+    return { ok: false, error: "Price data unavailable. Trade not executed." };
+  }
   const price = priceSol;
 
   const now = Math.floor(Date.now() / 1000);
@@ -382,6 +419,28 @@ export async function executeSell(
     }
     if (tokenAmount > position.total_tokens * 1.0000001) {
       return { ok: false, error: "Cannot sell more than held" };
+    }
+
+    // Idempotency guard: reject an identical sell submitted within the dedupe
+    // window (accidental double-click / double-submit).
+    const dup = db
+      .prepare(
+        `SELECT 1 FROM trades
+         WHERE wallet = ? AND token_mint = ? AND side = 'sell'
+           AND executed_at >= ? AND ABS(token_amount - ?) <= ? LIMIT 1`,
+      )
+      .get(
+        wallet,
+        mint,
+        now - DUPLICATE_WINDOW_SECONDS,
+        tokenAmount,
+        Math.max(tokenAmount * 1e-6, 1e-9),
+      );
+    if (dup) {
+      return {
+        ok: false,
+        error: "Duplicate trade ignored. Please wait a moment before retrying.",
+      };
     }
 
     const solReceived = tokenAmount * price * SLIPPAGE;
@@ -572,4 +631,141 @@ export function getClosedTradeStats(wallet: string): ClosedTradeStats {
     bestTrade: row.maxPnl > 0 ? row.maxPnl : 0,
     worstTrade: row.minPnl < 0 ? row.minPnl : 0,
   };
+}
+
+export type LeaderboardPeriod = "daily" | "weekly" | "all";
+
+export interface LeaderboardEntry {
+  rank: number;
+  wallet: string;
+  x_username: string | null;
+  x_avatar_url: string | null;
+  x_display_name: string | null;
+  realized_pnl: number;
+  roi: number;
+  win_rate: number;
+  total_closed_trades: number;
+  best_trade: number;
+  created_at: number;
+  updated_at: number;
+}
+
+/**
+ * Server-authoritative leaderboard, computed entirely from the immutable
+ * `trades` table — never from any client-supplied figure. Anti-cheat rules:
+ *
+ * - Only CLOSED trades count (sell rows that carry a realized pnl). Open
+ *   positions are ignored so unrealized paper gains cannot inflate a rank.
+ * - A wallet needs at least MIN_LEADERBOARD_TRADES closed trades to appear.
+ * - The account must be at least MIN_ACCOUNT_AGE_SECONDS old to be ranked.
+ * - Trades before a wallet's last account reset are excluded, so a reset wipes
+ *   the slate (you cannot bank gains then reset to dodge later losses).
+ * - ROI is realized pnl over the actual SOL cost basis of the closed trades in
+ *   the period (guarded against divide-by-zero), not a self-reported number.
+ */
+export function getLeaderboard(
+  period: LeaderboardPeriod,
+  limit = 100,
+): LeaderboardEntry[] {
+  const now = Math.floor(Date.now() / 1000);
+  let periodStart = 0;
+  if (period === "daily") periodStart = now - 86_400;
+  else if (period === "weekly") periodStart = now - 7 * 86_400;
+
+  const maxCreatedAt = now - MIN_ACCOUNT_AGE_SECONDS;
+
+  // The trade aggregation and the identity lookup are kept in separate CTEs and
+  // joined last, so a wallet/user that happens to have multiple identity rows
+  // can never duplicate or skew the per-wallet trade aggregates.
+  const rows = db
+    .prepare(
+      `WITH agg AS (
+         SELECT
+           a.wallet AS wallet,
+           a.created_at AS created_at,
+           COUNT(*) AS total_closed_trades,
+           COALESCE(SUM(CASE WHEN t.pnl > 0 THEN 1 ELSE 0 END), 0) AS winning_trades,
+           COALESCE(SUM(t.pnl), 0) AS realized_pnl,
+           COALESCE(MAX(t.pnl), 0) AS best_trade,
+           COALESCE(SUM(t.sol_amount - t.pnl), 0) AS cost_basis,
+           COALESCE(MAX(t.executed_at), 0) AS updated_at
+         FROM accounts a
+         JOIN trades t ON t.wallet = a.wallet
+         WHERE t.side = 'sell'
+           AND t.pnl IS NOT NULL
+           AND t.executed_at > CASE
+             WHEN ? > COALESCE(a.last_reset_at, 0) THEN ?
+             ELSE COALESCE(a.last_reset_at, 0)
+           END
+           AND a.created_at <= ?
+         GROUP BY a.wallet
+         HAVING COUNT(*) >= ?
+       ),
+       ident AS (
+         SELECT
+           wi.wallet_address AS wallet,
+           MAX(xi.x_username) AS x_username,
+           MAX(u.avatar_url) AS x_avatar_url,
+           MAX(u.display_name) AS x_display_name
+         FROM user_identities wi
+         JOIN users u ON u.id = wi.user_id
+         LEFT JOIN user_identities xi
+           ON xi.user_id = wi.user_id AND xi.provider = 'x'
+         WHERE wi.provider = 'wallet'
+         GROUP BY wi.wallet_address
+       )
+       SELECT
+         agg.wallet AS wallet,
+         agg.created_at AS created_at,
+         agg.total_closed_trades AS total_closed_trades,
+         agg.winning_trades AS winning_trades,
+         agg.realized_pnl AS realized_pnl,
+         agg.best_trade AS best_trade,
+         agg.cost_basis AS cost_basis,
+         agg.updated_at AS updated_at,
+         ident.x_username AS x_username,
+         ident.x_avatar_url AS x_avatar_url,
+         ident.x_display_name AS x_display_name
+       FROM agg
+       LEFT JOIN ident ON ident.wallet = agg.wallet
+       ORDER BY agg.realized_pnl DESC
+       LIMIT ?`,
+    )
+    .all(
+      periodStart,
+      periodStart,
+      maxCreatedAt,
+      MIN_LEADERBOARD_TRADES,
+      limit,
+    ) as Array<{
+    wallet: string;
+    created_at: number;
+    total_closed_trades: number;
+    winning_trades: number;
+    realized_pnl: number;
+    best_trade: number;
+    cost_basis: number;
+    updated_at: number;
+    x_username: string | null;
+    x_avatar_url: string | null;
+    x_display_name: string | null;
+  }>;
+
+  return rows.map((r, i) => ({
+    rank: i + 1,
+    wallet: r.wallet,
+    x_username: r.x_username ?? null,
+    x_avatar_url: r.x_avatar_url ?? null,
+    x_display_name: r.x_display_name ?? null,
+    realized_pnl: r.realized_pnl,
+    roi: r.cost_basis > 0 ? (r.realized_pnl / r.cost_basis) * 100 : 0,
+    win_rate:
+      r.total_closed_trades > 0
+        ? (r.winning_trades / r.total_closed_trades) * 100
+        : 0,
+    total_closed_trades: r.total_closed_trades,
+    best_trade: r.best_trade > 0 ? r.best_trade : 0,
+    created_at: r.created_at,
+    updated_at: r.updated_at,
+  }));
 }

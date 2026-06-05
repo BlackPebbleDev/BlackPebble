@@ -164,6 +164,29 @@ export interface WatchItem {
   priceChange24h: number | null;
 }
 
+export type LeaderboardPeriod = "daily" | "weekly" | "all";
+
+export interface LeaderboardEntry {
+  rank: number;
+  wallet: string;
+  x_username: string | null;
+  x_avatar_url: string | null;
+  x_display_name: string | null;
+  realized_pnl: number;
+  roi: number;
+  win_rate: number;
+  total_closed_trades: number;
+  best_trade: number;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface LeaderboardResponse {
+  period: LeaderboardPeriod;
+  minTrades: number;
+  entries: LeaderboardEntry[];
+}
+
 export interface ExecuteResult {
   ok: boolean;
   error?: string;
@@ -251,4 +274,7 @@ export const api = {
     ),
   portfolioStats: (wallet: string) =>
     request<PortfolioStats>(`/portfolio/stats/${wallet}`),
+
+  leaderboard: (period: LeaderboardPeriod) =>
+    request<LeaderboardResponse>(`/leaderboard?period=${period}`),
 };

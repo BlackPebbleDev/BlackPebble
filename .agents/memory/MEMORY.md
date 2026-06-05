@@ -1,1 +1,2 @@
 - [Trade execution pricing](blackpebble-trade-pricing.md) — anchor trade qty on trusted USD price via getExecutionPrice, never bonding-first; the only stale vector is the SOL/USD last-known fallback.
+- [Leaderboard anti-cheat](blackpebble-leaderboard.md) — server recomputes ranks from trades table (closed sells only, min 5 trades, 1h age, post-reset floor); two-CTE join avoids identity-row aggregate inflation.
