@@ -1,2 +1,1 @@
-- [BlackPebble portfolio stats](blackpebble-portfolio-stats.md) — derive stats from `trades` table (sells w/ pnl, after last_reset_at), never account counter columns.
-- [BlackPebble dev feed throttle](blackpebble-dev-feed-throttle.md) — pumpportal feeds throttled only in dev (NODE_ENV!=production); trade throttle must be per-mint.
+- [Trade execution pricing](blackpebble-trade-pricing.md) — anchor trade qty on trusted USD price via getExecutionPrice, never bonding-first; the only stale vector is the SOL/USD last-known fallback.

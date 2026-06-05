@@ -1,5 +1,8 @@
 import db from "./database.js";
-import { getTokenPriceSol, getSolPriceUsd } from "./prices.js";
+import { getTokenPriceSol, getSolPriceUsd, getExecutionPrice } from "./prices.js";
+import { logger } from "./logger.js";
+
+const DEV = process.env.NODE_ENV !== "production";
 
 export const STARTING_BALANCE = 100.0;
 export const MIN_TRADE_SOL = 0.1;
@@ -209,13 +212,37 @@ export async function executeBuy(
   }
   ensureAccount(wallet);
 
-  const price = await getTokenPriceSol(mint);
-  if (price == null || price <= 0) {
-    return { ok: false, error: "Unable to fetch a current price for this token" };
+  const px = await getExecutionPrice(mint);
+  if (!px) {
+    return { ok: false, error: "Price data unavailable. Trade not executed." };
   }
+  const { priceSol, priceUsd, solUsd, source, pair } = px;
+  const price = priceSol;
 
-  const tokensReceived = (solAmount / price) * SLIPPAGE;
+  // Quantity is computed from the trusted USD price, never market cap / FDV /
+  // formatted values: USD spent / USD token price. Full precision is kept here;
+  // values are only rounded for display in the UI.
+  const amountInUsd = solAmount * solUsd;
+  const tokensReceived = (amountInUsd / priceUsd) * SLIPPAGE;
   const now = Math.floor(Date.now() / 1000);
+
+  if (DEV) {
+    logger.debug(
+      {
+        side: "buy",
+        mint,
+        solSpent: solAmount,
+        solUsd,
+        tokenPriceUsd: priceUsd,
+        tokenPriceSol: priceSol,
+        amountInUsd,
+        tokenQuantity: tokensReceived,
+        source,
+        pair,
+      },
+      "[trade-debug] buy execution",
+    );
+  }
 
   // All reads and writes happen inside a single synchronous transaction so
   // concurrent requests cannot overspend the balance or exceed position limits.
@@ -321,10 +348,12 @@ export async function executeSell(
     return { ok: false, error: "Specify tokenAmount or percent" };
   }
 
-  const price = await getTokenPriceSol(mint);
-  if (price == null || price <= 0) {
-    return { ok: false, error: "Unable to fetch a current price for this token" };
+  const px = await getExecutionPrice(mint);
+  if (!px) {
+    return { ok: false, error: "Price data unavailable. Trade not executed." };
   }
+  const { priceSol, priceUsd, solUsd, source, pair } = px;
+  const price = priceSol;
 
   const now = Math.floor(Date.now() / 1000);
 
@@ -430,6 +459,23 @@ export async function executeSell(
   recordParticipation(wallet);
 
   const updated = getAccount(wallet)!;
+  if (DEV && result.trade) {
+    logger.debug(
+      {
+        side: "sell",
+        mint,
+        tokenQuantity: result.trade.tokenAmount,
+        solReceived: result.trade.solAmount,
+        tokenPriceUsd: priceUsd,
+        tokenPriceSol: priceSol,
+        solUsd,
+        pnl: result.trade.pnl,
+        source,
+        pair,
+      },
+      "[trade-debug] sell execution",
+    );
+  }
   return { ...result, balance: updated.paper_balance };
 }
 

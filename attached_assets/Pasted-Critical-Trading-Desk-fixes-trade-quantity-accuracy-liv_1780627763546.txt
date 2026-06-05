@@ -1,0 +1,146 @@
+Critical Trading Desk fixes: trade quantity accuracy + live trades panel
+
+Do not add unrelated new features.
+
+Fix only the Trading Desk execution logic and Live Trades panel.
+
+====================================================
+1. FIX PAPER TRADE QUANTITY CALCULATION
+====================================================
+
+Problem:
+The app showed “Bought PEG — 49.00 SOL → 637.5K tokens” for a very low market cap token around $70K-$80K MC. That token quantity appears incorrect.
+
+Audit and fix buy/sell token quantity calculations.
+
+Requirements:
+
+- Use actual token price, not market cap, FDV, chart value, or displayed formatted value.
+- Use DexScreener pair.priceUsd or trusted hydrated token price for tokenPriceUsd.
+
+Correct formula:
+
+amountInUSD = solAmount * currentSolUsdPrice
+tokenQuantity = amountInUSD / tokenPriceUsd
+
+Never use:
+- marketCap
+- fdv
+- formatted market cap text
+- chart display value
+- rounded UI text
+
+for trade execution calculations.
+
+Store full precision internally.
+Only format for display.
+
+If tokenPriceUsd is missing, zero, stale, or invalid, block trade and show:
+
+“Price data unavailable. Trade not executed.”
+
+Add development-only debug logging:
+- SOL amount spent
+- SOL/USD price used
+- token price used
+- calculated USD amount
+- calculated token quantity
+- token mint
+- DexScreener pair used
+
+Verify:
+- Buy quantity
+- Position size
+- Average entry
+- Current value
+- Realized PnL
+- Unrealized PnL
+- Portfolio equity
+
+====================================================
+2. FIX LIVE TRADES PANEL
+====================================================
+
+Problem:
+The Live Trades panel shows “LIVE” but the box is empty and says “No recent trades yet.”
+
+This is confusing.
+
+The Live Trades panel must either show real live trade events or clearly explain what it is tracking.
+
+Requirements:
+
+A. If this panel is meant to show BlackPebble paper trades:
+- Display recent paper trades from the current user and/or global users.
+- Show buy/sell events after a paper trade executes.
+- Include:
+  - Buy/Sell
+  - Token symbol
+  - SOL amount
+  - token quantity
+  - timestamp
+- Example:
+  “Bought PEG — 49.00 SOL → 637.5K tokens”
+  “Sold DOGEA — +0.18 SOL PnL”
+- Update immediately after trade execution.
+- Persist recent trades through refresh.
+
+B. If this panel is meant to show real on-chain live trades:
+- Connect it to a real trade feed.
+- Only show LIVE if websocket/API is connected.
+- Show recent token swaps for the currently selected token.
+- If no feed is connected, do not display LIVE.
+
+C. Preferred short-term behavior:
+Use this panel for BlackPebble paper trade activity first.
+Rename it if needed to:
+“Recent Paper Trades”
+or
+“Live Paper Trades”
+
+Display current user trades immediately after buy/sell.
+
+If global paper trade activity exists later, add:
+- My Trades
+- Global Trades
+
+tabs.
+
+====================================================
+3. FIX LIVE STATUS HONESTY
+====================================================
+
+Do not show green LIVE unless data is actually updating.
+
+Status rules:
+
+Green LIVE:
+- Feed connected
+- Events updating successfully
+
+Yellow DELAYED:
+- No events in more than 2 minutes
+- Feed stale
+
+Gray IDLE:
+- No selected token
+- No trade history yet
+- Paper trading ready but no trades made
+
+Red OFFLINE:
+- API/WebSocket error
+
+====================================================
+4. VERIFICATION
+====================================================
+
+After changes:
+
+- Buying a token creates a visible recent trade event.
+- Selling a token creates a visible recent trade event.
+- Recent trades persist after refresh.
+- LIVE is not shown falsely.
+- Trade quantity calculations are accurate.
+- Portfolio values still update correctly.
+- PnL remains accurate.
+- No unrelated pages are modified.

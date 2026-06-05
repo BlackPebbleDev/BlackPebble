@@ -19,7 +19,7 @@ import {
   ArrowUpRight,
   ExternalLink,
 } from "lucide-react";
-import { api, type TokenInfo } from "@/lib/api";
+import { api, type TokenInfo, type Trade } from "@/lib/api";
 import { LiveIndicator } from "@/components/live-indicator";
 import { useAccount } from "@/hooks/use-account";
 import { useToast } from "@/hooks/use-toast";
@@ -197,49 +197,72 @@ function PriceChart({ info }: { info: TokenInfo }) {
   );
 }
 
-function LiveFeed({ mint }: { mint: string }) {
+/**
+ * Recent Paper Trades — shows the connected wallet's own paper-trade activity
+ * from the database, so it persists across refreshes and updates immediately
+ * after a buy/sell (the trade mutation invalidates ["paper-feed"]).
+ *
+ * Status is honest: the green "Live" indicator only appears when a paper trade
+ * was executed within the last 2 minutes (data actually updating). Otherwise it
+ * shows a gray "Idle" — never a false green.
+ */
+const LIVE_WINDOW_SECONDS = 120;
+
+function RecentPaperTrades() {
+  const { wallet } = useAccount();
   const { data } = useQuery({
-    queryKey: ["live-feed", mint],
-    queryFn: () => api.liveTrades(mint),
-    refetchInterval: 4_000,
+    queryKey: ["paper-feed", wallet],
+    queryFn: () => api.history(wallet!),
+    enabled: !!wallet,
+    refetchInterval: 10_000,
   });
-  const trades = data?.trades ?? [];
+  const trades = (data?.trades ?? []).slice(0, 30);
+
+  const newestAt = trades[0]?.executed_at ?? 0;
+  const isLive =
+    newestAt > 0 &&
+    Math.floor(Date.now() / 1000) - newestAt < LIVE_WINDOW_SECONDS;
 
   return (
     <div className="border border-border bg-card">
       <div className="px-4 py-3 border-b border-border flex items-center justify-between">
-        <span className="text-sm font-medium">Live Trades</span>
+        <span className="text-sm font-medium">Recent Paper Trades</span>
         <span
           className={cn(
             "text-[10px] uppercase tracking-wider flex items-center gap-1.5",
-            data?.connected ? "text-emerald-400" : "text-muted-foreground",
+            isLive ? "text-emerald-400" : "text-muted-foreground",
           )}
         >
           <span
             className={cn(
               "w-1.5 h-1.5 rounded-full",
-              data?.connected ? "bg-emerald-400" : "bg-muted-foreground",
+              isLive ? "bg-emerald-400 animate-pulse" : "bg-muted-foreground",
             )}
           />
-          {data?.connected ? "Live" : "Connecting"}
+          {isLive ? "Live" : "Idle"}
         </span>
       </div>
       <div className="max-h-[300px] overflow-y-auto divide-y divide-border/50">
-        {trades.length === 0 ? (
+        {!wallet ? (
           <div className="px-4 py-8 text-center text-muted-foreground text-sm">
-            No recent trades yet.
+            Connect your wallet to see your paper trades.
+          </div>
+        ) : trades.length === 0 ? (
+          <div className="px-4 py-8 text-center text-muted-foreground text-sm">
+            No paper trades yet. Buy or sell a token to see it here.
           </div>
         ) : (
-          trades.map((t, i) => {
+          trades.map((t: Trade) => {
             const isBuy = t.side === "buy";
+            const sym = t.token_symbol ?? shortAddr(t.token_mint);
             return (
               <div
-                key={`${t.timestamp}-${i}`}
-                className="px-4 py-2 flex items-center justify-between text-xs"
+                key={t.id}
+                className="px-4 py-2.5 flex items-center justify-between gap-2 text-xs"
               >
                 <span
                   className={cn(
-                    "flex items-center gap-1.5 font-medium",
+                    "flex items-center gap-1.5 font-medium shrink-0",
                     isBuy ? "text-emerald-400" : "text-red-400",
                   )}
                 >
@@ -248,16 +271,24 @@ function LiveFeed({ mint }: { mint: string }) {
                   ) : (
                     <ArrowDownRight className="w-3.5 h-3.5" />
                   )}
-                  {isBuy ? "Buy" : "Sell"}
+                  {isBuy ? "Bought" : "Sold"}
                 </span>
-                <span className="font-mono text-muted-foreground">
-                  {fmtSol(t.solAmount, 3)} SOL
+                <span className="font-medium text-foreground truncate flex-1 min-w-0">
+                  {sym}
                 </span>
-                <span className="font-mono text-muted-foreground hidden sm:inline">
-                  {shortAddr(t.trader)}
+                <span className="font-mono text-muted-foreground hidden sm:inline whitespace-nowrap">
+                  {isBuy
+                    ? `${fmtSol(t.sol_amount, 2)} SOL → ${fmtTokenAmount(t.token_amount)}`
+                    : `${fmtTokenAmount(t.token_amount)} → ${fmtSol(t.sol_amount, 2)} SOL`}
                 </span>
-                <span className="text-muted-foreground">
-                  {timeAgo(t.timestamp)}
+                {!isBuy && t.pnl != null && (
+                  <span className={cn("font-mono shrink-0", pnlColor(t.pnl))}>
+                    {t.pnl >= 0 ? "+" : ""}
+                    {fmtSol(t.pnl, 2)}
+                  </span>
+                )}
+                <span className="text-muted-foreground shrink-0 whitespace-nowrap">
+                  {timeAgo(t.executed_at)}
                 </span>
               </div>
             );
@@ -324,6 +355,8 @@ function TradePanel({ info }: { info: TokenInfo }) {
       qc.invalidateQueries({ queryKey: ["pf"] });
       qc.invalidateQueries({ queryKey: ["pf-stats"] });
       qc.invalidateQueries({ queryKey: ["account"] });
+      qc.invalidateQueries({ queryKey: ["history"] });
+      qc.invalidateQueries({ queryKey: ["paper-feed"] });
     },
     onError: (e: Error) => {
       toast({ title: "Trade failed", description: e.message, variant: "destructive" });
@@ -831,7 +864,7 @@ export default function TradingDesk() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 space-y-4">
           <PriceChart info={info} />
-          <LiveFeed mint={info.mint} />
+          <RecentPaperTrades />
         </div>
         <div className="space-y-4">
           <TradePanel info={info} />

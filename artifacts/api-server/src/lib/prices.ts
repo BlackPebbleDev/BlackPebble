@@ -177,12 +177,56 @@ export async function getTokenInfo(mint: string): Promise<TokenInfo | null> {
   return null;
 }
 
-/** Current price in SOL for a mint (used by trade execution / position valuation). */
-export async function getTokenPriceSol(mint: string): Promise<number | null> {
-  const bonding = pumpportal.getBondingPrice(mint);
-  if (bonding) return bonding.priceSol;
+export interface ExecutionPrice {
+  /** Token price in SOL, derived from priceUsd/solUsd so it stays consistent. */
+  priceSol: number;
+  /** Trusted token price in USD (the anchor for all quantity math). */
+  priceUsd: number;
+  /** SOL/USD price used for the conversion. */
+  solUsd: number;
+  source: string;
+  pair: string | null;
+}
+
+/**
+ * Trusted price for trade execution and position valuation.
+ *
+ * Anchored on the USD price from the same source hierarchy the UI displays
+ * (DexScreener pair priceUsd -> PumpPortal bonding curve -> Jupiter), NEVER on
+ * market cap, FDV, or any formatted/displayed value. priceSol is derived from
+ * priceUsd / solUsd so the SOL cost basis and the USD-based token quantity stay
+ * perfectly consistent. Returns null when no valid, positive USD price (or SOL
+ * price) is available, so callers can block the trade instead of guessing.
+ */
+// A trade may not be sized off a SOL/USD conversion rate older than this. The
+// token's own USD price is fetched live from DexScreener/Jupiter on every call
+// (so it is inherently fresh), and the PumpPortal bonding price self-expires
+// after 10 min; the only value with an open-ended last-known fallback is the
+// cached SOL/USD price, so that is what we freshness-check here.
+const SOL_PRICE_MAX_AGE_MS = 120 * 1000;
+
+export async function getExecutionPrice(
+  mint: string,
+): Promise<ExecutionPrice | null> {
   const info = await getTokenInfo(mint);
-  return info && info.priceSol > 0 ? info.priceSol : null;
+  const solUsd = await getSolPriceUsd();
+  if (!info) return null;
+  const priceUsd = info.priceUsd;
+  if (priceUsd == null || !Number.isFinite(priceUsd) || priceUsd <= 0) {
+    return null;
+  }
+  if (!Number.isFinite(solUsd) || solUsd <= 0) return null;
+  // Stale guard: reject when the SOL/USD price is a stale last-known fallback.
+  if (!isCacheFresh("sol_usd", SOL_PRICE_MAX_AGE_MS)) return null;
+  const priceSol = priceUsd / solUsd;
+  if (!Number.isFinite(priceSol) || priceSol <= 0) return null;
+  return { priceSol, priceUsd, solUsd, source: info.source, pair: info.pairAddress };
+}
+
+/** Current price in SOL for a mint (used by position valuation). */
+export async function getTokenPriceSol(mint: string): Promise<number | null> {
+  const px = await getExecutionPrice(mint);
+  return px ? px.priceSol : null;
 }
 
 export interface SearchResult {
