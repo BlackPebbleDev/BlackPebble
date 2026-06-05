@@ -18,6 +18,7 @@ import { api, type PortfolioStats } from "@/lib/api";
 import { OpenPositions } from "@/components/open-positions";
 import { Watchlist } from "@/components/watchlist";
 import { TradeList } from "@/components/trade-list";
+import { TierBadge } from "@/components/tier-badge";
 import { fmtSol, fmtUsd, fmtPercent, pnlColor } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
@@ -239,7 +240,12 @@ export default function Portfolio() {
               value={`${(stats?.winRate ?? 0).toFixed(1)}%`}
             />
             <BestTradeStat stats={stats} />
-            <Stat label="Tier" value={fmtTier(stats?.graduationTier)} />
+            <div className="border border-border bg-card px-4 py-3">
+              <div className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1.5">
+                Tier
+              </div>
+              <TierBadge tier={stats?.graduationTier} />
+            </div>
           </div>
 
           {!isGuest && (

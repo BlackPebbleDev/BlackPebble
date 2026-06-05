@@ -23,6 +23,40 @@ export const MIN_ACCOUNT_AGE_SECONDS = 60 * 60; // 1 hour
 // double-submit and rejected (idempotency guard).
 export const DUPLICATE_WINDOW_SECONDS = 2;
 
+// --- Anti-whale: maximum share of a token's supply a single trader may hold ---
+// A position (open tokens held) may never exceed this fraction of the token's
+// total supply, derived from marketCap / price. This blocks unrealistic "buy
+// the whole supply" paper trades that would otherwise farm the leaderboard,
+// independently of (and in addition to) the per-trade liquidity-impact cap in
+// slippage.ts — whichever limit is stricter for a given order applies first.
+export const MAX_SUPPLY_PCT = 0.04; // 4% of total supply
+
+/**
+ * Maximum number of tokens a single trader may hold, given the token's market
+ * cap and USD price (supply = marketCap / price). Returns null when supply
+ * cannot be derived (no market cap / non-positive price), in which case the
+ * supply cap is not enforced and only the liquidity-impact cap applies.
+ */
+export function maxTokensForSupply(
+  marketCapUsd: number | null,
+  priceUsd: number,
+): number | null {
+  if (marketCapUsd == null || !Number.isFinite(marketCapUsd) || marketCapUsd <= 0) {
+    return null;
+  }
+  if (!Number.isFinite(priceUsd) || priceUsd <= 0) return null;
+  const supply = marketCapUsd / priceUsd;
+  if (!Number.isFinite(supply) || supply <= 0) return null;
+  return supply * MAX_SUPPLY_PCT;
+}
+
+function supplyCapError(symbol: string | null | undefined): string {
+  const pct = (MAX_SUPPLY_PCT * 100).toFixed(1).replace(/\.0$/, "");
+  return `Position limit reached: a single trader can hold at most ${pct}% of ${
+    symbol || "this token"
+  }'s supply. Reduce your order size.`;
+}
+
 export interface AccountRow {
   wallet: string;
   paper_balance: number;
@@ -54,18 +88,21 @@ export interface PositionRow {
   opened_at: number;
 }
 
+// Leaderboard tiers, keyed on all-time realized PnL (in SOL; accounts start at
+// 100 SOL). Below the lowest threshold a trader is "Unranked".
 const TIERS: { name: string; min: number }[] = [
-  { name: "Managing Director", min: 1000 },
-  { name: "Portfolio Manager", min: 500 },
-  { name: "Senior Analyst", min: 200 },
-  { name: "Analyst", min: 50 },
+  { name: "Legend", min: 1000 },
+  { name: "Diamond", min: 300 },
+  { name: "Gold", min: 100 },
+  { name: "Silver", min: 25 },
+  { name: "Bronze", min: 5 },
 ];
 
 export function graduationTier(allTimePnl: number): string {
   for (const t of TIERS) {
     if (allTimePnl >= t.min) return t.name;
   }
-  return "none";
+  return "Unranked";
 }
 
 export async function ensureAccount(wallet: string): Promise<AccountRow> {
@@ -364,6 +401,17 @@ export async function executeBuy(
           ok: false,
           error: `Maximum of ${MAX_POSITIONS} open positions reached`,
         };
+      }
+    }
+
+    // Anti-whale supply cap: a trader's total holding (existing + this order)
+    // may not exceed MAX_SUPPLY_PCT of the token's supply. This is checked
+    // inside the locked transaction so concurrent buys can't race past it.
+    const maxTokens = maxTokensForSupply(marketCapUsd, priceUsd);
+    if (maxTokens != null) {
+      const heldAfter = (existing?.total_tokens ?? 0) + tokensReceived;
+      if (heldAfter > maxTokens) {
+        return { ok: false, error: supplyCapError(meta.symbol) };
       }
     }
 
@@ -734,7 +782,7 @@ export async function getTradeQuote(opts: {
       estimatedSol: null,
     };
   }
-  const { priceUsd, solUsd, liquidityUsd } = px;
+  const { priceUsd, solUsd, liquidityUsd, marketCapUsd } = px;
 
   // Resolve the trade's USD value from the requested order.
   let tradeUsdValue: number;
@@ -811,10 +859,33 @@ export async function getTradeQuote(opts: {
     }
   }
 
+  // Anti-whale supply cap (buys only): mirror executeBuy so the preview blocks
+  // an order that would push the trader's total holding past MAX_SUPPLY_PCT of
+  // supply. Applied on top of the liquidity-impact cap — whichever is stricter.
+  let supplyOk = true;
+  let supplyError: string | undefined;
+  if (slip.ok && side === "buy" && estimatedTokens != null) {
+    const maxTokens = maxTokensForSupply(marketCapUsd, priceUsd);
+    if (maxTokens != null) {
+      const held = opts.wallet
+        ? (
+            await dbGet<{ total_tokens: number }>(
+              "SELECT total_tokens FROM positions WHERE wallet = $1 AND token_mint = $2",
+              [opts.wallet, mint],
+            )
+          )?.total_tokens ?? 0
+        : 0;
+      if (held + estimatedTokens > maxTokens) {
+        supplyOk = false;
+        supplyError = supplyCapError(undefined);
+      }
+    }
+  }
+
   return {
-    ok: slip.ok,
-    error: slip.error,
-    blocked: slip.blocked,
+    ok: slip.ok && supplyOk,
+    error: supplyError ?? slip.error,
+    blocked: slip.blocked || !supplyOk,
     side,
     rawPriceUsd: slip.rawPriceUsd,
     effectivePriceUsd: slip.effectivePriceUsd,

@@ -1,0 +1,116 @@
+BlackPebble pre-publish production hardening batch.
+
+Use the existing secrets:
+- X_CLIENT_ID
+- X_CLIENT_SECRET
+- JWT_SECRET
+
+Do not ask me to paste secrets again.
+
+Primary goals:
+
+1. X Login
+- Finish real X OAuth login.
+- Use callback: https://blackpebble.fun/api/auth/x/callback
+- Login with X must work from the header button.
+- Store X user ID, handle, display name, and avatar.
+- Allow wallet-only, X-only, and wallet+X linked accounts.
+- Leaderboard must show X handle/avatar when available.
+- Do not expose secrets client-side.
+
+2. Leaderboard + tiers
+- Make sure leaderboard is ready for wallet and X identities.
+- Tier display should be ready for:
+  Bronze, Silver, Gold, Diamond, Legend.
+- If badge images exist, wire them in.
+- If badge images do not exist yet, use clean placeholder badge styles without breaking UI.
+- “none” should display as “Unranked.”
+
+3. Guest Mode boundary
+- Guest trades must not write to Postgres.
+- Guest trades may only persist locally.
+- Guest trades must not appear on leaderboard.
+- User must connect wallet or X and explicitly save/link portfolio before data becomes permanent.
+
+4. Supply / anti-cheat realism
+- Prevent unrealistic whale buying.
+- Enforce max position size:
+  - around 3.8% to 4% of total token supply
+  - AND liquidity impact limit if available
+  - whichever is stricter.
+- Block trades above the cap with a clear explanation.
+- Prevent leaderboard abuse from oversized positions.
+- Keep slippage simulation active.
+- Do not allow any user to buy a huge percentage of token supply.
+
+5. Trading page layout cleanup
+- Token page order should be:
+  1. Token info
+  2. Chart
+  3. Buy/Sell box
+  4. Positions / History / Watchlist tab box
+- Do not show Recent Paper Trades separately above the Buy/Sell box if the same data exists in History.
+- Keep Positions, History, and Watchlist available at the bottom of each token page.
+- Add Watchlist section to main Portfolio page too.
+- Any ticker/token shown in positions, history, recent trades, watchlist, leaderboard, or portfolio must be clickable and return user to that token’s trading page.
+
+6. Position card expansion cleanup
+- Keep the collapsed position card clean and readable.
+- When expanded, show position analytics in a clean “Position Analytics” section.
+- Avoid duplicate repeated fields.
+- Make sure expanded content remains visible and doesn’t feel buried under token price.
+- Keep market cap prominent:
+  - Current market cap
+  - Entry market cap
+  - Market cap change with up/down arrow
+- Keep cost, value, quantity, avg entry, current price, and unrealized P&L.
+
+7. Token data freshness and efficiency
+- Trending token list should update efficiently without excessive API calls.
+- Token cards should show current/up-to-date price, market cap, and 24h change where available.
+- Use caching/throttling/debouncing where appropriate.
+- Avoid hammering APIs while scrolling.
+- Refresh visible market data efficiently.
+
+8. Branding/icon sanity check
+- Small icons should use PB icon:
+  favicon, apple-touch-icon, manifest icons, wallet/explorer icon.
+- Social previews should use BlackPebble wordmark:
+  og:image and twitter:image.
+- Header should use wide BlackPebble wordmark.
+- Do not replace PB icons with red/orange placeholder squares.
+
+9. Security check
+- Verify secrets are only server-side.
+- Verify OAuth state protection.
+- Verify callback handling is safe.
+- Verify no private keys/seed phrases are ever requested.
+- Verify user input is sanitized.
+- Verify auth/session cookies or JWT handling are secure.
+- Run security scan if available.
+- Run typecheck/build/tests.
+- Review for obvious abuse paths:
+  duplicate accounts,
+  guest leaderboard abuse,
+  oversized positions,
+  repeated rapid-fire trades,
+  stale token prices.
+
+10. Final QA
+- Test wallet login still works.
+- Test X login.
+- Test guest mode.
+- Test guest mode does not save permanently.
+- Test wallet+X linked identity.
+- Test leaderboard avatar/handle.
+- Test buy/sell limits.
+- Test watchlist.
+- Test clickable tickers.
+- Test mobile layout.
+- Test metadata/icon files.
+- Return a concise QA report with:
+  - what changed
+  - what passed
+  - what failed
+  - what still needs my action
+  - whether it is safe to publish

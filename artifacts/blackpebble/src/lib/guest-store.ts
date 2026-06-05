@@ -8,6 +8,7 @@ import {
   type PortfolioStats,
   type TradeQuote,
 } from "@/lib/api";
+import { tierFromRealizedPnl } from "@/lib/tiers";
 
 /**
  * Client-side guest trading engine.
@@ -30,18 +31,8 @@ export const GUEST_MAX_POSITIONS = 20;
 const STORAGE_KEY = "bp_guest_state_v1";
 const DISMISS_KEY = "bp_guest_migration_dismissed_v1";
 
-const TIERS: { name: string; min: number }[] = [
-  { name: "Managing Director", min: 1000 },
-  { name: "Portfolio Manager", min: 500 },
-  { name: "Senior Analyst", min: 200 },
-  { name: "Analyst", min: 50 },
-];
-
 function graduationTier(allTimePnl: number): string {
-  for (const t of TIERS) {
-    if (allTimePnl >= t.min) return t.name;
-  }
-  return "none";
+  return tierFromRealizedPnl(allTimePnl);
 }
 
 export interface GuestPositionRow {
