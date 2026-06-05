@@ -8,7 +8,7 @@ import {
   Wrench,
 } from "lucide-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
-import logoFlat from "@assets/E4772800-2295-459C-A05B-A20CCA59AA60_1780532645349.png";
+import logoFlat from "@assets/IMG_4199_1780657073789.jpeg";
 import { TokenSearch } from "@/components/token-search";
 import { XLoginButton } from "@/components/x-login-button";
 import { GuestMigrationPrompt } from "@/components/guest-migration-prompt";
