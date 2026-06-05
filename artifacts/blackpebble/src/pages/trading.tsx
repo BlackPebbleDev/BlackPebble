@@ -25,6 +25,7 @@ import { api, type TokenInfo, type Trade, type TradeQuote } from "@/lib/api";
 import { LiveIndicator } from "@/components/live-indicator";
 import { TradeList } from "@/components/trade-list";
 import { OpenPositions } from "@/components/open-positions";
+import { Watchlist } from "@/components/watchlist";
 import { useAccount } from "@/hooks/use-account";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -197,67 +198,6 @@ function PriceChart({ info }: { info: TokenInfo }) {
           />
         </div>
       )}
-    </div>
-  );
-}
-
-/**
- * Recent Paper Trades — shows the connected wallet's own paper-trade activity
- * from the database, so it persists across refreshes and updates immediately
- * after a buy/sell (the trade mutation invalidates ["paper-feed"]).
- *
- * Status is honest: the green "Live" indicator only appears when a paper trade
- * was executed within the last 2 minutes (data actually updating). Otherwise it
- * shows a gray "Idle" — never a false green.
- */
-const LIVE_WINDOW_SECONDS = 120;
-
-function RecentPaperTrades() {
-  const { wallet } = useAccount();
-  const { data } = useQuery({
-    queryKey: ["paper-feed", wallet],
-    queryFn: () => api.history(wallet!),
-    enabled: !!wallet,
-    refetchInterval: 10_000,
-  });
-  const trades = (data?.trades ?? []).slice(0, 30);
-
-  const newestAt = trades[0]?.executed_at ?? 0;
-  const isLive =
-    newestAt > 0 &&
-    Math.floor(Date.now() / 1000) - newestAt < LIVE_WINDOW_SECONDS;
-
-  return (
-    <div className="border border-border bg-card">
-      <div className="px-4 py-3 border-b border-border flex items-center justify-between">
-        <span className="text-sm font-medium">Recent Paper Trades</span>
-        <span
-          className={cn(
-            "text-[10px] uppercase tracking-wider flex items-center gap-1.5",
-            isLive ? "text-emerald-400" : "text-muted-foreground",
-          )}
-        >
-          <span
-            className={cn(
-              "w-1.5 h-1.5 rounded-full",
-              isLive ? "bg-emerald-400 animate-pulse" : "bg-muted-foreground",
-            )}
-          />
-          {isLive ? "Live" : "Idle"}
-        </span>
-      </div>
-      <div className="max-h-[340px] overflow-y-auto">
-        {!wallet ? (
-          <div className="px-4 py-8 text-center text-muted-foreground text-sm">
-            Connect your wallet to see your paper trades.
-          </div>
-        ) : (
-          <TradeList
-            trades={trades}
-            empty="No paper trades yet. Buy or sell a token to see it here."
-          />
-        )}
-      </div>
     </div>
   );
 }
@@ -447,7 +387,6 @@ function TradePanel({ info }: { info: TokenInfo }) {
       qc.invalidateQueries({ queryKey: ["pf-stats"] });
       qc.invalidateQueries({ queryKey: ["account"] });
       qc.invalidateQueries({ queryKey: ["history"] });
-      qc.invalidateQueries({ queryKey: ["paper-feed"] });
     },
     onError: (e: Error) => {
       toast({ title: "Trade failed", description: e.message, variant: "destructive" });
@@ -755,11 +694,6 @@ function ActivityTabs() {
     queryFn: () => api.history(wallet!),
     enabled: !!wallet && tab === "history",
   });
-  const { data: watchData } = useQuery({
-    queryKey: ["watchlist", wallet],
-    queryFn: () => api.watchlist(wallet!),
-    enabled: !!wallet && tab === "watchlist",
-  });
 
   if (!wallet) return null;
 
@@ -802,92 +736,14 @@ function ActivityTabs() {
           <TradeList
             trades={histData?.trades ?? []}
             empty="No trade history yet."
+            onNavigate={(mint) => navigate(`/?token=${mint}`)}
           />
         )}
         {tab === "watchlist" && (
-          <div className="overflow-x-auto">
-            <ActivityTable
-              empty="Your watchlist is empty."
-              rows={(watchData?.watchlist ?? []).map((w) => ({
-                key: w.mint,
-                mint: w.mint,
-                symbol: w.symbol ?? shortAddr(w.mint),
-                name: w.name,
-                cols: [
-                  fmtPrice(w.priceUsd),
-                  { value: fmtPercent(w.priceChange24h), cls: pnlColor(w.priceChange24h) },
-                ],
-              }))}
-              headers={["Token", "Price", "24h"]}
-            />
-          </div>
+          <Watchlist onNavigate={(mint) => navigate(`/?token=${mint}`)} />
         )}
       </div>
     </div>
-  );
-}
-
-type Cell = string | { value: string; cls?: string };
-function ActivityTable({
-  headers,
-  rows,
-  empty,
-}: {
-  headers: string[];
-  rows: { key: string; mint: string; symbol: string; name: string | null; cols: Cell[] }[];
-  empty: string;
-}) {
-  const navigate = useNavigate();
-  if (rows.length === 0) {
-    return (
-      <div className="px-4 py-10 text-center text-muted-foreground text-sm">
-        {empty}
-      </div>
-    );
-  }
-  return (
-    <table className="w-full text-sm">
-      <thead>
-        <tr className="text-left text-muted-foreground border-b border-border">
-          {headers.map((h, i) => (
-            <th
-              key={h}
-              className={cn("font-medium px-4 py-2.5", i > 0 && "text-right")}
-            >
-              {h}
-            </th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((r) => (
-          <tr
-            key={r.key}
-            onClick={() => navigate(`/?token=${r.mint}`)}
-            data-testid={`activity-row-${r.mint}`}
-            className="border-b border-border/50 last:border-0 hover:bg-accent/5 cursor-pointer"
-          >
-            <td className="px-4 py-2.5">
-              <div className="font-medium text-foreground">{r.symbol}</div>
-              {r.name && (
-                <div className="text-xs text-muted-foreground">{r.name}</div>
-              )}
-            </td>
-            {r.cols.map((c, i) => {
-              const cell = typeof c === "string" ? { value: c } : c;
-              return (
-                <td
-                  key={i}
-                  className={cn("px-4 py-2.5 text-right font-mono", cell.cls)}
-                >
-                  {cell.value}
-                </td>
-              );
-            })}
-          </tr>
-        ))}
-      </tbody>
-    </table>
   );
 }
 
@@ -1022,7 +878,6 @@ export default function TradingDesk() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 space-y-4">
           <PriceChart info={info} />
-          <RecentPaperTrades />
         </div>
         <div className="space-y-4">
           <TradePanel info={info} />

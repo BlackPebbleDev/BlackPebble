@@ -195,6 +195,7 @@ export interface WatchItem {
   priceUsd: number | null;
   priceSol: number | null;
   priceChange24h: number | null;
+  marketCapUsd: number | null;
 }
 
 export type LeaderboardPeriod = "daily" | "weekly" | "all";

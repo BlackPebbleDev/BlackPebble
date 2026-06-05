@@ -23,10 +23,13 @@ export function TradeList({
   trades,
   empty,
   compact = false,
+  onNavigate,
 }: {
   trades: Trade[];
   empty: string;
   compact?: boolean;
+  /** When provided, each row is tappable and navigates to that token's mint. */
+  onNavigate?: (mint: string) => void;
 }) {
   if (trades.length === 0) {
     return empty ? (
@@ -38,20 +41,35 @@ export function TradeList({
   return (
     <div className="divide-y divide-border/50">
       {trades.map((t) => (
-        <TradeRow key={t.id} t={t} compact={compact} />
+        <TradeRow key={t.id} t={t} compact={compact} onNavigate={onNavigate} />
       ))}
     </div>
   );
 }
 
-function TradeRow({ t, compact }: { t: Trade; compact: boolean }) {
+function TradeRow({
+  t,
+  compact,
+  onNavigate,
+}: {
+  t: Trade;
+  compact: boolean;
+  onNavigate?: (mint: string) => void;
+}) {
   const isBuy = t.side === "buy";
   const sym = t.token_symbol ?? shortAddr(t.token_mint);
   const price = t.effective_price_usd ?? t.raw_price_usd ?? null;
   const slippage = t.slippage_percent;
 
   return (
-    <div className={cn(compact ? "px-3 py-2.5" : "px-4 py-3")} data-testid={`trade-row-${t.id}`}>
+    <div
+      className={cn(
+        compact ? "px-3 py-2.5" : "px-4 py-3",
+        onNavigate && "cursor-pointer hover:bg-accent/5 transition-colors",
+      )}
+      onClick={onNavigate ? () => onNavigate(t.token_mint) : undefined}
+      data-testid={`trade-row-${t.id}`}
+    >
       <div className="flex items-center justify-between gap-2">
         <span
           className={cn(

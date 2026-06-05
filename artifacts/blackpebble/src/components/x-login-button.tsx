@@ -27,7 +27,8 @@ export function XLoginButton({ className }: { className?: string }) {
     <button
       type="button"
       disabled={!X_LOGIN_ENABLED}
-      title={X_LOGIN_ENABLED ? "Sign in with X" : "X sign-in is coming soon"}
+      title={X_LOGIN_ENABLED ? "Sign in with X" : "X login coming soon"}
+      aria-label={X_LOGIN_ENABLED ? "Sign in with X" : "X login coming soon"}
       data-testid="button-login-x"
       className={cn(
         "inline-flex items-center gap-2 h-9 px-3 text-xs font-medium border border-border bg-secondary text-muted-foreground transition-colors",

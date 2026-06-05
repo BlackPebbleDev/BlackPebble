@@ -184,6 +184,7 @@ router.get(
           priceUsd: info?.priceUsd ?? null,
           priceSol: info?.priceSol ?? null,
           priceChange24h: info?.priceChange24h ?? null,
+          marketCapUsd: info?.marketCapUsd ?? null,
         };
       }),
     );

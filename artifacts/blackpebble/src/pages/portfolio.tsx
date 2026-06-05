@@ -16,6 +16,8 @@ import { Wallet, Loader2 } from "lucide-react";
 import { useAccount } from "@/hooks/use-account";
 import { api, type PortfolioStats } from "@/lib/api";
 import { OpenPositions } from "@/components/open-positions";
+import { Watchlist } from "@/components/watchlist";
+import { TradeList } from "@/components/trade-list";
 import { fmtSol, fmtUsd, fmtPercent, pnlColor } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -106,6 +108,13 @@ export default function Portfolio() {
     queryFn: () => api.portfolioChart(wallet!),
     enabled: !!wallet,
     refetchInterval: 60_000,
+  });
+
+  const { data: history } = useQuery({
+    queryKey: ["history", wallet],
+    queryFn: () => api.history(wallet!),
+    enabled: !!wallet,
+    refetchInterval: 30_000,
   });
 
   const chartData = useMemo(() => {
@@ -229,6 +238,18 @@ export default function Portfolio() {
             empty="No open positions. Head to the Trading Desk to start."
             onNavigate={(mint) => navigate(`/?token=${mint}`)}
           />
+
+          <h2 className="text-lg font-semibold mb-3 mt-8">Watchlist</h2>
+          <Watchlist onNavigate={(mint) => navigate(`/?token=${mint}`)} />
+
+          <h2 className="text-lg font-semibold mb-3 mt-8">Trade History</h2>
+          <div className="border border-border bg-card">
+            <TradeList
+              trades={history?.trades ?? []}
+              empty="No trades yet. Your buys and sells will appear here."
+              onNavigate={(mint) => navigate(`/?token=${mint}`)}
+            />
+          </div>
         </>
       )}
     </div>
