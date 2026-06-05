@@ -1,5 +1,6 @@
 import db from "./database.js";
 import { getTokenPriceSol, getSolPriceUsd, getExecutionPrice } from "./prices.js";
+import { computeSlippage, type WarningLevel } from "./slippage.js";
 import { logger } from "./logger.js";
 
 const DEV = process.env.NODE_ENV !== "production";
@@ -7,7 +8,6 @@ const DEV = process.env.NODE_ENV !== "production";
 export const STARTING_BALANCE = 100.0;
 export const MIN_TRADE_SOL = 0.1;
 export const MAX_POSITIONS = 20;
-export const SLIPPAGE = 0.99; // 1% slippage applied to received amount
 export const MAX_POINTS_PER_DAY = 5;
 export const RESET_THRESHOLD = 1.0; // balance below this allows a reset
 export const RESET_COOLDOWN_DAYS = 7;
@@ -227,34 +227,53 @@ export async function executeBuy(
   if (!px) {
     return { ok: false, error: "Price data unavailable. Trade not executed." };
   }
-  const { priceSol, priceUsd, solUsd, source, pair } = px;
+  const { priceSol, priceUsd, solUsd, liquidityUsd, source, pair } = px;
   // Never trade on a non-finite or non-positive price — a bad upstream feed
   // could otherwise produce NaN/Infinity/zero token amounts and poison stats.
   if (![priceSol, priceUsd, solUsd].every((v) => Number.isFinite(v) && v > 0)) {
     return { ok: false, error: "Price data unavailable. Trade not executed." };
   }
-  const price = priceSol;
 
   // Quantity is computed from the trusted USD price, never market cap / FDV /
-  // formatted values: USD spent / USD token price. Full precision is kept here;
-  // values are only rounded for display in the UI.
+  // formatted values. Slippage is simulated from how large this order is
+  // relative to pool liquidity, so the effective fill price (and therefore the
+  // token quantity) is worse for big orders into thin pools.
   const amountInUsd = solAmount * solUsd;
-  const tokensReceived = (amountInUsd / priceUsd) * SLIPPAGE;
+  const slip = computeSlippage({
+    side: "buy",
+    rawPriceUsd: priceUsd,
+    solUsd,
+    liquidityUsd,
+    tradeUsdValue: amountInUsd,
+  });
+  if (!slip.ok) {
+    return { ok: false, error: slip.error };
+  }
+  // Effective (slippage-adjusted) prices drive the executed quantity and the
+  // value stored against the trade. The flat raw price is never used to fill.
+  const effectivePriceUsd = slip.effectivePriceUsd;
+  const price = effectivePriceUsd / solUsd; // effective price in SOL
+  const tokensReceived = amountInUsd / effectivePriceUsd;
   const now = Math.floor(Date.now() / 1000);
 
   if (DEV) {
     logger.debug(
       {
         side: "buy",
+        symbol: meta.symbol,
         mint,
-        solSpent: solAmount,
+        solAmount,
         solUsd,
-        tokenPriceUsd: priceUsd,
-        tokenPriceSol: priceSol,
-        amountInUsd,
+        tradeUsdValue: amountInUsd,
+        liquidityUsd,
+        tradeImpactPercent: slip.tradeImpactPercent,
+        rawPriceUsd: priceUsd,
+        slippagePercent: slip.slippagePercent,
+        effectivePriceUsd,
         tokenQuantity: tokensReceived,
         source,
         pair,
+        result: "executed",
       },
       "[trade-debug] buy execution",
     );
@@ -332,8 +351,14 @@ export async function executeBuy(
     }
 
     db.prepare(
-      `INSERT INTO trades (wallet, token_mint, token_name, token_symbol, token_logo, side, sol_amount, token_amount, price, pnl, executed_at)
-       VALUES (?, ?, ?, ?, ?, 'buy', ?, ?, ?, NULL, ?)`,
+      `INSERT INTO trades (
+         wallet, token_mint, token_name, token_symbol, token_logo, side,
+         sol_amount, token_amount, price, pnl, executed_at,
+         raw_price_usd, effective_price_usd, slippage_percent,
+         trade_impact_percent, liquidity_usd_at_execution,
+         sol_usd_price_at_execution, trade_usd_value
+       )
+       VALUES (?, ?, ?, ?, ?, 'buy', ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       wallet,
       mint,
@@ -344,6 +369,13 @@ export async function executeBuy(
       tokensReceived,
       price,
       now,
+      priceUsd,
+      effectivePriceUsd,
+      slip.slippagePercent,
+      slip.tradeImpactPercent,
+      slip.liquidityUsd,
+      solUsd,
+      amountInUsd,
     );
     return { ok: true };
   });
@@ -384,13 +416,12 @@ export async function executeSell(
   if (!px) {
     return { ok: false, error: "Price data unavailable. Trade not executed." };
   }
-  const { priceSol, priceUsd, solUsd, source, pair } = px;
+  const { priceSol, priceUsd, solUsd, liquidityUsd, source, pair } = px;
   // Never trade on a non-finite or non-positive price — a bad upstream feed
   // could otherwise produce NaN/Infinity/zero proceeds and poison stats.
   if (![priceSol, priceUsd, solUsd].every((v) => Number.isFinite(v) && v > 0)) {
     return { ok: false, error: "Price data unavailable. Trade not executed." };
   }
-  const price = priceSol;
 
   const now = Math.floor(Date.now() / 1000);
 
@@ -443,10 +474,49 @@ export async function executeSell(
       };
     }
 
-    const solReceived = tokenAmount * price * SLIPPAGE;
+    // Slippage is based on how large this sell is relative to pool liquidity,
+    // valued at the raw price. Sells fill at a lower effective price.
+    const tradeUsdValue = tokenAmount * priceUsd;
+    const slip = computeSlippage({
+      side: "sell",
+      rawPriceUsd: priceUsd,
+      solUsd,
+      liquidityUsd,
+      tradeUsdValue,
+    });
+    if (!slip.ok) {
+      return { ok: false, error: slip.error };
+    }
+    const effectivePriceUsd = slip.effectivePriceUsd;
+    const price = effectivePriceUsd / solUsd; // effective price in SOL
+    const solReceived = tokenAmount * price;
     const fraction = tokenAmount / position.total_tokens;
     const costBasis = position.total_sol_spent * fraction;
     const pnl = solReceived - costBasis;
+
+    if (DEV) {
+      logger.debug(
+        {
+          side: "sell",
+          symbol: position.token_symbol,
+          mint,
+          tokenAmount,
+          solUsd,
+          tradeUsdValue,
+          liquidityUsd,
+          tradeImpactPercent: slip.tradeImpactPercent,
+          rawPriceUsd: priceUsd,
+          slippagePercent: slip.slippagePercent,
+          effectivePriceUsd,
+          solReceived,
+          pnl,
+          source,
+          pair,
+          result: "executed",
+        },
+        "[trade-debug] sell execution",
+      );
+    }
 
     const remainingTokens = position.total_tokens - tokenAmount;
     const remainingSpent = position.total_sol_spent - costBasis;
@@ -492,8 +562,14 @@ export async function executeSell(
     );
 
     db.prepare(
-      `INSERT INTO trades (wallet, token_mint, token_name, token_symbol, token_logo, side, sol_amount, token_amount, price, pnl, executed_at)
-       VALUES (?, ?, ?, ?, ?, 'sell', ?, ?, ?, ?, ?)`,
+      `INSERT INTO trades (
+         wallet, token_mint, token_name, token_symbol, token_logo, side,
+         sol_amount, token_amount, price, pnl, executed_at,
+         raw_price_usd, effective_price_usd, slippage_percent,
+         trade_impact_percent, liquidity_usd_at_execution,
+         sol_usd_price_at_execution, trade_usd_value
+       )
+       VALUES (?, ?, ?, ?, ?, 'sell', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       wallet,
       mint,
@@ -505,6 +581,13 @@ export async function executeSell(
       price,
       pnl,
       now,
+      priceUsd,
+      effectivePriceUsd,
+      slip.slippagePercent,
+      slip.tradeImpactPercent,
+      slip.liquidityUsd,
+      solUsd,
+      tradeUsdValue,
     );
 
     return {
@@ -518,24 +601,155 @@ export async function executeSell(
   recordParticipation(wallet);
 
   const updated = getAccount(wallet)!;
-  if (DEV && result.trade) {
-    logger.debug(
-      {
-        side: "sell",
-        mint,
-        tokenQuantity: result.trade.tokenAmount,
-        solReceived: result.trade.solAmount,
-        tokenPriceUsd: priceUsd,
-        tokenPriceSol: priceSol,
-        solUsd,
-        pnl: result.trade.pnl,
-        source,
-        pair,
-      },
-      "[trade-debug] sell execution",
-    );
-  }
   return { ...result, balance: updated.paper_balance };
+}
+
+export interface TradeQuote {
+  ok: boolean;
+  error?: string;
+  /** True only when rejected for exceeding the max liquidity impact. */
+  blocked?: boolean;
+  side: "buy" | "sell";
+  rawPriceUsd: number;
+  effectivePriceUsd: number;
+  slippagePercent: number;
+  tradeImpactPercent: number;
+  liquidityUsd: number;
+  solUsd: number;
+  tradeUsdValue: number;
+  warningLevel: WarningLevel;
+  /** Tokens the buyer would receive (buy) — null for sells. */
+  estimatedTokens: number | null;
+  /** SOL the seller would receive (sell) — null for buys. */
+  estimatedSol: number | null;
+}
+
+/**
+ * Pre-trade quote: returns the simulated effective price, slippage and impact
+ * the user would get RIGHT NOW for a given order, using the exact same model as
+ * execution so the preview matches the fill. Read-only — never writes.
+ */
+export async function getTradeQuote(opts: {
+  wallet?: string;
+  mint: string;
+  side: "buy" | "sell";
+  solAmount?: number;
+  tokenAmount?: number;
+  percent?: number;
+}): Promise<TradeQuote> {
+  const { side, mint } = opts;
+  const px = await getExecutionPrice(mint);
+  if (!px) {
+    return {
+      ok: false,
+      error: "Price data unavailable.",
+      side,
+      rawPriceUsd: 0,
+      effectivePriceUsd: 0,
+      slippagePercent: 0,
+      tradeImpactPercent: 0,
+      liquidityUsd: 0,
+      solUsd: 0,
+      tradeUsdValue: 0,
+      warningLevel: "none",
+      estimatedTokens: null,
+      estimatedSol: null,
+    };
+  }
+  const { priceUsd, solUsd, liquidityUsd } = px;
+
+  // Resolve the trade's USD value from the requested order.
+  let tradeUsdValue: number;
+  if (side === "buy") {
+    const solAmount = Number(opts.solAmount);
+    if (!Number.isFinite(solAmount) || solAmount <= 0) {
+      return {
+        ok: false,
+        error: "Enter an amount.",
+        side,
+        rawPriceUsd: priceUsd,
+        effectivePriceUsd: priceUsd,
+        slippagePercent: 0,
+        tradeImpactPercent: 0,
+        liquidityUsd: liquidityUsd ?? 0,
+        solUsd,
+        tradeUsdValue: 0,
+        warningLevel: "none",
+        estimatedTokens: null,
+        estimatedSol: null,
+      };
+    }
+    tradeUsdValue = solAmount * solUsd;
+  } else {
+    let tokenAmount = Number(opts.tokenAmount);
+    if (!Number.isFinite(tokenAmount) || tokenAmount <= 0) {
+      // Derive the token amount from a percent of the open position.
+      const position = opts.wallet
+        ? (db
+            .prepare(
+              "SELECT total_tokens FROM positions WHERE wallet = ? AND token_mint = ?",
+            )
+            .get(opts.wallet, mint) as { total_tokens: number } | undefined)
+        : undefined;
+      const pct = Math.max(0, Math.min(100, Number(opts.percent ?? 0)));
+      tokenAmount = position ? position.total_tokens * (pct / 100) : 0;
+    }
+    if (!Number.isFinite(tokenAmount) || tokenAmount <= 0) {
+      return {
+        ok: false,
+        error: "No position to sell.",
+        side,
+        rawPriceUsd: priceUsd,
+        effectivePriceUsd: priceUsd,
+        slippagePercent: 0,
+        tradeImpactPercent: 0,
+        liquidityUsd: liquidityUsd ?? 0,
+        solUsd,
+        tradeUsdValue: 0,
+        warningLevel: "none",
+        estimatedTokens: null,
+        estimatedSol: null,
+      };
+    }
+    tradeUsdValue = tokenAmount * priceUsd;
+  }
+
+  const slip = computeSlippage({
+    side,
+    rawPriceUsd: priceUsd,
+    solUsd,
+    liquidityUsd,
+    tradeUsdValue,
+  });
+
+  // Estimated receive uses the slippage-adjusted effective price.
+  let estimatedTokens: number | null = null;
+  let estimatedSol: number | null = null;
+  if (slip.ok) {
+    if (side === "buy") {
+      estimatedTokens = tradeUsdValue / slip.effectivePriceUsd;
+    } else {
+      const tokenAmount = tradeUsdValue / priceUsd;
+      estimatedSol = (tokenAmount * slip.effectivePriceUsd) / solUsd;
+    }
+  }
+
+  return {
+    ok: slip.ok,
+    error: slip.error,
+    blocked: slip.blocked,
+    side,
+    rawPriceUsd: slip.rawPriceUsd,
+    effectivePriceUsd: slip.effectivePriceUsd,
+    slippagePercent: slip.slippagePercent,
+    tradeImpactPercent: slip.tradeImpactPercent,
+    liquidityUsd: slip.liquidityUsd,
+    solUsd: slip.solUsd,
+    tradeUsdValue: slip.tradeUsdValue,
+    warningLevel: slip.warningLevel,
+    estimatedTokens,
+    estimatedSol,
+  };
 }
 
 export function resetAccount(wallet: string): ExecuteResult {

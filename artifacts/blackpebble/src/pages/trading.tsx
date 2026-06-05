@@ -18,8 +18,10 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   ExternalLink,
+  AlertTriangle,
+  Info,
 } from "lucide-react";
-import { api, type TokenInfo, type Trade } from "@/lib/api";
+import { api, type TokenInfo, type Trade, type TradeQuote } from "@/lib/api";
 import { LiveIndicator } from "@/components/live-indicator";
 import { useAccount } from "@/hooks/use-account";
 import { useToast } from "@/hooks/use-toast";
@@ -299,6 +301,102 @@ function RecentPaperTrades() {
   );
 }
 
+/**
+ * Pre-trade estimate panel: shows the simulated execution price, slippage,
+ * liquidity impact and the estimated amount the user will receive. The numbers
+ * come from the server quote, which uses the same model as actual execution.
+ */
+function TradeEstimate({
+  quote,
+  loading,
+  show,
+  side,
+  symbol,
+}: {
+  quote: TradeQuote | undefined;
+  loading: boolean;
+  show: boolean;
+  side: "buy" | "sell";
+  symbol: string | null;
+}) {
+  if (!show) return null;
+
+  if (loading && !quote) {
+    return (
+      <div className="border border-border bg-background p-3 text-xs text-muted-foreground flex items-center gap-2">
+        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+        Estimating slippage…
+      </div>
+    );
+  }
+  if (!quote) return null;
+
+  if (!quote.ok) {
+    return (
+      <div
+        className="border border-red-500/40 bg-red-500/10 p-3 text-xs text-red-300 flex items-start gap-2"
+        data-testid="quote-error"
+      >
+        <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+        <span>{quote.error ?? "Quote unavailable."}</span>
+      </div>
+    );
+  }
+
+  const impactColor =
+    quote.warningLevel === "extreme"
+      ? "text-red-400"
+      : quote.warningLevel === "high"
+        ? "text-amber-400"
+        : "text-foreground";
+
+  return (
+    <div
+      className="border border-border bg-background p-3 text-xs space-y-1.5"
+      data-testid="trade-estimate"
+    >
+      <div className="flex justify-between">
+        <span className="text-muted-foreground">Execution price</span>
+        <span className="font-mono">{fmtPrice(quote.effectivePriceUsd)}</span>
+      </div>
+      <div className="flex justify-between">
+        <span className="text-muted-foreground">Estimated slippage</span>
+        <span className={cn("font-mono", impactColor)}>
+          {quote.slippagePercent.toFixed(2)}%
+        </span>
+      </div>
+      <div className="flex justify-between">
+        <span className="text-muted-foreground">Trade impact (of liquidity)</span>
+        <span className={cn("font-mono", impactColor)}>
+          {quote.tradeImpactPercent < 0.01
+            ? "<0.01%"
+            : `${quote.tradeImpactPercent.toFixed(2)}%`}
+        </span>
+      </div>
+      <div className="flex justify-between pt-1.5 border-t border-border/60">
+        <span className="text-muted-foreground">
+          {side === "buy" ? "Estimated receive" : "Estimated proceeds"}
+        </span>
+        <span className="font-mono text-foreground">
+          {side === "buy"
+            ? `${fmtTokenAmount(quote.estimatedTokens)} ${symbol ?? ""}`.trim()
+            : `${fmtSol(quote.estimatedSol)} SOL`}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/** Small debounce hook so we don't fire a quote request on every keystroke. */
+function useDebounced<T>(value: T, delayMs: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const id = setTimeout(() => setDebounced(value), delayMs);
+    return () => clearTimeout(id);
+  }, [value, delayMs]);
+  return debounced;
+}
+
 function TradePanel({ info }: { info: TokenInfo }) {
   const { wallet, account } = useAccount();
   const { toast } = useToast();
@@ -306,6 +404,7 @@ function TradePanel({ info }: { info: TokenInfo }) {
   const [side, setSide] = useState<"buy" | "sell">("buy");
   const [solAmount, setSolAmount] = useState("");
   const [sellPercent, setSellPercent] = useState(100);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const { data: posData } = useQuery({
     queryKey: ["positions", wallet],
@@ -314,6 +413,36 @@ function TradePanel({ info }: { info: TokenInfo }) {
     refetchInterval: 15_000,
   });
   const position = posData?.positions.find((p) => p.token_mint === info.mint);
+
+  // Pre-trade quote: simulated slippage / impact / execution price, debounced.
+  const debouncedSol = useDebounced(solAmount, 350);
+  const debouncedPct = useDebounced(sellPercent, 350);
+  const buyValid = side === "buy" && Number(debouncedSol) >= 0.1;
+  const sellValid = side === "sell" && !!position;
+  const quoteEnabled = !!wallet && (buyValid || sellValid);
+
+  const { data: quote, isFetching: quoteFetching } = useQuery<TradeQuote>({
+    queryKey: [
+      "quote",
+      info.mint,
+      side,
+      side === "buy" ? debouncedSol : debouncedPct,
+      wallet,
+    ],
+    queryFn: () =>
+      api.quote(
+        side === "buy"
+          ? { wallet, mint: info.mint, side: "buy", solAmount: Number(debouncedSol) }
+          : { wallet, mint: info.mint, side: "sell", percent: debouncedPct },
+      ),
+    enabled: quoteEnabled,
+    refetchInterval: 20_000,
+  });
+
+  // Reset any pending confirmation whenever the order parameters change.
+  useEffect(() => {
+    setConfirmOpen(false);
+  }, [side, solAmount, sellPercent, info.mint]);
 
   const mutation = useMutation({
     mutationFn: () =>
@@ -351,6 +480,7 @@ function TradePanel({ info }: { info: TokenInfo }) {
               }`,
       });
       setSolAmount("");
+      setConfirmOpen(false);
       qc.invalidateQueries({ queryKey: ["positions"] });
       qc.invalidateQueries({ queryKey: ["pf"] });
       qc.invalidateQueries({ queryKey: ["pf-stats"] });
@@ -479,24 +609,110 @@ function TradePanel({ info }: { info: TokenInfo }) {
           </>
         )}
 
-        <button
-          onClick={() => mutation.mutate()}
-          disabled={
-            mutation.isPending ||
-            (side === "buy" && (!solAmount || Number(solAmount) < 0.1)) ||
-            (side === "sell" && !position)
-          }
-          data-testid="button-execute-trade"
-          className={cn(
-            "w-full h-11 text-sm font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed",
-            side === "buy"
-              ? "bg-emerald-500 text-black hover:bg-emerald-400"
-              : "bg-red-500 text-white hover:bg-red-400",
-          )}
-        >
-          {mutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-          {side === "buy" ? "Buy" : "Sell"} {info.symbol ?? "Token"}
-        </button>
+        <TradeEstimate
+          quote={quote}
+          loading={quoteFetching && quoteEnabled}
+          show={quoteEnabled}
+          side={side}
+          symbol={info.symbol}
+        />
+
+        {confirmOpen && quote?.ok ? (
+          <div
+            className={cn(
+              "border p-3 space-y-3",
+              quote.warningLevel === "extreme"
+                ? "border-red-500/50 bg-red-500/10"
+                : "border-amber-500/50 bg-amber-500/10",
+            )}
+            data-testid="trade-confirm"
+          >
+            <div className="flex items-start gap-2 text-xs">
+              <AlertTriangle
+                className={cn(
+                  "w-4 h-4 shrink-0 mt-0.5",
+                  quote.warningLevel === "extreme" ? "text-red-400" : "text-amber-400",
+                )}
+              />
+              <p className="text-foreground/90">
+                This order is{" "}
+                <span className="font-mono font-medium">
+                  {fmtPercent(quote.tradeImpactPercent)}
+                </span>{" "}
+                of available liquidity and will move the price against you for an
+                estimated{" "}
+                <span className="font-mono font-medium">
+                  {quote.slippagePercent.toFixed(2)}%
+                </span>{" "}
+                slippage.{" "}
+                {quote.warningLevel === "extreme"
+                  ? "That's a very large fill — expect a poor execution price."
+                  : "Consider a smaller size for a better fill."}
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setConfirmOpen(false)}
+                data-testid="button-cancel-trade"
+                className="h-10 text-sm border border-border text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => mutation.mutate()}
+                disabled={mutation.isPending}
+                data-testid="button-confirm-trade"
+                className={cn(
+                  "h-10 text-sm font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-40",
+                  side === "buy"
+                    ? "bg-emerald-500 text-black hover:bg-emerald-400"
+                    : "bg-red-500 text-white hover:bg-red-400",
+                )}
+              >
+                {mutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+                Confirm anyway
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            onClick={() => {
+              if (
+                quote?.ok &&
+                (quote.warningLevel === "high" || quote.warningLevel === "extreme")
+              ) {
+                setConfirmOpen(true);
+                return;
+              }
+              mutation.mutate();
+            }}
+            disabled={
+              mutation.isPending ||
+              (side === "buy" && (!solAmount || Number(solAmount) < 0.1)) ||
+              (side === "sell" && !position) ||
+              (quoteEnabled && quote?.ok === false)
+            }
+            data-testid="button-execute-trade"
+            className={cn(
+              "w-full h-11 text-sm font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed",
+              side === "buy"
+                ? "bg-emerald-500 text-black hover:bg-emerald-400"
+                : "bg-red-500 text-white hover:bg-red-400",
+            )}
+          >
+            {mutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+            {quote?.blocked
+              ? "Trade too large"
+              : `${side === "buy" ? "Buy" : "Sell"} ${info.symbol ?? "Token"}`}
+          </button>
+        )}
+
+        <p className="flex items-start gap-1.5 text-[11px] leading-relaxed text-muted-foreground">
+          <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+          BlackPebble simulates slippage from each token's available liquidity, so
+          larger orders fill at a worse price — just like a real swap. Trades above
+          20% of liquidity are blocked.
+        </p>
 
         {position && (
           <div className="pt-3 border-t border-border text-xs space-y-1.5">

@@ -184,6 +184,8 @@ export interface ExecutionPrice {
   priceUsd: number;
   /** SOL/USD price used for the conversion. */
   solUsd: number;
+  /** Pool liquidity in USD at execution time, used for slippage simulation. */
+  liquidityUsd: number | null;
   source: string;
   pair: string | null;
 }
@@ -220,7 +222,14 @@ export async function getExecutionPrice(
   if (!isCacheFresh("sol_usd", SOL_PRICE_MAX_AGE_MS)) return null;
   const priceSol = priceUsd / solUsd;
   if (!Number.isFinite(priceSol) || priceSol <= 0) return null;
-  return { priceSol, priceUsd, solUsd, source: info.source, pair: info.pairAddress };
+  return {
+    priceSol,
+    priceUsd,
+    solUsd,
+    liquidityUsd: info.liquidityUsd,
+    source: info.source,
+    pair: info.pairAddress,
+  };
 }
 
 /** Current price in SOL for a mint (used by position valuation). */

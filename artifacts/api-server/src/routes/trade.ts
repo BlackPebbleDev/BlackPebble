@@ -12,6 +12,7 @@ import {
   executeSell,
   valuePositions,
   getHistory,
+  getTradeQuote,
 } from "../lib/trading.js";
 
 const router: IRouter = Router();
@@ -70,6 +71,28 @@ router.post(
       return res.status(result.ok ? 200 : 400).json(result);
     }
     return res.status(400).json({ error: "side must be 'buy' or 'sell'" });
+  }),
+);
+
+router.post(
+  "/trade/quote",
+  asyncHandler(async (req, res) => {
+    const b = req.body ?? {};
+    const mint = String(b.mint || "").trim();
+    const side = String(b.side || "").trim();
+    if (!mint) return res.status(400).json({ error: "mint is required" });
+    if (side !== "buy" && side !== "sell") {
+      return res.status(400).json({ error: "side must be 'buy' or 'sell'" });
+    }
+    const quote = await getTradeQuote({
+      wallet: b.wallet ? String(b.wallet) : undefined,
+      mint,
+      side,
+      solAmount: b.solAmount != null ? Number(b.solAmount) : undefined,
+      tokenAmount: b.tokenAmount != null ? Number(b.tokenAmount) : undefined,
+      percent: b.percent != null ? Number(b.percent) : undefined,
+    });
+    return res.json(quote);
   }),
 );
 

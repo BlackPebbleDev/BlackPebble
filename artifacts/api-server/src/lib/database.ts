@@ -192,6 +192,39 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_user_identities_user ON user_identities(user_id);
 `);
 
+/**
+ * Additively add columns that may be missing on an existing database. SQLite's
+ * `ALTER TABLE ... ADD COLUMN` errors if the column already exists, so we guard
+ * each one against the live schema. Used to roll out the slippage audit fields
+ * on the immutable `trades` table without dropping any existing trade history.
+ */
+function ensureColumns(
+  table: string,
+  columns: { name: string; ddl: string }[],
+): void {
+  const existing = db
+    .prepare(`PRAGMA table_info(${table})`)
+    .all() as { name: string }[];
+  const have = new Set(existing.map((c) => c.name));
+  for (const col of columns) {
+    if (!have.has(col.name)) {
+      db.exec(`ALTER TABLE ${table} ADD COLUMN ${col.ddl}`);
+    }
+  }
+}
+
+// Slippage / liquidity-impact audit trail for every executed trade. These power
+// future leaderboard audits and PnL cards; older rows simply carry NULLs.
+ensureColumns("trades", [
+  { name: "raw_price_usd", ddl: "raw_price_usd REAL" },
+  { name: "effective_price_usd", ddl: "effective_price_usd REAL" },
+  { name: "slippage_percent", ddl: "slippage_percent REAL" },
+  { name: "trade_impact_percent", ddl: "trade_impact_percent REAL" },
+  { name: "liquidity_usd_at_execution", ddl: "liquidity_usd_at_execution REAL" },
+  { name: "sol_usd_price_at_execution", ddl: "sol_usd_price_at_execution REAL" },
+  { name: "trade_usd_value", ddl: "trade_usd_value REAL" },
+]);
+
 export default db;
 
 export function getCacheValue(key: string): string | null {

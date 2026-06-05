@@ -95,6 +95,32 @@ export interface Trade {
   price: number;
   pnl: number | null;
   executed_at: number;
+  raw_price_usd?: number | null;
+  effective_price_usd?: number | null;
+  slippage_percent?: number | null;
+  trade_impact_percent?: number | null;
+  liquidity_usd_at_execution?: number | null;
+  sol_usd_price_at_execution?: number | null;
+  trade_usd_value?: number | null;
+}
+
+export type WarningLevel = "none" | "high" | "extreme";
+
+export interface TradeQuote {
+  ok: boolean;
+  error?: string;
+  blocked?: boolean;
+  side: "buy" | "sell";
+  rawPriceUsd: number;
+  effectivePriceUsd: number;
+  slippagePercent: number;
+  tradeImpactPercent: number;
+  liquidityUsd: number;
+  solUsd: number;
+  tradeUsdValue: number;
+  warningLevel: WarningLevel;
+  estimatedTokens: number | null;
+  estimatedSol: number | null;
 }
 
 export interface Portfolio {
@@ -225,6 +251,11 @@ export const api = {
     ),
   execute: (body: Record<string, unknown>) =>
     request<ExecuteResult>("/trade/execute", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  quote: (body: Record<string, unknown>) =>
+    request<TradeQuote>("/trade/quote", {
       method: "POST",
       body: JSON.stringify(body),
     }),
