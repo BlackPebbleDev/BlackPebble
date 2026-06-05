@@ -1,5 +1,5 @@
 import cron from "node-cron";
-import db from "./database.js";
+import { dbAll, dbRun } from "./database.js";
 import { getPortfolio } from "./trading.js";
 import { getSolPriceUsd } from "./prices.js";
 import { logger } from "./logger.js";
@@ -7,23 +7,21 @@ import { logger } from "./logger.js";
 async function snapshotPortfolios(): Promise<void> {
   try {
     // Only snapshot accounts that have traded or hold positions.
-    const wallets = db
-      .prepare(
-        `SELECT wallet FROM accounts WHERE total_trades > 0
-         OR wallet IN (SELECT DISTINCT wallet FROM positions)`,
-      )
-      .all() as { wallet: string }[];
+    const wallets = await dbAll<{ wallet: string }>(
+      `SELECT wallet FROM accounts WHERE total_trades > 0
+       OR wallet IN (SELECT DISTINCT wallet FROM positions)`,
+    );
 
     const now = Math.floor(Date.now() / 1000);
-    const insert = db.prepare(
-      `INSERT INTO portfolio_snapshots (wallet, equity, balance, realized_pnl, snapshot_at)
-       VALUES (?, ?, ?, ?, ?)`,
-    );
 
     for (const { wallet } of wallets) {
       try {
         const p = await getPortfolio(wallet);
-        insert.run(wallet, p.equitySol, p.balance, p.realizedPnlSol, now);
+        await dbRun(
+          `INSERT INTO portfolio_snapshots (wallet, equity, balance, realized_pnl, snapshot_at)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [wallet, p.equitySol, p.balance, p.realizedPnlSol, now],
+        );
       } catch (e) {
         logger.warn({ err: e, wallet }, "Portfolio snapshot failed for wallet");
       }

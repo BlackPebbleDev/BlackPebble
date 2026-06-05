@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { asyncHandler } from "../lib/asyncHandler.js";
-import db from "../lib/database.js";
+import { dbAll } from "../lib/database.js";
 import {
   getPortfolio,
   ensureAccount,
@@ -27,18 +27,17 @@ router.get(
   asyncHandler(async (req, res) => {
     const wallet = String(req.params.wallet || "").trim();
     if (!wallet) return res.status(400).json({ error: "wallet is required" });
-    const rows = db
-      .prepare(
-        `SELECT equity, balance, realized_pnl, snapshot_at
-         FROM portfolio_snapshots WHERE wallet = ?
-         ORDER BY snapshot_at ASC LIMIT 1000`,
-      )
-      .all(wallet) as Array<{
+    const rows = await dbAll<{
       equity: number;
       balance: number;
       realized_pnl: number;
       snapshot_at: number;
-    }>;
+    }>(
+      `SELECT equity, balance, realized_pnl, snapshot_at
+       FROM portfolio_snapshots WHERE wallet = $1
+       ORDER BY snapshot_at ASC LIMIT 1000`,
+      [wallet],
+    );
 
     // Always include a current live point so the chart isn't empty for new accounts.
     const portfolio = await getPortfolio(wallet);
@@ -59,7 +58,7 @@ router.get(
   asyncHandler(async (req, res) => {
     const wallet = String(req.params.wallet || "").trim();
     if (!wallet) return res.status(400).json({ error: "wallet is required" });
-    const a = ensureAccount(wallet);
+    const a = await ensureAccount(wallet);
     const portfolio = await getPortfolio(wallet);
     const solUsd = await getSolPriceUsd();
 
@@ -67,7 +66,7 @@ router.get(
     // than the account counter columns: total_trades used to include buys, and
     // best_trade could go stale. Deriving keeps Best Trade / Win Rate accurate
     // and consistent across refreshes, reconnects and redeploys.
-    const cs = getClosedTradeStats(wallet);
+    const cs = await getClosedTradeStats(wallet);
     const realizedPnlSol = cs.realizedPnl;
     const totalPnlSol = realizedPnlSol + portfolio.unrealizedPnlSol;
     const roi =

@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { asyncHandler } from "../lib/asyncHandler.js";
-import db from "../lib/database.js";
+import { dbAll, dbRun } from "../lib/database.js";
 import {
   searchTokens,
   getTokenInfo,
@@ -24,9 +24,10 @@ router.get(
     const wallet = req.query.wallet ? String(req.query.wallet) : null;
     if (!q) return res.json({ results: [] });
     const results = await searchTokens(q);
-    db.prepare(
-      "INSERT INTO search_activity (wallet, query, results_count) VALUES (?, ?, ?)",
-    ).run(wallet, q, results.length);
+    await dbRun(
+      "INSERT INTO search_activity (wallet, query, results_count) VALUES ($1, $2, $3)",
+      [wallet, q, results.length],
+    );
     return res.json({ results });
   }),
 );
@@ -40,9 +41,10 @@ router.get(
     pumpportal.subscribeToken(mint);
     const info = await getTokenInfo(mint);
     if (!info) return res.status(404).json({ error: "Token not found" });
-    db.prepare(
-      "INSERT INTO token_views (wallet, token_mint) VALUES (?, ?)",
-    ).run(wallet, mint);
+    await dbRun(
+      "INSERT INTO token_views (wallet, token_mint) VALUES ($1, $2)",
+      [wallet, mint],
+    );
     return res.json(info);
   }),
 );
@@ -109,42 +111,49 @@ router.get(
 
 router.get(
   "/trade/history/:wallet",
-  asyncHandler((req, res) => {
+  asyncHandler(async (req, res) => {
     const wallet = String(req.params.wallet || "").trim();
     if (!wallet) return res.status(400).json({ error: "wallet is required" });
-    return res.json({ trades: getHistory(wallet, 200) });
+    return res.json({ trades: await getHistory(wallet, 200) });
   }),
 );
 
 router.post(
   "/trade/watchlist/add",
-  asyncHandler((req, res) => {
+  asyncHandler(async (req, res) => {
     const b = req.body ?? {};
     const wallet = String(b.wallet || "").trim();
     const mint = String(b.mint || "").trim();
     if (!wallet || !mint) {
       return res.status(400).json({ error: "wallet and mint are required" });
     }
-    db.prepare(
-      `INSERT OR REPLACE INTO watchlist (wallet, token_mint, token_name, token_symbol, token_logo, added_at)
-       VALUES (?, ?, ?, ?, ?, unixepoch())`,
-    ).run(wallet, mint, b.name ?? null, b.symbol ?? null, b.logo ?? null);
+    await dbRun(
+      `INSERT INTO watchlist (wallet, token_mint, token_name, token_symbol, token_logo, added_at)
+       VALUES ($1, $2, $3, $4, $5, EXTRACT(EPOCH FROM NOW())::bigint)
+       ON CONFLICT (wallet, token_mint) DO UPDATE SET
+         token_name = EXCLUDED.token_name,
+         token_symbol = EXCLUDED.token_symbol,
+         token_logo = EXCLUDED.token_logo,
+         added_at = EXCLUDED.added_at`,
+      [wallet, mint, b.name ?? null, b.symbol ?? null, b.logo ?? null],
+    );
     return res.json({ ok: true });
   }),
 );
 
 router.post(
   "/trade/watchlist/remove",
-  asyncHandler((req, res) => {
+  asyncHandler(async (req, res) => {
     const b = req.body ?? {};
     const wallet = String(b.wallet || "").trim();
     const mint = String(b.mint || "").trim();
     if (!wallet || !mint) {
       return res.status(400).json({ error: "wallet and mint are required" });
     }
-    db.prepare(
-      "DELETE FROM watchlist WHERE wallet = ? AND token_mint = ?",
-    ).run(wallet, mint);
+    await dbRun(
+      "DELETE FROM watchlist WHERE wallet = $1 AND token_mint = $2",
+      [wallet, mint],
+    );
     return res.json({ ok: true });
   }),
 );
@@ -154,16 +163,15 @@ router.get(
   asyncHandler(async (req, res) => {
     const wallet = String(req.params.wallet || "").trim();
     if (!wallet) return res.status(400).json({ error: "wallet is required" });
-    const rows = db
-      .prepare(
-        "SELECT * FROM watchlist WHERE wallet = ? ORDER BY added_at DESC LIMIT 50",
-      )
-      .all(wallet) as Array<{
+    const rows = await dbAll<{
       token_mint: string;
       token_name: string | null;
       token_symbol: string | null;
       token_logo: string | null;
-    }>;
+    }>(
+      "SELECT * FROM watchlist WHERE wallet = $1 ORDER BY added_at DESC LIMIT 50",
+      [wallet],
+    );
 
     const items = await Promise.all(
       rows.map(async (r) => {

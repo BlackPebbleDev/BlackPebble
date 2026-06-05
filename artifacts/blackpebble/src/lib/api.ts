@@ -76,11 +76,14 @@ export interface Position {
   total_tokens: number;
   total_sol_spent: number;
   avg_entry_price: number;
+  entry_market_cap: number | null;
   opened_at: number;
   currentPriceSol: number | null;
   currentValueSol: number;
   unrealizedPnlSol: number;
   unrealizedPnlPercent: number;
+  currentMarketCapUsd: number | null;
+  marketCapChangePercent: number | null;
 }
 
 export interface Trade {

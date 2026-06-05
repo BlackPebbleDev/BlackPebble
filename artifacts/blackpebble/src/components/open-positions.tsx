@@ -8,6 +8,7 @@ import {
   fmtPrice,
   fmtPercent,
   fmtTokenAmount,
+  fmtMarketCap,
   pnlColor,
   shortAddr,
   timeAgo,
@@ -79,6 +80,7 @@ export function OpenPositions({
           <thead>
             <tr className="text-left text-muted-foreground border-b border-border">
               <th className="font-medium px-4 py-3">Token</th>
+              <th className="font-medium px-4 py-3 text-right">Market Cap</th>
               <th className="font-medium px-4 py-3 text-right">Value</th>
               <th className="font-medium px-4 py-3 text-right">Cost</th>
               <th className="font-medium px-4 py-3 text-right">Avg Entry</th>
@@ -152,6 +154,14 @@ function PositionTableRow({
             <div className="text-xs text-muted-foreground">{p.token_name}</div>
           )}
         </td>
+        <td className="px-4 py-3 text-right">
+          <div className="font-mono text-foreground">
+            {fmtMarketCap(p.currentMarketCapUsd)}
+          </div>
+          <div className="text-xs">
+            <McChange pct={p.marketCapChangePercent} />
+          </div>
+        </td>
         <td className="px-4 py-3 text-right font-mono">
           {fmtSol(p.currentValueSol)}
         </td>
@@ -178,7 +188,7 @@ function PositionTableRow({
       </tr>
       {open && (
         <tr className="border-b border-border/50 bg-background/40">
-          <td colSpan={8} className="px-4 py-4">
+          <td colSpan={9} className="px-4 py-4">
             <PositionDetails
               p={p}
               avgEntryUsd={avgEntryUsd}
@@ -247,6 +257,24 @@ function PositionCard({
           </div>
         </div>
 
+        {/* Market cap is the headline metric for a memecoin position. */}
+        <div className="border border-border/60 bg-background/40 px-3 py-2">
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="text-[11px] uppercase tracking-wider text-muted-foreground">
+              Market Cap
+            </span>
+            <McChange pct={p.marketCapChangePercent} />
+          </div>
+          <div className="mt-0.5 flex items-baseline justify-between gap-2">
+            <span className="font-mono text-lg font-semibold text-foreground">
+              {fmtMarketCap(p.currentMarketCapUsd)}
+            </span>
+            <span className="text-[11px] text-muted-foreground">
+              Entry {fmtMarketCap(p.entry_market_cap)}
+            </span>
+          </div>
+        </div>
+
         <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
           <Field label="Quantity" value={fmtTokenAmount(p.total_tokens)} />
           <Field label="Value" value={`${fmtSol(p.currentValueSol)} SOL`} />
@@ -295,6 +323,15 @@ function PositionDetails({
           label="Quantity"
           value={`${fmtTokenAmount(p.total_tokens)} ${p.token_symbol ?? ""}`.trim()}
         />
+        <Field label="Entry market cap" value={fmtMarketCap(p.entry_market_cap)} />
+        <Field
+          label="Current market cap"
+          value={fmtMarketCap(p.currentMarketCapUsd)}
+        />
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-muted-foreground">Market cap change</span>
+          <McChange pct={p.marketCapChangePercent} />
+        </div>
         <Field label="Avg entry" value={fmtPrice(avgEntryUsd)} />
         <Field
           label="Current price"
@@ -336,6 +373,19 @@ function PositionDetails({
         Open trading desk
       </button>
     </div>
+  );
+}
+
+/** Inline ▲/▼ change badge for market-cap movement since entry. */
+function McChange({ pct }: { pct: number | null }) {
+  if (pct == null || !Number.isFinite(pct)) {
+    return <span className="text-muted-foreground">—</span>;
+  }
+  const arrow = pct > 0 ? "▲" : pct < 0 ? "▼" : "•";
+  return (
+    <span className={cn("font-mono", pnlColor(pct))}>
+      {arrow} {fmtPercent(pct)}
+    </span>
   );
 }
 

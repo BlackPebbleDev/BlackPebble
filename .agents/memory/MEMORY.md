@@ -1,2 +1,1 @@
-- [Trade count semantics](blackpebble-trade-stats.md) — BlackPebble: "executions" (all buy+sell) vs "closedTrades" (sells only); bestTrade is null (never 0) when no winner.
-- [Dev env conventions](blackpebble-dev-conventions.md) — BlackPebble SQLite path, api-server route shape, curl base URL.
+- [Trade lock ordering](trade-lock-ordering.md) — BlackPebble api-server: all multi-row trade transactions must lock accounts→positions in the same order or buy+sell deadlocks.

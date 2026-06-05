@@ -9,11 +9,11 @@ import {
 
 const router: IRouter = Router();
 
-function shape(wallet: string) {
-  const a = ensureAccount(wallet);
+async function shape(wallet: string) {
+  const a = await ensureAccount(wallet);
   // Derive closed-trade stats from the trades table so trade count, win rate
   // and best trade stay accurate and consistent with the Portfolio page.
-  const cs = getClosedTradeStats(wallet);
+  const cs = await getClosedTradeStats(wallet);
   return {
     ...a,
     total_trades: cs.closedTrades,
@@ -28,30 +28,30 @@ function shape(wallet: string) {
 
 router.post(
   "/account/create",
-  asyncHandler((req, res) => {
+  asyncHandler(async (req, res) => {
     const wallet = String(req.body?.wallet || "").trim();
     if (!wallet) return res.status(400).json({ error: "wallet is required" });
-    return res.json(shape(wallet));
+    return res.json(await shape(wallet));
   }),
 );
 
 router.get(
   "/account/:wallet",
-  asyncHandler((req, res) => {
+  asyncHandler(async (req, res) => {
     const wallet = String(req.params.wallet || "").trim();
     if (!wallet) return res.status(400).json({ error: "wallet is required" });
-    return res.json(shape(wallet));
+    return res.json(await shape(wallet));
   }),
 );
 
 router.post(
   "/account/reset",
-  asyncHandler((req, res) => {
+  asyncHandler(async (req, res) => {
     const wallet = String(req.body?.wallet || "").trim();
     if (!wallet) return res.status(400).json({ error: "wallet is required" });
-    const result = resetAccount(wallet);
+    const result = await resetAccount(wallet);
     if (!result.ok) return res.status(400).json(result);
-    return res.json({ ...result, account: getAccount(wallet) });
+    return res.json({ ...result, account: await getAccount(wallet) });
   }),
 );
 

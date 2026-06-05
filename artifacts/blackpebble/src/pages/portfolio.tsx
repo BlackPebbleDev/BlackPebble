@@ -29,6 +29,12 @@ ChartJS.register(
   TimeScale,
 );
 
+/** Display-only tier label: the backend "none" tier reads as "Unranked". */
+function fmtTier(tier: string | null | undefined): string {
+  if (!tier || tier.toLowerCase() === "none") return "Unranked";
+  return tier.charAt(0).toUpperCase() + tier.slice(1);
+}
+
 function Stat({
   label,
   value,
@@ -185,7 +191,7 @@ export default function Portfolio() {
               value={`${(stats?.winRate ?? 0).toFixed(1)}%`}
             />
             <BestTradeStat stats={stats} />
-            <Stat label="Tier" value={stats?.graduationTier ?? "—"} />
+            <Stat label="Tier" value={fmtTier(stats?.graduationTier)} />
           </div>
 
           <div className="border border-border bg-card p-4 mb-6">

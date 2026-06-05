@@ -12,10 +12,10 @@ const PERIODS: LeaderboardPeriod[] = ["daily", "weekly", "all"];
 
 router.get(
   "/leaderboard",
-  asyncHandler((req, res) => {
+  asyncHandler(async (req, res) => {
     const raw = String(req.query.period || "all").trim() as LeaderboardPeriod;
     const period: LeaderboardPeriod = PERIODS.includes(raw) ? raw : "all";
-    const entries = getLeaderboard(period);
+    const entries = await getLeaderboard(period);
     return res.json({
       period,
       minTrades: MIN_LEADERBOARD_TRADES,

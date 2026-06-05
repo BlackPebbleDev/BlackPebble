@@ -8,6 +8,7 @@
     <meta name="description" content="Practice trading live Solana tokens with paper money. Track markets, test strategies, and compete on the leaderboard." />
     <meta name="robots" content="index, follow" />
     <meta name="theme-color" content="#050505" />
+    <link rel="canonical" href="https://blackpebble.fun" />
 
     <!-- Open Graph -->
     <meta property="og:title" content="BlackPebble" />
@@ -35,9 +36,46 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Structured data -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "BlackPebble",
+        "url": "https://blackpebble.fun",
+        "description": "Practice trading live Solana tokens with paper money. Track markets, test strategies, and compete on the leaderboard.",
+        "applicationCategory": "FinanceApplication",
+        "operatingSystem": "Web",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "sameAs": [
+          "https://x.com/BlackPebbleFun",
+          "https://t.me/BlackPebbleFun"
+        ]
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
+    <noscript>
+      <div style="max-width:640px;margin:64px auto;padding:0 24px;font-family:Inter,system-ui,sans-serif;color:#e5e5e5;background:#050505;">
+        <h1 style="font-size:24px;font-weight:700;">BlackPebble</h1>
+        <p style="line-height:1.6;color:#a3a3a3;">
+          BlackPebble is a Solana paper-trading platform. Practice trading live
+          Solana tokens with paper money, track markets, test strategies, and
+          compete on the leaderboard.
+        </p>
+        <p style="line-height:1.6;color:#a3a3a3;">
+          This app requires JavaScript to run. Please enable JavaScript in your
+          browser to start trading.
+        </p>
+        <p style="color:#a3a3a3;">
+          Follow us on
+          <a href="https://x.com/BlackPebbleFun" style="color:#fff;">X</a> and
+          <a href="https://t.me/BlackPebbleFun" style="color:#fff;">Telegram</a>.
+        </p>
+      </div>
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

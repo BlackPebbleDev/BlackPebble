@@ -1,249 +1,99 @@
-import { createRequire } from "node:module";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import fs from "node:fs";
+import pg from "pg";
 
-const require = createRequire(import.meta.url);
-const BetterSQLite3 = require("better-sqlite3");
+// node-postgres returns int8/bigint columns AND integer aggregates
+// (COUNT/SUM over ints) as strings by default. Every bigint column we use is a
+// unix-second timestamp and every aggregate count fits safely in a JS number,
+// so we register a global parser that turns OID 20 (int8) into a number. This
+// keeps the query helpers returning the same numeric shapes the app expects.
+pg.types.setTypeParser(20, (v) => (v === null ? null : Number(v)));
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const dataDir = path.resolve(__dirname, "../../data");
-if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
-
-const dbPath = path.join(dataDir, "blackpebble.db");
-const db = new BetterSQLite3(dbPath);
-
-db.pragma("journal_mode = WAL");
-db.pragma("foreign_keys = ON");
-
-db.exec(`
-  -- PHASE 1: Core paper trading
-  CREATE TABLE IF NOT EXISTS accounts (
-    wallet TEXT PRIMARY KEY,
-    paper_balance REAL DEFAULT 100.0,
-    total_trades INTEGER DEFAULT 0,
-    winning_trades INTEGER DEFAULT 0,
-    total_pnl REAL DEFAULT 0.0,
-    realized_pnl REAL DEFAULT 0.0,
-    best_trade REAL DEFAULT 0.0,
-    worst_trade REAL DEFAULT 0.0,
-    current_streak INTEGER DEFAULT 0,
-    participation_points INTEGER DEFAULT 0,
-    graduation_tier TEXT DEFAULT 'none',
-    created_at INTEGER DEFAULT (unixepoch()),
-    last_active INTEGER DEFAULT (unixepoch()),
-    last_reset_at INTEGER
+if (!process.env.DATABASE_URL) {
+  throw new Error(
+    "DATABASE_URL must be set. The Postgres database is required for paper-trading persistence.",
   );
+}
 
-  CREATE TABLE IF NOT EXISTS positions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    wallet TEXT NOT NULL,
-    token_mint TEXT NOT NULL,
-    token_name TEXT,
-    token_symbol TEXT,
-    token_logo TEXT,
-    total_tokens REAL NOT NULL,
-    total_sol_spent REAL NOT NULL,
-    avg_entry_price REAL NOT NULL,
-    opened_at INTEGER DEFAULT (unixepoch()),
-    UNIQUE(wallet, token_mint)
-  );
+export const pool = new pg.Pool({
+  connectionString: process.env.DATABASE_URL,
+});
 
-  CREATE TABLE IF NOT EXISTS trades (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    wallet TEXT NOT NULL,
-    token_mint TEXT NOT NULL,
-    token_name TEXT,
-    token_symbol TEXT,
-    token_logo TEXT,
-    side TEXT NOT NULL, -- 'buy' or 'sell'
-    sol_amount REAL NOT NULL,
-    token_amount REAL NOT NULL,
-    price REAL NOT NULL,
-    pnl REAL, -- only for sells
-    executed_at INTEGER DEFAULT (unixepoch())
-  );
+/** Anything we can run a parameterized query against (the pool or a tx client). */
+export type Queryable = pg.Pool | pg.PoolClient;
 
-  CREATE TABLE IF NOT EXISTS watchlist (
-    wallet TEXT NOT NULL,
-    token_mint TEXT NOT NULL,
-    token_name TEXT,
-    token_symbol TEXT,
-    token_logo TEXT,
-    added_at INTEGER DEFAULT (unixepoch()),
-    PRIMARY KEY(wallet, token_mint)
-  );
+/** Run a query and return all rows. */
+export async function dbAll<T = Record<string, unknown>>(
+  sql: string,
+  params: unknown[] = [],
+  client: Queryable = pool,
+): Promise<T[]> {
+  const res = await client.query(sql, params);
+  return res.rows as T[];
+}
 
-  -- Portfolio performance history (for the portfolio chart)
-  CREATE TABLE IF NOT EXISTS portfolio_snapshots (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    wallet TEXT NOT NULL,
-    equity REAL NOT NULL, -- balance + open position value (in SOL)
-    balance REAL NOT NULL,
-    realized_pnl REAL NOT NULL,
-    snapshot_at INTEGER DEFAULT (unixepoch())
-  );
+/** Run a query and return the first row (or undefined). */
+export async function dbGet<T = Record<string, unknown>>(
+  sql: string,
+  params: unknown[] = [],
+  client: Queryable = pool,
+): Promise<T | undefined> {
+  const res = await client.query(sql, params);
+  return res.rows[0] as T | undefined;
+}
 
-  -- PHASE 1: Analytics (collect data now, build dashboards later)
-  CREATE TABLE IF NOT EXISTS token_views (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    wallet TEXT,
-    token_mint TEXT NOT NULL,
-    viewed_at INTEGER DEFAULT (unixepoch())
-  );
-
-  CREATE TABLE IF NOT EXISTS search_activity (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    wallet TEXT,
-    query TEXT NOT NULL,
-    results_count INTEGER,
-    searched_at INTEGER DEFAULT (unixepoch())
-  );
-
-  -- PHASE 2: Leaderboard & Competitions (schema ready, not populated yet)
-  CREATE TABLE IF NOT EXISTS leaderboard_snapshots (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    wallet TEXT NOT NULL,
-    period TEXT NOT NULL, -- 'all', 'month', 'week'
-    period_start INTEGER,
-    total_pnl REAL,
-    roi_percent REAL,
-    win_rate REAL,
-    trade_count INTEGER,
-    rank INTEGER,
-    snapshot_at INTEGER DEFAULT (unixepoch())
-  );
-
-  CREATE TABLE IF NOT EXISTS competitions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    period_type TEXT NOT NULL, -- 'weekly', 'monthly'
-    start_at INTEGER NOT NULL,
-    end_at INTEGER NOT NULL,
-    status TEXT DEFAULT 'active', -- 'active', 'completed'
-    created_at INTEGER DEFAULT (unixepoch())
-  );
-
-  CREATE TABLE IF NOT EXISTS competition_results (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    competition_id INTEGER NOT NULL,
-    wallet TEXT NOT NULL,
-    pnl REAL,
-    rank INTEGER,
-    FOREIGN KEY(competition_id) REFERENCES competitions(id)
-  );
-
-  -- PHASE 3: Participation metrics (store now for future rewards)
-  CREATE TABLE IF NOT EXISTS participation_metrics (
-    wallet TEXT NOT NULL,
-    date TEXT NOT NULL, -- YYYY-MM-DD
-    trades_today INTEGER DEFAULT 0,
-    points_today INTEGER DEFAULT 0,
-    PRIMARY KEY(wallet, date)
-  );
-
-  CREATE TABLE IF NOT EXISTS utility_usage (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    wallet TEXT NOT NULL,
-    utility_type TEXT NOT NULL, -- 'cleanup', 'burn', 'close_account', etc.
-    details TEXT, -- JSON blob
-    executed_at INTEGER DEFAULT (unixepoch())
-  );
-
-  -- Generic key/value cache (prices, sol/usd, market lists)
-  CREATE TABLE IF NOT EXISTS cache (
-    key TEXT PRIMARY KEY,
-    value TEXT,
-    updated_at INTEGER
-  );
-
-  -- Identity scaffold (future). Unified user profiles that can link a wallet
-  -- and/or an X (Twitter) account to the same person, for leaderboards and
-  -- shareable PnL cards. Additive only — existing paper-trading accounts stay
-  -- keyed by wallet and are NOT migrated or touched. No OAuth is implemented
-  -- yet; these tables exist so the feature can be built without a later
-  -- schema change.
-  CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    display_name TEXT,
-    avatar_url TEXT,
-    created_at INTEGER DEFAULT (unixepoch()),
-    last_active INTEGER DEFAULT (unixepoch())
-  );
-
-  CREATE TABLE IF NOT EXISTS user_identities (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL REFERENCES users(id),
-    provider TEXT NOT NULL, -- 'wallet' | 'x'
-    provider_user_id TEXT NOT NULL,
-    wallet_address TEXT, -- nullable; set for provider='wallet'
-    x_username TEXT,      -- nullable; set for provider='x'
-    created_at INTEGER DEFAULT (unixepoch()),
-    UNIQUE(provider, provider_user_id)
-  );
-
-  CREATE INDEX IF NOT EXISTS idx_positions_wallet ON positions(wallet);
-  CREATE INDEX IF NOT EXISTS idx_trades_wallet ON trades(wallet);
-  CREATE INDEX IF NOT EXISTS idx_trades_executed ON trades(executed_at);
-  CREATE INDEX IF NOT EXISTS idx_watchlist_wallet ON watchlist(wallet);
-  CREATE INDEX IF NOT EXISTS idx_token_views_mint ON token_views(token_mint);
-  CREATE INDEX IF NOT EXISTS idx_portfolio_wallet ON portfolio_snapshots(wallet);
-  CREATE INDEX IF NOT EXISTS idx_leaderboard_period ON leaderboard_snapshots(period, period_start);
-  CREATE INDEX IF NOT EXISTS idx_comp_results_comp ON competition_results(competition_id);
-  CREATE INDEX IF NOT EXISTS idx_user_identities_user ON user_identities(user_id);
-`);
+/** Run a write/DDL statement, ignoring the result set. */
+export async function dbRun(
+  sql: string,
+  params: unknown[] = [],
+  client: Queryable = pool,
+): Promise<void> {
+  await client.query(sql, params);
+}
 
 /**
- * Additively add columns that may be missing on an existing database. SQLite's
- * `ALTER TABLE ... ADD COLUMN` errors if the column already exists, so we guard
- * each one against the live schema. Used to roll out the slippage audit fields
- * on the immutable `trades` table without dropping any existing trade history.
+ * Run `fn` inside a single transaction on a dedicated client. The callback
+ * receives that client and MUST pass it to every dbAll/dbGet/dbRun call (and
+ * use `... FOR UPDATE` on the rows it mutates) so concurrent trade requests
+ * cannot overspend a balance or double-credit a position. Rolls back on throw.
  */
-function ensureColumns(
-  table: string,
-  columns: { name: string; ddl: string }[],
-): void {
-  const existing = db
-    .prepare(`PRAGMA table_info(${table})`)
-    .all() as { name: string }[];
-  const have = new Set(existing.map((c) => c.name));
-  for (const col of columns) {
-    if (!have.has(col.name)) {
-      db.exec(`ALTER TABLE ${table} ADD COLUMN ${col.ddl}`);
+export async function withTx<T>(
+  fn: (client: pg.PoolClient) => Promise<T>,
+): Promise<T> {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const result = await fn(client);
+    await client.query("COMMIT");
+    return result;
+  } catch (e) {
+    try {
+      await client.query("ROLLBACK");
+    } catch {
+      // ignore rollback failure; original error is rethrown below
     }
+    throw e;
+  } finally {
+    client.release();
   }
 }
 
-// Slippage / liquidity-impact audit trail for every executed trade. These power
-// future leaderboard audits and PnL cards; older rows simply carry NULLs.
-ensureColumns("trades", [
-  { name: "raw_price_usd", ddl: "raw_price_usd REAL" },
-  { name: "effective_price_usd", ddl: "effective_price_usd REAL" },
-  { name: "slippage_percent", ddl: "slippage_percent REAL" },
-  { name: "trade_impact_percent", ddl: "trade_impact_percent REAL" },
-  { name: "liquidity_usd_at_execution", ddl: "liquidity_usd_at_execution REAL" },
-  { name: "sol_usd_price_at_execution", ddl: "sol_usd_price_at_execution REAL" },
-  { name: "trade_usd_value", ddl: "trade_usd_value REAL" },
-]);
-
-export default db;
+// ── In-memory cache ─────────────────────────────────────────────────────────
+// Short-lived caches (SOL/USD price, trending list, etc.) that do not need to
+// survive a restart. Keeping them in-process avoids a DB round trip on every
+// price read and lets the cache helpers stay synchronous, so prices.ts is
+// unchanged. Timestamps are milliseconds.
+const cacheStore = new Map<string, { value: string; updatedAt: number }>();
 
 export function getCacheValue(key: string): string | null {
-  const row = db
-    .prepare("SELECT value FROM cache WHERE key = ?")
-    .get(key) as { value: string } | undefined;
+  const row = cacheStore.get(key);
   return row ? row.value : null;
 }
 
 export function setCacheValue(key: string, value: string): void {
-  db.prepare(
-    "INSERT OR REPLACE INTO cache (key, value, updated_at) VALUES (?, ?, ?)",
-  ).run(key, value, Math.floor(Date.now() / 1000));
+  cacheStore.set(key, { value, updatedAt: Date.now() });
 }
 
 export function isCacheFresh(key: string, maxAgeMs = 5 * 60 * 1000): boolean {
-  const row = db
-    .prepare("SELECT updated_at FROM cache WHERE key = ?")
-    .get(key) as { updated_at: number } | undefined;
+  const row = cacheStore.get(key);
   if (!row) return false;
-  return Date.now() - row.updated_at * 1000 < maxAgeMs;
+  return Date.now() - row.updatedAt < maxAgeMs;
 }

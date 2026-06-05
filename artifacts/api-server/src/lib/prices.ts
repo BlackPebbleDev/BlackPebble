@@ -186,6 +186,8 @@ export interface ExecutionPrice {
   solUsd: number;
   /** Pool liquidity in USD at execution time, used for slippage simulation. */
   liquidityUsd: number | null;
+  /** Market cap (USD), DexScreener pair.marketCap ?? fdv. Display-only. */
+  marketCapUsd: number | null;
   source: string;
   pair: string | null;
 }
@@ -227,6 +229,7 @@ export async function getExecutionPrice(
     priceUsd,
     solUsd,
     liquidityUsd: info.liquidityUsd,
+    marketCapUsd: info.marketCapUsd,
     source: info.source,
     pair: info.pairAddress,
   };
