@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { X } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAccount } from "@/hooks/use-account";
+import { useGuestWatchlist, guestWatchRemove } from "@/lib/guest-store";
 import {
   fmtPrice,
   fmtMarketCap,
@@ -23,7 +24,7 @@ export function Watchlist({
 }: {
   onNavigate: (mint: string) => void;
 }) {
-  const { wallet } = useAccount();
+  const { wallet, isGuest } = useAccount();
   const qc = useQueryClient();
 
   const { data } = useQuery({
@@ -33,12 +34,19 @@ export function Watchlist({
     refetchInterval: 30_000,
   });
 
+  const guest = useGuestWatchlist();
+
   const remove = useMutation({
     mutationFn: (mint: string) => api.watchlistRemove(wallet!, mint),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["watchlist"] }),
   });
 
-  const items = data?.watchlist ?? [];
+  const items = isGuest ? guest.watchlist : data?.watchlist ?? [];
+
+  const removeItem = (mint: string) => {
+    if (isGuest) guestWatchRemove(mint);
+    else remove.mutate(mint);
+  };
 
   if (items.length === 0) {
     return (
@@ -89,7 +97,7 @@ export function Watchlist({
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                remove.mutate(w.mint);
+                removeItem(w.mint);
               }}
               data-testid={`watch-remove-${w.mint}`}
               aria-label={`Remove ${w.symbol ?? "token"} from watchlist`}
@@ -150,7 +158,7 @@ export function Watchlist({
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      remove.mutate(w.mint);
+                      removeItem(w.mint);
                     }}
                     data-testid={`watch-remove-${w.mint}`}
                     aria-label={`Remove ${w.symbol ?? "token"} from watchlist`}

@@ -1,1 +1,1 @@
-- [Trade lock ordering](trade-lock-ordering.md) — BlackPebble api-server: all multi-row trade transactions must lock accounts→positions in the same order or buy+sell deadlocks.
+- [Guest mode anti-cheat migration](guest-mode-migration.md) — guest→wallet save must re-buy positions via real server execute and NEVER import client trade history/realized P&L (leaderboard exploit).

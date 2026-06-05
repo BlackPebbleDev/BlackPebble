@@ -12,6 +12,8 @@ import { api, type Account } from "@/lib/api";
 interface AccountContextValue {
   wallet: string | null;
   connected: boolean;
+  /** True when no wallet is connected — the user is trading as a guest. */
+  isGuest: boolean;
   account: Account | null;
   loading: boolean;
   refresh: () => Promise<void>;
@@ -20,6 +22,7 @@ interface AccountContextValue {
 const AccountContext = createContext<AccountContextValue>({
   wallet: null,
   connected: false,
+  isGuest: true,
   account: null,
   loading: false,
   refresh: async () => {},
@@ -69,7 +72,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
 
   return (
     <AccountContext.Provider
-      value={{ wallet, connected, account, loading, refresh }}
+      value={{ wallet, connected, isGuest: !wallet, account, loading, refresh }}
     >
       {children}
     </AccountContext.Provider>

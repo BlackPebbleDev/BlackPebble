@@ -61,7 +61,7 @@ function RankBadge({ rank }: { rank: number }) {
 }
 
 export default function Leaderboard() {
-  const { wallet } = useAccount();
+  const { wallet, isGuest } = useAccount();
   const [period, setPeriod] = useState<LeaderboardPeriod>("all");
 
   const { data, isLoading } = useQuery({
@@ -83,6 +83,16 @@ export default function Leaderboard() {
         Ranked by realized P&L from closed trades only. A minimum of {minTrades}{" "}
         closed trades is required to appear.
       </p>
+
+      {isGuest && (
+        <div
+          data-testid="banner-leaderboard-guest"
+          className="border border-accent/40 bg-accent/10 px-4 py-3 mb-6 text-sm text-foreground"
+        >
+          Connect a wallet or X to appear on the leaderboard. Guest trades stay
+          on this device and aren't ranked.
+        </div>
+      )}
 
       <div className="flex items-center gap-1 mb-5 border-b border-border">
         {tabs.map((t) => (

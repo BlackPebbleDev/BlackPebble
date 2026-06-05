@@ -11,6 +11,7 @@ import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import logoFlat from "@assets/E4772800-2295-459C-A05B-A20CCA59AA60_1780532645349.png";
 import { TokenSearch } from "@/components/token-search";
 import { XLoginButton } from "@/components/x-login-button";
+import { GuestMigrationPrompt } from "@/components/guest-migration-prompt";
 import { useAccount } from "@/hooks/use-account";
 import { cn } from "@/lib/utils";
 
@@ -79,7 +80,7 @@ function SiteFooter() {
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [location, navigate] = useLocation();
   const [expanded, setExpanded] = useState(false);
-  const { wallet } = useAccount();
+  const { wallet, isGuest } = useAccount();
 
   function handleSearchSelect(mint: string) {
     navigate(`/?token=${mint}`);
@@ -103,6 +104,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="flex-shrink-0 ml-auto flex items-center gap-2">
+            {isGuest && (
+              <span
+                data-testid="badge-guest-mode"
+                className="hidden sm:inline-flex items-center text-[11px] font-medium uppercase tracking-wider text-amber-400 border border-amber-500/30 bg-amber-500/10 px-2 py-1"
+              >
+                Guest Mode
+              </span>
+            )}
             <XLoginButton />
             <WalletMultiButton />
           </div>
@@ -184,6 +193,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           );
         })}
       </nav>
+
+      <GuestMigrationPrompt />
     </div>
   );
 }

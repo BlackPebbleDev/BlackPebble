@@ -12,7 +12,7 @@ import {
   Filler,
   TimeScale,
 } from "chart.js";
-import { Wallet, Loader2 } from "lucide-react";
+import { Wallet, Loader2, AlertTriangle } from "lucide-react";
 import { useAccount } from "@/hooks/use-account";
 import { api, type PortfolioStats } from "@/lib/api";
 import { OpenPositions } from "@/components/open-positions";
@@ -20,6 +20,12 @@ import { Watchlist } from "@/components/watchlist";
 import { TradeList } from "@/components/trade-list";
 import { fmtSol, fmtUsd, fmtPercent, pnlColor } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import {
+  useGuestStore,
+  useGuestValuedPositions,
+  guestHistory,
+  computeGuestStats,
+} from "@/lib/guest-store";
 
 ChartJS.register(
   CategoryScale,
@@ -86,10 +92,10 @@ function BestTradeStat({ stats }: { stats?: PortfolioStats }) {
 }
 
 export default function Portfolio() {
-  const { wallet } = useAccount();
+  const { wallet, isGuest } = useAccount();
   const [, navigate] = useLocation();
 
-  const { data: stats, isLoading: statsLoading } = useQuery({
+  const { data: serverStats, isLoading: serverStatsLoading } = useQuery({
     queryKey: ["pf-stats", wallet],
     queryFn: () => api.portfolioStats(wallet!),
     enabled: !!wallet,
@@ -110,12 +116,23 @@ export default function Portfolio() {
     refetchInterval: 60_000,
   });
 
-  const { data: history } = useQuery({
+  const { data: serverHistory } = useQuery({
     queryKey: ["history", wallet],
     queryFn: () => api.history(wallet!),
     enabled: !!wallet,
     refetchInterval: 30_000,
   });
+
+  const guestState = useGuestStore();
+  const guestValued = useGuestValuedPositions();
+  const guestStats = useMemo(
+    () => computeGuestStats(guestState, guestValued.positions, guestValued.solUsd),
+    [guestState, guestValued.positions, guestValued.solUsd],
+  );
+
+  const stats = isGuest ? guestStats : serverStats;
+  const statsLoading = isGuest ? false : serverStatsLoading;
+  const history = isGuest ? { trades: guestHistory(guestState) } : serverHistory;
 
   const chartData = useMemo(() => {
     const points = chart?.points ?? [];
@@ -141,7 +158,7 @@ export default function Portfolio() {
     };
   }, [chart]);
 
-  if (!wallet) {
+  if (!wallet && !isGuest) {
     return (
       <div className="flex-1 flex items-center justify-center px-6 py-20">
         <div className="text-center max-w-sm">
@@ -156,14 +173,36 @@ export default function Portfolio() {
     );
   }
 
-  const positions = portfolio?.positions ?? [];
+  const positions = isGuest ? guestValued.positions : portfolio?.positions ?? [];
+  const positionsSolUsd = isGuest ? guestValued.solUsd : portfolio?.solUsd ?? 0;
 
   return (
     <div className="w-full max-w-6xl mx-auto px-4 md:px-6 py-6">
       <div className="flex items-center gap-3 mb-6">
         <Wallet className="w-6 h-6 text-accent" />
         <h1 className="text-2xl font-semibold">Portfolio</h1>
+        {isGuest && (
+          <span
+            data-testid="badge-portfolio-guest"
+            className="text-[11px] font-medium uppercase tracking-wider text-amber-400 border border-amber-500/30 bg-amber-500/10 px-2 py-1"
+          >
+            Guest Mode
+          </span>
+        )}
       </div>
+
+      {isGuest && (
+        <div
+          data-testid="banner-portfolio-guest"
+          className="flex items-start gap-2 border border-amber-500/30 bg-amber-500/10 px-4 py-3 mb-6"
+        >
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
+          <p className="text-xs leading-relaxed text-foreground/90">
+            Guest trades are temporary. Sign in to save your portfolio and join
+            leaderboards.
+          </p>
+        </div>
+      )}
 
       {statsLoading ? (
         <div className="flex items-center justify-center py-20">
@@ -203,38 +242,40 @@ export default function Portfolio() {
             <Stat label="Tier" value={fmtTier(stats?.graduationTier)} />
           </div>
 
-          <div className="border border-border bg-card p-4 mb-6">
-            <div className="text-sm text-muted-foreground mb-3">
-              Equity Performance
-            </div>
-            <div className="h-64">
-              <Line
-                data={chartData}
-                options={{
-                  responsive: true,
-                  maintainAspectRatio: false,
-                  plugins: { legend: { display: false } },
-                  scales: {
-                    x: {
-                      grid: { color: "rgba(255,255,255,0.04)" },
-                      ticks: { color: "#a0a0a0", maxTicksLimit: 8 },
+          {!isGuest && (
+            <div className="border border-border bg-card p-4 mb-6">
+              <div className="text-sm text-muted-foreground mb-3">
+                Equity Performance
+              </div>
+              <div className="h-64">
+                <Line
+                  data={chartData}
+                  options={{
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                      x: {
+                        grid: { color: "rgba(255,255,255,0.04)" },
+                        ticks: { color: "#a0a0a0", maxTicksLimit: 8 },
+                      },
+                      y: {
+                        grid: { color: "rgba(255,255,255,0.04)" },
+                        ticks: { color: "#a0a0a0" },
+                      },
                     },
-                    y: {
-                      grid: { color: "rgba(255,255,255,0.04)" },
-                      ticks: { color: "#a0a0a0" },
-                    },
-                  },
-                }}
-              />
+                  }}
+                />
+              </div>
             </div>
-          </div>
+          )}
 
           <h2 className="text-lg font-semibold mb-3">
             Open Positions ({positions.length})
           </h2>
           <OpenPositions
             positions={positions}
-            solUsd={portfolio?.solUsd ?? 0}
+            solUsd={positionsSolUsd}
             empty="No open positions. Head to the Trading Desk to start."
             onNavigate={(mint) => navigate(`/?token=${mint}`)}
           />

@@ -28,6 +28,16 @@ import { OpenPositions } from "@/components/open-positions";
 import { Watchlist } from "@/components/watchlist";
 import { useAccount } from "@/hooks/use-account";
 import { useToast } from "@/hooks/use-toast";
+import { useWalletModal } from "@solana/wallet-adapter-react-ui";
+import {
+  useGuestStore,
+  useGuestValuedPositions,
+  guestBuy,
+  guestSell,
+  guestWatchAdd,
+  guestWatchRemove,
+  guestHistory,
+} from "@/lib/guest-store";
 import {
   fmtSol,
   fmtUsd,
@@ -299,13 +309,18 @@ function useDebounced<T>(value: T, delayMs: number): T {
 }
 
 function TradePanel({ info }: { info: TokenInfo }) {
-  const { wallet, account } = useAccount();
+  const { wallet, account, isGuest } = useAccount();
   const { toast } = useToast();
   const qc = useQueryClient();
+  const { setVisible: setWalletModalVisible } = useWalletModal();
   const [side, setSide] = useState<"buy" | "sell">("buy");
   const [solAmount, setSolAmount] = useState("");
   const [sellPercent, setSellPercent] = useState(100);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [savePromptOpen, setSavePromptOpen] = useState(false);
+
+  const guestState = useGuestStore();
+  const guestValued = useGuestValuedPositions();
 
   const { data: posData } = useQuery({
     queryKey: ["positions", wallet],
@@ -313,14 +328,24 @@ function TradePanel({ info }: { info: TokenInfo }) {
     enabled: !!wallet,
     refetchInterval: 15_000,
   });
-  const position = posData?.positions.find((p) => p.token_mint === info.mint);
+  const position = isGuest
+    ? guestValued.positions.find((p) => p.token_mint === info.mint)
+    : posData?.positions.find((p) => p.token_mint === info.mint);
+
+  const cashBalance = isGuest ? guestState.balance : account?.paper_balance;
 
   // Pre-trade quote: simulated slippage / impact / execution price, debounced.
   const debouncedSol = useDebounced(solAmount, 350);
   const debouncedPct = useDebounced(sellPercent, 350);
   const buyValid = side === "buy" && Number(debouncedSol) >= 0.1;
   const sellValid = side === "sell" && !!position;
-  const quoteEnabled = !!wallet && (buyValid || sellValid);
+  const quoteEnabled = buyValid || sellValid;
+
+  // Guests have no server position, so a sell quote must be priced by an
+  // explicit token amount (derived from the local position) rather than a
+  // percent the server would resolve against the database.
+  const sellTokenAmount =
+    position != null ? position.total_tokens * (debouncedPct / 100) : 0;
 
   const { data: quote, isFetching: quoteFetching } = useQuery<TradeQuote>({
     queryKey: [
@@ -329,12 +354,15 @@ function TradePanel({ info }: { info: TokenInfo }) {
       side,
       side === "buy" ? debouncedSol : debouncedPct,
       wallet,
+      isGuest ? sellTokenAmount : null,
     ],
     queryFn: () =>
       api.quote(
         side === "buy"
           ? { wallet, mint: info.mint, side: "buy", solAmount: Number(debouncedSol) }
-          : { wallet, mint: info.mint, side: "sell", percent: debouncedPct },
+          : isGuest
+            ? { mint: info.mint, side: "sell", tokenAmount: sellTokenAmount }
+            : { wallet, mint: info.mint, side: "sell", percent: debouncedPct },
       ),
     enabled: quoteEnabled,
     refetchInterval: 20_000,
@@ -346,8 +374,39 @@ function TradePanel({ info }: { info: TokenInfo }) {
   }, [side, solAmount, sellPercent, info.mint]);
 
   const mutation = useMutation({
-    mutationFn: () =>
-      api.execute(
+    mutationFn: async () => {
+      if (isGuest) {
+        // Re-quote fresh at execution time (mirrors the server recomputing the
+        // fill at execute), then apply local bookkeeping.
+        if (side === "buy") {
+          const q = await api.quote({
+            mint: info.mint,
+            side: "buy",
+            solAmount: Number(solAmount),
+          });
+          return guestBuy({
+            mint: info.mint,
+            name: info.name,
+            symbol: info.symbol,
+            logo: info.logo,
+            solAmount: Number(solAmount),
+            quote: q,
+            marketCapUsd: info.marketCapUsd,
+          });
+        }
+        const pos = guestValued.positions.find(
+          (p) => p.token_mint === info.mint,
+        );
+        if (!pos) return { ok: false, error: "No open position for this token" };
+        const tokenAmount = pos.total_tokens * (sellPercent / 100);
+        const q = await api.quote({
+          mint: info.mint,
+          side: "sell",
+          tokenAmount,
+        });
+        return guestSell({ mint: info.mint, tokenAmount, quote: q });
+      }
+      return api.execute(
         side === "buy"
           ? {
               wallet,
@@ -364,7 +423,8 @@ function TradePanel({ info }: { info: TokenInfo }) {
               side: "sell",
               percent: sellPercent,
             },
-      ),
+      );
+    },
     onSuccess: (res) => {
       if (!res.ok) {
         toast({ title: "Trade failed", description: res.error, variant: "destructive" });
@@ -382,29 +442,72 @@ function TradePanel({ info }: { info: TokenInfo }) {
       });
       setSolAmount("");
       setConfirmOpen(false);
-      qc.invalidateQueries({ queryKey: ["positions"] });
-      qc.invalidateQueries({ queryKey: ["pf"] });
-      qc.invalidateQueries({ queryKey: ["pf-stats"] });
-      qc.invalidateQueries({ queryKey: ["account"] });
-      qc.invalidateQueries({ queryKey: ["history"] });
+      if (isGuest) {
+        setSavePromptOpen(true);
+      } else {
+        qc.invalidateQueries({ queryKey: ["positions"] });
+        qc.invalidateQueries({ queryKey: ["pf"] });
+        qc.invalidateQueries({ queryKey: ["pf-stats"] });
+        qc.invalidateQueries({ queryKey: ["account"] });
+        qc.invalidateQueries({ queryKey: ["history"] });
+      }
     },
     onError: (e: Error) => {
       toast({ title: "Trade failed", description: e.message, variant: "destructive" });
     },
   });
 
-  if (!wallet) {
-    return (
-      <div className="border border-border bg-card p-6 text-center">
-        <p className="text-sm text-muted-foreground">
-          Connect your wallet to start paper trading.
-        </p>
-      </div>
-    );
-  }
-
   return (
     <div className="border border-border bg-card">
+      {isGuest && (
+        <div
+          data-testid="banner-guest-trade"
+          className="border-b border-amber-500/30 bg-amber-500/10 px-4 py-3"
+        >
+          <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-amber-400">
+            <AlertTriangle className="w-3.5 h-3.5" />
+            Guest Mode
+          </div>
+          <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+            Guest trades are temporary. Sign in to save your portfolio and join
+            leaderboards.
+          </p>
+        </div>
+      )}
+
+      {isGuest && savePromptOpen && (
+        <div
+          data-testid="prompt-save-guest"
+          className="border-b border-accent/30 bg-accent/10 px-4 py-3"
+        >
+          <p className="text-xs text-foreground mb-2.5">
+            Want to save this portfolio? Connect a wallet to keep it and compete
+            on the leaderboard.
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              data-testid="button-prompt-connect"
+              onClick={() => {
+                setSavePromptOpen(false);
+                setWalletModalVisible(true);
+              }}
+              className="flex-1 h-9 bg-accent text-accent-foreground text-xs font-medium hover:bg-accent/90 transition-colors"
+            >
+              Connect Wallet
+            </button>
+            <button
+              type="button"
+              data-testid="button-prompt-keep-testing"
+              onClick={() => setSavePromptOpen(false)}
+              className="flex-1 h-9 border border-border text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Keep Testing
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-2">
         <button
           onClick={() => setSide("buy")}
@@ -436,7 +539,7 @@ function TradePanel({ info }: { info: TokenInfo }) {
         <div className="flex items-center justify-between text-xs text-muted-foreground">
           <span>Cash balance</span>
           <span className="font-mono text-foreground">
-            {fmtSol(account?.paper_balance)} SOL
+            {fmtSol(cashBalance)} SOL
           </span>
         </div>
 
@@ -634,14 +737,17 @@ function TradePanel({ info }: { info: TokenInfo }) {
 }
 
 function WatchButton({ info }: { info: TokenInfo }) {
-  const { wallet } = useAccount();
+  const { wallet, isGuest } = useAccount();
   const qc = useQueryClient();
   const { data } = useQuery({
     queryKey: ["watchlist", wallet],
     queryFn: () => api.watchlist(wallet!),
     enabled: !!wallet,
   });
-  const watched = data?.watchlist.some((w) => w.mint === info.mint);
+  const guest = useGuestStore();
+  const watched = isGuest
+    ? guest.watchlist.some((w) => w.mint === info.mint)
+    : data?.watchlist.some((w) => w.mint === info.mint);
 
   const mutation = useMutation({
     mutationFn: () =>
@@ -657,11 +763,24 @@ function WatchButton({ info }: { info: TokenInfo }) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["watchlist"] }),
   });
 
-  if (!wallet) return null;
+  const toggle = () => {
+    if (isGuest) {
+      if (watched) guestWatchRemove(info.mint);
+      else
+        guestWatchAdd({
+          mint: info.mint,
+          name: info.name,
+          symbol: info.symbol,
+          logo: info.logo,
+        });
+      return;
+    }
+    mutation.mutate();
+  };
 
   return (
     <button
-      onClick={() => mutation.mutate()}
+      onClick={toggle}
       data-testid="button-watchlist-toggle"
       className={cn(
         "flex items-center gap-2 px-3 h-9 border text-xs transition-colors",
@@ -677,7 +796,7 @@ function WatchButton({ info }: { info: TokenInfo }) {
 }
 
 function ActivityTabs() {
-  const { wallet } = useAccount();
+  const { wallet, isGuest } = useAccount();
   const navigate = useNavigate();
   const [tab, setTab] = useState<"positions" | "history" | "watchlist">(
     "positions",
@@ -695,7 +814,12 @@ function ActivityTabs() {
     enabled: !!wallet && tab === "history",
   });
 
-  if (!wallet) return null;
+  const guestValued = useGuestValuedPositions();
+  const guestState = useGuestStore();
+
+  const positions = isGuest ? guestValued.positions : posData?.positions ?? [];
+  const solUsd = isGuest ? guestValued.solUsd : posData?.solUsd ?? 0;
+  const trades = isGuest ? guestHistory(guestState) : histData?.trades ?? [];
 
   const tabs = [
     { id: "positions" as const, label: "Positions" },
@@ -726,15 +850,15 @@ function ActivityTabs() {
       <div className={cn(tab === "positions" && "p-3 md:p-0")}>
         {tab === "positions" && (
           <OpenPositions
-            positions={posData?.positions ?? []}
-            solUsd={posData?.solUsd ?? 0}
+            positions={positions}
+            solUsd={solUsd}
             empty="No open positions."
             onNavigate={(mint) => navigate(`/?token=${mint}`)}
           />
         )}
         {tab === "history" && (
           <TradeList
-            trades={histData?.trades ?? []}
+            trades={trades}
             empty="No trade history yet."
             onNavigate={(mint) => navigate(`/?token=${mint}`)}
           />
