@@ -6,6 +6,7 @@ import liveRouter from "./live.js";
 import marketsRouter from "./markets.js";
 import portfolioRouter from "./portfolio.js";
 import leaderboardRouter from "./leaderboard.js";
+import authXRouter from "./auth-x.js";
 
 const router: IRouter = Router();
 
@@ -16,5 +17,6 @@ router.use(liveRouter);
 router.use(marketsRouter);
 router.use(portfolioRouter);
 router.use(leaderboardRouter);
+router.use(authXRouter);
 
 export default router;

@@ -1,18 +1,6 @@
 import { cn } from "@/lib/utils";
-
-/**
- * Secondary, optional sign-in with X (Twitter).
- *
- * Wallet connection remains the PRIMARY identity for paper trading. This button
- * is scaffolding for a future X OAuth flow that will let users attach an X
- * profile (avatar + username) to their account for leaderboards and shareable
- * PnL cards.
- *
- * It is intentionally inert until OAuth is configured server-side. There is no
- * fake/simulated login here — flip X_LOGIN_ENABLED once the real OAuth
- * (PKCE, server-side token exchange) and the `/auth/x/*` routes exist.
- */
-const X_LOGIN_ENABLED = false;
+import { useXAuth } from "@/hooks/use-x-auth";
+import { useAccount } from "@/hooks/use-account";
 
 function XLogo({ className }: { className?: string }) {
   return (
@@ -23,23 +11,57 @@ function XLogo({ className }: { className?: string }) {
 }
 
 export function XLoginButton({ className }: { className?: string }) {
+  const { loggedIn, user, login, logout } = useXAuth();
+  const { wallet } = useAccount();
+
+  if (loggedIn && user) {
+    return (
+      <div className={cn("flex items-center gap-2", className)}>
+        {user.x_avatar_url ? (
+          <img
+            src={user.x_avatar_url}
+            alt={user.x_display_name || user.x_username}
+            className="w-7 h-7 rounded-full object-cover"
+            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+          />
+        ) : (
+          <div className="w-7 h-7 rounded-full bg-secondary flex items-center justify-center text-[10px] text-muted-foreground">
+            <XLogo className="w-3.5 h-3.5" />
+          </div>
+        )}
+        <div className="hidden lg:flex flex-col items-start leading-tight">
+          <span className="text-[11px] text-foreground font-medium max-w-[120px] truncate">
+            {user.x_display_name || user.x_username}
+          </span>
+          <span className="text-[10px] text-muted-foreground">@{user.x_username}</span>
+        </div>
+        <button
+          type="button"
+          onClick={logout}
+          className="text-[10px] text-muted-foreground hover:text-foreground ml-1"
+          title="Disconnect X"
+        >
+          ×
+        </button>
+      </div>
+    );
+  }
+
   return (
     <button
       type="button"
-      disabled={!X_LOGIN_ENABLED}
-      title={X_LOGIN_ENABLED ? "Sign in with X" : "X login coming soon"}
-      aria-label={X_LOGIN_ENABLED ? "Sign in with X" : "X login coming soon"}
+      onClick={() => login(wallet)}
+      title="Sign in with X"
+      aria-label="Sign in with X"
       data-testid="button-login-x"
       className={cn(
         "inline-flex items-center gap-2 h-9 px-3 text-xs font-medium border border-border bg-secondary text-muted-foreground transition-colors",
-        "hover:enabled:text-accent hover:enabled:border-accent disabled:cursor-not-allowed disabled:opacity-80",
+        "hover:text-accent hover:border-accent",
         className,
       )}
     >
       <XLogo className="w-3.5 h-3.5 flex-shrink-0" />
-      <span className="hidden lg:inline whitespace-nowrap">
-        {X_LOGIN_ENABLED ? "Login with X" : "Login with X (Coming Soon)"}
-      </span>
+      <span className="hidden lg:inline whitespace-nowrap">Login with X</span>
     </button>
   );
 }

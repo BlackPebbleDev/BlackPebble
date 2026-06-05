@@ -16,6 +16,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppShell } from "@/components/app-shell";
 import { AccountProvider } from "@/hooks/use-account";
+import { XAuthProvider } from "@/hooks/use-x-auth";
 import NotFound from "@/pages/not-found";
 import TradingDesk from "@/pages/trading";
 import Markets from "@/pages/markets";
@@ -64,9 +65,11 @@ function App() {
       <TooltipProvider>
         <SolanaProviders>
           <AccountProvider>
-            <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-              <Router />
-            </WouterRouter>
+            <XAuthProvider>
+              <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+                <Router />
+              </WouterRouter>
+            </XAuthProvider>
           </AccountProvider>
         </SolanaProviders>
         <Toaster />
