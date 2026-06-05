@@ -1,3 +1,4 @@
 - [Leaderboard tier consistency](leaderboard-tier-consistency.md) — tier badges must render the stored all-time graduation_tier, never period-scoped realized_pnl, or tabs disagree with portfolio.
 - [Tier thresholds lockstep](tier-thresholds-lockstep.md) — tier cutoffs are duplicated in api trading.ts and web lib/tiers.ts; changing one without the other silently drifts.
 - [.replit userenv secret leak](replit-userenv-secret-leak.md) — sensitive values placed in env-var scopes get serialized as plaintext into committed .replit; keep secrets as managed Secrets only.
+- [X OAuth PKCE encoding](x-oauth-pkce-encoding.md) — PKCE code_challenge must base64url the raw SHA-256 Buffer directly; binary→UTF-8 round-trip corrupts it and X rejects with "weren't able to give access".

@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { createHash, randomBytes } from "crypto";
 import { SignJWT, jwtVerify } from "jose";
 import { asyncHandler } from "../lib/asyncHandler.js";
 import { dbGet, dbRun, withTx } from "../lib/database.js";
@@ -59,8 +60,8 @@ async function verifySession(token: string): Promise<XSessionPayload | null> {
   }
 }
 
-function base64URLEncode(str: string): string {
-  return Buffer.from(str)
+function base64URLEncode(buf: Buffer): string {
+  return buf
     .toString("base64")
     .replace(/\+/g, "-")
     .replace(/\//g, "_")
@@ -68,22 +69,18 @@ function base64URLEncode(str: string): string {
 }
 
 function generateCodeVerifier(): string {
-  const bytes = new Uint8Array(32);
-  for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
-  return base64URLEncode(String.fromCharCode(...bytes));
+  // 32 random bytes -> 43-char base64url string (RFC 7636 compliant)
+  return base64URLEncode(randomBytes(32));
 }
 
 function generateCodeChallenge(verifier: string): string {
-  const hash = require("crypto").createHash("sha256").update(verifier).digest();
-  return base64URLEncode(hash.toString("binary"));
+  // BASE64URL(SHA256(ASCII(code_verifier))) — encode the raw digest bytes directly
+  const hash = createHash("sha256").update(verifier).digest();
+  return base64URLEncode(hash);
 }
 
 function generateState(): string {
-  const bytes = new Uint8Array(16);
-  for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
-  return Array.from(bytes)
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
+  return randomBytes(16).toString("hex");
 }
 
 // ── Fetch X user profile with the access token ──────────────────────────────
