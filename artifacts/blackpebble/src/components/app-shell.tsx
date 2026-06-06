@@ -32,17 +32,21 @@ function isActive(location: string, href: string): boolean {
 
 function SiteFooter() {
   return (
-    <footer className="border-t border-border bg-card/40 px-4 py-6 mt-8">
+    <footer className="border-t border-border bg-card/40 px-4 py-8 mt-8">
       <div className="max-w-5xl mx-auto">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5">
-          <p className="text-xs text-muted-foreground text-center sm:text-left">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
+          <div className="space-y-6">
+            <SupportSection compact />
+          </div>
+          <div className="space-y-6">
+            <FeedbackSection compact />
+          </div>
+        </div>
+        <div className="mt-6 pt-4 border-t border-border text-center">
+          <p className="text-xs text-muted-foreground">
             © {new Date().getFullYear()} Blackpebble · Paper trading for
             entertainment. Not financial advice.
           </p>
-          <div className="flex flex-col gap-5 sm:max-w-xs w-full">
-            <SupportSection compact />
-            <FeedbackSection compact />
-          </div>
         </div>
       </div>
     </footer>

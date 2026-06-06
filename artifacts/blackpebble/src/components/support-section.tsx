@@ -2,7 +2,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { Copy, ExternalLink } from "lucide-react";
 
-const DONATION_ADDRESS = "DSg7mQ8kzCmuSVzJXPJjCQLq5H7Aiar8GpvkFF6mUb7z";
+export const DONATION_ADDRESS = "DSg7mQ8kzCmuSVzJXPJjCQLq5H7Aiar8GpvkFF6mUb7z";
 
 function CopyButton({ text, label }: { text: string; label?: string }) {
   const { toast } = useToast();
