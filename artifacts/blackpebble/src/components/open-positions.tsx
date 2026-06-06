@@ -1,29 +1,32 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { ChevronDown, ArrowRight } from "lucide-react";
-import { api, type Position, type Trade } from "@/lib/api";
-import { useAccount } from "@/hooks/use-account";
+import { useLocation } from "wouter";
+import { ChevronDown, ArrowRight, BarChart3 } from "lucide-react";
+import { type Position } from "@/lib/api";
 import {
   fmtSol,
   fmtPrice,
   fmtPercent,
   fmtTokenAmount,
   fmtMarketCap,
+  fmtMultiple,
+  fmtHoldTime,
   pnlColor,
   shortAddr,
-  timeAgo,
 } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { TradeList } from "./trade-list";
 
 /**
- * Open positions, rendered as stacked cards on mobile (no horizontal scroll)
- * and a table on desktop. The token name navigates straight to the trading desk
- * for that mint; the chevron (and the rest of the row) expands the drilldown.
+ * Open positions as a 3-level information hierarchy so a trader can scan many
+ * positions without endless scrolling:
  *
- * The expanded drilldown is split into three labelled sections — Position
- * Analytics, Trade History, Actions — and the per-token trade history is fetched
- * lazily, only once the first row is expanded.
+ *  L1 — collapsed card / table row: the at-a-glance signals
+ *       (Token, Unrealized P&L, ROI%, Entry MC, Current MC, MC Multiple).
+ *  L2 — expanded: the trader-focused grid (the L1 set plus Position Value,
+ *       Cost Basis, Hold Time, Quantity) and quick actions.
+ *  L3 — the dedicated /position/:mint page (full Market Cap + Position
+ *       Analytics and the complete Trade History). Linked from L2.
+ *
+ * Nothing is removed by the collapse — every field remains reachable in L2/L3.
  */
 export function OpenPositions({
   positions,
@@ -36,17 +39,7 @@ export function OpenPositions({
   empty: string;
   onNavigate: (mint: string) => void;
 }) {
-  const { wallet } = useAccount();
   const [expanded, setExpanded] = useState<number | null>(null);
-
-  const { data: histData } = useQuery({
-    queryKey: ["history", wallet],
-    queryFn: () => api.history(wallet!),
-    enabled: !!wallet && expanded != null,
-  });
-  const allTrades = histData?.trades ?? [];
-  const tradesFor = (mint: string) =>
-    allTrades.filter((t: Trade) => t.token_mint === mint);
 
   if (positions.length === 0) {
     return (
@@ -69,7 +62,6 @@ export function OpenPositions({
             solUsd={solUsd}
             open={expanded === p.id}
             onToggle={() => toggle(p.id)}
-            trades={tradesFor(p.token_mint)}
             onNavigate={onNavigate}
           />
         ))}
@@ -81,35 +73,26 @@ export function OpenPositions({
           <thead>
             <tr className="text-left text-muted-foreground border-b border-border">
               <th className="font-medium px-4 py-3">Token</th>
-              <th className="font-medium px-4 py-3 text-right">Market Cap</th>
-              <th className="font-medium px-4 py-3 text-right">Qty</th>
+              <th className="font-medium px-4 py-3 text-right">Entry MC</th>
+              <th className="font-medium px-4 py-3 text-right">Current MC</th>
+              <th className="font-medium px-4 py-3 text-right">MC ×</th>
               <th className="font-medium px-4 py-3 text-right">Value</th>
-              <th className="font-medium px-4 py-3 text-right">Cost</th>
-              <th className="font-medium px-4 py-3 text-right">Avg Entry</th>
-              <th className="font-medium px-4 py-3 text-right">Current</th>
-              <th className="font-medium px-4 py-3 text-right">P&L</th>
+              <th className="font-medium px-4 py-3 text-right">ROI</th>
+              <th className="font-medium px-4 py-3 text-right">Unrealized P&L</th>
               <th className="font-medium px-2 py-3 w-8" />
             </tr>
           </thead>
           <tbody>
-            {positions.map((p) => {
-              const avgEntryUsd = p.avg_entry_price * solUsd;
-              const currentUsd =
-                p.currentPriceSol != null ? p.currentPriceSol * solUsd : null;
-              const open = expanded === p.id;
-              return (
-                <PositionTableRow
-                  key={p.id}
-                  p={p}
-                  open={open}
-                  onToggle={() => toggle(p.id)}
-                  avgEntryUsd={avgEntryUsd}
-                  currentUsd={currentUsd}
-                  trades={tradesFor(p.token_mint)}
-                  onNavigate={onNavigate}
-                />
-              );
-            })}
+            {positions.map((p) => (
+              <PositionTableRow
+                key={p.id}
+                p={p}
+                solUsd={solUsd}
+                open={expanded === p.id}
+                onToggle={() => toggle(p.id)}
+                onNavigate={onNavigate}
+              />
+            ))}
           </tbody>
         </table>
       </div>
@@ -117,23 +100,31 @@ export function OpenPositions({
   );
 }
 
+function mcMultipleOf(p: Position): number | null {
+  if (
+    p.entry_market_cap != null &&
+    p.entry_market_cap > 0 &&
+    p.currentMarketCapUsd != null
+  ) {
+    return p.currentMarketCapUsd / p.entry_market_cap;
+  }
+  return null;
+}
+
 function PositionTableRow({
   p,
+  solUsd,
   open,
   onToggle,
-  avgEntryUsd,
-  currentUsd,
-  trades,
   onNavigate,
 }: {
   p: Position;
+  solUsd: number;
   open: boolean;
   onToggle: () => void;
-  avgEntryUsd: number;
-  currentUsd: number | null;
-  trades: Trade[];
   onNavigate: (mint: string) => void;
 }) {
+  const mult = mcMultipleOf(p);
   return (
     <>
       <tr
@@ -162,6 +153,9 @@ function PositionTableRow({
             )}
           </button>
         </td>
+        <td className="px-4 py-3 text-right font-mono text-muted-foreground">
+          {fmtMarketCap(p.entry_market_cap)}
+        </td>
         <td className="px-4 py-3 text-right">
           <div className="font-mono text-foreground">
             {fmtMarketCap(p.currentMarketCapUsd)}
@@ -170,24 +164,32 @@ function PositionTableRow({
             <McChange pct={p.marketCapChangePercent} />
           </div>
         </td>
-        <td className="px-4 py-3 text-right font-mono text-muted-foreground">
-          {fmtTokenAmount(p.total_tokens)}
+        <td
+          className={cn(
+            "px-4 py-3 text-right font-mono",
+            pnlColor(mult != null ? mult - 1 : null),
+          )}
+        >
+          {fmtMultiple(mult)}
         </td>
         <td className="px-4 py-3 text-right font-mono">
           {fmtSol(p.currentValueSol)}
         </td>
-        <td className="px-4 py-3 text-right font-mono">
-          {fmtSol(p.total_sol_spent)}
+        <td
+          className={cn(
+            "px-4 py-3 text-right font-mono",
+            pnlColor(p.unrealizedPnlPercent),
+          )}
+        >
+          {fmtPercent(p.unrealizedPnlPercent)}
         </td>
-        <td className="px-4 py-3 text-right font-mono text-muted-foreground">
-          {fmtPrice(avgEntryUsd)}
-        </td>
-        <td className="px-4 py-3 text-right font-mono text-muted-foreground">
-          {currentUsd != null ? fmtPrice(currentUsd) : "—"}
-        </td>
-        <td className={cn("px-4 py-3 text-right font-mono", pnlColor(p.unrealizedPnlSol))}>
-          <div>{fmtSol(p.unrealizedPnlSol)}</div>
-          <div className="text-xs">{fmtPercent(p.unrealizedPnlPercent)}</div>
+        <td
+          className={cn(
+            "px-4 py-3 text-right font-mono",
+            pnlColor(p.unrealizedPnlSol),
+          )}
+        >
+          {fmtSol(p.unrealizedPnlSol)}
         </td>
         <td className="px-2 py-3 text-muted-foreground">
           <ChevronDown
@@ -197,15 +199,8 @@ function PositionTableRow({
       </tr>
       {open && (
         <tr className="border-b border-border/50 bg-background/40">
-          <td colSpan={9} className="px-4 py-4">
-            <PositionDetails
-              p={p}
-              avgEntryUsd={avgEntryUsd}
-              currentUsd={currentUsd}
-              trades={trades}
-              onNavigate={onNavigate}
-              variant="table"
-            />
+          <td colSpan={8} className="px-4 py-4">
+            <ExpandedAnalytics p={p} solUsd={solUsd} onNavigate={onNavigate} />
           </td>
         </tr>
       )}
@@ -218,25 +213,21 @@ function PositionCard({
   solUsd,
   open,
   onToggle,
-  trades,
   onNavigate,
 }: {
   p: Position;
   solUsd: number;
   open: boolean;
   onToggle: () => void;
-  trades: Trade[];
   onNavigate: (mint: string) => void;
 }) {
-  const avgEntryUsd = p.avg_entry_price * solUsd;
-  const currentUsd =
-    p.currentPriceSol != null ? p.currentPriceSol * solUsd : null;
-
+  const mult = mcMultipleOf(p);
   return (
-    <div className="border border-border bg-card" data-testid={`card-position-${p.token_mint}`}>
-      {/* Header row: token (navigates) + PnL + chevron (toggles). Kept as a
-          flex row of buttons so the token link and the expand toggle are
-          independent tap targets. */}
+    <div
+      className="border border-border bg-card"
+      data-testid={`card-position-${p.token_mint}`}
+    >
+      {/* L1 header: token (navigates) + Unrealized P&L / ROI% + expand toggle. */}
       <div className="flex items-stretch">
         <button
           type="button"
@@ -264,7 +255,12 @@ function PositionCard({
             <div className={cn("font-mono text-sm", pnlColor(p.unrealizedPnlSol))}>
               {fmtSol(p.unrealizedPnlSol)} SOL
             </div>
-            <div className={cn("font-mono text-xs", pnlColor(p.unrealizedPnlPercent))}>
+            <div
+              className={cn(
+                "font-mono text-xs",
+                pnlColor(p.unrealizedPnlPercent),
+              )}
+            >
               {fmtPercent(p.unrealizedPnlPercent)}
             </div>
           </div>
@@ -277,153 +273,148 @@ function PositionCard({
         </button>
       </div>
 
-      {/* Market cap is the headline metric for a memecoin position. The
-          collapsed card deliberately shows only the MC block + P&L (in the
-          header) — all the granular fields live in the expanded Position
-          Analytics so nothing is duplicated. */}
-      <button
-        type="button"
-        onClick={onToggle}
-        className="w-full text-left px-4 pb-3"
-      >
-        <div className="border border-border/60 bg-background/40 px-3 py-2">
-          <div className="flex items-baseline justify-between gap-2">
-            <span className="text-[11px] uppercase tracking-wider text-muted-foreground">
-              Market Cap
-            </span>
-            <McChange pct={p.marketCapChangePercent} />
-          </div>
-          <div className="mt-0.5 flex items-baseline justify-between gap-2">
-            <span className="font-mono text-lg font-semibold text-foreground">
-              {fmtMarketCap(p.currentMarketCapUsd)}
-            </span>
-            <span className="text-[11px] text-muted-foreground">
-              Entry {fmtMarketCap(p.entry_market_cap)}
-            </span>
-          </div>
+      {/* L1 market-cap strip: Entry MC · Current MC · MC Multiple. */}
+      <button type="button" onClick={onToggle} className="w-full text-left px-4 pb-3">
+        <div className="grid grid-cols-3 border border-border/60 bg-background/40 divide-x divide-border/60">
+          <McCell label="Entry MC" value={fmtMarketCap(p.entry_market_cap)} />
+          <McCell
+            label="Current MC"
+            value={fmtMarketCap(p.currentMarketCapUsd)}
+            extra={<McChange pct={p.marketCapChangePercent} small />}
+          />
+          <McCell
+            label="MC ×"
+            value={fmtMultiple(mult)}
+            valueClass={pnlColor(mult != null ? mult - 1 : null)}
+          />
         </div>
       </button>
 
       {open && (
-        <div className="px-4 pb-4 pt-1 border-t border-border/60">
-          <PositionDetails
-            p={p}
-            avgEntryUsd={avgEntryUsd}
-            currentUsd={currentUsd}
-            trades={trades}
-            onNavigate={onNavigate}
-            variant="card"
-          />
+        <div className="px-4 pb-4 border-t border-border/60">
+          <ExpandedAnalytics p={p} solUsd={solUsd} onNavigate={onNavigate} />
         </div>
       )}
     </div>
   );
 }
 
-function PositionDetails({
-  p,
-  avgEntryUsd,
-  currentUsd,
-  trades,
-  onNavigate,
-  variant,
+function McCell({
+  label,
+  value,
+  extra,
+  valueClass,
 }: {
-  p: Position;
-  avgEntryUsd: number;
-  currentUsd: number | null;
-  trades: Trade[];
-  onNavigate: (mint: string) => void;
-  /**
-   * "card" (mobile): the collapsed view shows Market Cap + P&L (P&L lives in
-   * the header), so the analytics grid carries every other field and never
-   * repeats P&L. "table" (desktop): the row already shows
-   * qty/value/cost/avg/current/P&L/MC, so the grid only adds the fields the row
-   * omits (entry MC, opened). Either way, no field is repeated.
-   */
-  variant: "card" | "table";
+  label: string;
+  value: string;
+  extra?: React.ReactNode;
+  valueClass?: string;
 }) {
   return (
-    <div className="space-y-4 pt-3">
-      {/* Position Analytics */}
-      <Section title="Position Analytics">
-        <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
-          {variant === "card" ? (
-            <>
-              <Field label="Quantity" value={fmtTokenAmount(p.total_tokens)} />
-              <Field label="Avg entry" value={fmtPrice(avgEntryUsd)} />
-              <Field
-                label="Current price"
-                value={currentUsd != null ? fmtPrice(currentUsd) : "—"}
-              />
-              <Field label="Cost basis" value={`${fmtSol(p.total_sol_spent)} SOL`} />
-              <Field
-                label="Position value"
-                value={`${fmtSol(p.currentValueSol)} SOL`}
-              />
-              <Field label="Opened" value={timeAgo(p.opened_at) || "—"} />
-            </>
-          ) : (
-            <>
-              <Field
-                label="Entry market cap"
-                value={fmtMarketCap(p.entry_market_cap)}
-              />
-              <Field label="Opened" value={timeAgo(p.opened_at) || "—"} />
-            </>
-          )}
-        </div>
-      </Section>
+    <div className="px-3 py-2">
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+        {label}
+      </div>
+      <div className={cn("mt-0.5 font-mono text-sm font-semibold text-foreground", valueClass)}>
+        {value}
+      </div>
+      {extra && <div className="text-[10px]">{extra}</div>}
+    </div>
+  );
+}
 
-      {/* Trade History */}
-      <Section title="Trade History">
-        {trades.length > 0 ? (
-          <div className="border border-border/60 bg-card">
-            <TradeList trades={trades} empty="" compact />
-          </div>
-        ) : (
-          <div className="text-xs text-muted-foreground">
-            No trades recorded for this token yet.
-          </div>
-        )}
-      </Section>
+/**
+ * Level 2 — the trader-focused expanded grid. Mirrors the spec field set and
+ * links to the full Level-3 analytics page (where the complete trade history
+ * lives). No analytics are dropped here; they move one tap deeper.
+ */
+function ExpandedAnalytics({
+  p,
+  solUsd,
+  onNavigate,
+}: {
+  p: Position;
+  solUsd: number;
+  onNavigate: (mint: string) => void;
+}) {
+  const [, navigate] = useLocation();
+  const mult = mcMultipleOf(p);
+  const avgEntryUsd = p.avg_entry_price * solUsd;
+  const currentUsd =
+    p.currentPriceSol != null ? p.currentPriceSol * solUsd : null;
 
-      {/* Actions */}
-      <Section title="Actions">
+  return (
+    <div className="pt-3 space-y-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-2 text-xs">
+        <Field label="Entry MC" value={fmtMarketCap(p.entry_market_cap)} />
+        <Field label="Current MC" value={fmtMarketCap(p.currentMarketCapUsd)} />
+        <Field
+          label="MC Multiple"
+          value={fmtMultiple(mult)}
+          cls={pnlColor(mult != null ? mult - 1 : null)}
+        />
+        <Field
+          label="Position Value"
+          value={`${fmtSol(p.currentValueSol)} SOL`}
+        />
+        <Field label="Cost Basis" value={`${fmtSol(p.total_sol_spent)} SOL`} />
+        <Field
+          label="ROI"
+          value={fmtPercent(p.unrealizedPnlPercent)}
+          cls={pnlColor(p.unrealizedPnlPercent)}
+        />
+        <Field
+          label="Unrealized P&L"
+          value={`${fmtSol(p.unrealizedPnlSol)} SOL`}
+          cls={pnlColor(p.unrealizedPnlSol)}
+        />
+        <Field label="Hold Time" value={fmtHoldTime(p.opened_at)} />
+        <Field label="Quantity" value={fmtTokenAmount(p.total_tokens)} />
+      </div>
+
+      <div className="text-[11px] font-mono text-muted-foreground">
+        Avg entry {fmtPrice(avgEntryUsd)} · Current{" "}
+        {currentUsd != null ? fmtPrice(currentUsd) : "—"}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 pt-1">
         <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            navigate(`/position/${p.token_mint}`);
+          }}
+          data-testid={`button-detail-${p.token_mint}`}
+          className="inline-flex items-center gap-1.5 h-9 px-3 text-xs font-medium border border-accent/50 text-accent hover:bg-accent/10 transition-colors"
+        >
+          <BarChart3 className="w-3.5 h-3.5" />
+          View Full Detail
+        </button>
+        <button
+          type="button"
           onClick={(e) => {
             e.stopPropagation();
             onNavigate(p.token_mint);
           }}
           data-testid={`button-open-${p.token_mint}`}
-          className="inline-flex items-center gap-1.5 h-9 px-3 text-xs font-medium border border-accent/50 text-accent hover:bg-accent/10 transition-colors"
+          className="inline-flex items-center gap-1.5 h-9 px-3 text-xs font-medium border border-border text-foreground hover:bg-secondary transition-colors"
         >
           Continue Trading
           <ArrowRight className="w-3.5 h-3.5" />
         </button>
-      </Section>
-    </div>
-  );
-}
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <div className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1.5">
-        {title}
       </div>
-      {children}
     </div>
   );
 }
 
 /** Inline ▲/▼ change badge for market-cap movement since entry. */
-function McChange({ pct }: { pct: number | null }) {
+function McChange({ pct, small }: { pct: number | null; small?: boolean }) {
   if (pct == null || !Number.isFinite(pct)) {
     return <span className="text-muted-foreground">—</span>;
   }
   const arrow = pct > 0 ? "▲" : pct < 0 ? "▼" : "•";
   return (
-    <span className={cn("font-mono", pnlColor(pct))}>
+    <span className={cn("font-mono", small && "text-[10px]", pnlColor(pct))}>
       {arrow} {fmtPercent(pct)}
     </span>
   );

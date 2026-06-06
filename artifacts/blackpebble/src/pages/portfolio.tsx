@@ -118,6 +118,20 @@ export default function Portfolio() {
     refetchInterval: 30_000,
   });
 
+  // Rank is derived from the all-time leaderboard (it isn't part of the stats
+  // payload). Guests are never ranked; signed-in traders below the qualifying
+  // threshold show "Unranked" rather than a misleading number.
+  const { data: leaderboard } = useQuery({
+    queryKey: ["leaderboard", "all"],
+    queryFn: () => api.leaderboard("all"),
+    enabled: !!wallet && !isGuest,
+    refetchInterval: 60_000,
+  });
+  const rank = useMemo(() => {
+    if (!wallet || isGuest) return null;
+    return leaderboard?.entries.find((e) => e.wallet === wallet)?.rank ?? null;
+  }, [leaderboard, wallet, isGuest]);
+
   const guestState = useGuestStore();
   const guestValued = useGuestValuedPositions();
   const guestStats = useMemo(
@@ -234,6 +248,19 @@ export default function Portfolio() {
               value={`${(stats?.winRate ?? 0).toFixed(1)}%`}
             />
             <BestTradeStat stats={stats} />
+            <Stat
+              label="Rank"
+              value={
+                isGuest
+                  ? "Guest"
+                  : leaderboard == null
+                    ? "—"
+                    : rank != null
+                      ? `#${rank}`
+                      : "Unranked"
+              }
+              className={rank != null ? "text-accent" : "text-muted-foreground"}
+            />
             <div className="border border-border bg-card px-4 py-3">
               <div className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1.5">
                 Tier

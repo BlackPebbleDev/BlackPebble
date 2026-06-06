@@ -101,7 +101,8 @@
   --app-font-sans: 'Inter', sans-serif;
   --app-font-serif: 'Inter', sans-serif;
   --app-font-mono: 'JetBrains Mono', Menlo, monospace;
-  --radius: 0rem; 
+  /* Subtle 2px corner radius — institutional, not consumer-rounded. */
+  --radius: 0.125rem;
 }
 
 @layer base {
@@ -130,7 +131,7 @@
   font-weight: 600 !important;
   line-height: 36px !important;
   border: 1px solid hsl(var(--border)) !important;
-  border-radius: 0 !important;
+  border-radius: 2px !important;
 }
 .wallet-adapter-button-trigger:not([disabled]):hover {
   background: hsl(var(--accent)) !important;
@@ -152,5 +153,5 @@
 .wallet-adapter-dropdown-list,
 .wallet-adapter-modal-wrapper {
   font-family: var(--app-font-sans) !important;
-  border-radius: 0 !important;
+  border-radius: 2px !important;
 }

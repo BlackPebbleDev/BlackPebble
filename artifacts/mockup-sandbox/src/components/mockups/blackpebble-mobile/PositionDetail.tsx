@@ -12,7 +12,7 @@ import {
 import './_group.css';
 
 /*
- * BlackPebble — Expanded Position (mobile) mockup.
+ * BlackPebble — Full Position Detail (mobile) mockup, Level 3 of the hierarchy.
  *
  * Premium visual polish with NO loss of information density. Every field the
  * live app already tracks is present, organised into four labelled sections:
@@ -186,25 +186,29 @@ export function PositionDetail() {
                 </div>
               </div>
 
-              {/* progress from avg entry → current relative to peak */}
-              <div className="mt-3 h-1 w-full bg-border rounded-full overflow-hidden">
-                <div className="h-full bg-accent rounded-full" style={{ width: '78%' }} />
-              </div>
-
-              <div className="mt-2 flex items-center justify-between text-[11px] font-['JetBrains_Mono'] tabular-nums">
+              <div className="mt-3 flex items-center justify-between text-[11px] font-['JetBrains_Mono'] tabular-nums">
                 <span className="inline-flex items-center gap-1 text-emerald-400">
-                  <ArrowUpRight className="w-3 h-3" /> +{POS.mcChangePct}%
+                  <ArrowUpRight className="w-3 h-3" /> +{POS.mcChangePct}% since entry
                 </span>
-                <span className="text-muted-foreground">Peak {fmtMc(POS.peakMcUsd)}</span>
+                <span className="text-emerald-400">3.22×</span>
               </div>
             </div>
 
-            {/* MC-derived metrics */}
+            {/* MC-derived metrics. Peak MC / From Peak have NO backing data
+                (no continuous market-cap history is stored) so they are shown
+                honestly as "—", never fabricated. */}
             <div className="grid grid-cols-3 gap-2 mt-2">
               <Stat label="MC Multiple" value="3.22×" valueClass="text-emerald-400" />
-              <Stat label="From Peak" value="-8.6%" valueClass="text-red-400" />
+              <Stat label="MC Gain" value={`+${POS.mcChangePct}%`} valueClass="text-emerald-400" />
               <Stat label="Hold Time" value={POS.held} />
+              <Stat label="Peak MC" value="—" sub="Not tracked yet" />
+              <Stat label="From Peak" value="—" sub="Not tracked yet" />
+              <Stat label="Executions" value={String(POS.executions)} sub="buys" />
             </div>
+            <p className="mt-2 text-[11px] text-muted-foreground/80 leading-relaxed">
+              Peak MC and drawdown-from-peak require continuous market-cap history
+              per holding, which isn't tracked yet. Every other metric is live.
+            </p>
           </section>
 
           {/* ── Position Analytics ─────────────────────────────────── */}

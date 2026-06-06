@@ -117,3 +117,30 @@ export function pnlColor(value: number | null | undefined): string {
   if (value == null || value === 0) return "text-muted-foreground";
   return value > 0 ? "text-emerald-400" : "text-red-400";
 }
+
+/**
+ * Market-cap multiple, e.g. current MC / avg entry MC -> "3.24×".
+ * Returns "—" when either input is missing so it never shows a misleading 0.
+ */
+export function fmtMultiple(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value) || value <= 0) return "—";
+  return `${value.toFixed(2)}×`;
+}
+
+/**
+ * Compact hold-time since a position opened: "3d 4h", "5h 12m", "8m".
+ * Accepts seconds (or ms) epoch like the rest of format.ts.
+ */
+export function fmtHoldTime(tsSeconds: number | null | undefined): string {
+  if (!tsSeconds) return "—";
+  const ms = tsSeconds > 1e12 ? tsSeconds : tsSeconds * 1000;
+  let s = Math.max(0, Math.floor((Date.now() - ms) / 1000));
+  const d = Math.floor(s / 86400);
+  s -= d * 86400;
+  const h = Math.floor(s / 3600);
+  s -= h * 3600;
+  const m = Math.floor(s / 60);
+  if (d > 0) return `${d}d ${h}h`;
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}

@@ -157,7 +157,64 @@ export default function Leaderboard() {
           </p>
         </div>
       ) : (
-        <div className="border border-border bg-card overflow-x-auto">
+        <>
+          {/* Mobile: stacked cards (no horizontal scroll, all metrics shown) */}
+          <div className="md:hidden space-y-2">
+            {entries.map((e) => {
+              const isMe = wallet && e.wallet === wallet;
+              return (
+                <div
+                  key={e.wallet}
+                  data-testid={`card-rank-${e.rank}`}
+                  className={cn(
+                    "border bg-card p-3",
+                    isMe ? "border-accent/60 bg-accent/10" : "border-border",
+                  )}
+                >
+                  <div className="flex items-center gap-3 mb-3">
+                    <RankBadge rank={e.rank} />
+                    <div className="min-w-0 flex-1">
+                      <Trader entry={e} />
+                    </div>
+                    {isMe && (
+                      <span className="text-[10px] uppercase tracking-wider text-accent shrink-0">
+                        You
+                      </span>
+                    )}
+                    <TierBadge tier={e.graduation_tier} size="sm" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
+                    <LbField
+                      label="P&L"
+                      value={fmtSol(e.realized_pnl)}
+                      cls={pnlClass(e.realized_pnl)}
+                    />
+                    <LbField
+                      label="ROI"
+                      value={fmtPercent(e.roi)}
+                      cls={pnlClass(e.roi)}
+                    />
+                    <LbField
+                      label="Win Rate"
+                      value={`${e.win_rate.toFixed(1)}%`}
+                    />
+                    <LbField
+                      label="Trades"
+                      value={String(e.total_closed_trades)}
+                    />
+                    <LbField
+                      label="Best Trade"
+                      value={fmtSol(e.best_trade)}
+                      cls={pnlClass(e.best_trade)}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Desktop: full table */}
+          <div className="hidden md:block border border-border bg-card overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-muted-foreground border-b border-border">
@@ -238,8 +295,26 @@ export default function Leaderboard() {
               })}
             </tbody>
           </table>
-        </div>
+          </div>
+        </>
       )}
+    </div>
+  );
+}
+
+function LbField({
+  label,
+  value,
+  cls,
+}: {
+  label: string;
+  value: string;
+  cls?: string;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <span className="text-muted-foreground">{label}</span>
+      <span className={cn("font-mono text-foreground", cls)}>{value}</span>
     </div>
   );
 }

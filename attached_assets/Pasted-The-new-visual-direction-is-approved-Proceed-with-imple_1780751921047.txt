@@ -1,0 +1,192 @@
+The new visual direction is approved.
+
+Proceed with implementation of the premium visual polish across the platform.
+
+Requirements:
+
+Preserve Functionality
+
+Do NOT remove, hide, simplify, or reduce any existing trading analytics.
+
+BlackPebble’s value comes from information density and market-cap based analytics.
+
+All existing functionality must remain intact.
+
+Examples:
+
+* Entry MC
+* Current MC
+* Market Cap Analytics
+* Position Value
+* Cost Basis
+* Unrealized P&L
+* ROI
+* Trade History
+* Executions
+* Slippage
+* Hold Time
+* Historical trade data
+* Portfolio analytics
+* Rank information
+* Tier information
+* Closed trade statistics
+* Win rate
+* Leaderboard metrics
+
+Nothing should be lost during the visual redesign.
+
+⸻
+
+Portfolio Page Structure
+
+Current concern:
+
+If a trader has many positions, a full analytics panel for every position creates excessive scrolling and poor usability.
+
+Implement a 3-level information hierarchy.
+
+Level 1 — Portfolio Overview (Default)
+
+Each position card should remain compact.
+
+Display:
+
+* Token
+* Unrealized P&L
+* ROI %
+* Entry MC
+* Current MC
+* MC Multiple (if available)
+
+This should allow many positions to be viewed quickly.
+
+⸻
+
+Level 2 — Expanded Position
+
+When expanding a position:
+
+Display:
+
+* Entry MC
+* Current MC
+* MC Multiple
+* Position Value
+* Cost Basis
+* ROI
+* Unrealized P&L
+* Hold Time
+* Quantity
+
+This is the trader-focused view.
+
+⸻
+
+Level 3 — Full Position Detail
+
+Add a dedicated Position Detail page/modal/screen.
+
+This is where the full analytics live.
+
+Include:
+
+Market Cap Analytics
+
+* Entry MC
+* Current MC
+* Peak MC
+* MC Multiple
+* MC Gain
+* Drawdown From Peak
+
+Position Analytics
+
+* Avg Entry MC (prefer MC language over token-price language where possible)
+* Position Value
+* Cost Basis
+* Quantity
+* Unrealized P&L
+* ROI
+* Hold Time
+* Executions
+* Avg Slippage
+
+Trade History
+
+* All executions
+* Buy history
+* Sell history
+* Timestamps
+* Slippage per execution
+
+This is the “deep analytics” screen.
+
+⸻
+
+Portfolio Overview Cards
+
+IMPORTANT:
+
+The redesigned Portfolio page must still contain all of the major summary blocks from the current live version.
+
+Preserve:
+
+* Total Equity
+* Cash Balance
+* Total P&L
+* ROI
+* Win Rate
+* Closed Trades
+* Executions
+* Rank
+* Tier
+* Any other current portfolio summary statistics
+
+Do not reduce information density.
+
+Improve visual hierarchy only.
+
+⸻
+
+Design Direction
+
+Approved:
+
+* Premium fintech aesthetic
+* Subtle 2px corner radius
+* BlackPebble black/gold color system
+* Improved spacing
+* Improved typography
+* Better mobile readability
+
+Do NOT add:
+
+* Glassmorphism
+* Neon effects
+* Gaming UI
+* Meme styling
+* Excessive animations
+* Rounded consumer-app cards
+
+Target inspiration:
+
+* Bloomberg
+* Hyperliquid
+* TradingView
+* Institutional trading platforms
+
+Goal:
+
+Maintain all current trading intelligence while making the platform feel significantly more premium and professional.
+
+Before final deployment:
+
+Provide updated mobile previews for:
+
+* Trading
+* Portfolio
+* Expanded Position
+* Full Position Detail
+* Leaderboard
+
+and confirm that no existing analytics or portfolio summary data has been removed.

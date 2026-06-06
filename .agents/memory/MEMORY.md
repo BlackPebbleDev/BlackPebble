@@ -1,10 +1,2 @@
-- [Leaderboard tier consistency](leaderboard-tier-consistency.md) — tier badges must render the stored all-time graduation_tier, never period-scoped realized_pnl, or tabs disagree with portfolio.
-- [Tier thresholds lockstep](tier-thresholds-lockstep.md) — tier cutoffs are duplicated in api trading.ts and web lib/tiers.ts; changing one without the other silently drifts.
-- [.replit userenv secret leak](replit-userenv-secret-leak.md) — sensitive values placed in env-var scopes get serialized as plaintext into committed .replit; keep secrets as managed Secrets only.
-- [X OAuth PKCE encoding](x-oauth-pkce-encoding.md) — PKCE code_challenge must base64url the raw SHA-256 Buffer directly; binary→UTF-8 round-trip corrupts it and X rejects with "weren't able to give access".
-- [Dev vs prod DBs](db-environments.md) — dev and production are SEPARATE Postgres DBs; prod executeSql is read-only, mutate prod only via a deployed token-protected endpoint.
-- [Account identity model](blackpebble-account-identity.md) — trading keyed by one text `wallet` col; X login → synthetic `x:<x_id>` key takes priority over Solana wallet; guest only when neither exists.
-- [grep output redaction](replit-grep-output-redaction.md) — bash/grep/rg output can mangle identifiers; use rg to locate but trust the read tool for exact source.
-- [Chart iframe lifecycle](blackpebble-chart-iframe-lifecycle.md) — TradingDesk never remounts on token nav (route `/` + ?token=); DexScreener iframe must fully remount per token via key, not src-swap, or mobile webviews exhaust and stop loading.
-- [Guest supply cap](blackpebble-guest-supply-cap.md) — /trade/quote can't enforce the 4% supply cap for guests (no wallet → held=0); guestBuy must re-derive and enforce it locally via GUEST_MAX_SUPPLY_PCT.
-- [Premium polish direction](premium-polish-direction.md) — BlackPebble visual-polish rules: 2px radius, gold for actions only, green/red only for P&L, no glass/neon/glow; mockups await approval before site-wide impl.
+- [Honest missing-data treatment](honest-missing-data.md) — Peak MC / drawdown-from-peak have no stored history; render "—"/"Not tracked yet", never fabricate.
+- [Mockup-sandbox screenshot path](mockup-sandbox-screenshot-path.md) — artifact base path is `/__mockup/preview`; pass screenshot path relative to it (e.g. `/blackpebble-mobile/X`), not the full URL.

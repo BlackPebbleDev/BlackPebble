@@ -21,6 +21,7 @@ import NotFound from "@/pages/not-found";
 import TradingDesk from "@/pages/trading";
 import Markets from "@/pages/markets";
 import Portfolio from "@/pages/portfolio";
+import PositionDetail from "@/pages/position-detail";
 import Leaderboard from "@/pages/leaderboard";
 import Utilities from "@/pages/utilities";
 
@@ -33,6 +34,7 @@ function Router() {
         <Route path="/" component={TradingDesk} />
         <Route path="/markets" component={Markets} />
         <Route path="/portfolio" component={Portfolio} />
+        <Route path="/position/:mint" component={PositionDetail} />
         <Route path="/leaderboard" component={Leaderboard} />
         <Route path="/utilities" component={Utilities} />
         <Route component={NotFound} />
