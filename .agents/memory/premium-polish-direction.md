@@ -15,6 +15,8 @@ Scope: a POLISH pass, not a redesign. Preserve all functionality, routing, page 
 - Inspiration: Bloomberg Terminal, Hyperliquid, TradingView, institutional fintech.
 - Hard bans: no glassmorphism/backdrop-blur, no neon, no glowing/colored shadows or borders, no gaming UI, no crypto-meme aesthetics, no decorative gradients.
 
-**Why:** User required plan/mockup approval before any site-wide change and was explicit about the banned aesthetics and the gold/green-red color discipline.
+**Information density is non-negotiable:** the polish must NOT reduce density. BlackPebble's edge is trading analytics + market-cap-based tracking. Preserve every existing position/trade field. The expanded-position view must let a trader instantly answer: entry MC, current MC, ROI, avg entry, slippage taken, and how many executions built the position. Adding derived analytics (executions count, avg slippage, MC multiple) is welcome; removing/hiding/replacing any field is not.
+
+**Why:** User required plan/mockup approval before any site-wide change, was explicit about the banned aesthetics + gold/green-red color discipline, and stressed "a lot of crypto sites look pretty and tell you nothing" — professional look must keep full data richness.
 
 **How to apply:** Approved mobile mockups live in `artifacts/mockup-sandbox/src/components/mockups/blackpebble-mobile/` (Trading, Portfolio, Leaderboard) with shared tokens in `_group.css`. Use these as the reference when graduating the polish into `artifacts/blackpebble`. Do NOT implement site-wide until the user approves the look.

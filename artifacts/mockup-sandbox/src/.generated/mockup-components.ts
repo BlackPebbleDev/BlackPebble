@@ -3,5 +3,6 @@ type ModuleMap = Record<string, () => Promise<Record<string, unknown>>>;
 export const modules: ModuleMap = {
   "./components/mockups/blackpebble-mobile/Leaderboard.tsx": () => import("../components/mockups/blackpebble-mobile/Leaderboard.tsx"),
   "./components/mockups/blackpebble-mobile/Portfolio.tsx": () => import("../components/mockups/blackpebble-mobile/Portfolio.tsx"),
+  "./components/mockups/blackpebble-mobile/PositionDetail.tsx": () => import("../components/mockups/blackpebble-mobile/PositionDetail.tsx"),
   "./components/mockups/blackpebble-mobile/Trading.tsx": () => import("../components/mockups/blackpebble-mobile/Trading.tsx")
 };
