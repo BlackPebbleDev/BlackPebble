@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Trophy, Loader2 } from "lucide-react";
+import { Trophy, Loader2, ExternalLink } from "lucide-react";
 import { useAccount } from "@/hooks/use-account";
 import { api, type LeaderboardPeriod, type LeaderboardEntry } from "@/lib/api";
-import { fmtSol, fmtPercent, shortAddr } from "@/lib/format";
+import { fmtSol, fmtPercent, shortAddr, xProfileUrl } from "@/lib/format";
 import { TierBadge } from "@/components/tier-badge";
 import { cn } from "@/lib/utils";
 
@@ -20,9 +20,17 @@ function pnlClass(v: number): string {
 }
 
 function Trader({ entry }: { entry: LeaderboardEntry }) {
-  const name =
-    entry.x_display_name ||
-    (entry.x_username ? `@${entry.x_username}` : shortAddr(entry.wallet, 4));
+  const handle = entry.x_username?.trim().replace(/^@+/, "") || null;
+  const displayName = entry.x_display_name?.trim() || null;
+  // Synthetic internal keys ("x:<id>") must never surface in the public UI.
+  const isSynthetic = entry.wallet.startsWith("x:");
+  const fallback = isSynthetic ? "Anonymous trader" : shortAddr(entry.wallet, 4);
+  const profileUrl = xProfileUrl(handle);
+  const initialSource =
+    displayName || handle || (isSynthetic ? "" : entry.wallet);
+  const initial =
+    initialSource.replace(/^@+/, "").slice(0, 2).toUpperCase() || "?";
+
   return (
     <div className="flex items-center gap-2.5 min-w-0">
       {entry.x_avatar_url ? (
@@ -34,15 +42,36 @@ function Trader({ entry }: { entry: LeaderboardEntry }) {
         />
       ) : (
         <div className="w-7 h-7 rounded-full bg-secondary flex items-center justify-center text-[10px] text-muted-foreground flex-shrink-0 font-mono">
-          {shortAddr(entry.wallet, 2).slice(0, 2).toUpperCase()}
+          {initial}
         </div>
       )}
       <div className="min-w-0">
-        <div className="text-foreground font-medium truncate">{name}</div>
-        {entry.x_username && (
-          <div className="text-[11px] text-muted-foreground font-mono truncate">
-            {shortAddr(entry.wallet, 4)}
-          </div>
+        {profileUrl ? (
+          <>
+            {displayName && (
+              <div className="text-foreground font-medium truncate">
+                {displayName}
+              </div>
+            )}
+            <a
+              href={profileUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              data-testid={`link-x-${handle}`}
+              className={cn(
+                "flex items-center gap-1 truncate hover:text-accent transition-colors",
+                displayName
+                  ? "text-[11px] text-muted-foreground"
+                  : "text-foreground font-medium",
+              )}
+            >
+              <span className="truncate">@{handle}</span>
+              <ExternalLink className="w-3 h-3 flex-shrink-0 opacity-60" />
+            </a>
+          </>
+        ) : (
+          <div className="text-foreground font-medium truncate">{fallback}</div>
         )}
       </div>
     </div>

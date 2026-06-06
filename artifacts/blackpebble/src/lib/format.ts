@@ -86,6 +86,19 @@ export function shortAddr(addr: string | null | undefined, chars = 4): string {
   return `${addr.slice(0, chars)}…${addr.slice(-chars)}`;
 }
 
+/**
+ * Build a public X (Twitter) profile URL from a handle. Returns null when the
+ * handle is missing/blank so callers never render a broken or `undefined` link.
+ * Strips any leading `@` and URL-encodes the handle.
+ */
+export function xProfileUrl(
+  username: string | null | undefined,
+): string | null {
+  const handle = username?.trim().replace(/^@+/, "");
+  if (!handle) return null;
+  return `https://x.com/${encodeURIComponent(handle)}`;
+}
+
 export function timeAgo(tsSeconds: number | null | undefined): string {
   if (!tsSeconds) return "";
   const ms = tsSeconds > 1e12 ? tsSeconds : tsSeconds * 1000;

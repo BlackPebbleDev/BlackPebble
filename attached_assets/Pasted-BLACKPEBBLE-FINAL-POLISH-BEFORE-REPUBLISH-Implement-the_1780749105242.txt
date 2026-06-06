@@ -1,0 +1,126 @@
+BLACKPEBBLE FINAL POLISH BEFORE REPUBLISH
+
+Implement the following improvements.
+
+====================================================
+1. LEADERBOARD IDENTITY CLEANUP
+====================================================
+
+Current:
+
+Sir Buys...
+x: 19...8304
+
+This looks technical and confusing.
+
+Requirements:
+
+- Remove masked internal IDs from public UI.
+- If user signed in with X:
+    Show actual X handle.
+
+Example:
+
+Sir Buys-A-Lot
+@PumpGunna
+
+- If X handle unavailable:
+    Fall back to display name only.
+
+Internal IDs should remain backend-only.
+
+====================================================
+2. CLICKABLE X PROFILES
+====================================================
+
+Requirements:
+
+- X handle should be clickable.
+- Clicking handle opens the user's X profile.
+- Open in new tab/app.
+- Mobile friendly.
+- Desktop friendly.
+- Optional subtle external-link icon.
+
+Example:
+
+Sir Buys-A-Lot
+@PumpGunna
+
+Tap @PumpGunna
+→ opens:
+https://x.com/PumpGunna
+
+Future-proof implementation so all leaderboard users can have clickable X profiles when available.
+
+====================================================
+3. SOCIAL PROFILE DATA VALIDATION
+====================================================
+
+Verify:
+
+- X display name stored correctly.
+- X username stored correctly.
+- X profile URL generated correctly.
+- Missing X data handled gracefully.
+- No broken links.
+- No undefined/null usernames displayed.
+
+====================================================
+4. METADATA / LINK PREVIEW FIXES
+====================================================
+
+Current issue:
+
+Shared links sometimes show incorrect screenshots or stale previews.
+
+Requirements:
+
+Audit and fix:
+
+- Open Graph metadata
+- Twitter/X metadata
+- Telegram previews
+- iMessage previews
+- Discord previews
+
+Verify:
+
+Title:
+BlackPebble
+
+Description:
+Practice trading live Solana tokens with paper money. Track markets, test strategies, and compete on the leaderboard.
+
+Use proper BlackPebble branding image.
+
+Ensure:
+
+- Homepage preview correct
+- Wallet page preview correct
+- Market page preview correct
+- No random screenshots appearing
+- Cache-busting/versioning where necessary
+
+====================================================
+QA
+====================================================
+
+Verify:
+
+- Leaderboard displays X handles properly.
+- Clicking handle opens correct X profile.
+- No internal IDs exposed publicly.
+- Metadata tags valid.
+- Preview image renders correctly.
+- Mobile tested.
+- Desktop tested.
+
+Return:
+
+- Files changed
+- Database changes (if any)
+- Metadata changes
+- Example leaderboard result
+- Example profile link result
+- Whether safe to publish
