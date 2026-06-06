@@ -315,6 +315,7 @@ export async function executeBuy(
     solUsd,
     liquidityUsd,
     tradeUsdValue: amountInUsd,
+    marketCapUsd,
   });
   if (!slip.ok) {
     return { ok: false, error: slip.error };
@@ -528,7 +529,8 @@ export async function executeSell(
   if (!px) {
     return { ok: false, error: "Price data unavailable. Trade not executed." };
   }
-  const { priceSol, priceUsd, solUsd, liquidityUsd, source, pair } = px;
+  const { priceSol, priceUsd, solUsd, liquidityUsd, marketCapUsd, source, pair } =
+    px;
   // Never trade on a non-finite or non-positive price — a bad upstream feed
   // could otherwise produce NaN/Infinity/zero proceeds and poison stats.
   if (![priceSol, priceUsd, solUsd].every((v) => Number.isFinite(v) && v > 0)) {
@@ -604,6 +606,7 @@ export async function executeSell(
       solUsd,
       liquidityUsd,
       tradeUsdValue,
+      marketCapUsd,
     });
     if (!slip.ok) {
       return { ok: false, error: slip.error };
@@ -735,6 +738,8 @@ export interface TradeQuote {
   error?: string;
   /** True only when rejected for exceeding the max liquidity impact. */
   blocked?: boolean;
+  /** True when the fill was simulated from market cap (liquidity missing). */
+  lowData?: boolean;
   side: "buy" | "sell";
   rawPriceUsd: number;
   effectivePriceUsd: number;
@@ -768,7 +773,7 @@ export async function getTradeQuote(opts: {
   if (!px) {
     return {
       ok: false,
-      error: "Price data unavailable.",
+      error: "Trading unavailable: insufficient live market data.",
       side,
       rawPriceUsd: 0,
       effectivePriceUsd: 0,
@@ -796,7 +801,7 @@ export async function getTradeQuote(opts: {
   ) {
     return {
       ok: false,
-      error: "Price data unavailable.",
+      error: "Trading unavailable: insufficient live market data.",
       side,
       rawPriceUsd: 0,
       effectivePriceUsd: 0,
@@ -872,6 +877,7 @@ export async function getTradeQuote(opts: {
     solUsd,
     liquidityUsd,
     tradeUsdValue,
+    marketCapUsd,
   });
 
   // Estimated receive uses the slippage-adjusted effective price.
@@ -913,6 +919,7 @@ export async function getTradeQuote(opts: {
     ok: slip.ok && supplyOk,
     error: supplyError ?? slip.error,
     blocked: slip.blocked || !supplyOk,
+    lowData: slip.lowData,
     side,
     rawPriceUsd: slip.rawPriceUsd,
     effectivePriceUsd: slip.effectivePriceUsd,

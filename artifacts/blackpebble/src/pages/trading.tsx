@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useSearch } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Line } from "react-chartjs-2";
@@ -20,6 +20,7 @@ import {
   ExternalLink,
   AlertTriangle,
   Info,
+  RefreshCw,
 } from "lucide-react";
 import { api, type TokenInfo, type Trade, type TradeQuote } from "@/lib/api";
 import { LiveIndicator } from "@/components/live-indicator";
@@ -140,6 +141,86 @@ function TokenHeader({ info }: { info: TokenInfo }) {
   );
 }
 
+/**
+ * DexScreener embed with a hardened mobile lifecycle.
+ *
+ * Mobile webviews (Safari, Phantom, in-app browsers) accumulate resources when
+ * a single <iframe> element has its `src` swapped over and over as the user
+ * hops between tokens — eventually new embeds silently fail to load until the
+ * browser is restarted. To avoid that we:
+ *  - Force a full remount of the iframe element on every pair change (and on a
+ *    manual reload) via a changing `key`, so the old embed's document is torn
+ *    down by React instead of being reused.
+ *  - Blank the iframe (`about:blank`) on unmount so the webview can reclaim it.
+ *  - Track load success with `onLoad`, show a spinner until then, and fall back
+ *    to a "Reload Chart" affordance if the embed hasn't loaded within a timeout.
+ * There is no polling here, so this never spams the network or loops.
+ */
+function DexScreenerChart({ pairAddress }: { pairAddress: string }) {
+  const [status, setStatus] = useState<"loading" | "loaded" | "error">(
+    "loading",
+  );
+  const [nonce, setNonce] = useState(0);
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
+
+  useEffect(() => {
+    setStatus("loading");
+    const iframe = iframeRef.current;
+    const timer = setTimeout(() => {
+      setStatus((s) => (s === "loaded" ? s : "error"));
+    }, 20_000);
+    return () => {
+      clearTimeout(timer);
+      // Release the embed's document so the mobile webview can reclaim memory.
+      if (iframe) {
+        try {
+          iframe.src = "about:blank";
+        } catch {
+          /* cross-origin teardown — safe to ignore */
+        }
+      }
+    };
+  }, [pairAddress, nonce]);
+
+  const src = `https://dexscreener.com/solana/${pairAddress}?embed=1&theme=dark&trades=0&info=0`;
+
+  return (
+    <div className="relative border border-border bg-card h-[420px]">
+      <iframe
+        key={`${pairAddress}-${nonce}`}
+        ref={iframeRef}
+        title="chart"
+        src={src}
+        className="w-full h-full"
+        onLoad={() => setStatus("loaded")}
+      />
+      {status === "loading" && (
+        <div className="absolute inset-0 flex items-center justify-center bg-card/80 pointer-events-none">
+          <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+        </div>
+      )}
+      {status === "error" && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-card px-4 text-center">
+          <p className="text-sm text-muted-foreground">
+            The chart took too long to load.
+          </p>
+          <button
+            onClick={() => {
+              setStatus("loading");
+              setNonce((n) => n + 1);
+            }}
+            data-testid="button-reload-chart"
+            className="flex items-center gap-2 px-3 h-9 border border-border text-xs text-foreground hover:border-accent/50 transition-colors"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            Reload Chart
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PriceChart({ info }: { info: TokenInfo }) {
   const { data } = useQuery({
     queryKey: ["live-trades", info.mint],
@@ -149,15 +230,7 @@ function PriceChart({ info }: { info: TokenInfo }) {
   });
 
   if (info.isMigrated && info.pairAddress) {
-    return (
-      <div className="border border-border bg-card h-[420px]">
-        <iframe
-          title="chart"
-          src={`https://dexscreener.com/solana/${info.pairAddress}?embed=1&theme=dark&trades=0&info=0`}
-          className="w-full h-full"
-        />
-      </div>
-    );
+    return <DexScreenerChart pairAddress={info.pairAddress} />;
   }
 
   const trades = (data?.trades ?? [])
@@ -266,6 +339,17 @@ function TradeEstimate({
       className="border border-border bg-background p-3 text-xs space-y-1.5"
       data-testid="trade-estimate"
     >
+      {quote.lowData && (
+        <div
+          className="flex items-start gap-2 -mx-3 -mt-3 mb-1 px-3 py-2 border-b border-amber-500/30 bg-amber-500/10 text-amber-300"
+          data-testid="low-data-notice"
+        >
+          <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+          <span>
+            This token has limited market data. Smaller simulated trades only.
+          </span>
+        </div>
+      )}
       <div className="flex justify-between">
         <span className="text-muted-foreground">Execution price</span>
         <span className="font-mono">{fmtPrice(quote.effectivePriceUsd)}</span>
@@ -1002,7 +1086,7 @@ export default function TradingDesk() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 space-y-4">
-          <PriceChart info={info} />
+          <PriceChart key={info.mint} info={info} />
         </div>
         <div className="space-y-4">
           <TradePanel info={info} />

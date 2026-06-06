@@ -113,6 +113,7 @@ export interface TradeQuote {
   ok: boolean;
   error?: string;
   blocked?: boolean;
+  lowData?: boolean;
   side: "buy" | "sell";
   rawPriceUsd: number;
   effectivePriceUsd: number;

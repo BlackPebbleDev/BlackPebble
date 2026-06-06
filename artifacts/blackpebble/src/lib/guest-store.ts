@@ -27,6 +27,8 @@ import { tierFromRealizedPnl } from "@/lib/tiers";
 export const GUEST_STARTING_BALANCE = 100.0;
 export const GUEST_MIN_TRADE_SOL = 0.1;
 export const GUEST_MAX_POSITIONS = 20;
+// Mirror of the server's MAX_SUPPLY_PCT (anti-whale cap) for guest-local buys.
+export const GUEST_MAX_SUPPLY_PCT = 0.04;
 
 const STORAGE_KEY = "bp_guest_state_v1";
 const DISMISS_KEY = "bp_guest_migration_dismissed_v1";
@@ -278,6 +280,35 @@ export function guestBuy(params: {
 
   const positions = current.positions.slice();
   const existingIdx = positions.findIndex((p) => p.token_mint === mint);
+
+  // Anti-whale supply cap: mirror the server's executeBuy so cumulative guest
+  // buys cannot exceed MAX_SUPPLY_PCT of the token's supply. The /trade/quote
+  // endpoint can't enforce this for guests (no wallet, so it assumes held = 0),
+  // so we enforce the cumulative cap here against the guest's existing holding.
+  const supplyPriceUsd = rawPriceUsd;
+  if (
+    entryMc != null &&
+    Number.isFinite(supplyPriceUsd) &&
+    supplyPriceUsd > 0
+  ) {
+    const supply = entryMc / supplyPriceUsd;
+    if (Number.isFinite(supply) && supply > 0) {
+      const maxTokens = supply * GUEST_MAX_SUPPLY_PCT;
+      const held =
+        existingIdx >= 0 ? positions[existingIdx].total_tokens : 0;
+      if (held + tokensReceived > maxTokens) {
+        const pct = (GUEST_MAX_SUPPLY_PCT * 100)
+          .toFixed(1)
+          .replace(/\.0$/, "");
+        return {
+          ok: false,
+          error: `Position limit reached: a single trader can hold at most ${pct}% of ${
+            symbol || "this token"
+          }'s supply. Reduce your order size.`,
+        };
+      }
+    }
+  }
 
   if (existingIdx === -1 && positions.length >= GUEST_MAX_POSITIONS) {
     return {

@@ -5,3 +5,5 @@
 - [Dev vs prod DBs](db-environments.md) — dev and production are SEPARATE Postgres DBs; prod executeSql is read-only, mutate prod only via a deployed token-protected endpoint.
 - [Account identity model](blackpebble-account-identity.md) — trading keyed by one text `wallet` col; X login → synthetic `x:<x_id>` key takes priority over Solana wallet; guest only when neither exists.
 - [grep output redaction](replit-grep-output-redaction.md) — bash/grep/rg output can mangle identifiers; use rg to locate but trust the read tool for exact source.
+- [Chart iframe lifecycle](blackpebble-chart-iframe-lifecycle.md) — TradingDesk never remounts on token nav (route `/` + ?token=); DexScreener iframe must fully remount per token via key, not src-swap, or mobile webviews exhaust and stop loading.
+- [Guest supply cap](blackpebble-guest-supply-cap.md) — /trade/quote can't enforce the 4% supply cap for guests (no wallet → held=0); guestBuy must re-derive and enforce it locally via GUEST_MAX_SUPPLY_PCT.
