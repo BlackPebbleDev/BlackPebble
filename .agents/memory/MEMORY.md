@@ -7,3 +7,4 @@
 - [grep output redaction](replit-grep-output-redaction.md) — bash/grep/rg output can mangle identifiers; use rg to locate but trust the read tool for exact source.
 - [Chart iframe lifecycle](blackpebble-chart-iframe-lifecycle.md) — TradingDesk never remounts on token nav (route `/` + ?token=); DexScreener iframe must fully remount per token via key, not src-swap, or mobile webviews exhaust and stop loading.
 - [Guest supply cap](blackpebble-guest-supply-cap.md) — /trade/quote can't enforce the 4% supply cap for guests (no wallet → held=0); guestBuy must re-derive and enforce it locally via GUEST_MAX_SUPPLY_PCT.
+- [Premium polish direction](premium-polish-direction.md) — BlackPebble visual-polish rules: 2px radius, gold for actions only, green/red only for P&L, no glass/neon/glow; mockups await approval before site-wide impl.

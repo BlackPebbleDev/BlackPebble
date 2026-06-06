@@ -1,0 +1,56 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+/*
+ * BlackPebble design tokens — copied from the main app (artifacts/blackpebble/src/index.css)
+ * so semantic classes (bg-background, text-foreground, text-muted-foreground, text-accent…)
+ * resolve to the real brand values inside the sandbox.
+ *
+ * PREMIUM TWEAK (approved by user): --radius 0rem -> 2px for a softer institutional-fintech feel.
+ * Everything else is byte-for-byte the live theme: deep-black bg, gold accent #c9a96e.
+ */
+:root,
+.dark {
+  --button-outline: rgba(255, 255, 255, 0.1);
+  --badge-outline: rgba(255, 255, 255, 0.05);
+  --opaque-button-border-intensity: 9;
+
+  --elevate-1: rgba(255, 255, 255, 0.04);
+  --elevate-2: rgba(255, 255, 255, 0.09);
+
+  --background: 0 0% 4%;
+  --foreground: 0 0% 100%;
+  --border: 0 0% 12%;
+
+  --card: 0 0% 8%;
+  --card-foreground: 0 0% 100%;
+  --card-border: 0 0% 12%;
+
+  --popover: 0 0% 8%;
+  --popover-foreground: 0 0% 100%;
+  --popover-border: 0 0% 12%;
+
+  --primary: 0 0% 100%;
+  --primary-foreground: 0 0% 4%;
+
+  --secondary: 0 0% 12%;
+  --secondary-foreground: 0 0% 100%;
+
+  --muted: 0 0% 12%;
+  --muted-foreground: 0 0% 63%;
+
+  --accent: 39 45% 61%;
+  --accent-foreground: 0 0% 4%;
+
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 0 0% 100%;
+
+  --input: 0 0% 12%;
+  --ring: 39 45% 61%;
+
+  --app-font-sans: 'Inter', sans-serif;
+  --app-font-serif: 'Inter', sans-serif;
+  --app-font-mono: 'JetBrains Mono', Menlo, monospace;
+
+  /* Premium subtle radius */
+  --radius: 0.125rem;
+}
