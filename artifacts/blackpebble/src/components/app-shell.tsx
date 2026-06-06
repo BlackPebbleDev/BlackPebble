@@ -142,7 +142,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* Main content */}
       <main className="flex-1 flex flex-col pt-20 md:pt-28 md:pl-[60px] pb-16 md:pb-0">
         <div className="sm:hidden h-14" aria-hidden />
-        <div className="flex-1">{children}</div>
+        <div>{children}</div>
         <SiteFooter />
       </main>
 
