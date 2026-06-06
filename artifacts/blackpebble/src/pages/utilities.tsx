@@ -1,6 +1,7 @@
 import { Wrench } from "lucide-react";
 import { ComingSoon } from "@/components/coming-soon";
 import { SupportSection } from "@/components/support-section";
+import { FeedbackSection } from "@/components/feedback-section";
 
 export default function Utilities() {
   return (
@@ -17,6 +18,7 @@ export default function Utilities() {
         ]}
       />
       <SupportSection />
+      <FeedbackSection />
     </div>
   );
 }

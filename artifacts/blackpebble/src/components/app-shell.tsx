@@ -15,6 +15,7 @@ import { GuestMigrationPrompt } from "@/components/guest-migration-prompt";
 import { useAccount } from "@/hooks/use-account";
 import { cn } from "@/lib/utils";
 import { SupportSection } from "@/components/support-section";
+import { FeedbackSection } from "@/components/feedback-section";
 
 const navItems = [
   { href: "/", label: "Trading Desk", icon: LineChart },
@@ -38,7 +39,10 @@ function SiteFooter() {
             © {new Date().getFullYear()} Blackpebble · Paper trading for
             entertainment. Not financial advice.
           </p>
-          <SupportSection compact className="sm:max-w-xs" />
+          <div className="flex flex-col gap-5 sm:max-w-xs w-full">
+            <SupportSection compact />
+            <FeedbackSection compact />
+          </div>
         </div>
       </div>
     </footer>
