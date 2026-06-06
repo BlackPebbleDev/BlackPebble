@@ -7,6 +7,7 @@ import marketsRouter from "./markets.js";
 import portfolioRouter from "./portfolio.js";
 import leaderboardRouter from "./leaderboard.js";
 import authXRouter from "./auth-x.js";
+import adminResetRouter from "./admin-reset.js";
 
 const router: IRouter = Router();
 
@@ -18,5 +19,6 @@ router.use(marketsRouter);
 router.use(portfolioRouter);
 router.use(leaderboardRouter);
 router.use(authXRouter);
+router.use(adminResetRouter);
 
 export default router;
