@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import { asyncHandler } from "../lib/asyncHandler.js";
+import { requireOwnership } from "../lib/auth.js";
 import {
   ensureAccount,
   getAccount,
@@ -28,6 +29,7 @@ async function shape(wallet: string) {
 
 router.post(
   "/account/create",
+  requireOwnership((req) => String(req.body?.wallet || "").trim()),
   asyncHandler(async (req, res) => {
     const wallet = String(req.body?.wallet || "").trim();
     if (!wallet) return res.status(400).json({ error: "wallet is required" });
@@ -46,6 +48,7 @@ router.get(
 
 router.post(
   "/account/reset",
+  requireOwnership((req) => String(req.body?.wallet || "").trim()),
   asyncHandler(async (req, res) => {
     const wallet = String(req.body?.wallet || "").trim();
     if (!wallet) return res.status(400).json({ error: "wallet is required" });

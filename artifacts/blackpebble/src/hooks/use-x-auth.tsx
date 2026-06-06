@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
+import type { WalletContextState } from "@solana/wallet-adapter-react";
 
 export interface XUser {
   id: string;
@@ -22,7 +23,7 @@ interface XAuthContextValue {
   loggedIn: boolean;
   loading: boolean;
   refresh: () => Promise<void>;
-  login: (wallet?: string | null) => void;
+  login: () => void;
   logout: () => Promise<void>;
   linkWallet: (wallet: string) => Promise<void>;
 }
@@ -42,8 +43,8 @@ const API_BASE = "/api";
 export function XAuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<XUser | null>(null);
   const [loading, setLoading] = useState(true);
-  const { publicKey } = useWallet();
-  const wallet = publicKey?.toBase58() ?? null;
+  const walletAdapter = useWallet();
+  const wallet = walletAdapter.publicKey?.toBase58() ?? null;
 
   const refresh = useCallback(async () => {
     try {
@@ -93,18 +94,7 @@ export function XAuthProvider({ children }: { children: ReactNode }) {
     if (user && wallet && !user.wallet) {
       const link = async () => {
         try {
-          const res = await fetch(`${API_BASE}/auth/x/link-wallet`, {
-            method: "POST",
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ wallet }),
-          });
-          if (res.ok) {
-            const data = (await res.json()) as { ok: boolean; wallet: string };
-            if (data.ok) {
-              setUser((prev) => (prev ? { ...prev, wallet: data.wallet } : null));
-            }
-          }
+          await performLinkWallet(wallet, walletAdapter);
         } catch {
           // Silent fail — user can manually link later
         }
@@ -113,9 +103,8 @@ export function XAuthProvider({ children }: { children: ReactNode }) {
     }
   }, [user, wallet]);
 
-  const login = useCallback((wallet?: string | null) => {
+  const login = useCallback(() => {
     const url = new URL(`${API_BASE}/auth/x/login`, window.location.origin);
-    if (wallet) url.searchParams.set("wallet", wallet);
     window.location.href = url.toString();
   }, []);
 
@@ -128,18 +117,8 @@ export function XAuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const linkWallet = useCallback(async (wallet: string) => {
-    const res = await fetch(`${API_BASE}/auth/x/link-wallet`, {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ wallet }),
-    });
-    if (!res.ok) throw new Error("Failed to link wallet");
-    const data = (await res.json()) as { ok: boolean; wallet: string };
-    if (data.ok) {
-      setUser((prev) => (prev ? { ...prev, wallet: data.wallet } : null));
-    }
-  }, []);
+    await performLinkWallet(wallet, walletAdapter);
+  }, [walletAdapter]);
 
   return (
     <XAuthContext.Provider
@@ -156,6 +135,47 @@ export function XAuthProvider({ children }: { children: ReactNode }) {
       {children}
     </XAuthContext.Provider>
   );
+}
+
+/**
+ * Wallet challenge signing flow used for X wallet linking
+ * (POST /auth/x/link-wallet). The wallet signs a server-issued nonce to prove
+ * ownership before it can be linked to the X account.
+ */
+async function signWalletChallenge(wallet: string, walletAdapter: WalletContextState): Promise<string> {
+  // Step 1: get challenge from server
+  const challengeRes = await fetch(
+    `${API_BASE}/auth/x/link-wallet-challenge?wallet=${encodeURIComponent(wallet)}`,
+    { credentials: "include" },
+  );
+  if (!challengeRes.ok) throw new Error("Failed to get challenge");
+  const { message } = (await challengeRes.json()) as { message: string };
+
+  // Step 2: sign the challenge with wallet
+  const messageBytes = new TextEncoder().encode(message);
+  let signature: Uint8Array;
+  if (walletAdapter.signMessage) {
+    signature = await walletAdapter.signMessage(messageBytes);
+  } else {
+    throw new Error("Wallet does not support message signing");
+  }
+
+  return btoa(String.fromCharCode(...signature));
+}
+
+async function performLinkWallet(wallet: string, walletAdapter: WalletContextState) {
+  const signature = await signWalletChallenge(wallet, walletAdapter);
+
+  // Step 3: send wallet + signature to server to link to X account
+  const res = await fetch(`${API_BASE}/auth/x/link-wallet`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ wallet, signature }),
+  });
+  if (!res.ok) throw new Error("Failed to link wallet");
+  const data = (await res.json()) as { ok: boolean; wallet: string };
+  if (!data.ok) throw new Error("Failed to link wallet");
 }
 
 export function useXAuth() {

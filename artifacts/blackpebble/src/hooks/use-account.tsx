@@ -11,18 +11,8 @@ import { api, type Account } from "@/lib/api";
 import { useXAuth } from "@/hooks/use-x-auth";
 
 interface AccountContextValue {
-  /**
-   * The identity key used for all server-side trading data. This is the X
-   * account key (`x:<x_id>`) when signed in with X, otherwise the connected
-   * Solana wallet address, otherwise null.
-   */
   wallet: string | null;
-  /** True when a Solana wallet is connected (independent of X auth). */
   connected: boolean;
-  /**
-   * True only when the user has neither an X session nor a connected wallet —
-   * i.e. trading locally as a guest with no persistent server account.
-   */
   isGuest: boolean;
   account: Account | null;
   loading: boolean;
@@ -44,9 +34,9 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   const solanaWallet = publicKey?.toBase58() ?? null;
 
   // An X session is the canonical identity: once signed in, the account follows
-  // the X user regardless of which wallet is (auto-)connected. Falling back to a
-  // wallet-only key preserves the original behaviour for users who never sign in
-  // with X. Guest mode only applies when neither identity exists.
+  // the X user regardless of which wallet is (auto-)connected. Falling back to
+  // a wallet-only key preserves the original behaviour for users who never sign
+  // in with X. Guest mode only applies when neither identity exists.
   const accountKey = user ? `x:${user.x_id}` : solanaWallet;
 
   const [account, setAccount] = useState<Account | null>(null);
@@ -86,7 +76,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [accountKey]);
+  }, [accountKey, user, solanaWallet]);
 
   return (
     <AccountContext.Provider

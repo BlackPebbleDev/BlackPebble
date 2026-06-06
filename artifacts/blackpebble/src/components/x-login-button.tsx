@@ -1,6 +1,5 @@
 import { cn } from "@/lib/utils";
 import { useXAuth } from "@/hooks/use-x-auth";
-import { useAccount } from "@/hooks/use-account";
 
 function XLogo({ className }: { className?: string }) {
   return (
@@ -12,7 +11,6 @@ function XLogo({ className }: { className?: string }) {
 
 export function XLoginButton({ className }: { className?: string }) {
   const { loggedIn, user, login, logout } = useXAuth();
-  const { wallet } = useAccount();
 
   if (loggedIn && user) {
     return (
@@ -50,7 +48,7 @@ export function XLoginButton({ className }: { className?: string }) {
   return (
     <button
       type="button"
-      onClick={() => login(wallet)}
+      onClick={() => login()}
       title="Sign in with X"
       aria-label="Sign in with X"
       data-testid="button-login-x"

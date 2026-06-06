@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import { asyncHandler } from "../lib/asyncHandler.js";
+import { requireOwnership } from "../lib/auth.js";
 import { dbAll, dbRun } from "../lib/database.js";
 import {
   searchTokens,
@@ -51,6 +52,7 @@ router.get(
 
 router.post(
   "/trade/execute",
+  requireOwnership((req) => String(req.body?.wallet || "").trim()),
   asyncHandler(async (req, res) => {
     const b = req.body ?? {};
     const wallet = String(b.wallet || "").trim();
@@ -80,6 +82,7 @@ router.post(
   "/trade/quote",
   asyncHandler(async (req, res) => {
     const b = req.body ?? {};
+    const wallet = b.wallet ? String(b.wallet).trim() : undefined;
     const mint = String(b.mint || "").trim();
     const side = String(b.side || "").trim();
     if (!mint) return res.status(400).json({ error: "mint is required" });
@@ -87,7 +90,7 @@ router.post(
       return res.status(400).json({ error: "side must be 'buy' or 'sell'" });
     }
     const quote = await getTradeQuote({
-      wallet: b.wallet ? String(b.wallet) : undefined,
+      wallet,
       mint,
       side,
       solAmount: b.solAmount != null ? Number(b.solAmount) : undefined,
@@ -120,6 +123,7 @@ router.get(
 
 router.post(
   "/trade/watchlist/add",
+  requireOwnership((req) => String(req.body?.wallet || "").trim()),
   asyncHandler(async (req, res) => {
     const b = req.body ?? {};
     const wallet = String(b.wallet || "").trim();
@@ -143,6 +147,7 @@ router.post(
 
 router.post(
   "/trade/watchlist/remove",
+  requireOwnership((req) => String(req.body?.wallet || "").trim()),
   asyncHandler(async (req, res) => {
     const b = req.body ?? {};
     const wallet = String(b.wallet || "").trim();

@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { createHash, randomBytes } from "crypto";
 import { SignJWT, jwtVerify } from "jose";
+import { PublicKey } from "@solana/web3.js";
 import { asyncHandler } from "../lib/asyncHandler.js";
 import { dbGet, dbRun, withTx } from "../lib/database.js";
 import { logger } from "../lib/logger.js";
@@ -17,6 +18,10 @@ const USER_URL = "https://api.x.com/2/users/me?user.fields=profile_image_url,pub
 
 // X OAuth 2.0 scopes needed for basic profile + username
 const SCOPES = ["users.read", "tweet.read"].join(" ");
+
+// Challenge lifetime for wallet ownership proof (5 minutes)
+const CHALLENGE_TTL_MS = 5 * 60 * 1000;
+const CHALLENGE_PREFIX = "Link wallet to BlackPebble: ";
 
 const encoder = new TextEncoder();
 
@@ -81,6 +86,54 @@ function generateCodeChallenge(verifier: string): string {
 
 function generateState(): string {
   return randomBytes(16).toString("hex");
+}
+
+function generateNonce(): string {
+  return randomBytes(32).toString("base64url");
+}
+
+// ── Wallet signature helpers ───────────────────────────────────────────────
+// Solana wallets sign UTF-8 bytes. The message is: "Link wallet to BlackPebble: <nonce>"
+// The signature is a standard Ed25519 signature (64 bytes).
+
+async function verifySolanaSignature(wallet: string, message: string, signature: string): Promise<boolean> {
+  try {
+    const nacl = await import("tweetnacl");
+    const pubkey = new PublicKey(wallet).toBytes();
+    const sig = Uint8Array.from(Buffer.from(signature, "base64"));
+    const msg = Uint8Array.from(Buffer.from(message, "utf-8"));
+    return nacl.default.sign.detached.verify(msg, sig, pubkey);
+  } catch (err) {
+    logger.warn({ err, wallet }, "Wallet signature verification failed");
+    return false;
+  }
+}
+
+async function createWalletChallenge(wallet: string): Promise<string> {
+  const nonce = generateNonce();
+  const now = Math.floor(Date.now() / 1000);
+  await dbRun(
+    `INSERT INTO wallet_challenges (wallet, nonce, created_at) VALUES ($1, $2, $3)`,
+    [wallet, nonce, now],
+  );
+  return nonce;
+}
+
+async function getWalletChallenge(wallet: string): Promise<string | null> {
+  const now = Math.floor(Date.now() / 1000);
+  const cutoff = now - Math.floor(CHALLENGE_TTL_MS / 1000);
+  const row = await dbGet<{ nonce: string }>(
+    `SELECT nonce FROM wallet_challenges WHERE wallet = $1 AND created_at > $2 ORDER BY created_at DESC LIMIT 1`,
+    [wallet, cutoff],
+  );
+  return row?.nonce ?? null;
+}
+
+async function consumeWalletChallenge(wallet: string): Promise<void> {
+  await dbRun(
+    `DELETE FROM wallet_challenges WHERE wallet = $1`,
+    [wallet],
+  );
 }
 
 // ── Fetch X user profile with the access token ──────────────────────────────
@@ -235,11 +288,13 @@ router.get(
     const codeVerifier = generateCodeVerifier();
     const codeChallenge = generateCodeChallenge(codeVerifier);
     const state = generateState();
-    const wallet = String(req.query.wallet || "").trim();
     const redirectUri = getRedirectUri(req);
 
     // Store PKCE + state in a short-lived cookie (5 minutes)
-    const pkceCookie = JSON.stringify({ codeVerifier, state, wallet });
+    // NOTE: We do NOT store wallet here. Wallet linking must use the
+    // nonce-challenge-signature POST /api/auth/x/link-wallet endpoint to
+    // prevent an attacker from binding a victim wallet during the OAuth flow.
+    const pkceCookie = JSON.stringify({ codeVerifier, state });
     res.cookie("__x_pkce", pkceCookie, {
       httpOnly: true,
       secure: true,
@@ -285,7 +340,7 @@ router.get(
       return res.redirect(`${FRONTEND_URL}?x_error=missing_pkce_cookie`);
     }
 
-    let pkce: { codeVerifier: string; state: string; wallet?: string };
+    let pkce: { codeVerifier: string; state: string };
     try {
       pkce = JSON.parse(pkceRaw);
     } catch {
@@ -308,12 +363,6 @@ router.get(
     }
 
     const sessionPayload = await upsertXUser(xUser);
-
-    // If a wallet was passed during login, link it immediately
-    if (pkce.wallet) {
-      await linkWalletToUser(sessionPayload.sub, pkce.wallet);
-      sessionPayload.wallet = pkce.wallet;
-    }
 
     const token = await signSession(sessionPayload);
 
@@ -376,10 +425,29 @@ router.get(
 );
 
 /**
+ * GET /api/auth/x/link-wallet-challenge
+ *
+ * Returns a nonce for the wallet to sign. The wallet must sign the message:
+ *   "Link wallet to BlackPebble: <nonce>"
+ * The nonce is stored in the DB and valid for 5 minutes.
+ */
+router.get(
+  "/auth/x/link-wallet-challenge",
+  asyncHandler(async (req, res) => {
+    const wallet = String(req.query.wallet || "").trim();
+    if (!wallet) return res.status(400).json({ error: "wallet is required" });
+    const nonce = await createWalletChallenge(wallet);
+    return res.json({ nonce, message: `${CHALLENGE_PREFIX}${nonce}` });
+  }),
+);
+
+/**
  * POST /api/auth/x/link-wallet
  *
  * Links the currently logged-in X user to a wallet address.
- * Body: { wallet: string }
+ * Requires a cryptographic proof of wallet ownership:
+ *   Body: { wallet: string, signature: string }
+ * The signature is a base64-encoded Ed25519 signature of the challenge message.
  */
 router.post(
   "/auth/x/link-wallet",
@@ -394,9 +462,25 @@ router.post(
     }
 
     const wallet = String(req.body?.wallet || "").trim();
+    const signature = String(req.body?.signature || "").trim();
     if (!wallet) return res.status(400).json({ error: "wallet is required" });
+    if (!signature) return res.status(400).json({ error: "signature is required" });
 
-    await linkWalletToUser(payload.sub, wallet);
+    const nonce = await getWalletChallenge(wallet);
+    if (!nonce) {
+      return res.status(400).json({ error: "Challenge expired or missing. Request a new challenge first." });
+    }
+    const message = `${CHALLENGE_PREFIX}${nonce}`;
+    const valid = await verifySolanaSignature(wallet, message, signature);
+    if (!valid) {
+      return res.status(403).json({ error: "Invalid signature. Wallet ownership could not be verified." });
+    }
+    await consumeWalletChallenge(wallet);
+
+    const linkResult = await linkWalletToUser(payload.sub, wallet);
+    if (!linkResult.ok) {
+      return res.status(409).json({ error: linkResult.error });
+    }
 
     // Refresh the JWT with the new wallet
     const newToken = await signSession({
@@ -416,10 +500,12 @@ router.post(
 );
 
 /**
- * Helper: link a wallet to a user. Creates a wallet identity if not exists.
+ * Helper: link a wallet to a user. Returns an error if the wallet is already
+ * linked to a different user. Cross-user reassignment is disallowed to prevent
+ * account hijacking.
  */
-async function linkWalletToUser(userId: string, wallet: string): Promise<void> {
-  await withTx(async (c) => {
+async function linkWalletToUser(userId: string, wallet: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  return await withTx(async (c) => {
     // Check if wallet already linked to a user
     const existing = await dbGet<{ user_id: number }>(
       `SELECT user_id FROM user_identities WHERE provider = 'wallet' AND provider_user_id = $1`,
@@ -428,24 +514,20 @@ async function linkWalletToUser(userId: string, wallet: string): Promise<void> {
     );
 
     if (existing) {
-      // If already linked to a different user, update to this user
       if (existing.user_id !== Number(userId)) {
-        await dbRun(
-          `UPDATE user_identities SET user_id = $1, wallet_address = $2
-           WHERE provider = 'wallet' AND provider_user_id = $3`,
-          [Number(userId), wallet, wallet],
-          c,
-        );
+        return { ok: false, error: "Wallet already linked to another user" };
       }
-    } else {
-      await dbRun(
-        `INSERT INTO user_identities (user_id, provider, provider_user_id, wallet_address)
-         VALUES ($1, 'wallet', $2, $2)
-         ON CONFLICT (provider, provider_user_id) DO NOTHING`,
-        [Number(userId), wallet],
-        c,
-      );
+      // Already linked to this user, nothing to do
+      return { ok: true };
     }
+
+    await dbRun(
+      `INSERT INTO user_identities (user_id, provider, provider_user_id, wallet_address)
+       VALUES ($1, 'wallet', $2, $2)
+       ON CONFLICT (provider, provider_user_id) DO NOTHING`,
+      [Number(userId), wallet],
+      c,
+    );
 
     // Also update the X identity row to have wallet_address
     await dbRun(
@@ -454,6 +536,8 @@ async function linkWalletToUser(userId: string, wallet: string): Promise<void> {
       [wallet, Number(userId)],
       c,
     );
+
+    return { ok: true };
   });
 }
 

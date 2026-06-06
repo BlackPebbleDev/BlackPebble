@@ -198,6 +198,20 @@ export const utilityUsage = pgTable("utility_usage", {
   executed_at: bigint("executed_at", { mode: "number" }).default(epoch),
 });
 
+export const walletChallenges = pgTable(
+  "wallet_challenges",
+  {
+    id: serial("id").primaryKey(),
+    wallet: text("wallet").notNull(),
+    nonce: text("nonce").notNull(),
+    created_at: bigint("created_at", { mode: "number" }).default(epoch),
+  },
+  (t) => [
+    index("idx_wallet_challenges_wallet").on(t.wallet),
+    index("idx_wallet_challenges_created").on(t.created_at),
+  ],
+);
+
 // ── Identity scaffold (future) ──────────────────────────────────────────────
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
