@@ -87,7 +87,7 @@ export function LiveIndicator({ dataUpdatedAt }: Props) {
         >
           Live
         </span>
-        <span className="text-muted-foreground text-[10px] font-mono hidden sm:inline">
+        <span className="text-muted-foreground text-[10px] font-mono">
           · Updated {fmtAgo(secondsAgo)}
         </span>
       </button>

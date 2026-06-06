@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { Loader2, TrendingUp, Zap } from "lucide-react";
 import { LiveIndicator } from "@/components/live-indicator";
 import { api, type TokenInfo, type NewToken } from "@/lib/api";
@@ -275,6 +275,9 @@ export default function Markets() {
             : null,
     enabled: tab !== "new",
     refetchInterval: 30_000,
+    // Keep the previous tab's rows on screen while the next feed loads so
+    // switching tabs / background refreshes never blank the list or jump scroll.
+    placeholderData: keepPreviousData,
   });
 
   const tokens: TokenInfo[] = (data as { tokens: TokenInfo[] } | null)?.tokens ?? [];

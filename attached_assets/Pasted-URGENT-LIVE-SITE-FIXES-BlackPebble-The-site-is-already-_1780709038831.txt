@@ -1,0 +1,64 @@
+URGENT LIVE SITE FIXES — BlackPebble
+
+The site is already live. Fix these 3 issues immediately and safely.
+
+1. Donation address mobile display
+
+Current issue:
+The Solana donation address wraps vertically on mobile and looks unprofessional.
+
+Fix:
+- Display the address in a clean single-line or truncated format:
+  DSg7mQ8k...mUb7z
+- Keep the full address copied when user taps Copy Address.
+- Prevent vertical wrapping.
+- Use a premium BlackPebble-style code/address container.
+- Keep View on Solscan button.
+- Verify on mobile.
+
+2. Guest to signed-in user “Start Fresh” bug
+
+Current issue:
+When a user trades in guest mode, then connects wallet/X, the “Save guest portfolio?” modal appears.
+The “Start Fresh” button does not work correctly.
+
+Expected behavior:
+- Save = migrate eligible guest open positions to the signed-in account.
+- Start Fresh = discard all guest-mode positions, balances, history, and local guest state.
+- After Start Fresh, load the authenticated account portfolio with default starting balance.
+- Guest history should never carry over unless explicitly intended.
+- User should no longer see guest data after selecting Start Fresh.
+- Verify with X login and wallet login.
+
+3. Dynamic market feeds — critical
+
+Current issue:
+Markets tabs feel stale/repetitive.
+
+Required behavior:
+- Trending, Top Gainers, Volume, and New Launches must update from current live token data.
+- Use DexScreener or existing market data sources efficiently.
+- Trending should reflect currently trending tokens.
+- Volume should reflect current highest-volume tokens.
+- Top Gainers should update frequently.
+- New Launches should rotate based on newly created pairs/tokens.
+- Add intelligent caching/throttling so API usage stays efficient.
+- Add background refresh without breaking scrolling.
+- Add visible “last updated” or “updated Xs ago” text.
+- Gracefully handle API failure with cached fallback.
+- Prevent duplicate tokens in each list.
+- Keep mobile performance smooth.
+
+Final QA:
+- Test mobile layout.
+- Test Copy Address.
+- Test Start Fresh from guest to X user.
+- Test Start Fresh from guest to wallet user.
+- Test market tabs refresh.
+- Confirm no secrets exposed.
+- Run typecheck/build.
+- Return:
+  - files changed
+  - root causes
+  - verification results
+  - whether safe to publish

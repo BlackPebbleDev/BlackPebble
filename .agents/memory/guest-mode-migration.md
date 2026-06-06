@@ -24,6 +24,17 @@ debits the real balance) are trustworthy.
 guest data" feature, must route through server execute and drop history/realized
 P&L. Guests are also never leaderboard-eligible (they have no DB rows).
 
+## "Start Fresh" must DISCARD, not just dismiss
+Start Fresh has to call `clearGuest()` (wipe localStorage + reset state) AND
+`dismissMigration(wallet)`, then invalidate the server queries. A bug existed
+where it only called `dismissMigration`, leaving guest positions/balance/history
+dormant in localStorage (they'd reappear later). `clearGuest()` also makes
+`hasGuestActivity()` false, which hides the modal immediately (no re-show race).
+
+**How to apply:** "discard guest data" always means `clearGuest()`, never just
+dismissing the prompt. `wallet` here is the unified accountKey, so this works for
+both wallet and X login.
+
 ## Partial-failure handling
 Buys run sequentially so the server balance debits in order; a buy that would
 overdraw simply fails server-side. Track which mints actually migrated:

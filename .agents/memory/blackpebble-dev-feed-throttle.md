@@ -19,3 +19,16 @@ capped (~50) so the map stays small.
 **How to apply:** Dev env is set via `export NODE_ENV=development` in the api-server
 `dev` script. When adding any new high-volume feed, gate throttling on
 `NODE_ENV !== "production"` and key per-entity, not globally.
+
+## Market list tabs share ONE upstream fetch
+The trending/gainers/volume list tabs (routes/markets.ts) all derive from a single
+cached `getTrendingTokens()` call (DexScreener token-boosts, 60s cache). They must
+NOT each fetch their own upstream (API-efficiency). Differentiation is purely
+ranking in the route: trending = `txns24h` desc, gainers = `priceChange24h>0` desc,
+volume = `volume24hUsd>0` desc; all deduped by `mint`, capped at 50. New Launches is
+separate (PumpPortal live feed). Frontend uses `placeholderData: keepPreviousData`
+so tab switches/refetches don't blank the list. "Updated Xs ago" (LiveIndicator)
+must stay visible on mobile (no `hidden sm:inline`).
+
+**Why:** Previously gainers/volume were just the trending pool re-sorted and
+trending was raw hydration order, so all three tabs looked identical.

@@ -20,7 +20,9 @@ import {
  * originally spent, capped to live balance) and migrates the watchlist. Guest
  * trade history and realized P&L are intentionally NOT imported — doing so would
  * let anyone fabricate a leaderboard record locally and "save" it. "Start Fresh"
- * dismisses the prompt for this wallet and leaves the guest data dormant.
+ * permanently discards ALL local guest state (positions, balance, history,
+ * watchlist) and drops the user onto their authenticated account with its
+ * default starting balance.
  */
 export function GuestMigrationPrompt() {
   const { wallet } = useAccount();
@@ -108,7 +110,24 @@ export function GuestMigrationPrompt() {
 
   function handleStartFresh() {
     if (!wallet) return;
+    // Discard EVERY trace of guest state (positions, balance, history,
+    // watchlist) so nothing carries over, then mark this account so the prompt
+    // never reappears. Clearing makes hasGuestActivity() false, which also hides
+    // this modal immediately.
+    clearGuest();
     dismissMigration(wallet);
+    // Re-pull the authenticated account so the UI shows its default balance and
+    // empty portfolio instead of the now-discarded guest data.
+    qc.invalidateQueries({ queryKey: ["positions"] });
+    qc.invalidateQueries({ queryKey: ["pf"] });
+    qc.invalidateQueries({ queryKey: ["pf-stats"] });
+    qc.invalidateQueries({ queryKey: ["account"] });
+    qc.invalidateQueries({ queryKey: ["history"] });
+    qc.invalidateQueries({ queryKey: ["watchlist"] });
+    toast({
+      title: "Started fresh",
+      description: "Guest data cleared. You're now trading on your account.",
+    });
   }
 
   return (

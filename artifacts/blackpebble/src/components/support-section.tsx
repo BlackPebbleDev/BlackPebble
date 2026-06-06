@@ -40,6 +40,36 @@ function SolscanLink({ address }: { address: string }) {
   );
 }
 
+/** Truncate a long address to a single-line `DSg7mQ8k…mUb7z` form. */
+function shortenAddress(addr: string): string {
+  if (addr.length <= 16) return addr;
+  return `${addr.slice(0, 8)}…${addr.slice(-5)}`;
+}
+
+/**
+ * Premium single-line address container. Shows a truncated address that never
+ * wraps; the full address is always what gets copied / linked.
+ */
+function AddressDisplay({ address }: { address: string }) {
+  return (
+    <div className="flex items-center gap-2 flex-wrap">
+      <div className="flex items-center min-w-0 bg-background border border-border px-3 py-2.5">
+        <code
+          className="font-mono text-sm text-foreground whitespace-nowrap tracking-tight"
+          title={address}
+          data-testid="text-donation-address"
+        >
+          {shortenAddress(address)}
+        </code>
+      </div>
+      <div className="flex items-center gap-2 flex-shrink-0">
+        <CopyButton text={address} label="Copy Address" />
+        <SolscanLink address={address} />
+      </div>
+    </div>
+  );
+}
+
 function SocialLink({
   href,
   label,
@@ -81,13 +111,7 @@ export function SupportSection({
         </div>
         <div className="space-y-2">
           <div className="text-xs text-muted-foreground">Solana donation address</div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <code className="text-xs font-mono text-foreground bg-card border border-border px-2 py-1.5 break-all">
-              {DONATION_ADDRESS}
-            </code>
-            <CopyButton text={DONATION_ADDRESS} label="Copy" />
-            <SolscanLink address={DONATION_ADDRESS} />
-          </div>
+          <AddressDisplay address={DONATION_ADDRESS} />
         </div>
         <div className="flex items-center gap-3 flex-wrap">
           <SocialLink
@@ -133,15 +157,7 @@ export function SupportSection({
           <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
             Solana Donation Address
           </div>
-          <div className="flex items-center gap-3 flex-wrap">
-            <code className="text-sm font-mono text-foreground bg-background border border-border px-3 py-2.5 break-all flex-1 min-w-0">
-              {DONATION_ADDRESS}
-            </code>
-            <div className="flex items-center gap-2 flex-shrink-0">
-              <CopyButton text={DONATION_ADDRESS} />
-              <SolscanLink address={DONATION_ADDRESS} />
-            </div>
-          </div>
+          <AddressDisplay address={DONATION_ADDRESS} />
         </div>
 
         <div className="space-y-3">
