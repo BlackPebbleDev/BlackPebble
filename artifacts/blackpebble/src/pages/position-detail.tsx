@@ -5,6 +5,7 @@ import { ArrowLeft, ArrowRight, Loader2, Wallet } from "lucide-react";
 import { useAccount } from "@/hooks/use-account";
 import { api, type Position, type Trade } from "@/lib/api";
 import { TradeList } from "@/components/trade-list";
+import { PnlAmount } from "@/components/pnl-amount";
 import {
   fmtSol,
   fmtUsd,
@@ -34,7 +35,7 @@ function Metric({
   testId,
 }: {
   label: string;
-  value: string;
+  value: React.ReactNode;
   sub?: string;
   valueClass?: string;
   accent?: boolean;
@@ -268,21 +269,24 @@ export default function PositionDetail() {
             testId="metric-mc-gain"
           />
           <Metric
-            label="Peak MC"
+            label="Position Peak MC"
             value="—"
             sub="Not tracked yet"
             testId="metric-peak-mc"
           />
           <Metric
-            label="From Peak"
+            label="From Position Peak"
             value="—"
             sub="Not tracked yet"
             testId="metric-drawdown"
           />
         </div>
         <p className="mt-2 text-[11px] text-muted-foreground/80 leading-relaxed">
-          Peak MC and drawdown-from-peak require continuous market-cap history
-          for each holding, which isn't tracked yet. Every other metric is live.
+          Position Peak MC (the highest market cap reached while this position
+          was open) and From Position Peak require continuous market-cap history
+          per holding, which isn't tracked yet. Token all-time-high market cap is
+          a separate metric and also isn't tracked yet. Every other metric is
+          live.
         </p>
       </section>
 
@@ -306,7 +310,7 @@ export default function PositionDetail() {
           />
           <Metric
             label="Unrealized P&L"
-            value={`${fmtSol(p.unrealizedPnlSol)} SOL`}
+            value={<PnlAmount sol={p.unrealizedPnlSol} solUsd={solUsd} />}
             valueClass={pnlColor(p.unrealizedPnlSol)}
             testId="metric-unrealized-pnl"
           />

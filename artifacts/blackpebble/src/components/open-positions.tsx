@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { ChevronDown, ArrowRight, BarChart3 } from "lucide-react";
 import { type Position } from "@/lib/api";
+import { PnlAmount } from "@/components/pnl-amount";
 import {
   fmtSol,
   fmtPrice,
@@ -189,7 +190,7 @@ function PositionTableRow({
             pnlColor(p.unrealizedPnlSol),
           )}
         >
-          {fmtSol(p.unrealizedPnlSol)}
+          <PnlAmount sol={p.unrealizedPnlSol} solUsd={solUsd} unit={false} />
         </td>
         <td className="px-2 py-3 text-muted-foreground">
           <ChevronDown
@@ -253,7 +254,7 @@ function PositionCard({
         >
           <div className="text-right">
             <div className={cn("font-mono text-sm", pnlColor(p.unrealizedPnlSol))}>
-              {fmtSol(p.unrealizedPnlSol)} SOL
+              <PnlAmount sol={p.unrealizedPnlSol} solUsd={solUsd} />
             </div>
             <div
               className={cn(
@@ -365,7 +366,7 @@ function ExpandedAnalytics({
         />
         <Field
           label="Unrealized P&L"
-          value={`${fmtSol(p.unrealizedPnlSol)} SOL`}
+          value={<PnlAmount sol={p.unrealizedPnlSol} solUsd={solUsd} />}
           cls={pnlColor(p.unrealizedPnlSol)}
         />
         <Field label="Hold Time" value={fmtHoldTime(p.opened_at)} />
@@ -426,7 +427,7 @@ function Field({
   cls,
 }: {
   label: string;
-  value: string;
+  value: React.ReactNode;
   cls?: string;
 }) {
   return (

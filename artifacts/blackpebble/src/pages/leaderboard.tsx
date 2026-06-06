@@ -3,7 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Trophy, Loader2, ExternalLink } from "lucide-react";
 import { useAccount } from "@/hooks/use-account";
 import { api, type LeaderboardPeriod, type LeaderboardEntry } from "@/lib/api";
-import { fmtSol, fmtPercent, shortAddr, xProfileUrl } from "@/lib/format";
+import { fmtPercent, shortAddr, xProfileUrl } from "@/lib/format";
+import { PnlAmount } from "@/components/pnl-amount";
 import { TierBadge } from "@/components/tier-badge";
 import { cn } from "@/lib/utils";
 
@@ -102,6 +103,7 @@ export default function Leaderboard() {
 
   const entries = data?.entries ?? [];
   const minTrades = data?.minTrades ?? 5;
+  const solUsd = data?.solUsd ?? 0;
 
   return (
     <div className="w-full max-w-5xl mx-auto px-4 md:px-6 py-6">
@@ -186,7 +188,13 @@ export default function Leaderboard() {
                   <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
                     <LbField
                       label="P&L"
-                      value={fmtSol(e.realized_pnl)}
+                      value={
+                        <PnlAmount
+                          sol={e.realized_pnl}
+                          solUsd={solUsd}
+                          unit={false}
+                        />
+                      }
                       cls={pnlClass(e.realized_pnl)}
                     />
                     <LbField
@@ -204,7 +212,13 @@ export default function Leaderboard() {
                     />
                     <LbField
                       label="Best Trade"
-                      value={fmtSol(e.best_trade)}
+                      value={
+                        <PnlAmount
+                          sol={e.best_trade}
+                          solUsd={solUsd}
+                          unit={false}
+                        />
+                      }
                       cls={pnlClass(e.best_trade)}
                     />
                   </div>
@@ -266,7 +280,11 @@ export default function Leaderboard() {
                         pnlClass(e.realized_pnl),
                       )}
                     >
-                      {fmtSol(e.realized_pnl)}
+                      <PnlAmount
+                        sol={e.realized_pnl}
+                        solUsd={solUsd}
+                        unit={false}
+                      />
                     </td>
                     <td
                       className={cn(
@@ -288,7 +306,11 @@ export default function Leaderboard() {
                         pnlClass(e.best_trade),
                       )}
                     >
-                      {fmtSol(e.best_trade)}
+                      <PnlAmount
+                        sol={e.best_trade}
+                        solUsd={solUsd}
+                        unit={false}
+                      />
                     </td>
                   </tr>
                 );
@@ -308,7 +330,7 @@ function LbField({
   cls,
 }: {
   label: string;
-  value: string;
+  value: React.ReactNode;
   cls?: string;
 }) {
   return (

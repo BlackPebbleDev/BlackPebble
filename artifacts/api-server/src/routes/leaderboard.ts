@@ -5,6 +5,7 @@ import {
   type LeaderboardPeriod,
   MIN_LEADERBOARD_TRADES,
 } from "../lib/trading.js";
+import { getSolPriceUsd } from "../lib/prices.js";
 
 const router: IRouter = Router();
 
@@ -15,11 +16,15 @@ router.get(
   asyncHandler(async (req, res) => {
     const raw = String(req.query.period || "all").trim() as LeaderboardPeriod;
     const period: LeaderboardPeriod = PERIODS.includes(raw) ? raw : "all";
-    const entries = await getLeaderboard(period);
+    const [entries, solUsd] = await Promise.all([
+      getLeaderboard(period),
+      getSolPriceUsd(),
+    ]);
     return res.json({
       period,
       minTrades: MIN_LEADERBOARD_TRADES,
       entries,
+      solUsd,
     });
   }),
 );

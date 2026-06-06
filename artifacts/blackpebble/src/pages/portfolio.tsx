@@ -20,6 +20,7 @@ import { Watchlist } from "@/components/watchlist";
 import { TradeList } from "@/components/trade-list";
 import { TierBadge } from "@/components/tier-badge";
 import { fmtSol, fmtUsd, fmtPercent, pnlColor } from "@/lib/format";
+import { PnlAmount } from "@/components/pnl-amount";
 import { cn } from "@/lib/utils";
 import {
   useGuestStore,
@@ -44,7 +45,7 @@ function Stat({
   className,
 }: {
   label: string;
-  value: string;
+  value: React.ReactNode;
   className?: string;
 }) {
   return (
@@ -63,12 +64,18 @@ function Stat({
  *  - closed trades exist but none won → "No winning trades yet"
  *  - no closed trades at all          → "No closed trades yet"
  */
-function BestTradeStat({ stats }: { stats?: PortfolioStats }) {
+function BestTradeStat({
+  stats,
+  solUsd,
+}: {
+  stats?: PortfolioStats;
+  solUsd: number;
+}) {
   if (stats?.bestTrade != null) {
     return (
       <Stat
         label="Best Trade"
-        value={`+${fmtSol(stats.bestTrade)} SOL`}
+        value={<PnlAmount sol={stats.bestTrade} solUsd={solUsd} />}
         className="text-emerald-400"
       />
     );
@@ -227,7 +234,9 @@ export default function Portfolio() {
             <Stat label="Cash Balance" value={`${fmtSol(stats?.balance)} SOL`} />
             <Stat
               label="Total P&L"
-              value={`${fmtSol(stats?.totalPnlSol)} SOL`}
+              value={
+                <PnlAmount sol={stats?.totalPnlSol} solUsd={positionsSolUsd} />
+              }
               className={pnlColor(stats?.totalPnlSol)}
             />
             <Stat
@@ -247,7 +256,7 @@ export default function Portfolio() {
               label="Win Rate"
               value={`${(stats?.winRate ?? 0).toFixed(1)}%`}
             />
-            <BestTradeStat stats={stats} />
+            <BestTradeStat stats={stats} solUsd={positionsSolUsd} />
             <Stat
               label="Rank"
               value={

@@ -119,6 +119,36 @@ export function pnlColor(value: number | null | undefined): string {
 }
 
 /**
+ * Signed SOL amount for P&L, with an explicit +/- so direction reads at a
+ * glance: "+0.2383", "-1.20". Mirrors fmtSol's decimal rules.
+ */
+export function fmtSignedSol(value: number | null | undefined, digits = 2): string {
+  if (value == null || !Number.isFinite(value)) return "—";
+  const sign = value > 0 ? "+" : value < 0 ? "-" : "";
+  return `${sign}${fmtSol(Math.abs(value), digits)}`;
+}
+
+/**
+ * Signed USD amount for P&L, with the sign before the $ and the same compact
+ * shorthand as fmtUsd: "+$34.21", "-$1.20M".
+ */
+export function fmtSignedUsd(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return "—";
+  const sign = value > 0 ? "+" : value < 0 ? "-" : "";
+  const abs = Math.abs(value);
+  let body: string;
+  if (abs >= 1_000_000_000) body = `${(abs / 1_000_000_000).toFixed(2)}B`;
+  else if (abs >= 1_000_000) body = `${(abs / 1_000_000).toFixed(2)}M`;
+  else if (abs >= 1_000) body = `${(abs / 1_000).toFixed(1)}K`;
+  else
+    body = abs.toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  return `${sign}$${body}`;
+}
+
+/**
  * Market-cap multiple, e.g. current MC / avg entry MC -> "3.24×".
  * Returns "—" when either input is missing so it never shows a misleading 0.
  */

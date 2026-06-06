@@ -221,6 +221,7 @@ export interface LeaderboardResponse {
   period: LeaderboardPeriod;
   minTrades: number;
   entries: LeaderboardEntry[];
+  solUsd: number;
 }
 
 export interface ExecuteResult {
