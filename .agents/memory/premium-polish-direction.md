@@ -19,4 +19,6 @@ Scope: a POLISH pass, not a redesign. Preserve all functionality, routing, page 
 
 **Why:** User required plan/mockup approval before any site-wide change, was explicit about the banned aesthetics + gold/green-red color discipline, and stressed "a lot of crypto sites look pretty and tell you nothing" — professional look must keep full data richness.
 
+**Market-cap-first vocabulary (approved):** lead position language with market cap, not price. "Avg Entry MC" = cost-weighted blended market cap across all buys (the MC analogue of avg entry price); pair with "Current MC". Price stays as a secondary sub-line everywhere — never removed. Per-execution rows lead with "Entry MC". When graduating to the real app, `entry_market_cap`/`currentMarketCapUsd` exist on Position; "Avg Entry MC" should be computed cost-weighted across the position's buy trades.
+
 **How to apply:** Approved mobile mockups live in `artifacts/mockup-sandbox/src/components/mockups/blackpebble-mobile/` (Trading, Portfolio, Leaderboard) with shared tokens in `_group.css`. Use these as the reference when graduating the polish into `artifacts/blackpebble`. Do NOT implement site-wide until the user approves the look.

@@ -16,12 +16,16 @@ import './_group.css';
  *
  * Premium visual polish with NO loss of information density. Every field the
  * live app already tracks is present, organised into four labelled sections:
- *   1. Market-Cap Analytics  (BlackPebble's differentiator)
+ *   1. Market-Cap Analytics  (BlackPebble's core differentiator)
  *   2. Position Analytics
  *   3. Trade History (per-execution audit trail)
  *   4. Actions
  *
- * It is built to instantly answer: entry MC, current MC, ROI, average entry,
+ * MARKET-CAP-FIRST LANGUAGE: the headline metric is "Avg Entry MC" (the
+ * cost-weighted blended market cap across every buy) vs "Current MC". Price is
+ * preserved everywhere as a secondary detail, never removed.
+ *
+ * Built to instantly answer: avg entry MC, current MC, ROI, average entry,
  * slippage taken, and how many executions built the position.
  */
 
@@ -29,17 +33,18 @@ const POS = {
   symbol: 'WIF',
   name: 'dogwifhat',
   mint: 'EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm',
-  entryMcUsd: 420_000_000,
+  // Cost-weighted blend across the 4 executions below.
+  avgEntryMcUsd: 460_000_000,
   currentMcUsd: 1_480_000_000,
-  mcChangePct: 252.4,
+  mcChangePct: 221.7,
   peakMcUsd: 1_620_000_000,
-  avgEntryUsd: 0.42,
+  avgEntryUsd: 0.46,
   currentUsd: 1.48,
-  quantity: '12,500',
+  quantity: '11,472',
   costBasisSol: '36.24',
-  valueSol: '127.58',
-  unrealizedPnlSol: '+91.34',
-  roiPct: '+252.40',
+  valueSol: '116.58',
+  unrealizedPnlSol: '+80.34',
+  roiPct: '+221.70',
   executions: 4,
   avgSlippagePct: '1.18',
   opened: '3d ago',
@@ -59,10 +64,10 @@ type Exec = {
 };
 
 const EXECS: Exec[] = [
-  { side: 'buy', sol: '10.00', tokens: '3,450', priceUsd: '$0.42', mcUsd: '$420M', slippage: '0.90', impact: '0.42', pnl: null, time: '3d ago' },
-  { side: 'buy', sol: '8.00', tokens: '2,600', priceUsd: '$0.45', mcUsd: '$450M', slippage: '1.10', impact: '0.55', pnl: null, time: '2d ago' },
-  { side: 'buy', sol: '12.00', tokens: '3,800', priceUsd: '$0.46', mcUsd: '$470M', slippage: '1.40', impact: '0.71', pnl: null, time: '1d ago' },
-  { side: 'buy', sol: '6.24', tokens: '2,650', priceUsd: '$0.51', mcUsd: '$520M', slippage: '1.30', impact: '0.48', pnl: null, time: '14h ago' },
+  { side: 'buy', sol: '10.00', tokens: '3,452', priceUsd: '$0.42', mcUsd: '$420M', slippage: '0.90', impact: '0.42', pnl: null, time: '3d ago' },
+  { side: 'buy', sol: '8.00', tokens: '2,578', priceUsd: '$0.45', mcUsd: '$450M', slippage: '1.10', impact: '0.55', pnl: null, time: '2d ago' },
+  { side: 'buy', sol: '12.00', tokens: '3,702', priceUsd: '$0.47', mcUsd: '$470M', slippage: '1.40', impact: '0.71', pnl: null, time: '1d ago' },
+  { side: 'buy', sol: '6.24', tokens: '1,740', priceUsd: '$0.52', mcUsd: '$520M', slippage: '1.30', impact: '0.48', pnl: null, time: '14h ago' },
 ];
 
 function fmtMc(v: number): string {
@@ -157,18 +162,19 @@ export function PositionDetail() {
 
         <div className="p-4 space-y-5">
 
-          {/* ── Market-Cap Analytics ───────────────────────────────── */}
+          {/* ── Market-Cap Analytics (core differentiator) ─────────── */}
           <section>
-            <SectionTitle hint="vs entry">Market-Cap Analytics</SectionTitle>
+            <SectionTitle hint="market-cap basis">Market-Cap Analytics</SectionTitle>
 
-            {/* Entry → Current MC, the signature BlackPebble view */}
-            <div className="border border-border bg-card rounded-[2px] p-3">
+            {/* Avg Entry MC → Current MC, the signature BlackPebble view */}
+            <div className="border border-accent/30 bg-card rounded-[2px] p-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <Label>Entry MC</Label>
+                  <Label>Avg Entry MC</Label>
                   <div className="mt-1 font-['JetBrains_Mono'] tabular-nums text-base text-muted-foreground">
-                    {fmtMc(POS.entryMcUsd)}
+                    {fmtMc(POS.avgEntryMcUsd)}
                   </div>
+                  <div className="text-[10px] text-muted-foreground/70 font-['JetBrains_Mono']">@ ${POS.avgEntryUsd.toFixed(2)}</div>
                 </div>
                 <ArrowRight className="w-4 h-4 text-muted-foreground/50 shrink-0" />
                 <div className="text-right">
@@ -176,10 +182,11 @@ export function PositionDetail() {
                   <div className="mt-1 font-['JetBrains_Mono'] tabular-nums text-base text-foreground">
                     {fmtMc(POS.currentMcUsd)}
                   </div>
+                  <div className="text-[10px] text-muted-foreground/70 font-['JetBrains_Mono']">@ ${POS.currentUsd.toFixed(2)}</div>
                 </div>
               </div>
 
-              {/* progress from entry → current relative to peak */}
+              {/* progress from avg entry → current relative to peak */}
               <div className="mt-3 h-1 w-full bg-border rounded-full overflow-hidden">
                 <div className="h-full bg-accent rounded-full" style={{ width: '78%' }} />
               </div>
@@ -194,9 +201,9 @@ export function PositionDetail() {
 
             {/* MC-derived metrics */}
             <div className="grid grid-cols-3 gap-2 mt-2">
-              <Stat label="MC Multiple" value="3.52×" valueClass="text-emerald-400" />
+              <Stat label="MC Multiple" value="3.22×" valueClass="text-emerald-400" />
               <Stat label="From Peak" value="-8.6%" valueClass="text-red-400" />
-              <Stat label="MC / Hold" value={POS.held} />
+              <Stat label="Hold Time" value={POS.held} />
             </div>
           </section>
 
@@ -204,8 +211,8 @@ export function PositionDetail() {
           <section>
             <SectionTitle>Position Analytics</SectionTitle>
             <div className="grid grid-cols-2 gap-2">
-              <Stat label="Avg Entry" value={`$${POS.avgEntryUsd.toFixed(2)}`} />
-              <Stat label="Current Price" value={`$${POS.currentUsd.toFixed(2)}`} />
+              <Stat label="Avg Entry Price" value={`$${POS.avgEntryUsd.toFixed(2)}`} sub={`${fmtMc(POS.avgEntryMcUsd)} avg entry MC`} />
+              <Stat label="Current Price" value={`$${POS.currentUsd.toFixed(2)}`} sub={`${fmtMc(POS.currentMcUsd)} current MC`} />
               <Stat label="Quantity" value={POS.quantity} sub={`${POS.symbol}`} />
               <Stat label="Position Value" value={`${POS.valueSol} SOL`} />
               <Stat label="Cost Basis" value={`${POS.costBasisSol} SOL`} />
@@ -243,8 +250,8 @@ export function PositionDetail() {
                     </div>
 
                     <div className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px] font-['JetBrains_Mono'] tabular-nums text-muted-foreground">
-                      <span>Price {t.priceUsd}</span>
-                      <span className="text-right">MC {t.mcUsd}</span>
+                      <span>Entry MC {t.mcUsd}</span>
+                      <span className="text-right">Price {t.priceUsd}</span>
                       <span>Slippage {t.slippage}%</span>
                       <span className="text-right">Impact {t.impact}%</span>
                     </div>
