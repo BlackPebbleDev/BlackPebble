@@ -79,6 +79,10 @@ router.post("/admin/reset-paper-trading", async (req: Request, res: Response) =>
 
   try {
     const result = await withTx(async (client) => {
+      // Serialize concurrent reset attempts so the double-run guard below is
+      // race-free: the lock is held until this transaction commits/rolls back.
+      await client.query(`SELECT pg_advisory_xact_lock(908070605)`);
+
       // Guard against accidental double-runs.
       await client.query(`
         CREATE TABLE IF NOT EXISTS reset_audit (
