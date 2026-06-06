@@ -3,3 +3,5 @@
 - [.replit userenv secret leak](replit-userenv-secret-leak.md) — sensitive values placed in env-var scopes get serialized as plaintext into committed .replit; keep secrets as managed Secrets only.
 - [X OAuth PKCE encoding](x-oauth-pkce-encoding.md) — PKCE code_challenge must base64url the raw SHA-256 Buffer directly; binary→UTF-8 round-trip corrupts it and X rejects with "weren't able to give access".
 - [Dev vs prod DBs](db-environments.md) — dev and production are SEPARATE Postgres DBs; prod executeSql is read-only, mutate prod only via a deployed token-protected endpoint.
+- [Account identity model](blackpebble-account-identity.md) — trading keyed by one text `wallet` col; X login → synthetic `x:<x_id>` key takes priority over Solana wallet; guest only when neither exists.
+- [grep output redaction](replit-grep-output-redaction.md) — bash/grep/rg output can mangle identifiers; use rg to locate but trust the read tool for exact source.

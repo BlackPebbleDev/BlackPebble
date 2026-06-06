@@ -1128,6 +1128,7 @@ export async function getLeaderboard(
        HAVING COUNT(*) >= $3
      ),
      ident AS (
+       -- Wallet-keyed accounts: resolve the X profile linked to the wallet.
        SELECT
          wi.wallet_address AS wallet,
          MAX(xi.x_username) AS x_username,
@@ -1139,6 +1140,16 @@ export async function getLeaderboard(
          ON xi.user_id = wi.user_id AND xi.provider = 'x'
        WHERE wi.provider = 'wallet'
        GROUP BY wi.wallet_address
+       UNION ALL
+       -- X-only accounts: the account key is the synthetic 'x:<x_id>' identity.
+       SELECT
+         ('x:' || xi.provider_user_id) AS wallet,
+         xi.x_username AS x_username,
+         u.avatar_url AS x_avatar_url,
+         u.display_name AS x_display_name
+       FROM user_identities xi
+       JOIN users u ON u.id = xi.user_id
+       WHERE xi.provider = 'x'
      )
      SELECT
        agg.wallet AS wallet,

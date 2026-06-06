@@ -64,13 +64,13 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <SolanaProviders>
-          <AccountProvider>
-            <XAuthProvider>
+          <XAuthProvider>
+            <AccountProvider>
               <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
                 <Router />
               </WouterRouter>
-            </XAuthProvider>
-          </AccountProvider>
+            </AccountProvider>
+          </XAuthProvider>
         </SolanaProviders>
         <Toaster />
       </TooltipProvider>

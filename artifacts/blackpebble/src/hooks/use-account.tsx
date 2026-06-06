@@ -8,11 +8,21 @@ import {
 } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { api, type Account } from "@/lib/api";
+import { useXAuth } from "@/hooks/use-x-auth";
 
 interface AccountContextValue {
+  /**
+   * The identity key used for all server-side trading data. This is the X
+   * account key (`x:<x_id>`) when signed in with X, otherwise the connected
+   * Solana wallet address, otherwise null.
+   */
   wallet: string | null;
+  /** True when a Solana wallet is connected (independent of X auth). */
   connected: boolean;
-  /** True when no wallet is connected — the user is trading as a guest. */
+  /**
+   * True only when the user has neither an X session nor a connected wallet —
+   * i.e. trading locally as a guest with no persistent server account.
+   */
   isGuest: boolean;
   account: Account | null;
   loading: boolean;
@@ -30,33 +40,41 @@ const AccountContext = createContext<AccountContextValue>({
 
 export function AccountProvider({ children }: { children: ReactNode }) {
   const { publicKey, connected } = useWallet();
-  const wallet = publicKey?.toBase58() ?? null;
+  const { user } = useXAuth();
+  const solanaWallet = publicKey?.toBase58() ?? null;
+
+  // An X session is the canonical identity: once signed in, the account follows
+  // the X user regardless of which wallet is (auto-)connected. Falling back to a
+  // wallet-only key preserves the original behaviour for users who never sign in
+  // with X. Guest mode only applies when neither identity exists.
+  const accountKey = user ? `x:${user.x_id}` : solanaWallet;
+
   const [account, setAccount] = useState<Account | null>(null);
   const [loading, setLoading] = useState(false);
 
   const refresh = useCallback(async () => {
-    if (!wallet) {
+    if (!accountKey) {
       setAccount(null);
       return;
     }
     try {
-      const a = await api.getAccount(wallet);
+      const a = await api.getAccount(accountKey);
       setAccount(a);
     } catch {
       setAccount(null);
     }
-  }, [wallet]);
+  }, [accountKey]);
 
   useEffect(() => {
     let cancelled = false;
     async function init() {
-      if (!wallet) {
+      if (!accountKey) {
         setAccount(null);
         return;
       }
       setLoading(true);
       try {
-        const a = await api.createAccount(wallet);
+        const a = await api.createAccount(accountKey);
         if (!cancelled) setAccount(a);
       } catch {
         if (!cancelled) setAccount(null);
@@ -68,11 +86,18 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [wallet]);
+  }, [accountKey]);
 
   return (
     <AccountContext.Provider
-      value={{ wallet, connected, isGuest: !wallet, account, loading, refresh }}
+      value={{
+        wallet: accountKey,
+        connected,
+        isGuest: !accountKey,
+        account,
+        loading,
+        refresh,
+      }}
     >
       {children}
     </AccountContext.Provider>

@@ -6,7 +6,7 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
-import { useAccount } from "@/hooks/use-account";
+import { useWallet } from "@solana/wallet-adapter-react";
 
 export interface XUser {
   id: string;
@@ -42,7 +42,8 @@ const API_BASE = "/api";
 export function XAuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<XUser | null>(null);
   const [loading, setLoading] = useState(true);
-  const { wallet } = useAccount();
+  const { publicKey } = useWallet();
+  const wallet = publicKey?.toBase58() ?? null;
 
   const refresh = useCallback(async () => {
     try {
