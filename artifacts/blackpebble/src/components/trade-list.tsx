@@ -1,4 +1,5 @@
-import { ArrowDownRight, ArrowUpRight } from "lucide-react";
+import { useState } from "react";
+import { ArrowDownRight, ArrowUpRight, ChevronDown, ChevronUp } from "lucide-react";
 import type { Trade } from "@/lib/api";
 import {
   fmtSol,
@@ -24,13 +25,31 @@ export function TradeList({
   empty,
   compact = false,
   onNavigate,
+  limit,
+  showExpand,
+  expanded,
+  onExpandChange,
 }: {
   trades: Trade[];
   empty: string;
   compact?: boolean;
   /** When provided, each row is tappable and navigates to that token's mint. */
   onNavigate?: (mint: string) => void;
+  /** When set with showExpand, only this many trades are shown by default. */
+  limit?: number;
+  /** When true and trades exceed limit, an expand/collapse toggle is shown. */
+  showExpand?: boolean;
+  /** Optional external control of expanded state. If omitted, internal state is used. */
+  expanded?: boolean;
+  onExpandChange?: (expanded: boolean) => void;
 }) {
+  const [internalExpanded, setInternalExpanded] = useState(false);
+  const isExpanded = expanded ?? internalExpanded;
+  const doExpand = (v: boolean) => {
+    setInternalExpanded(v);
+    onExpandChange?.(v);
+  };
+
   if (trades.length === 0) {
     return empty ? (
       <div className="px-4 py-8 text-center text-muted-foreground text-sm">
@@ -38,11 +57,37 @@ export function TradeList({
       </div>
     ) : null;
   }
+
+  const hasLimit = showExpand && limit != null && limit > 0;
+  const showAll = !hasLimit || isExpanded;
+  const visibleTrades = showAll ? trades : trades.slice(0, limit);
+  const canExpand = hasLimit && trades.length > limit;
+
   return (
-    <div className="divide-y divide-border/50">
-      {trades.map((t) => (
-        <TradeRow key={t.id} t={t} compact={compact} onNavigate={onNavigate} />
-      ))}
+    <div>
+      <div className="divide-y divide-border/50">
+        {visibleTrades.map((t) => (
+          <TradeRow key={t.id} t={t} compact={compact} onNavigate={onNavigate} />
+        ))}
+      </div>
+      {canExpand && (
+        <button
+          type="button"
+          onClick={() => doExpand(!isExpanded)}
+          className="w-full flex items-center justify-center gap-1.5 px-4 py-3 text-sm text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors border-t border-border/50"
+          data-testid={isExpanded ? "button-show-less" : "button-view-all-trades"}
+        >
+          {isExpanded ? (
+            <>
+              Show less <ChevronUp className="w-4 h-4" />
+            </>
+          ) : (
+            <>
+              View all trades <ChevronDown className="w-4 h-4" />
+            </>
+          )}
+        </button>
+      )}
     </div>
   );
 }

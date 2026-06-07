@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Line } from "react-chartjs-2";
@@ -97,6 +97,7 @@ function BestTradeStat({
 export default function Portfolio() {
   const { wallet, isGuest } = useAccount();
   const [, navigate] = useLocation();
+  const [historyExpanded, setHistoryExpanded] = useState(false);
 
   const { data: serverStats, isLoading: serverStatsLoading } = useQuery({
     queryKey: ["pf-stats", wallet],
@@ -325,12 +326,27 @@ export default function Portfolio() {
           <h2 className="text-lg font-semibold mb-3 mt-8">Watchlist</h2>
           <Watchlist onNavigate={(mint) => navigate(`/?token=${mint}`)} />
 
-          <h2 className="text-lg font-semibold mb-3 mt-8">Trade History</h2>
+          <h2 className="text-lg font-semibold mb-3 mt-8">
+            Trade History{" "}
+            <span className="text-sm font-normal text-muted-foreground">
+              {(() => {
+                const total = history?.trades?.length ?? 0;
+                if (total === 0) return null;
+                if (historyExpanded) return `${total} trades shown`;
+                const shown = Math.min(5, total);
+                return `${shown} of ${total} shown`;
+              })()}
+            </span>
+          </h2>
           <div className="border border-border bg-card">
             <TradeList
               trades={history?.trades ?? []}
               empty="No trades yet. Your buys and sells will appear here."
               onNavigate={(mint) => navigate(`/?token=${mint}`)}
+              limit={5}
+              showExpand
+              expanded={historyExpanded}
+              onExpandChange={setHistoryExpanded}
             />
           </div>
         </>
