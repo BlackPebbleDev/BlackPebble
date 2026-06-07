@@ -1,0 +1,215 @@
+Wallet Cleaner UX polish and wallet balance update.
+
+Use refundyoursol.com only as a functional reference, not a visual style reference.
+
+Keep BlackPebble’s own premium black/gold trading-terminal style.
+
+Do NOT modify:
+
+* paper trading
+* portfolio
+* leaderboard
+* X login
+* wallet login
+* market feeds
+* charts
+* API server
+* database
+* unrelated UI
+
+Only modify Wallet Cleaner files.
+
+Goal:
+Make the Wallet Cleaner flow feel clearer, more complete, and more professional while keeping it fully isolated from the paper trading platform.
+
+1. Hero section
+
+Add/improve the hero section.
+
+Headline:
+Recover trapped SOL from empty token accounts
+
+Description:
+Solana token accounts can keep rent locked after trades. BlackPebble scans for empty accounts and lets you safely close them.
+
+Keep this professional, not hypey.
+
+2. Wallet status card
+
+After wallet connect, show a clear wallet status card.
+
+Display:
+
+* Connected wallet address, shortened
+* Total wallet SOL balance
+* Empty accounts found
+* Recoverable SOL
+* Estimated network fees
+* Estimated net receive
+
+Important:
+
+* Total wallet SOL balance must be fetched from the connected wallet using live on-chain data.
+* Use the existing Solana connection / Helius RPC.
+* Do not hardcode wallet balance.
+* Refresh wallet balance after scan and after successful close.
+* If wallet balance fetch fails, show “Unavailable” without breaking the scan.
+
+3. Action mode
+
+For MVP, only show:
+
+Close Empty Accounts
+
+Do NOT add:
+
+* Burn mode
+* Token burn
+* Referral system
+* Ads
+* Fake user stats
+* Email alerts
+* Platform fees
+
+4. Empty wallet / clean wallet state
+
+If the wallet has no closeable empty token accounts, show a successful clean state.
+
+Display:
+Wallet clean
+
+Description:
+No empty token accounts were found for this wallet.
+
+Also show:
+
+* Total wallet SOL balance
+* Empty accounts found: 0
+* Recoverable SOL: 0
+* Estimated net receive: 0
+* Scan Again button
+
+Important:
+
+* Do NOT show “Could not read token accounts from the network” for a valid empty wallet.
+* Distinguish between a true RPC/network error and a successful scan with zero results.
+* If getParsedTokenAccountsByOwner returns an empty array, treat it as success.
+
+5. Recovery flow
+
+Keep and polish the existing recovery flow:
+
+* Select accounts manually
+* Select All
+* Deselect All
+* Preview Close
+* Show accounts selected
+* Show transactions required
+* Show estimated network fees
+* Show recoverable SOL
+* Show estimated net SOL received
+* Show live progress while closing
+
+Keep batching:
+
+* Maximum 10 close instructions per transaction
+* Clearly show transaction count before signing
+
+Example:
+27 accounts selected
+3 transactions required
+
+6. Preview modal
+
+Before signing, the preview modal must show:
+
+* Accounts selected
+* Recoverable SOL
+* Estimated network fees
+* Estimated net receive
+* Number of transactions required
+* Warning that closed token accounts cannot be recovered
+* Confirm button
+* Cancel button
+
+No transaction should be sent until the user confirms the preview modal.
+
+7. Completion state
+
+After successful close, show a completion state.
+
+Display:
+Wallet cleaned
+
+Also show:
+
+* SOL recovered
+* Accounts closed
+* Updated wallet SOL balance
+* Scan Again button
+
+After completion:
+
+* Refresh wallet balance
+* Remove closed accounts from the list
+* Keep remaining accounts visible if only some were closed
+
+8. Error handling
+
+Fix scan and close errors cleanly.
+
+Rules:
+
+* Fresh wallet with no token accounts = clean wallet state, not error.
+* Valid scan with zero closeable accounts = clean wallet state, not error.
+* Real RPC/network failure = show network error.
+* Partial close failure = show what succeeded and allow retry for remaining accounts.
+* Do not duplicate error banners.
+* Do not show “wallet clean” during real error states.
+
+9. Safety rules
+
+Preserve all safety rules:
+
+* Never close accounts with non-zero token balances.
+* Never auto-select accounts.
+* Skip NFT candidates.
+* Skip uncertain accounts.
+* Rent returns to connected wallet.
+* No platform fee in MVP.
+* No backend routes.
+* No database changes.
+* Full preview required before signing.
+
+10. QA
+
+Run:
+
+* typecheck
+* Wallet Cleaner render check
+* Utilities page render check
+
+Verify:
+
+* Fresh wallet with no token accounts shows wallet-clean state
+* Wallet SOL balance displays
+* Wallet balance refreshes after scan
+* Wallet balance refreshes after successful close
+* Wallet with closeable accounts shows recovery summary
+* Select All works
+* Deselect All works
+* Preview modal works
+* Transaction count is correct
+* Empty scan is not treated as network failure
+* Real RPC failure still shows network error
+* No paper trading files changed
+* No API files changed
+* No DB files changed
+
+Return:
+
+* Files changed
+* Wallet balance implementation summary
+* Empty wallet handling summary
+* Safety confirmation
+* Whether safe to publish

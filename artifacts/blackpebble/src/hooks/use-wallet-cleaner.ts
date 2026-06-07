@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { LAMPORTS_PER_SOL, PublicKey, Transaction } from "@solana/web3.js";
 import {
@@ -34,6 +34,12 @@ export type CleanerStatus =
   | "closing"
   | "done"
   | "error";
+
+/**
+ * Lifecycle of the live on-chain wallet balance fetch. "error" is surfaced as
+ * "Unavailable" in the UI and never blocks scanning or closing.
+ */
+export type BalanceStatus = "idle" | "loading" | "ready" | "error";
 
 /**
  * Solana caps a transaction at 1232 bytes. Each close instruction is small, but
@@ -75,6 +81,9 @@ export function formatRentSol(sol: number | null | undefined): string {
 export interface UseWalletCleaner {
   status: CleanerStatus;
   error: string | null;
+  owner: string | null;
+  walletBalance: number | null;
+  balanceStatus: BalanceStatus;
   accounts: CloseableAccount[];
   selected: Set<string>;
   selectedAccounts: CloseableAccount[];
@@ -82,12 +91,16 @@ export interface UseWalletCleaner {
   selectedRecoverable: number;
   estimatedFee: number;
   estimatedNet: number;
+  totalTxCount: number;
+  totalFee: number;
+  totalNet: number;
   closedCount: number;
   recoveredSol: number;
   txCount: number;
   progress: CloseProgress | null;
   scan: () => Promise<void>;
   closeSelected: () => Promise<boolean>;
+  refreshBalance: () => Promise<void>;
   toggle: (pubkey: string) => void;
   selectAll: () => void;
   clearSelection: () => void;
@@ -105,6 +118,45 @@ export function useWalletCleaner(): UseWalletCleaner {
   const [closedCount, setClosedCount] = useState(0);
   const [recoveredSol, setRecoveredSol] = useState(0);
   const [progress, setProgress] = useState<CloseProgress | null>(null);
+  const [walletBalance, setWalletBalance] = useState<number | null>(null);
+  const [balanceStatus, setBalanceStatus] = useState<BalanceStatus>("idle");
+  // Monotonic id so only the most recent balance request can write state —
+  // a slow earlier fetch can never overwrite a fresher one (no stale flicker).
+  const balanceReqId = useRef(0);
+
+  const owner = publicKey ? publicKey.toBase58() : null;
+
+  /**
+   * Read the connected wallet's live SOL balance from chain. Never throws —
+   * a failure sets "error" (shown as "Unavailable") and leaves the rest of the
+   * flow fully usable.
+   */
+  const refreshBalance = useCallback(async () => {
+    if (!publicKey) {
+      balanceReqId.current += 1;
+      setWalletBalance(null);
+      setBalanceStatus("idle");
+      return;
+    }
+    const reqId = ++balanceReqId.current;
+    setBalanceStatus("loading");
+    try {
+      const lamports = await connection.getBalance(publicKey);
+      if (reqId !== balanceReqId.current) return;
+      setWalletBalance(lamports / LAMPORTS_PER_SOL);
+      setBalanceStatus("ready");
+    } catch (e) {
+      if (reqId !== balanceReqId.current) return;
+      console.warn("Wallet cleaner: balance fetch failed", e);
+      setWalletBalance(null);
+      setBalanceStatus("error");
+    }
+  }, [connection, publicKey]);
+
+  // Fetch the balance as soon as a wallet connects (and clear it on disconnect).
+  useEffect(() => {
+    void refreshBalance();
+  }, [refreshBalance]);
 
   const scan = useCallback(async () => {
     if (!publicKey) return;
@@ -183,11 +235,14 @@ export function useWalletCleaner(): UseWalletCleaner {
       found.sort((a, b) => b.lamports - a.lamports);
       setAccounts(found);
       setStatus("scanned");
+      // A scan does not change the balance, but refresh so the status card is
+      // always showing a current figure alongside the fresh results.
+      void refreshBalance();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Scan failed.");
       setStatus("error");
     }
-  }, [connection, publicKey]);
+  }, [connection, publicKey, refreshBalance]);
 
   const closeSelected = useCallback(async (): Promise<boolean> => {
     if (!publicKey) return false;
@@ -251,6 +306,8 @@ export function useWalletCleaner(): UseWalletCleaner {
       setSelected(new Set());
       setProgress(null);
       setStatus("done");
+      // Recovered rent has landed in the wallet — pull the new balance.
+      void refreshBalance();
       return true;
     } catch (e) {
       // Drop any accounts that DID close so a retry only targets what remains.
@@ -277,7 +334,7 @@ export function useWalletCleaner(): UseWalletCleaner {
       setStatus("error");
       return false;
     }
-  }, [accounts, selected, publicKey, connection, sendTransaction]);
+  }, [accounts, selected, publicKey, connection, sendTransaction, refreshBalance]);
 
   const toggle = useCallback((pubkey: string) => {
     setSelected((prev) => {
@@ -326,9 +383,18 @@ export function useWalletCleaner(): UseWalletCleaner {
   const estimatedFee = txCount * FEE_SOL_PER_TX;
   const estimatedNet = Math.max(0, selectedRecoverable - estimatedFee);
 
+  // Wallet-level totals for the status card: what closing EVERY found account
+  // would cost and net, independent of the current selection.
+  const totalTxCount = Math.ceil(accounts.length / MAX_CLOSES_PER_TX);
+  const totalFee = totalTxCount * FEE_SOL_PER_TX;
+  const totalNet = Math.max(0, totalRecoverable - totalFee);
+
   return {
     status,
     error,
+    owner,
+    walletBalance,
+    balanceStatus,
     accounts,
     selected,
     selectedAccounts,
@@ -336,12 +402,16 @@ export function useWalletCleaner(): UseWalletCleaner {
     selectedRecoverable,
     estimatedFee,
     estimatedNet,
+    totalTxCount,
+    totalFee,
+    totalNet,
     closedCount,
     recoveredSol,
     txCount,
     progress,
     scan,
     closeSelected,
+    refreshBalance,
     toggle,
     selectAll,
     clearSelection,

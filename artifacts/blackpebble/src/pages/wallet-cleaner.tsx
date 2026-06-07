@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useWalletCleaner, formatRentSol } from "@/hooks/use-wallet-cleaner";
 import { SafetyBanner } from "@/components/wallet-cleaner/safety-banner";
+import { WalletStatusCard } from "@/components/wallet-cleaner/wallet-status-card";
 import { ScanResults } from "@/components/wallet-cleaner/scan-results";
 import { RecoverySummary } from "@/components/wallet-cleaner/recovery-summary";
 import { ClosePreviewDialog } from "@/components/wallet-cleaner/close-preview-dialog";
@@ -52,14 +53,18 @@ export default function WalletCleaner() {
           <ArrowLeft className="w-3.5 h-3.5" />
           Utilities
         </Link>
-        <div className="flex items-center gap-3">
+        <div className="flex items-start gap-3">
           <div className="w-11 h-11 border border-accent/40 flex items-center justify-center flex-shrink-0">
             <Sparkles className="w-5 h-5 text-accent" />
           </div>
-          <div>
-            <h1 className="text-2xl font-semibold">Wallet Cleaner</h1>
-            <p className="text-sm text-muted-foreground">
-              Reclaim SOL locked as rent in empty token accounts.
+          <div className="space-y-1.5">
+            <h1 className="text-2xl font-semibold leading-tight">
+              Recover trapped SOL from empty token accounts
+            </h1>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              Solana token accounts can keep rent locked after trades.
+              BlackPebble scans for empty accounts and lets you safely close
+              them.
             </p>
           </div>
         </div>
@@ -83,6 +88,8 @@ export default function WalletCleaner() {
         </div>
       ) : (
         <>
+          <WalletStatusCard cleaner={cleaner} />
+
           {(status === "idle" ||
             (status === "error" && accounts.length === 0)) && (
             <div className="space-y-4">
@@ -91,7 +98,9 @@ export default function WalletCleaner() {
                 className="w-full sm:w-auto"
                 data-testid="button-scan-wallet"
               >
-                Scan wallet for empty accounts
+                {status === "error"
+                  ? "Try scanning again"
+                  : "Scan for empty accounts"}
               </Button>
               {status === "error" && error && (
                 <div className="flex items-start gap-2.5 border border-destructive-border bg-destructive/10 px-4 py-3 text-sm text-foreground">
@@ -132,9 +141,9 @@ export default function WalletCleaner() {
             <div className="border border-border bg-card p-10 text-center space-y-3">
               <CheckCircle2 className="w-8 h-8 text-accent mx-auto" />
               <div className="space-y-1">
-                <div className="font-semibold">Your wallet is clean</div>
+                <div className="font-semibold">Wallet clean</div>
                 <p className="text-sm text-muted-foreground">
-                  No empty token accounts with recoverable rent were found.
+                  No empty token accounts were found for this wallet.
                 </p>
               </div>
               <Button variant="outline" onClick={scan} data-testid="button-rescan">
@@ -147,16 +156,14 @@ export default function WalletCleaner() {
             <div className="border border-border bg-card p-10 text-center space-y-3">
               <CheckCircle2 className="w-8 h-8 text-accent mx-auto" />
               <div className="space-y-1">
-                <div className="font-semibold">
-                  Closed {closedCount}{" "}
-                  {closedCount === 1 ? "account" : "accounts"}
-                </div>
+                <div className="font-semibold">Wallet cleaned</div>
                 <p className="text-sm text-muted-foreground">
                   Recovered{" "}
                   <span className="font-mono text-foreground">
                     {formatRentSol(recoveredSol)} SOL
                   </span>{" "}
-                  back to your wallet.
+                  by closing {closedCount}{" "}
+                  {closedCount === 1 ? "account" : "accounts"}.
                 </p>
               </div>
               <Button variant="outline" onClick={scan} data-testid="button-scan-again">
