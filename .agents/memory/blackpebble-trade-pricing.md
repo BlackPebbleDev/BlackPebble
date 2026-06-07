@@ -45,3 +45,14 @@ from the same payload: `solUsd = priceUsd / priceSol` (guard `priceSol > 0`).
 Used by the Mini Trade Planner to convert a USD investment amount into the SOL
 buy-field value. Elsewhere `solUsd` comes from `api.positions`/chart/quote
 responses or `guestValued.solUsd`. No standalone "sol price" endpoint exists.
+
+## Buy/Sell SOL↔USD amount toggle (frontend)
+The Amount field holds a raw value interpreted in the active unit; ONLY the
+execution/quote path converts to SOL (toSol = unit==="USD" ? n/solUsd : n). The
+existing trade API stays SOL-only — never send USD to it. Toggling the unit does
+NOT convert the typed number (just reinterprets it); slippage/liquidity guards
+catch oversized results. The "USD price unavailable" disable + note must be
+gated to the BUY side only — sell is percent-based and needs no rate, so blocking
+sell in USD mode is a regression. The unit is shared state lifted to TradingDesk
+(sessionStorage "bp:trade-unit") and passed to both TradePanel and MiniPlanner
+(MiniPlanner keeps an uncontrolled fallback).

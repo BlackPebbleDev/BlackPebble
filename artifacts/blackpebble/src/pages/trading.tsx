@@ -55,6 +55,8 @@ import {
   shortAddr,
   timeAgo,
 } from "@/lib/format";
+import { fmtUnitAmt } from "@/components/trade-planner/util";
+import type { Unit } from "@/lib/trade-planner";
 import { cn } from "@/lib/utils";
 
 ChartJS.register(
@@ -67,6 +69,7 @@ ChartJS.register(
 );
 
 const BUY_PRESETS = [0.5, 1, 5, 10];
+const USD_BUY_PRESETS = [25, 50, 100, 500];
 const SELL_PRESETS = [25, 50, 75, 100];
 
 function useTokenParam(): string | null {
@@ -397,10 +400,41 @@ function useDebounced<T>(value: T, delayMs: number): T {
   return debounced;
 }
 
-/** Format an applied SOL amount for the buy input: up to 4 dp, no trailing zeros. */
-function formatAppliedSol(value: number): string {
+/** Format an amount for the buy input: up to 4 dp, no trailing zeros. Unit-agnostic. */
+function formatAppliedAmount(value: number): string {
   if (!Number.isFinite(value) || value <= 0) return "";
   return String(Number(value.toFixed(4)));
+}
+
+/** SOL/USD rate from a token quote, or null when it can't be derived. */
+function solUsdFromInfo(info: TokenInfo): number | null {
+  return info.priceUsd != null && info.priceSol != null && info.priceSol > 0
+    ? info.priceUsd / info.priceSol
+    : null;
+}
+
+/** Position value in the active unit. Falls back to SOL when the rate is missing. */
+function fmtUnitValue(solValue: number, unit: Unit, solUsd: number | null): string {
+  if (unit === "USD" && solUsd != null && solUsd > 0) {
+    return fmtUnitAmt(solValue * solUsd, "USD");
+  }
+  return `${fmtSol(solValue)} SOL`;
+}
+
+/**
+ * P&L in the active unit. Keeps the SOL-mode look (signed via the number) and
+ * shows USD as "-$182.38" / "$182.38" — sign before the $, full precision.
+ */
+function fmtUnitPnl(solValue: number, unit: Unit, solUsd: number | null): string {
+  if (unit === "USD" && solUsd != null && solUsd > 0) {
+    const v = solValue * solUsd;
+    const body = Math.abs(v).toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+    return `${v < 0 ? "-" : ""}$${body}`;
+  }
+  return `${fmtSol(solValue)} SOL`;
 }
 
 function TradePanel({
@@ -408,11 +442,15 @@ function TradePanel({
   appliedAmount,
   planned,
   onClearPlanned,
+  unit,
+  onUnitChange,
 }: {
   info: TokenInfo;
   appliedAmount?: { amount: string; nonce: number } | null;
   planned?: PlannedTrade | null;
   onClearPlanned?: () => void;
+  unit: Unit;
+  onUnitChange: (unit: Unit) => void;
 }) {
   const { wallet, account, isGuest } = useAccount();
   const { toast } = useToast();
@@ -420,6 +458,19 @@ function TradePanel({
   const { setVisible: setWalletModalVisible } = useWalletModal();
   const [side, setSide] = useState<"buy" | "sell">("buy");
   const [solAmount, setSolAmount] = useState("");
+
+  // SOL/USD rate for this token (derived from the quote — no extra fetch).
+  // The Amount field holds a raw value interpreted in `unit`; everything that
+  // talks to the trade API is converted to SOL via `toSol` so the existing
+  // SOL-based execution contract is untouched.
+  const solUsd = solUsdFromInfo(info);
+  const usdUnavailable = unit === "USD" && (solUsd == null || solUsd <= 0);
+  const toSol = (raw: string | number): number => {
+    const n = typeof raw === "number" ? raw : Number(raw);
+    if (!Number.isFinite(n) || n <= 0) return NaN;
+    if (unit === "SOL") return n;
+    return solUsd != null && solUsd > 0 ? n / solUsd : NaN;
+  };
 
   // When the Mini Planner applies a plan, switch to Buy and pre-fill the amount.
   // Keyed on `nonce` so re-applying the same value still re-fills the field.
@@ -453,7 +504,11 @@ function TradePanel({
   // Pre-trade quote: simulated slippage / impact / execution price, debounced.
   const debouncedSol = useDebounced(solAmount, 350);
   const debouncedPct = useDebounced(sellPercent, 350);
-  const buyValid = side === "buy" && Number(debouncedSol) >= 0.1;
+  // Quote/validation always run on the SOL-converted amount, never the raw
+  // (possibly USD) field value.
+  const debouncedSolValue = toSol(debouncedSol);
+  const buyValid =
+    side === "buy" && Number.isFinite(debouncedSolValue) && debouncedSolValue >= 0.1;
   const sellValid = side === "sell" && !!position;
   const quoteEnabled = buyValid || sellValid;
 
@@ -468,14 +523,14 @@ function TradePanel({
       "quote",
       info.mint,
       side,
-      side === "buy" ? debouncedSol : debouncedPct,
+      side === "buy" ? debouncedSolValue : debouncedPct,
       wallet,
       isGuest ? sellTokenAmount : null,
     ],
     queryFn: () =>
       api.quote(
         side === "buy"
-          ? { wallet, mint: info.mint, side: "buy", solAmount: Number(debouncedSol) }
+          ? { wallet, mint: info.mint, side: "buy", solAmount: debouncedSolValue }
           : isGuest
             ? { mint: info.mint, side: "sell", tokenAmount: sellTokenAmount }
             : { wallet, mint: info.mint, side: "sell", percent: debouncedPct },
@@ -487,10 +542,16 @@ function TradePanel({
   // Reset any pending confirmation whenever the order parameters change.
   useEffect(() => {
     setConfirmOpen(false);
-  }, [side, solAmount, sellPercent, info.mint]);
+  }, [side, solAmount, sellPercent, unit, info.mint]);
 
   const mutation = useMutation({
     mutationFn: async () => {
+      // Convert the (possibly USD) field value to the SOL amount the trade API
+      // expects. The button is disabled when this is invalid, but guard anyway.
+      const execSol = toSol(solAmount);
+      if (side === "buy" && !(Number.isFinite(execSol) && execSol > 0)) {
+        return { ok: false, error: "Enter a valid amount." };
+      }
       if (isGuest) {
         // Re-quote fresh at execution time (mirrors the server recomputing the
         // fill at execute), then apply local bookkeeping.
@@ -498,14 +559,14 @@ function TradePanel({
           const q = await api.quote({
             mint: info.mint,
             side: "buy",
-            solAmount: Number(solAmount),
+            solAmount: execSol,
           });
           return guestBuy({
             mint: info.mint,
             name: info.name,
             symbol: info.symbol,
             logo: info.logo,
-            solAmount: Number(solAmount),
+            solAmount: execSol,
             quote: q,
             marketCapUsd: info.marketCapUsd,
           });
@@ -528,7 +589,7 @@ function TradePanel({
               wallet,
               mint: info.mint,
               side: "buy",
-              solAmount: Number(solAmount),
+              solAmount: execSol,
               name: info.name,
               symbol: info.symbol,
               logo: info.logo,
@@ -666,29 +727,55 @@ function TradePanel({
         {side === "buy" ? (
           <>
             <div>
-              <label className="text-xs text-muted-foreground mb-1.5 block">
-                Amount (SOL)
-              </label>
+              <div className="mb-1.5 flex items-center justify-between gap-2">
+                <label className="text-xs text-muted-foreground">
+                  Amount ({unit})
+                </label>
+                <div
+                  role="tablist"
+                  aria-label="Amount unit"
+                  className="inline-flex border border-border rounded-md p-0.5"
+                >
+                  {(["SOL", "USD"] as Unit[]).map((u) => (
+                    <button
+                      key={u}
+                      type="button"
+                      role="tab"
+                      aria-selected={unit === u}
+                      onClick={() => onUnitChange(u)}
+                      data-testid={`toggle-amount-${u}`}
+                      className={cn(
+                        "px-2 py-0.5 text-[11px] font-medium rounded-[4px] transition-colors",
+                        unit === u
+                          ? "bg-accent/15 text-accent"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      {u}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <input
                 type="number"
                 value={solAmount}
                 onChange={(e) => setSolAmount(e.target.value)}
-                placeholder="0.0"
-                min={0.1}
-                step={0.1}
+                placeholder={unit === "SOL" ? "0.0" : "0"}
+                min={unit === "SOL" ? 0.1 : 1}
+                step={unit === "SOL" ? 0.1 : 1}
                 data-testid="input-buy-amount"
                 className="w-full h-11 bg-background border border-border px-3 font-mono text-sm focus:outline-none focus:border-accent"
               />
             </div>
             <div className="grid grid-cols-4 gap-2">
-              {BUY_PRESETS.map((p) => (
+              {(unit === "SOL" ? BUY_PRESETS : USD_BUY_PRESETS).map((p) => (
                 <button
                   key={p}
                   onClick={() => setSolAmount(String(p))}
                   data-testid={`preset-buy-${p}`}
                   className="py-2 text-xs border border-border hover:border-accent hover:text-accent transition-colors font-mono"
                 >
-                  {p}
+                  {unit === "USD" ? `$${p}` : p}
                 </button>
               ))}
             </div>
@@ -811,7 +898,8 @@ function TradePanel({
             }}
             disabled={
               mutation.isPending ||
-              (side === "buy" && (!solAmount || Number(solAmount) < 0.1)) ||
+              (side === "buy" && usdUnavailable) ||
+              (side === "buy" && !(toSol(solAmount) >= 0.1)) ||
               (side === "sell" && !position) ||
               (quoteEnabled && quote?.ok === false)
             }
@@ -830,6 +918,16 @@ function TradePanel({
           </button>
         )}
 
+        {side === "buy" && usdUnavailable && (
+          <p
+            data-testid="usd-unavailable-note"
+            className="flex items-start gap-1.5 text-[11px] leading-relaxed text-red-400"
+          >
+            <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+            USD mode unavailable until SOL price loads.
+          </p>
+        )}
+
         <p className="flex items-start gap-1.5 text-[11px] leading-relaxed text-muted-foreground">
           <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
           BlackPebble simulates slippage from each token's available liquidity, so
@@ -842,14 +940,22 @@ function TradePanel({
           <div className="pt-3 border-t border-border text-xs space-y-1.5">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Position value</span>
-              <span className="font-mono">{fmtSol(position.currentValueSol)} SOL</span>
+              <span className="font-mono">
+                {fmtUnitValue(position.currentValueSol, unit, solUsd)}
+              </span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Unrealized P&L</span>
               <span className={cn("font-mono", pnlColor(position.unrealizedPnlSol))}>
-                {fmtSol(position.unrealizedPnlSol)} SOL ({fmtPercent(position.unrealizedPnlPercent)})
+                {fmtUnitPnl(position.unrealizedPnlSol, unit, solUsd)} (
+                {fmtPercent(position.unrealizedPnlPercent)})
               </span>
             </div>
+            {unit === "USD" && (solUsd == null || solUsd <= 0) && (
+              <p className="text-[11px] text-muted-foreground">
+                USD display requires SOL price.
+              </p>
+            )}
           </div>
         )}
       </div>
@@ -1023,9 +1129,27 @@ export default function TradingDesk() {
 
   const navigate = useNavigate();
 
+  // Shared SOL/USD unit between the Buy/Sell panel and the Mini Planner so the
+  // two stay in sync. Persisted for the session.
+  const [unit, setUnit] = useState<Unit>(() => {
+    try {
+      return sessionStorage.getItem("bp:trade-unit") === "USD" ? "USD" : "SOL";
+    } catch {
+      return "SOL";
+    }
+  });
+  useEffect(() => {
+    try {
+      sessionStorage.setItem("bp:trade-unit", unit);
+    } catch {
+      /* ignore (private mode / disabled storage) */
+    }
+  }, [unit]);
+
   // Shared bridge between the Mini Planner and the Buy/Sell panel. The planner
-  // never executes — it only pushes a SOL amount (bumping `nonce` so repeated
-  // applies re-fire) and saves the planned target/stop for display.
+  // never executes — it only pushes the amount (bumping `nonce` so repeated
+  // applies re-fire) in the active unit and saves the planned target/stop for
+  // display.
   const [appliedAmount, setAppliedAmount] = useState<{
     amount: string;
     nonce: number;
@@ -1145,11 +1269,18 @@ export default function TradingDesk() {
             appliedAmount={appliedAmount}
             planned={planned}
             onClearPlanned={() => setPlanned(null)}
+            unit={unit}
+            onUnitChange={setUnit}
           />
           <MiniPlanner
             info={info}
-            onApply={({ amountSol, planned: p }) => {
-              setAppliedAmount({ amount: formatAppliedSol(amountSol), nonce: Date.now() });
+            unit={unit}
+            onUnitChange={setUnit}
+            onApply={({ amount, planned: p }) => {
+              setAppliedAmount({
+                amount: formatAppliedAmount(amount),
+                nonce: Date.now(),
+              });
               setPlanned(p);
             }}
           />

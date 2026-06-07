@@ -49,15 +49,27 @@ function writeSession(key: string, value: string) {
 export function MiniPlanner({
   info,
   onApply,
+  unit: unitProp,
+  onUnitChange,
 }: {
   info: TokenInfo;
-  onApply: (payload: { amountSol: number; planned: PlannedTrade }) => void;
+  onApply: (payload: { amount: number; planned: PlannedTrade }) => void;
+  /** When provided, the SOL/USD unit is controlled by the parent (shared with
+   *  the Buy/Sell panel). Falls back to local state + sessionStorage otherwise. */
+  unit?: Unit;
+  onUnitChange?: (unit: Unit) => void;
 }) {
   // Default collapsed; restore expand state for the rest of the session.
   const [open, setOpen] = useState(() => readSession(OPEN_KEY) === "1");
-  const [unit, setUnit] = useState<Unit>(() =>
+  const [unitInternal, setUnitInternal] = useState<Unit>(() =>
     readSession(UNIT_KEY) === "USD" ? "USD" : "SOL",
   );
+  const controlled = unitProp != null && onUnitChange != null;
+  const unit = controlled ? unitProp : unitInternal;
+  const setUnit = (u: Unit) => {
+    if (controlled) onUnitChange(u);
+    else setUnitInternal(u);
+  };
 
   const currentMc = info.marketCapUsd ?? null;
   const currentMcStr = currentMc != null ? String(Math.round(currentMc)) : "";
@@ -85,7 +97,11 @@ export function MiniPlanner({
   }, [info.mint, currentMcStr, entry]);
 
   useEffect(() => writeSession(OPEN_KEY, open ? "1" : "0"), [open]);
-  useEffect(() => writeSession(UNIT_KEY, unit), [unit]);
+  // Persist the unit only when uncontrolled; the parent owns persistence when
+  // the unit is shared with the Buy/Sell panel.
+  useEffect(() => {
+    if (!controlled) writeSession(UNIT_KEY, unit);
+  }, [unit, controlled]);
 
   const parsed = useMemo(
     () => ({
@@ -123,12 +139,19 @@ export function MiniPlanner({
   }, [parsed.investment, unit, solUsd]);
 
   const usdRateMissing = unit === "USD" && solUsd == null;
-  const canApply = amountSol != null && amountSol > 0;
+  // Apply needs a positive investment, and a valid rate when sizing in USD so
+  // the Buy/Sell panel can convert.
+  const canApply =
+    parsed.investment != null &&
+    parsed.investment > 0 &&
+    !(unit === "USD" && (solUsd == null || solUsd <= 0));
 
   function handleApply() {
-    if (amountSol == null || amountSol <= 0) return;
+    if (!canApply || parsed.investment == null) return;
+    // Fill the buy field in the active unit — the Buy/Sell panel handles the
+    // USD→SOL conversion at execution time.
     onApply({
-      amountSol,
+      amount: parsed.investment,
       planned: {
         targetMc: parsed.target,
         stopMc: parsed.stop,
