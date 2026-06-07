@@ -324,7 +324,6 @@ export default function Portfolio() {
             onNavigate={(mint) => navigate(`/?token=${mint}`)}
           />
 
-          <h2 className="text-lg font-semibold mb-3 mt-8">Active Orders</h2>
           <AllOrders onNavigate={(mint) => navigate(`/?token=${mint}`)} />
 
           <h2 className="text-lg font-semibold mb-3 mt-8">Watchlist</h2>
