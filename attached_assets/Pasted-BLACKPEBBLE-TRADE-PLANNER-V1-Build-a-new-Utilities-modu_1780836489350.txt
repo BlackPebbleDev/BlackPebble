@@ -1,0 +1,293 @@
+BLACKPEBBLE TRADE PLANNER V1
+
+Build a new Utilities module called:
+
+Trade Planner
+
+Goal:
+Create a professional memecoin trade planning calculator inside BlackPebble.
+
+This should be useful for traders before entering a trade.
+
+Do NOT modify:
+
+* paper trading execution
+* portfolio calculations
+* leaderboard
+* market feeds
+* charts
+* auth
+* API routes
+* database
+* SOL Recovery logic
+
+This is a frontend utility only.
+
+Add it under:
+
+Utilities → Trade Planner
+
+Also add a Trade Planner card on the main Utilities page below SOL Recovery.
+
+Card title:
+Trade Planner
+
+Card description:
+Plan entries, targets, stops, position size, risk, and profit scenarios before taking a trade.
+
+Keep BlackPebble’s premium black/gold trading-terminal style.
+
+====================================================
+CORE STRUCTURE
+
+Trade Planner should include these sections:
+
+1. Trade Setup
+2. Position Sizing
+3. Profit Targets
+4. Trade Summary
+
+====================================================
+INPUT MODE TOGGLE
+
+Add input mode toggle:
+
+Market Cap
+Price
+
+Market Cap should be default.
+
+====================================================
+MARKET CAP MODE
+
+Fields:
+
+Entry Market Cap
+
+Stop Market Cap
+
+Target Market Cap
+
+Optional:
+Current Market Cap
+
+Use formatted inputs that accept values like:
+
+50000
+50k
+1.2m
+10m
+
+Normalize internally to numbers.
+
+====================================================
+PRICE MODE
+
+Fields:
+
+Entry Price
+
+Stop Price
+
+Target Price
+
+Optional:
+Current Price
+
+Support small decimal token prices.
+
+====================================================
+POSITION SIZING INPUTS
+
+Fields:
+
+Account Size
+
+Risk Per Trade %
+
+Preferred Position Size
+
+Allow user to calculate two ways:
+
+Mode A:
+User enters account size + risk % + stop.
+System calculates suggested position size.
+
+Mode B:
+User enters preferred position size.
+System calculates actual risk.
+
+Use SOL as default unit.
+
+Allow USD toggle later, but do not overbuild now.
+
+====================================================
+CALCULATIONS
+
+Calculate:
+
+Downside %
+
+Upside %
+
+Risk / Reward ratio
+
+Max risk amount
+
+Suggested position size
+
+Potential profit at target
+
+Potential loss at stop
+
+Target multiple
+
+Required gain %
+
+Example:
+
+Entry MC: 100k
+Stop MC: 80k
+Target MC: 500k
+Account Size: 20 SOL
+Risk: 2%
+
+Output:
+Downside: 20%
+Upside: 400%
+Risk/Reward: 20R
+Max Risk: 0.4 SOL
+Suggested Position: 2 SOL
+Value at Target: 10 SOL
+Profit at Target: 8 SOL
+Loss at Stop: 0.4 SOL
+
+====================================================
+PROFIT TARGETS
+
+Add quick target projection buttons:
+
+2x
+5x
+10x
+25x
+50x
+100x
+
+Based on entry and position size.
+
+Show projected:
+
+Target Market Cap or Target Price
+
+Position value
+
+Profit
+
+====================================================
+TRADE SUMMARY CARD
+
+Display a clean final summary:
+
+Entry
+
+Stop
+
+Target
+
+Position Size
+
+Risk Amount
+
+Potential Profit
+
+Potential Loss
+
+Risk / Reward
+
+Setup Rating
+
+Setup Rating can be simple:
+
+Excellent
+Good
+Weak
+High Risk
+
+Based on risk/reward ratio.
+
+No financial advice language.
+
+Add disclaimer:
+For planning and education only. Not financial advice.
+
+====================================================
+VALIDATION
+
+Handle invalid inputs cleanly.
+
+Examples:
+
+* Stop must be below entry for long trades
+* Target must be above entry for long trades
+* Account size must be greater than 0
+* Risk percent must be greater than 0
+* Entry must be greater than 0
+
+Do not crash.
+
+Show clear inline messages.
+
+====================================================
+MOBILE UX
+
+Must be mobile-first.
+
+No horizontal scrolling.
+
+Large tap targets.
+
+Inputs should be easy to edit on mobile.
+
+Summary should remain readable.
+
+====================================================
+FUTURE READY
+
+Build structure so later we can add modules:
+
+* Moonbag Planner
+* DCA Planner
+* Scenario Simulator
+* Profit Taking Planner
+* Trade Journal
+* Conviction Simulator
+
+Do not implement those yet.
+
+But organize components so Trade Planner can grow without becoming messy.
+
+====================================================
+QA
+
+Verify:
+
+* Utilities page shows Trade Planner card
+* Trade Planner route works
+* Market Cap mode works
+* Price mode works
+* Position sizing works
+* Risk/reward calculations work
+* Profit target buttons work
+* Mobile layout works
+* Typecheck passes
+* No paper trading files modified unless only adding utility navigation/card
+* No backend/API/database changes
+
+Return:
+
+* files changed
+* implementation summary
+* formulas used
+* future architecture summary
+* confirmation that paper trading was not modified

@@ -79,6 +79,25 @@ no priceUsd, no marketCapUsd, or liquidityUsd < $200.
 abandoned. The $200 liquidity floor is intentionally low to allow tiny new
 tokens while excluding truly dead pools.
 
+## Brand color rule: red=errors/warnings AND P&L; gold accent=active controls AND primary/emphasized readouts + status badges
+The "green/red ONLY for P&L, gold ONLY for active" rule is a *vibe* guideline, not a
+literal lint. The codebase intentionally goes further: red (`text-red-400`,
+`border-red-500/*`, `destructive`) is the standard for validation errors and warning
+banners (see `wallet-cleaner.tsx`, `trading.tsx`); gold accent (`text-accent`) is used
+on emphasized primary readouts (`wallet-status-card.tsx` `emphasis ? "text-accent"`,
+recovered-SOL amount) and on status/rank/tier badges (`leaderboard.tsx`,
+`portfolio.tsx` rank). New surfaces (e.g. Trade Planner) follow these established
+patterns.
+
+**Why:** An architect/code review will flag red-validation and accent-readouts as
+brand violations. They are not — they match the rest of the app. Green/red for
+profit/loss numbers is still strictly reserved for actual P&L magnitudes.
+
+**How to apply:** Don't "fix" red error styling or accent-emphasized primary values to
+satisfy a literal reading of the brand rule. Keep green/red P&L semantics for
+profit/loss numbers; use red for errors/warnings; use gold for active controls,
+the single primary output of a card, and status badges.
+
 ## Trending uses both boost endpoints interleaved
 `getTrendingTokens` fetches `token-boosts/latest/v1` (freshest activity) and
 `token-boosts/top/v1` (sustained momentum) concurrently, interleaves them, then

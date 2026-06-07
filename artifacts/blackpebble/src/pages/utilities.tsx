@@ -1,4 +1,4 @@
-import { Sparkles, ChevronRight } from "lucide-react";
+import { Sparkles, ChevronRight, Target } from "lucide-react";
 import { Link } from "wouter";
 import { SupportSection } from "@/components/support-section";
 import { FeedbackSection } from "@/components/feedback-section";
@@ -34,6 +34,24 @@ export default function Utilities() {
           <p className="text-sm text-muted-foreground">
             Recover trapped SOL from unused token accounts and reclaim locked
             rent safely.
+          </p>
+        </div>
+        <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-accent transition-colors flex-shrink-0" />
+      </Link>
+
+      <Link
+        href="/utilities/trade-planner"
+        className="group border border-border bg-card hover:border-accent transition-colors p-5 flex items-center gap-4"
+        data-testid="link-trade-planner"
+      >
+        <div className="w-11 h-11 border border-accent/40 flex items-center justify-center flex-shrink-0">
+          <Target className="w-5 h-5 text-accent" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="font-semibold">Trade Planner</div>
+          <p className="text-sm text-muted-foreground">
+            Plan entries, targets, stops, position size, risk, and profit
+            scenarios before taking a trade.
           </p>
         </div>
         <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-accent transition-colors flex-shrink-0" />

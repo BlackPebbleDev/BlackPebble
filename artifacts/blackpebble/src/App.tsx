@@ -27,6 +27,7 @@ import PositionDetail from "@/pages/position-detail";
 import Leaderboard from "@/pages/leaderboard";
 import Utilities from "@/pages/utilities";
 import WalletCleaner from "@/pages/wallet-cleaner";
+import TradePlanner from "@/pages/trade-planner";
 
 const queryClient = new QueryClient();
 
@@ -41,6 +42,7 @@ function Router() {
         <Route path="/leaderboard" component={Leaderboard} />
         <Route path="/utilities/sol-recovery" component={WalletCleaner} />
         <Route path="/utilities/wallet-cleaner" component={WalletCleaner} />
+        <Route path="/utilities/trade-planner" component={TradePlanner} />
         <Route path="/utilities" component={Utilities} />
         <Route component={NotFound} />
       </Switch>
