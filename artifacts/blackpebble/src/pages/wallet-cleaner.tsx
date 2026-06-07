@@ -1,0 +1,197 @@
+import { useState } from "react";
+import { Link } from "wouter";
+import { useWallet } from "@solana/wallet-adapter-react";
+import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
+import {
+  Sparkles,
+  Loader2,
+  ArrowLeft,
+  CheckCircle2,
+  AlertTriangle,
+  Wallet,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useWalletCleaner, formatRentSol } from "@/hooks/use-wallet-cleaner";
+import { SafetyBanner } from "@/components/wallet-cleaner/safety-banner";
+import { ScanResults } from "@/components/wallet-cleaner/scan-results";
+import { ClosePreviewDialog } from "@/components/wallet-cleaner/close-preview-dialog";
+
+export default function WalletCleaner() {
+  const { connected } = useWallet();
+  const cleaner = useWalletCleaner();
+  const [previewOpen, setPreviewOpen] = useState(false);
+
+  const {
+    status,
+    error,
+    accounts,
+    selectedAccounts,
+    selectedRecoverable,
+    closedCount,
+    recoveredSol,
+    scan,
+    closeSelected,
+    reset,
+  } = cleaner;
+
+  async function handleConfirmClose() {
+    await closeSelected();
+    setPreviewOpen(false);
+  }
+
+  return (
+    <div className="flex flex-col gap-6 px-4 py-6 sm:py-10 max-w-3xl mx-auto pb-28 sm:pb-10">
+      <div className="space-y-3">
+        <Link
+          href="/utilities"
+          className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          data-testid="link-back-utilities"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          Utilities
+        </Link>
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 border border-accent/40 flex items-center justify-center flex-shrink-0">
+            <Sparkles className="w-5 h-5 text-accent" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-semibold">Wallet Cleaner</h1>
+            <p className="text-sm text-muted-foreground">
+              Reclaim SOL locked as rent in empty token accounts.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <SafetyBanner />
+
+      {!connected ? (
+        <div className="border border-border bg-card p-8 text-center space-y-4">
+          <Wallet className="w-8 h-8 text-muted-foreground mx-auto" />
+          <div className="space-y-1">
+            <div className="font-semibold">Connect your wallet to begin</div>
+            <p className="text-sm text-muted-foreground">
+              The cleaner reads your token accounts directly from the Solana
+              network. Nothing is signed until you choose to close accounts.
+            </p>
+          </div>
+          <div className="flex justify-center">
+            <WalletMultiButton />
+          </div>
+        </div>
+      ) : (
+        <>
+          {(status === "idle" || status === "error") && (
+            <div className="space-y-4">
+              <Button
+                onClick={scan}
+                className="w-full sm:w-auto"
+                data-testid="button-scan-wallet"
+              >
+                Scan wallet for empty accounts
+              </Button>
+              {status === "error" && error && (
+                <div className="flex items-start gap-2.5 border border-destructive-border bg-destructive/10 px-4 py-3 text-sm text-foreground">
+                  <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+                  <span>{error}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {status === "scanning" && (
+            <div className="border border-border bg-card p-10 text-center">
+              <Loader2 className="w-6 h-6 text-accent animate-spin mx-auto mb-3" />
+              <p className="text-sm text-muted-foreground">
+                Scanning your token accounts…
+              </p>
+            </div>
+          )}
+
+          {(status === "scanned" || status === "closing") &&
+            (accounts.length > 0 ? (
+              <ScanResults cleaner={cleaner} />
+            ) : (
+              <div className="border border-border bg-card p-10 text-center space-y-3">
+                <CheckCircle2 className="w-8 h-8 text-accent mx-auto" />
+                <div className="space-y-1">
+                  <div className="font-semibold">Your wallet is clean</div>
+                  <p className="text-sm text-muted-foreground">
+                    No empty token accounts with recoverable rent were found.
+                  </p>
+                </div>
+                <Button variant="outline" onClick={scan} data-testid="button-rescan">
+                  Scan again
+                </Button>
+              </div>
+            ))}
+
+          {status === "done" && (
+            <div className="border border-border bg-card p-10 text-center space-y-3">
+              <CheckCircle2 className="w-8 h-8 text-accent mx-auto" />
+              <div className="space-y-1">
+                <div className="font-semibold">
+                  Closed {closedCount}{" "}
+                  {closedCount === 1 ? "account" : "accounts"}
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Recovered{" "}
+                  <span className="font-mono text-foreground">
+                    {formatRentSol(recoveredSol)} SOL
+                  </span>{" "}
+                  back to your wallet.
+                </p>
+              </div>
+              <Button variant="outline" onClick={scan} data-testid="button-scan-again">
+                Scan again
+              </Button>
+            </div>
+          )}
+
+          {status === "error" && accounts.length > 0 && error && (
+            <div className="flex items-start gap-2.5 border border-destructive-border bg-destructive/10 px-4 py-3 text-sm text-foreground">
+              <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+              <span>{error}</span>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Sticky action bar — appears when there are selectable accounts. */}
+      {connected &&
+        (status === "scanned" || status === "closing" || status === "error") &&
+        accounts.length > 0 && (
+          <div className="fixed bottom-16 md:bottom-0 left-0 right-0 md:pl-[60px] z-30 bg-background/95 backdrop-blur-md border-t border-border px-4 py-3">
+            <div className="max-w-3xl mx-auto flex items-center justify-between gap-4">
+              <div className="text-xs text-muted-foreground">
+                <span className="font-mono text-foreground">
+                  {selectedAccounts.length}
+                </span>{" "}
+                selected ·{" "}
+                <span className="font-mono text-foreground">
+                  {formatRentSol(selectedRecoverable)} SOL
+                </span>
+              </div>
+              <Button
+                onClick={() => setPreviewOpen(true)}
+                disabled={selectedAccounts.length === 0}
+                data-testid="button-open-preview"
+              >
+                Preview &amp; close
+              </Button>
+            </div>
+          </div>
+        )}
+
+      <ClosePreviewDialog
+        cleaner={cleaner}
+        open={previewOpen}
+        onOpenChange={setPreviewOpen}
+        onConfirm={handleConfirmClose}
+      />
+
+      {/* Keep the unused reset reachable for future flows without dead-code warnings. */}
+      <span className="hidden" aria-hidden onClick={reset} />
+    </div>
+  );
+}

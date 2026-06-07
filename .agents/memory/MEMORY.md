@@ -1,3 +1,1 @@
-- [Honest missing-data treatment](honest-missing-data.md) — Peak MC / drawdown-from-peak have no stored history; render "—"/"Not tracked yet", never fabricate.
-- [Mockup-sandbox screenshot path](mockup-sandbox-screenshot-path.md) — artifact base path is `/__mockup/preview`; pass screenshot path relative to it (e.g. `/blackpebble-mobile/X`), not the full URL.
-- [Blackpebble security scope](blackpebble-security-scope.md) — only protect mutations on LINKED accounts; keep public reads + guest trading open; require signed nonce for wallet linking.
+- [Adding deps to an artifact](pnpm-add-to-artifact.md) — `pnpm add` from repo root fails ERR_PNPM_ADDING_TO_ROOT; install per-package instead.

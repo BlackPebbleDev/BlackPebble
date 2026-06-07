@@ -25,6 +25,7 @@ import Portfolio from "@/pages/portfolio";
 import PositionDetail from "@/pages/position-detail";
 import Leaderboard from "@/pages/leaderboard";
 import Utilities from "@/pages/utilities";
+import WalletCleaner from "@/pages/wallet-cleaner";
 
 const queryClient = new QueryClient();
 
@@ -37,6 +38,7 @@ function Router() {
         <Route path="/portfolio" component={Portfolio} />
         <Route path="/position/:mint" component={PositionDetail} />
         <Route path="/leaderboard" component={Leaderboard} />
+        <Route path="/utilities/wallet-cleaner" component={WalletCleaner} />
         <Route path="/utilities" component={Utilities} />
         <Route component={NotFound} />
       </Switch>
