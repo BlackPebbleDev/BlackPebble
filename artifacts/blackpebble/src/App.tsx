@@ -47,9 +47,12 @@ function Router() {
 }
 
 function SolanaProviders({ children }: { children: React.ReactNode }) {
+  const heliusKey = import.meta.env.VITE_HELIUS_API_KEY as string | undefined;
   const endpoint =
     (import.meta.env.VITE_HELIUS_RPC_URL as string | undefined) ||
-    clusterApiUrl("mainnet-beta");
+    (heliusKey
+      ? `https://mainnet.helius-rpc.com/?api-key=${heliusKey}`
+      : clusterApiUrl("mainnet-beta"));
   const wallets = useMemo(
     () => [new PhantomWalletAdapter(), new SolflareWalletAdapter()],
     [],
