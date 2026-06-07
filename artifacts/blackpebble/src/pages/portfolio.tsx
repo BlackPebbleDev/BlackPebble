@@ -16,7 +16,7 @@ import { Wallet, Loader2, AlertTriangle } from "lucide-react";
 import { useAccount } from "@/hooks/use-account";
 import { api, type PortfolioStats } from "@/lib/api";
 import { OpenPositions } from "@/components/open-positions";
-import { AllExitOrders } from "@/components/position-orders";
+import { AllOrders } from "@/components/position-orders";
 import { Watchlist } from "@/components/watchlist";
 import { TradeList } from "@/components/trade-list";
 import { TierBadge } from "@/components/tier-badge";
@@ -324,8 +324,8 @@ export default function Portfolio() {
             onNavigate={(mint) => navigate(`/?token=${mint}`)}
           />
 
-          <h2 className="text-lg font-semibold mb-3 mt-8">Exit Orders</h2>
-          <AllExitOrders onNavigate={(mint) => navigate(`/?token=${mint}`)} />
+          <h2 className="text-lg font-semibold mb-3 mt-8">Active Orders</h2>
+          <AllOrders onNavigate={(mint) => navigate(`/?token=${mint}`)} />
 
           <h2 className="text-lg font-semibold mb-3 mt-8">Watchlist</h2>
           <Watchlist onNavigate={(mint) => navigate(`/?token=${mint}`)} />

@@ -12,7 +12,7 @@ import { fmtMarketCap, fmtSol } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 /**
- * Shared cancel logic used by both PositionOrders and AllExitOrders.
+ * Shared cancel logic used by both PositionOrders and AllOrders.
  */
 function useCancelOrder() {
   const { wallet, isGuest } = useAccount();
@@ -165,7 +165,7 @@ export function PositionOrders({ mint }: { mint: string }) {
  * every position/token, with token symbol prefix and cancel. Used on the
  * Portfolio page.
  */
-export function AllExitOrders({
+export function AllOrders({
   onNavigate,
 }: {
   onNavigate?: (mint: string) => void;
