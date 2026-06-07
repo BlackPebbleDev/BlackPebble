@@ -1,18 +1,21 @@
 import { dbAll, dbGet, dbRun } from "./database.js";
-import { executeSell, type ValuedPosition } from "./trading.js";
+import { executeSell, executeBuy, type ValuedPosition } from "./trading.js";
+import { getTokenInfo } from "./prices.js";
 
 /**
- * Advanced orders (phase 1): take-profit / stop-loss SELL orders attached to an
- * existing paper position. They are evaluated on every positions-refresh against
- * the current market cap / price that valuePositions() already fetched, so the
- * trigger check adds ZERO new external API calls. A fill reuses the same
- * executeSell() path a manual sell uses (and inherits its transactional safety
- * and duplicate-window guard), so a failed fill never corrupts the portfolio.
+ * Advanced orders — phase 1: take-profit / stop-loss SELL orders attached to
+ * an existing paper position, evaluated on every positions-refresh.
  *
- * Out of scope: buy limits, OCO, ladders, cron/background workers, push.
+ * Phase 2: buy_limit BUY orders, evaluated on a separate polling path
+ * (GET /trade/buy-limits/check/:wallet) so the check fires for tokens the user
+ * does NOT hold. Each fill routes through executeBuy() so slippage / supply
+ * caps apply identically to manual buys.
+ *
+ * A per-user cap (BUY_LIMIT_CAP = 5) bounds the number of tokens we must poll
+ * price data for on each check.
  */
 
-export type OrderType = "take_profit" | "stop_loss";
+export type OrderType = "take_profit" | "stop_loss" | "buy_limit";
 export type TriggerType = "market_cap" | "price";
 export type TriggerDirection = "gte" | "lte";
 
@@ -52,12 +55,25 @@ export interface CreateOrderInput {
   amountPercent: number;
 }
 
+export interface CreateBuyLimitInput {
+  wallet: string;
+  mint: string;
+  symbol?: string | null;
+  name?: string | null;
+  /** Buy when market cap drops to or below this value (USD). */
+  triggerMc: number;
+  /** How many SOL to spend when the order fills. Min 0.1 SOL. */
+  solAmount: number;
+}
+
 export interface OrderFill {
   orderId: number;
   orderType: OrderType;
   tokenMint: string;
   tokenSymbol: string | null;
   percent: number;
+  /** SOL amount spent — populated for buy_limit fills, null for TP/SL. */
+  solAmount?: number | null;
   triggerType: TriggerType;
   triggerValue: number;
   fillMarketCap: number | null;
@@ -66,23 +82,21 @@ export interface OrderFill {
 }
 
 const EPOCH = "EXTRACT(EPOCH FROM NOW())::bigint";
-// A claimed-but-not-finished ('filling') order older than this is considered
-// abandoned (e.g. the process died mid-fill) and is reset to 'pending' so it can
-// be retried. There are no background workers, so recovery happens lazily on the
-// next evaluation pass.
 const FILLING_STALE_SECONDS = 60;
 
+/** Maximum concurrent active buy limit orders per wallet. */
+export const BUY_LIMIT_CAP = 5;
+
 function isOrderType(v: unknown): v is OrderType {
-  return v === "take_profit" || v === "stop_loss";
+  return v === "take_profit" || v === "stop_loss" || v === "buy_limit";
 }
 function isTriggerType(v: unknown): v is TriggerType {
   return v === "market_cap" || v === "price";
 }
 
 /**
- * Create a TP/SL order. Requires an open position for the mint — phase 1 orders
- * only ever EXIT an existing position, never open one, and are created by the
- * client only after a successful manual buy.
+ * Create a TP/SL order. Requires an open position for the mint — phase 1
+ * orders only ever EXIT an existing position.
  */
 export async function createOrder(
   input: CreateOrderInput,
@@ -91,6 +105,9 @@ export async function createOrder(
   const mint = String(input.mint || "").trim();
   if (!wallet || !mint) {
     return { ok: false, error: "wallet and mint are required" };
+  }
+  if (input.orderType === "buy_limit") {
+    return { ok: false, error: "Use createBuyLimitOrder for buy_limit orders" };
   }
   if (!isOrderType(input.orderType)) {
     return { ok: false, error: "orderType must be take_profit or stop_loss" };
@@ -136,6 +153,63 @@ export async function createOrder(
       triggerValue,
       direction,
       amountPercent,
+    ],
+  );
+  return { ok: true, order };
+}
+
+/**
+ * Create a buy-limit order. No existing position is required. When the token's
+ * market cap drops to or below `triggerMc`, the server auto-buys `solAmount`
+ * SOL worth of the token through executeBuy() (slippage / supply caps apply).
+ *
+ * Capped at BUY_LIMIT_CAP active orders per wallet to bound the polling cost.
+ */
+export async function createBuyLimitOrder(
+  input: CreateBuyLimitInput,
+): Promise<{ ok: boolean; error?: string; order?: PaperOrder }> {
+  const wallet = String(input.wallet || "").trim();
+  const mint = String(input.mint || "").trim();
+  if (!wallet || !mint) {
+    return { ok: false, error: "wallet and mint are required" };
+  }
+  const triggerMc = Number(input.triggerMc);
+  if (!Number.isFinite(triggerMc) || triggerMc <= 0) {
+    return { ok: false, error: "triggerMc must be a positive number" };
+  }
+  const solAmount = Number(input.solAmount);
+  if (!Number.isFinite(solAmount) || solAmount < 0.1) {
+    return { ok: false, error: "solAmount must be at least 0.1 SOL" };
+  }
+
+  const countRow = await dbGet<{ count: string }>(
+    `SELECT COUNT(*)::text AS count FROM paper_orders
+     WHERE wallet = $1 AND order_type = 'buy_limit' AND status IN ('pending', 'filling')`,
+    [wallet],
+  );
+  const active = parseInt(countRow?.count ?? "0", 10);
+  if (active >= BUY_LIMIT_CAP) {
+    return {
+      ok: false,
+      error: `You can have at most ${BUY_LIMIT_CAP} active buy limit orders. Cancel one to add another.`,
+    };
+  }
+
+  const order = await dbGet<PaperOrder>(
+    `INSERT INTO paper_orders
+       (wallet, token_mint, token_symbol, token_name, order_type, side,
+        trigger_type, trigger_value, trigger_direction, amount_type, amount_value,
+        status, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, 'buy_limit', 'buy', 'market_cap', $5, 'lte', 'sol', $6,
+        'pending', ${EPOCH}, ${EPOCH})
+     RETURNING *`,
+    [
+      wallet,
+      mint,
+      input.symbol ?? null,
+      input.name ?? null,
+      triggerMc,
+      solAmount,
     ],
   );
   return { ok: true, order };
@@ -189,28 +263,27 @@ function triggerMet(
 }
 
 /**
- * Evaluate all pending orders for a wallet against the already-valued positions
- * (no new price fetches for the check). Returns the orders that filled this pass
- * so the caller can surface a toast. Concurrency-safe: each order is claimed via
- * a conditional UPDATE before the sell, so two overlapping refreshes cannot
- * double-fill. A failed sell reverts the order to 'pending' for a later retry.
+ * Evaluate all pending TP/SL orders for a wallet against the already-valued
+ * positions (no new price fetches for the check). Returns filled orders for
+ * toasting. Concurrency-safe via conditional UPDATE claiming.
  */
 export async function evaluateOrders(
   wallet: string,
   valued: ValuedPosition[],
 ): Promise<OrderFill[]> {
-  // Lazily recover orders that were claimed but never finished (process died
-  // mid-fill) so they are not stuck forever without a background worker.
   await dbRun(
     `UPDATE paper_orders
        SET status = 'pending', updated_at = ${EPOCH}
      WHERE wallet = $1 AND status = 'filling'
+       AND order_type IN ('take_profit', 'stop_loss')
        AND updated_at < ${EPOCH} - $2`,
     [wallet, FILLING_STALE_SECONDS],
   );
 
   const pending = await dbAll<PaperOrder>(
-    "SELECT * FROM paper_orders WHERE wallet = $1 AND status = 'pending'",
+    `SELECT * FROM paper_orders
+     WHERE wallet = $1 AND status = 'pending'
+       AND order_type IN ('take_profit', 'stop_loss')`,
     [wallet],
   );
   if (pending.length === 0) return [];
@@ -223,8 +296,6 @@ export async function evaluateOrders(
   for (const order of pending) {
     const pos = byMint.get(order.token_mint);
 
-    // Position fully closed (e.g. sold manually): the order can never fill, so
-    // cancel it rather than leaving it dangling.
     if (!pos) {
       await dbRun(
         `UPDATE paper_orders
@@ -241,7 +312,6 @@ export async function evaluateOrders(
         ? pos.currentMarketCapUsd
         : pos.currentPriceSol;
 
-    // Mark that we looked, even when we cannot evaluate yet (no live value).
     await dbRun(
       `UPDATE paper_orders SET last_checked_at = ${EPOCH} WHERE id = $1`,
       [order.id],
@@ -252,7 +322,6 @@ export async function evaluateOrders(
       continue;
     }
 
-    // Claim the order so a concurrent refresh cannot also fill it.
     const claimed = await dbGet<{ id: number }>(
       `UPDATE paper_orders
          SET status = 'filling', updated_at = ${EPOCH}
@@ -288,8 +357,119 @@ export async function evaluateOrders(
         pnl: res.trade?.pnl ?? null,
       });
     } else {
-      // Fill failed (e.g. transient price unavailability): revert to pending so
-      // it retries on a later refresh. The portfolio is untouched.
+      await dbRun(
+        `UPDATE paper_orders
+           SET status = 'pending', updated_at = ${EPOCH},
+               fill_reason = $2
+         WHERE id = $1`,
+        [order.id, (res.error ?? "fill_failed").slice(0, 200)],
+      );
+    }
+  }
+
+  return fills;
+}
+
+/**
+ * Evaluate pending buy-limit orders for a wallet. Fetches current market cap
+ * for each token via getTokenInfo() (30 s cache — the same data the markets
+ * page already fetches, so the incremental cost is bounded by BUY_LIMIT_CAP).
+ *
+ * Called on a separate polling path (GET /trade/buy-limits/check/:wallet) so
+ * it fires even for tokens the user does not currently hold, unlike the
+ * TP/SL path that piggybacks on the positions-refresh.
+ */
+export async function evaluateBuyLimitOrders(
+  wallet: string,
+): Promise<OrderFill[]> {
+  await dbRun(
+    `UPDATE paper_orders
+       SET status = 'pending', updated_at = ${EPOCH}
+     WHERE wallet = $1 AND order_type = 'buy_limit' AND status = 'filling'
+       AND updated_at < ${EPOCH} - $2`,
+    [wallet, FILLING_STALE_SECONDS],
+  );
+
+  const pending = await dbAll<PaperOrder>(
+    `SELECT * FROM paper_orders
+     WHERE wallet = $1 AND order_type = 'buy_limit' AND status = 'pending'`,
+    [wallet],
+  );
+  if (pending.length === 0) return [];
+
+  const uniqueMints = [...new Set(pending.map((o) => o.token_mint))];
+  const infoMap = new Map<
+    string,
+    { marketCapUsd: number | null; priceSol: number | null }
+  >();
+  for (const mint of uniqueMints) {
+    try {
+      const info = await getTokenInfo(mint);
+      if (info) {
+        infoMap.set(mint, {
+          marketCapUsd: info.marketCapUsd,
+          priceSol: info.priceSol,
+        });
+      }
+    } catch {
+      // Token info unavailable this pass — retry next poll.
+    }
+  }
+
+  const fills: OrderFill[] = [];
+
+  for (const order of pending) {
+    const info = infoMap.get(order.token_mint);
+    if (!info) continue;
+
+    const currentMc = info.marketCapUsd;
+
+    await dbRun(
+      `UPDATE paper_orders SET last_checked_at = ${EPOCH} WHERE id = $1`,
+      [order.id],
+    );
+
+    if (currentMc == null || !Number.isFinite(currentMc)) continue;
+    // buy_limit always triggers lte: buy when MC ≤ trigger
+    if (!triggerMet("lte", currentMc, order.trigger_value)) continue;
+
+    const claimed = await dbGet<{ id: number }>(
+      `UPDATE paper_orders
+         SET status = 'filling', updated_at = ${EPOCH}
+       WHERE id = $1 AND status = 'pending'
+       RETURNING id`,
+      [order.id],
+    );
+    if (!claimed) continue;
+
+    const res = await executeBuy(wallet, order.token_mint, order.amount_value, {
+      name: order.token_name,
+      symbol: order.token_symbol,
+      logo: null,
+    });
+
+    if (res.ok) {
+      await dbRun(
+        `UPDATE paper_orders
+           SET status = 'filled', updated_at = ${EPOCH}, filled_at = ${EPOCH},
+               fill_market_cap = $2, fill_price = $3, fill_reason = 'triggered'
+         WHERE id = $1`,
+        [order.id, currentMc, info.priceSol],
+      );
+      fills.push({
+        orderId: order.id,
+        orderType: "buy_limit",
+        tokenMint: order.token_mint,
+        tokenSymbol: order.token_symbol,
+        percent: 0,
+        solAmount: order.amount_value,
+        triggerType: "market_cap",
+        triggerValue: order.trigger_value,
+        fillMarketCap: currentMc,
+        fillPrice: info.priceSol,
+        pnl: null,
+      });
+    } else {
       await dbRun(
         `UPDATE paper_orders
            SET status = 'pending', updated_at = ${EPOCH},

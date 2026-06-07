@@ -109,7 +109,7 @@ export interface Trade {
   trade_usd_value?: number | null;
 }
 
-export type OrderType = "take_profit" | "stop_loss";
+export type OrderType = "take_profit" | "stop_loss" | "buy_limit";
 export type TriggerType = "market_cap" | "price";
 export type TriggerDirection = "gte" | "lte";
 
@@ -144,6 +144,8 @@ export interface OrderFill {
   tokenMint: string;
   tokenSymbol: string | null;
   percent: number;
+  /** Populated for buy_limit fills; null for TP/SL. */
+  solAmount?: number | null;
   triggerType: TriggerType;
   triggerValue: number;
   fillMarketCap: number | null;
@@ -344,6 +346,20 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ wallet, id }),
     }),
+  createBuyLimit: (body: {
+    wallet: string;
+    mint: string;
+    symbol?: string | null;
+    name?: string | null;
+    triggerMc: number;
+    solAmount: number;
+  }) =>
+    request<{ ok: boolean; error?: string; order?: PaperOrder }>(
+      "/trade/buy-limit",
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+  checkBuyLimits: (wallet: string) =>
+    request<{ fills: OrderFill[] }>(`/trade/buy-limits/check/${wallet}`),
   watchlist: (wallet: string) =>
     request<{ watchlist: WatchItem[] }>(`/trade/watchlist/${wallet}`),
   watchlistAdd: (body: Record<string, unknown>) =>

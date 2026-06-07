@@ -10,25 +10,32 @@ import {
 } from "@/lib/guest-store";
 import { fmtMarketCap, fmtSol } from "@/lib/format";
 
-/** Toast copy + invalidations shared by the server and guest fill paths. */
+/** Toast copy + invalidations shared by all fill paths (TP/SL and buy limits). */
 function useFillReporter() {
   const { toast } = useToast();
   const qc = useQueryClient();
   return (fills: OrderFill[]) => {
     for (const f of fills) {
-      const isTp = f.orderType === "take_profit";
-      const pnl =
-        f.pnl != null
-          ? ` · P&L ${fmtSol(f.pnl)} SOL`
-          : "";
-      toast({
-        title: `${isTp ? "Take Profit" : "Stop Loss"} filled${
-          f.tokenSymbol ? ` — ${f.tokenSymbol}` : ""
-        }`,
-        description: `Sold ${f.percent}% at ${fmtMarketCap(
-          f.fillMarketCap,
-        )} MC${pnl}`,
-      });
+      if (f.orderType === "buy_limit") {
+        toast({
+          title: `Buy Limit filled${f.tokenSymbol ? ` — ${f.tokenSymbol}` : ""}`,
+          description: `Bought ${fmtSol(f.solAmount ?? 0)} SOL at ${fmtMarketCap(f.fillMarketCap)} MC`,
+        });
+      } else {
+        const isTp = f.orderType === "take_profit";
+        const pnl =
+          f.pnl != null
+            ? ` · P&L ${fmtSol(f.pnl)} SOL`
+            : "";
+        toast({
+          title: `${isTp ? "Take Profit" : "Stop Loss"} filled${
+            f.tokenSymbol ? ` — ${f.tokenSymbol}` : ""
+          }`,
+          description: `Sold ${f.percent}% at ${fmtMarketCap(
+            f.fillMarketCap,
+          )} MC${pnl}`,
+        });
+      }
     }
     if (fills.length > 0) {
       qc.invalidateQueries({ queryKey: ["orders"] });
@@ -42,9 +49,9 @@ function useFillReporter() {
 }
 
 /**
- * Watches the shared positions query for server-side order fills (the backend
- * evaluates TP/SL on every positions refresh and returns orderFills) and toasts
- * each one exactly once. Mounted once at the app shell.
+ * Watches the shared positions query for server-side TP/SL order fills (the
+ * backend evaluates them on every positions refresh and returns orderFills) and
+ * toasts each one exactly once. Mounted once at the app shell.
  */
 function useServerOrderFills() {
   const { wallet, isGuest } = useAccount();
@@ -72,10 +79,50 @@ function useServerOrderFills() {
 }
 
 /**
+ * Checks the server for buy-limit fills only when the session loads or the user
+ * returns to the app — NOT on an always-on interval. The check fires on mount
+ * (page load / refresh) and on window refocus, debounced by a 30 s staleTime so
+ * rapid refocus never spams the endpoint. The backend evaluates only the current
+ * wallet's active (pending) buy limits, reads token info from the 30 s cache, and
+ * fills through executeBuy() with an atomic pending→filling claim, so the cost is
+ * bounded by the per-user order cap (5) and fills are idempotent. Toasts any
+ * fills and invalidates the relevant queries. Mounted once at the app shell.
+ */
+function useServerBuyLimitFills() {
+  const { wallet, isGuest } = useAccount();
+  const report = useFillReporter();
+  const seen = useRef<Set<number>>(new Set());
+
+  const { data } = useQuery({
+    queryKey: ["buy-limit-check", wallet],
+    queryFn: () => api.checkBuyLimits(wallet!),
+    enabled: !!wallet && !isGuest,
+    // Refresh-triggered only: run on load and on refocus, never on a timer.
+    refetchInterval: false,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
+    staleTime: 30_000,
+  });
+
+  useEffect(() => {
+    const fills = data?.fills;
+    if (!fills || fills.length === 0) return;
+    const fresh = fills.filter((f) => !seen.current.has(f.orderId));
+    if (fresh.length === 0) return;
+    for (const f of fresh) seen.current.add(f.orderId);
+    report(fresh);
+  }, [data, report]);
+}
+
+/**
  * Guest mirror: evaluates local pending orders whenever the valued positions'
  * market caps/prices change (the values are already fetched — no new calls for
  * the check) and toasts any fills. Gated on a primitive signal string so it only
  * runs when the underlying numbers actually move, not on array identity.
+ *
+ * Note: guest buy-limit orders for tokens not currently held cannot be
+ * evaluated here (no live MC available). They will be evaluated when the user
+ * visits the token's trading page and the token info query fetches current data.
  */
 function useGuestOrderFills() {
   const { isGuest } = useAccount();
@@ -116,10 +163,11 @@ function useGuestOrderFills() {
 }
 
 /**
- * Single hook mounted at the app shell that drives automatic TP/SL fill toasts
- * for both signed-in and guest sessions.
+ * Single hook mounted at the app shell that drives automatic order fill toasts
+ * for both signed-in and guest sessions, covering TP/SL exits and buy limits.
  */
 export function useOrderFillToasts() {
   useServerOrderFills();
+  useServerBuyLimitFills();
   useGuestOrderFills();
 }

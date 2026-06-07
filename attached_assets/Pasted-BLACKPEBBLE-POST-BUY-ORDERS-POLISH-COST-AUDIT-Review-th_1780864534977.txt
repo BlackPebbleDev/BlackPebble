@@ -1,0 +1,194 @@
+BLACKPEBBLE POST-BUY-ORDERS POLISH + COST AUDIT
+
+Review the newly implemented Buy Orders work and apply the remaining trade-page polish fixes.
+
+Do not rebuild major systems from scratch.
+
+Goals:
+
+Verify Buy Orders were implemented in the cheapest efficient way.
+Fix remaining SOL/USD display polish.
+Improve planner/order validation.
+Keep GitHub/repo organization clean.
+
+PART 1 — BUY ORDERS COST + ARCHITECTURE AUDIT
+
+Review the Buy Orders implementation.
+
+Confirm:
+
+No always-on polling
+No cron jobs
+No background workers
+No scanning inactive users
+No scanning all watchlist tokens
+No unnecessary API calls
+Buy Orders are checked only when the active user/session loads or refreshes relevant pages
+Market data is reused from existing cached sources whenever possible
+External API calls are limited only to tokens with active pending buy orders
+
+If the current implementation is more expensive than necessary, refactor it to:
+
+refresh-triggered checks only
+current user only
+active pending orders only
+cached token data where possible
+debounce repeated checks
+avoid duplicate fills
+preserve idempotency
+
+Do not add candle-history verification yet.
+
+PART 2 — CASH BALANCE SOL/USD DISPLAY FIX
+
+In the Buy/Sell panel:
+
+Current:
+Cash Balance always shows SOL.
+
+Fix:
+
+SOL mode: show cash balance in SOL
+USD mode: show cash balance in USD using current SOL/USD price
+
+Example:
+SOL mode:
+Cash Balance: 126.49 SOL
+
+USD mode:
+Cash Balance: $8,124.35
+
+Rules:
+
+Display-only
+Do not change actual cash balance math
+Do not change backend trade execution
+If SOL/USD price is unavailable, keep SOL display and show:
+    USD value unavailable until SOL price loads.
+
+PART 3 — POSITION VALUE + UNREALIZED P&L UNIT DISPLAY
+
+When Buy/Sell panel toggle is set to USD:
+
+Position Value should show USD
+Unrealized P&L should show USD
+Percentage P&L remains unchanged
+
+When toggle is set to SOL:
+
+Position Value shows SOL
+Unrealized P&L shows SOL
+
+Do not change actual P&L math.
+
+PART 4 — MINI PLANNER VALIDATION
+
+Add validation rules for long trades:
+
+Target MC must be greater than Entry MC
+Stop MC must be lower than Entry MC
+Investment amount must be greater than 0
+
+If invalid:
+
+Highlight invalid field
+Show clear message
+Disable Apply To Trade
+
+Example:
+Stop MC must be below Entry MC for a long trade.
+
+Do not prevent hypothetical earlier entries if Entry MC is below current MC. Instead, show a small warning:
+Entry MC is below current market cap. Results represent a hypothetical earlier entry.
+
+PART 5 — MINI PLANNER RESPONSIVE RESULT LAYOUT
+
+Fix result-card readability.
+
+Requirements:
+
+No overlapping values
+No truncated labels like “Expected…” or “Risk / Rew…”
+Desktop may use wider grid
+Narrow/mobile layouts should switch to 2 columns or stacked layout
+Use compact formatting:
+    $68,129.83 → $68.13K
+    $1,250,000 → $1.25M
+    68,129.83 SOL → 68.13K SOL
+Keep full precision internally
+
+PART 6 — ORDER DISPLAY POLISH
+
+Review TP/SL/Buy Order display on:
+
+Trading page positions
+Portfolio page
+Exit Orders / Active Orders section
+
+Make sure:
+
+Pending orders are clear
+Filled orders are labeled clearly
+Canceled orders are not confusing
+Cancel buttons only appear on pending orders
+Buy Orders are visually distinct from Take Profit / Stop Loss orders
+
+Suggested labels:
+
+Buy Limit
+Take Profit
+Stop Loss
+
+PART 7 — SAFETY REQUIREMENTS
+
+Do not break:
+
+manual buy
+manual sell
+TP orders
+SL orders
+buy orders
+portfolio P&L
+leaderboard
+trade history
+wallet auth
+X auth
+SOL Recovery
+
+No major database changes unless absolutely required.
+
+PART 8 — QA
+
+Run:
+
+pnpm install if needed
+pnpm run typecheck
+build BlackPebble app
+build API server
+
+Test:
+
+Manual buy
+Manual sell
+TP order
+SL order
+Buy Order
+Cancel pending order
+Portfolio loads
+Trading page loads
+USD/SOL toggle works
+Cash balance switches units
+Position value switches units
+P&L switches units
+Mobile layout
+Desktop layout
+No red console errors
+
+Return:
+
+files changed
+buy orders cost audit result
+any API cost risks found
+fixes applied
+verification checklist
+whether safe to publish

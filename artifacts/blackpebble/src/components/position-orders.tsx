@@ -8,7 +8,7 @@ import {
   guestActiveOrders,
   guestCancelOrder,
 } from "@/lib/guest-store";
-import { fmtMarketCap } from "@/lib/format";
+import { fmtMarketCap, fmtSol } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 /**
@@ -38,8 +38,8 @@ function useCancelOrder() {
 }
 
 /**
- * A single exit-order row. `showToken` adds a token symbol prefix useful in
- * the portfolio-level "all orders" list.
+ * A single order row. Handles take_profit, stop_loss, and buy_limit display.
+ * `showToken` adds a token symbol prefix useful in the portfolio-level list.
  */
 function OrderRow({
   order,
@@ -50,7 +50,21 @@ function OrderRow({
   showToken?: boolean;
   onCancel: (id: number) => void;
 }) {
+  const isBuyLimit = order.order_type === "buy_limit";
   const isTp = order.order_type === "take_profit";
+
+  const labelColor = isBuyLimit
+    ? "text-accent"
+    : isTp
+      ? "text-emerald-400"
+      : "text-red-400";
+
+  const label = isBuyLimit ? "Buy Limit" : isTp ? "Take Profit" : "Stop Loss";
+
+  const detail = isBuyLimit
+    ? `${fmtSol(order.amount_value)} SOL @ ≤ ${fmtMarketCap(order.trigger_value)} MC`
+    : `${order.amount_value}% @ ${order.trigger_direction === "gte" ? "≥" : "≤"} ${fmtMarketCap(order.trigger_value)} MC`;
+
   return (
     <div
       key={order.id}
@@ -63,43 +77,40 @@ function OrderRow({
             {order.token_symbol ?? order.token_mint.slice(0, 6)}
           </span>
         )}
-        <span
-          className={cn(
-            "font-medium shrink-0",
-            isTp ? "text-emerald-400" : "text-red-400",
-          )}
-        >
-          {isTp ? "Take Profit" : "Stop Loss"}
+        <span className={cn("font-medium shrink-0", labelColor)}>
+          {label}
         </span>
         <span className="text-muted-foreground truncate font-mono">
-          {order.amount_value}% @{" "}
-          {order.trigger_direction === "gte" ? "≥" : "≤"}{" "}
-          {fmtMarketCap(order.trigger_value)} MC
+          {detail}
           {order.status === "filling" ? " · filling…" : ""}
         </span>
       </span>
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          onCancel(order.id);
-        }}
-        data-testid={`button-cancel-order-${order.id}`}
-        aria-label="Cancel order"
-        className="flex items-center gap-1 text-muted-foreground hover:text-red-400 transition-colors shrink-0"
-      >
-        <X className="h-3.5 w-3.5" />
-        Cancel
-      </button>
+      {order.status === "pending" ? (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onCancel(order.id);
+          }}
+          data-testid={`button-cancel-order-${order.id}`}
+          aria-label="Cancel order"
+          className="flex items-center gap-1 text-muted-foreground hover:text-red-400 transition-colors shrink-0"
+        >
+          <X className="h-3.5 w-3.5" />
+          Cancel
+        </button>
+      ) : (
+        <span className="text-[11px] text-muted-foreground shrink-0">
+          Filling…
+        </span>
+      )}
     </div>
   );
 }
 
 /**
- * Active TP/SL exit orders attached to a single position, with cancel. Self
- * contained: reads server orders for a signed-in wallet (sharing the polled
- * ["orders", wallet, mint] cache) or the local guest store for guests. Renders
- * nothing when there are no active orders so it stays out of the way.
+ * Active TP/SL exit orders attached to a single position, with cancel.
+ * Buy limit orders are NOT shown here (they are not attached to a position).
  */
 export function PositionOrders({ mint }: { mint: string }) {
   const { wallet, isGuest } = useAccount();
@@ -113,9 +124,12 @@ export function PositionOrders({ mint }: { mint: string }) {
     refetchInterval: 15_000,
   });
 
-  const orders: PaperOrder[] = isGuest
+  const allOrders: PaperOrder[] = isGuest
     ? guestActiveOrders(guestState, mint)
     : data?.orders ?? [];
+
+  // Show only sell-side orders (TP/SL) on the position card.
+  const orders = allOrders.filter((o) => o.order_type !== "buy_limit");
 
   if (orders.length === 0) return null;
 
@@ -132,8 +146,9 @@ export function PositionOrders({ mint }: { mint: string }) {
 }
 
 /**
- * Portfolio-level view: all active TP/SL exit orders across every position,
- * with token symbol prefix and cancel. Used on the Portfolio page.
+ * Portfolio-level view: all active orders (TP/SL exits + buy limits) across
+ * every position/token, with token symbol prefix and cancel. Used on the
+ * Portfolio page.
  */
 export function AllExitOrders() {
   const { wallet, isGuest } = useAccount();
@@ -151,28 +166,48 @@ export function AllExitOrders() {
     ? guestActiveOrders(guestState)
     : data?.orders ?? [];
 
+  const exitOrders = orders.filter((o) => o.order_type !== "buy_limit");
+  const buyLimits = orders.filter((o) => o.order_type === "buy_limit");
+
   if (orders.length === 0) {
     return (
       <div
         data-testid="exit-orders-empty"
         className="border border-border bg-card px-4 py-8 text-center text-sm text-muted-foreground"
       >
-        No active exit orders. Add a Take Profit or Stop Loss from an open
-        position.
+        No active orders. Add a Take Profit or Stop Loss from an open position,
+        or set a Buy Limit from the Trade Planner.
       </div>
     );
   }
 
   return (
-    <div
-      data-testid="exit-orders-list"
-      className="border border-border bg-card divide-y divide-border/40"
-    >
-      {orders.map((o) => (
-        <div key={o.id} className="px-3 py-1.5">
-          <OrderRow order={o} showToken onCancel={cancel} />
+    <div data-testid="exit-orders-list" className="space-y-3">
+      {buyLimits.length > 0 && (
+        <div className="border border-border bg-card">
+          <div className="px-3 py-2 border-b border-border/60">
+            <span className="text-[11px] font-medium uppercase tracking-wider text-accent">
+              Buy Limits
+            </span>
+          </div>
+          <div className="divide-y divide-border/40">
+            {buyLimits.map((o) => (
+              <div key={o.id} className="px-3 py-1.5">
+                <OrderRow order={o} showToken onCancel={cancel} />
+              </div>
+            ))}
+          </div>
         </div>
-      ))}
+      )}
+      {exitOrders.length > 0 && (
+        <div className="border border-border bg-card divide-y divide-border/40">
+          {exitOrders.map((o) => (
+            <div key={o.id} className="px-3 py-1.5">
+              <OrderRow order={o} showToken onCancel={cancel} />
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

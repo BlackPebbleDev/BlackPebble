@@ -17,9 +17,11 @@ import {
 } from "../lib/trading.js";
 import {
   createOrder,
+  createBuyLimitOrder,
   listOrders,
   cancelOrder,
   evaluateOrders,
+  evaluateBuyLimitOrders,
 } from "../lib/orders.js";
 
 const router: IRouter = Router();
@@ -147,6 +149,39 @@ router.post(
       amountPercent: Number(b.amountPercent),
     });
     return res.status(result.ok ? 200 : 400).json(result);
+  }),
+);
+
+router.post(
+  "/trade/buy-limit",
+  requireOwnership((req) => String(req.body?.wallet || "").trim()),
+  asyncHandler(async (req, res) => {
+    const b = req.body ?? {};
+    const result = await createBuyLimitOrder({
+      wallet: String(b.wallet || "").trim(),
+      mint: String(b.mint || "").trim(),
+      symbol: b.symbol ?? null,
+      name: b.name ?? null,
+      triggerMc: Number(b.triggerMc),
+      solAmount: Number(b.solAmount),
+    });
+    return res.status(result.ok ? 200 : 400).json(result);
+  }),
+);
+
+router.get(
+  "/trade/buy-limits/check/:wallet",
+  requireOwnership((req) => String(req.params.wallet || "").trim()),
+  asyncHandler(async (req, res) => {
+    const wallet = String(req.params.wallet || "").trim();
+    if (!wallet) return res.status(400).json({ error: "wallet is required" });
+    let fills: Awaited<ReturnType<typeof evaluateBuyLimitOrders>> = [];
+    try {
+      fills = await evaluateBuyLimitOrders(wallet);
+    } catch {
+      fills = [];
+    }
+    return res.json({ fills });
   }),
 );
 

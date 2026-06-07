@@ -175,12 +175,12 @@ export function Stat({
           : "text-foreground";
   return (
     <div className="min-w-0 space-y-1">
-      <div className="text-[11px] uppercase tracking-wider text-muted-foreground truncate">
+      <div className="text-[11px] uppercase leading-tight tracking-wider text-muted-foreground">
         {label}
       </div>
       <div
         className={cn(
-          "font-mono tabular-nums break-all",
+          "font-mono tabular-nums break-words",
           emphasis ? "text-lg font-semibold" : "text-sm",
           toneClass,
         )}

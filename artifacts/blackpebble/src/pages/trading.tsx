@@ -48,6 +48,7 @@ import {
   guestBuy,
   guestSell,
   guestCreateOrder,
+  guestCreateBuyLimitOrder,
   guestWatchAdd,
   guestWatchRemove,
   guestHistory,
@@ -807,9 +808,14 @@ function TradePanel({
         <div className="flex items-center justify-between text-xs text-muted-foreground">
           <span>Cash balance</span>
           <span className="font-mono text-foreground">
-            {fmtSol(cashBalance)} SOL
+            {fmtUnitValue(cashBalance ?? 0, unit, solUsd)}
           </span>
         </div>
+        {unit === "USD" && (solUsd == null || solUsd <= 0) && (
+          <p className="text-[11px] text-muted-foreground">
+            USD value unavailable until SOL price loads.
+          </p>
+        )}
 
         {planned && onClearPlanned && (
           <PlannedTradeSummary planned={planned} onClear={onClearPlanned} />
@@ -1202,7 +1208,69 @@ function useNavigate() {
 
 export default function TradingDesk() {
   const mint = useTokenParam();
-  const { wallet } = useAccount();
+  const { wallet, isGuest } = useAccount();
+  const { toast } = useToast();
+  const qc = useQueryClient();
+
+  /**
+   * Create a buy-limit order immediately from the Trade Planner. Handles both
+   * signed-in (server) and guest (localStorage) paths. Fires-and-forgets so the
+   * planner Apply button doesn't block on the network; toasts on success/failure.
+   */
+  async function createBuyLimitOrder(params: {
+    mint: string;
+    symbol: string | null;
+    name: string | null;
+    triggerMc: number;
+    solAmount: number;
+    isGuest: boolean;
+    wallet: string | null;
+  }) {
+    try {
+      if (params.isGuest) {
+        const r = guestCreateBuyLimitOrder({
+          mint: params.mint,
+          symbol: params.symbol,
+          name: params.name,
+          triggerMc: params.triggerMc,
+          solAmount: params.solAmount,
+        });
+        if (r.ok) {
+          toast({
+            title: "Buy limit set",
+            description: `Will auto-buy ${params.solAmount.toFixed(2)} SOL when MC drops to target.`,
+          });
+        } else {
+          toast({ title: "Buy limit failed", description: r.error, variant: "destructive" });
+        }
+      } else {
+        if (!params.wallet) return;
+        const r = await api.createBuyLimit({
+          wallet: params.wallet,
+          mint: params.mint,
+          symbol: params.symbol,
+          name: params.name,
+          triggerMc: params.triggerMc,
+          solAmount: params.solAmount,
+        });
+        if (r.ok) {
+          toast({
+            title: "Buy limit set",
+            description: `Will auto-buy ${params.solAmount.toFixed(2)} SOL when MC drops to target.`,
+          });
+          qc.invalidateQueries({ queryKey: ["orders"] });
+        } else {
+          toast({ title: "Buy limit failed", description: r.error, variant: "destructive" });
+        }
+      }
+    } catch (e) {
+      toast({
+        title: "Buy limit failed",
+        description: e instanceof Error ? e.message : "Unknown error",
+        variant: "destructive",
+      });
+    }
+  }
 
   const { data: info, isLoading } = useQuery({
     queryKey: ["token", mint, wallet],
@@ -1384,6 +1452,25 @@ export default function TradingDesk() {
                   ? attachments
                   : null,
               );
+              // Buy limit: create the order immediately (no Buy click required).
+              const bl = attachments.buyLimit;
+              if (
+                bl.enabled &&
+                bl.triggerMc != null &&
+                bl.triggerMc > 0 &&
+                bl.solAmount != null &&
+                bl.solAmount >= 0.1
+              ) {
+                void createBuyLimitOrder({
+                  mint: info.mint,
+                  symbol: info.symbol,
+                  name: info.name,
+                  triggerMc: bl.triggerMc,
+                  solAmount: bl.solAmount,
+                  isGuest: isGuest,
+                  wallet: wallet,
+                });
+              }
             }}
           />
         </div>

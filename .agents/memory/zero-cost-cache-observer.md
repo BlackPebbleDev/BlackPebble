@@ -22,6 +22,24 @@ observer is also functionally complete.
 prefer an observe-only instance over a fresh polling query. For shared
 `useGuestValuedPositions`, pass an `observeOnly` flag from the global consumer.
 
+## Buy-limit checks: refresh-triggered, never interval-polled
+The buy-limit fill check (`useServerBuyLimitFills`, app-shell mounted) must NOT
+use `refetchInterval`. It runs `refetchOnMount: "always"` + `refetchOnWindowFocus`
+with a `staleTime` debounce — i.e. on session load / page refresh / tab refocus
+only.
+
+**Why:** the product's stated cost priority is "no always-on polling" for orders.
+Buy limits cover tokens the user may not hold, so they can't piggyback the
+positions observer (unlike TP/SL); a standalone timer would be the one always-on
+poll we're explicitly told to avoid. Server side is safe to call repeatedly:
+`evaluateBuyLimitOrders` reads only the current wallet's active (pending) buy
+limits, uses the 30s token-info cache, dedupes mints, and claims each order with
+an atomic `UPDATE … WHERE status='pending' RETURNING id` so fills are idempotent.
+
+**How to apply:** any future auto-order check that can't observe an
+already-polled query should be wired to load/focus triggers, not a timer, unless
+the user explicitly asks for live polling.
+
 ## API auth convention
 GET-by-wallet reads in `artifacts/api-server` (positions, history) are
 intentionally PUBLIC. But data that reveals future intent (pending TP/SL orders)

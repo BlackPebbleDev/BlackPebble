@@ -7,6 +7,10 @@
  * It never executes a trade and never touches paper-trading state directly — it
  * only hands a SOL amount + planned target/stop up to the trading page via the
  * `onApply` callback. All math is pure (see computeMiniPlan).
+ *
+ * Phase 2: also supports setting a Buy Limit order. When enabled, the trading
+ * page creates the buy-limit order immediately on Apply — before the user
+ * clicks Buy — so the token is purchased automatically when its MC dips.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
@@ -19,7 +23,7 @@ import {
 } from "@/lib/trade-planner";
 import { SegmentedToggle, PlannerField, Stat } from "./primitives";
 import { fmtUnitAmt, fmtPct, fmtMult, fmtRatioOneTo } from "./util";
-import { fmtMarketCap } from "@/lib/format";
+import { fmtMarketCap, fmtSol } from "@/lib/format";
 
 export interface PlannedTrade {
   targetMc: number | null;
@@ -37,9 +41,19 @@ export interface AttachmentSpec {
   percent: number;
 }
 
+/** Buy-limit spec carried up to the trading page. Created immediately on Apply. */
+export interface BuyLimitSpec {
+  enabled: boolean;
+  /** Buy when MC drops to or below this value (USD). Taken from Entry MC. */
+  triggerMc: number | null;
+  /** SOL amount to spend when the order fires. */
+  solAmount: number | null;
+}
+
 export interface PlannedAttachments {
   tp: AttachmentSpec;
   sl: AttachmentSpec;
+  buyLimit: BuyLimitSpec;
 }
 
 const PERCENT_CHOICES = [25, 50, 100] as const;
@@ -104,6 +118,8 @@ export function MiniPlanner({
   const [attachSl, setAttachSl] = useState(false);
   const [tpPercent, setTpPercent] = useState<number>(100);
   const [slPercent, setSlPercent] = useState<number>(100);
+  // Buy limit order: created immediately on Apply (no Buy click needed).
+  const [attachBl, setAttachBl] = useState(false);
   // Once the user manually edits Entry MC, auto-fill stops until the token
   // changes or the user clicks "Use Current MC".
   const [entryUserControlled, setEntryUserControlled] = useState(false);
@@ -121,15 +137,13 @@ export function MiniPlanner({
       setApplied(false);
       setAttachTp(false);
       setAttachSl(false);
+      setAttachBl(false);
     } else if (!entryUserControlled && currentMcStr !== "" && entry !== currentMcStr) {
-      // First load before market cap resolved, then it arrived.
       setEntry(currentMcStr);
     }
   }, [info.mint, currentMcStr, entry, entryUserControlled]);
 
   useEffect(() => writeSession(OPEN_KEY, open ? "1" : "0"), [open]);
-  // Persist the unit only when uncontrolled; the parent owns persistence when
-  // the unit is shared with the Buy/Sell panel.
   useEffect(() => {
     if (!controlled) writeSession(UNIT_KEY, unit);
   }, [unit, controlled]);
@@ -170,20 +184,64 @@ export function MiniPlanner({
   }, [parsed.investment, unit, solUsd]);
 
   const usdRateMissing = unit === "USD" && solUsd == null;
-  // Apply needs a positive investment, and a valid rate when sizing in USD so
-  // the Buy/Sell panel can convert.
+
+  // Field-level validation for a long trade. Only flags a field once the user
+  // has entered a value (blank Target/Stop are optional and never error), so the
+  // form stays quiet until there is something concrete to validate.
+  const entryError =
+    parsed.entry != null && parsed.entry <= 0
+      ? "Entry MC must be greater than 0."
+      : undefined;
+  const targetError =
+    parsed.target != null && parsed.entry != null && parsed.entry > 0
+      ? parsed.target <= 0
+        ? "Target MC must be greater than 0."
+        : parsed.target <= parsed.entry
+          ? "Target MC must be above Entry MC."
+          : undefined
+      : parsed.target != null && parsed.target <= 0
+        ? "Target MC must be greater than 0."
+        : undefined;
+  const stopError =
+    parsed.stop != null && parsed.entry != null && parsed.entry > 0
+      ? parsed.stop <= 0
+        ? "Stop MC must be greater than 0."
+        : parsed.stop >= parsed.entry
+          ? "Stop MC must be below Entry MC."
+          : undefined
+      : parsed.stop != null && parsed.stop <= 0
+        ? "Stop MC must be greater than 0."
+        : undefined;
+  const investmentError =
+    parsed.investment != null && parsed.investment <= 0
+      ? "Investment must be greater than 0."
+      : undefined;
+  const hasFieldError =
+    !!entryError || !!targetError || !!stopError || !!investmentError;
+
   const canApply =
     parsed.investment != null &&
     parsed.investment > 0 &&
+    !hasFieldError &&
     !(unit === "USD" && (solUsd == null || solUsd <= 0));
 
   const canAttachTp = parsed.target != null && parsed.target > 0;
   const canAttachSl = parsed.stop != null && parsed.stop > 0;
+  // Buy limit needs: entry MC set + investment ≥ 0.1 SOL
+  const canAttachBl =
+    parsed.entry != null &&
+    parsed.entry > 0 &&
+    amountSol != null &&
+    amountSol >= 0.1;
+
+  // Whether the planned entry MC is BELOW current (i.e., waiting for a dip).
+  const blBelowCurrent =
+    parsed.entry != null &&
+    currentMc != null &&
+    parsed.entry < currentMc;
 
   function handleApply() {
     if (!canApply || parsed.investment == null) return;
-    // Fill the buy field in the active unit — the Buy/Sell panel handles the
-    // USD→SOL conversion at execution time.
     onApply({
       amount: parsed.investment,
       planned: {
@@ -202,6 +260,11 @@ export function MiniPlanner({
           enabled: attachSl && canAttachSl,
           triggerMc: parsed.stop,
           percent: slPercent,
+        },
+        buyLimit: {
+          enabled: attachBl && canAttachBl,
+          triggerMc: parsed.entry,
+          solAmount: amountSol,
         },
       },
     });
@@ -254,6 +317,7 @@ export function MiniPlanner({
                 setEntry(v);
               }}
               placeholder="e.g. 100k"
+              error={entryError}
               action={{
                 label: "Use Current MC",
                 onClick: () => {
@@ -269,6 +333,7 @@ export function MiniPlanner({
               value={target}
               onChange={edited(setTarget)}
               placeholder="e.g. 500k"
+              error={targetError}
               testId="input-mini-target"
             />
             <PlannerField
@@ -276,6 +341,7 @@ export function MiniPlanner({
               value={stop}
               onChange={edited(setStop)}
               placeholder="e.g. 70k"
+              error={stopError}
               testId="input-mini-stop"
             />
             <PlannerField
@@ -284,9 +350,20 @@ export function MiniPlanner({
               onChange={edited(setInvestment)}
               placeholder={unit === "SOL" ? "e.g. 2" : "e.g. 250"}
               unit={unit}
+              error={investmentError}
               testId="input-mini-investment"
             />
           </div>
+
+          {blBelowCurrent && (
+            <p
+              data-testid="mini-below-current-warning"
+              className="text-[11px] leading-relaxed text-amber-400"
+            >
+              Entry MC is below current market cap. Results represent a
+              hypothetical earlier entry.
+            </p>
+          )}
 
           <div className="space-y-1.5">
             <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
@@ -345,6 +422,59 @@ export function MiniPlanner({
               label="Buy Amount"
               value={amountSol != null ? fmtUnitAmt(amountSol, "SOL") : "—"}
             />
+          </div>
+
+          {/* Buy Limit order (phase 2): auto-buy when MC dips to Entry MC. */}
+          <div className="space-y-2 border-t border-border pt-4">
+            <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
+              Buy Limit (optional)
+            </div>
+            <div className="border border-border bg-background/40 p-3">
+              <div className="flex items-center justify-between gap-2">
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={attachBl && canAttachBl}
+                    disabled={!canAttachBl}
+                    onChange={(e) => {
+                      setApplied(false);
+                      setAttachBl(e.target.checked);
+                    }}
+                    data-testid="checkbox-attach-buy-limit"
+                    className="h-4 w-4 accent-[var(--accent)] disabled:opacity-40"
+                  />
+                  <span
+                    className={cn(
+                      "font-medium text-accent",
+                      !canAttachBl && "opacity-60",
+                    )}
+                  >
+                    Buy Limit
+                  </span>
+                </label>
+                {canAttachBl ? (
+                  <span className="font-mono text-[11px] text-muted-foreground">
+                    {fmtSol(amountSol ?? 0)} SOL @ ≤ {fmtMarketCap(parsed.entry)} MC
+                  </span>
+                ) : (
+                  <span className="text-[11px] text-muted-foreground">
+                    Set Entry MC + Investment (≥ 0.1 SOL)
+                  </span>
+                )}
+              </div>
+              {attachBl && canAttachBl && (
+                <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+                  {blBelowCurrent
+                    ? `Order created now — will auto-buy when MC drops to ${fmtMarketCap(parsed.entry)}.`
+                    : `Entry MC is at or above current price — order will fire if MC dips to ${fmtMarketCap(parsed.entry)}.`}
+                </p>
+              )}
+            </div>
+            <p className="text-[11px] leading-relaxed text-muted-foreground">
+              Buy limit orders are created immediately when you click Apply and
+              fill automatically when the live market cap reaches your target.
+              Capped at 5 active orders per account.
+            </p>
           </div>
 
           {/* Optional exit orders (TP/SL) attached after the next buy. */}
@@ -407,13 +537,14 @@ export function MiniPlanner({
             data-testid="button-mini-apply"
             className="h-10 w-full bg-accent text-sm font-medium text-accent-foreground transition-colors hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {applied ? "Applied — set your amount" : "Apply To Trade"}
+            {applied ? "Applied ✓" : "Apply To Trade"}
           </button>
 
           <p className="text-[11px] leading-relaxed text-muted-foreground">
             Apply fills your buy amount and saves the target & stop as planning
-            notes. It does not place a trade — you still click Buy. Planning only,
-            not financial advice.
+            notes. If Buy Limit is enabled, the order is created immediately. You
+            still click Buy for an immediate trade. Planning only, not financial
+            advice.
           </p>
         </div>
       )}

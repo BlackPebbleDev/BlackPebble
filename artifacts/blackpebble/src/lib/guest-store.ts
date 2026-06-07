@@ -528,6 +528,62 @@ function updateGuestOrder(id: number, patch: Partial<GuestOrderRow>) {
   });
 }
 
+const GUEST_BUY_LIMIT_CAP = 5;
+
+/**
+ * Create a guest buy-limit order. No existing position required. The order
+ * fires when the token's market cap drops to or below triggerMc. Guest buy
+ * limits are evaluated on the trading page when the token's current MC is
+ * available (the token info query already fetches it).
+ */
+export function guestCreateBuyLimitOrder(params: {
+  mint: string;
+  symbol?: string | null;
+  name?: string | null;
+  triggerMc: number;
+  solAmount: number;
+}): { ok: boolean; error?: string; order?: GuestOrderRow } {
+  if (!Number.isFinite(params.triggerMc) || params.triggerMc <= 0) {
+    return { ok: false, error: "triggerMc must be a positive number" };
+  }
+  if (!Number.isFinite(params.solAmount) || params.solAmount < 0.1) {
+    return { ok: false, error: "solAmount must be at least 0.1 SOL" };
+  }
+  const active = current.orders.filter(
+    (o) =>
+      o.order_type === "buy_limit" &&
+      (o.status === "pending" || o.status === "filling"),
+  ).length;
+  if (active >= GUEST_BUY_LIMIT_CAP) {
+    return {
+      ok: false,
+      error: `You can have at most ${GUEST_BUY_LIMIT_CAP} active buy limit orders. Cancel one to add another.`,
+    };
+  }
+  const now = Math.floor(Date.now() / 1000);
+  let nextId = current.nextId;
+  const order: GuestOrderRow = {
+    id: nextId++,
+    token_mint: params.mint,
+    token_symbol: params.symbol ?? null,
+    token_name: params.name ?? null,
+    order_type: "buy_limit",
+    trigger_type: "market_cap",
+    trigger_value: params.triggerMc,
+    trigger_direction: "lte",
+    amount_value: params.solAmount,
+    status: "pending",
+    created_at: now,
+    updated_at: now,
+    filled_at: null,
+    fill_market_cap: null,
+    fill_price: null,
+    fill_reason: null,
+  };
+  setState({ ...current, orders: [...current.orders, order], nextId });
+  return { ok: true, order };
+}
+
 /** Create a guest TP/SL order. Requires an open guest position for the mint. */
 export function guestCreateOrder(params: {
   mint: string;
@@ -584,6 +640,7 @@ export function guestCancelOrder(id: number): { ok: boolean; error?: string } {
 
 /** Map a guest order row to the shared PaperOrder shape for the UI. */
 export function guestOrderToPaperOrder(o: GuestOrderRow): PaperOrder {
+  const isBuyLimit = o.order_type === "buy_limit";
   return {
     id: o.id,
     wallet: "guest",
@@ -591,11 +648,11 @@ export function guestOrderToPaperOrder(o: GuestOrderRow): PaperOrder {
     token_symbol: o.token_symbol,
     token_name: o.token_name,
     order_type: o.order_type,
-    side: "sell",
+    side: isBuyLimit ? "buy" : "sell",
     trigger_type: o.trigger_type,
     trigger_value: o.trigger_value,
     trigger_direction: o.trigger_direction,
-    amount_type: "percent_position",
+    amount_type: isBuyLimit ? "sol" : "percent_position",
     amount_value: o.amount_value,
     status: o.status,
     linked_group_id: null,
@@ -651,6 +708,76 @@ export async function evaluateGuestOrders(
       const live = current.orders.find((o) => o.id === order.id);
       if (!live || live.status !== "pending") continue;
 
+      // -----------------------------------------------------------------------
+      // Buy-limit branch: no existing position required.
+      // Evaluated against the current MC if the token happens to be in valued
+      // positions (user already holds it); otherwise skipped until live data is
+      // available. We never cancel buy limits for "no position".
+      // -----------------------------------------------------------------------
+      if (order.order_type === "buy_limit") {
+        const pos = byMint.get(order.token_mint);
+        const curMc = pos?.currentMarketCapUsd ?? null;
+        // No live market-cap data for this token yet — skip, don't cancel.
+        if (curMc == null || !Number.isFinite(curMc)) continue;
+        // buy_limit triggers when MC drops to or below the target.
+        if (curMc > order.trigger_value) continue;
+
+        updateGuestOrder(order.id, { status: "filling" });
+        try {
+          const quote = await api.quote({
+            mint: order.token_mint,
+            side: "buy",
+            solAmount: order.amount_value,
+          });
+          const res = guestBuy({
+            mint: order.token_mint,
+            symbol: order.token_symbol,
+            name: order.token_name,
+            logo: null,
+            solAmount: order.amount_value,
+            quote,
+            marketCapUsd: curMc,
+          });
+          if (res.ok) {
+            updateGuestOrder(order.id, {
+              status: "filled",
+              filled_at: Math.floor(Date.now() / 1000),
+              fill_market_cap: curMc,
+              fill_price: pos?.currentPriceSol ?? null,
+              fill_reason: "triggered",
+            });
+            fills.push({
+              orderId: order.id,
+              orderType: order.order_type,
+              tokenMint: order.token_mint,
+              tokenSymbol: order.token_symbol,
+              percent: 0,
+              triggerType: order.trigger_type,
+              triggerValue: order.trigger_value,
+              fillMarketCap: curMc,
+              fillPrice: pos?.currentPriceSol ?? null,
+              pnl: null,
+              solAmount: order.amount_value,
+            });
+          } else {
+            updateGuestOrder(order.id, {
+              status: "pending",
+              fill_reason: (res.error ?? "fill_failed").slice(0, 200),
+            });
+          }
+        } catch (e) {
+          updateGuestOrder(order.id, {
+            status: "pending",
+            fill_reason:
+              e instanceof Error ? e.message.slice(0, 200) : "fill_failed",
+          });
+        }
+        continue; // Do not fall through to the TP/SL path.
+      }
+
+      // -----------------------------------------------------------------------
+      // TP/SL branch: requires an open position.
+      // -----------------------------------------------------------------------
       const pos = byMint.get(order.token_mint);
       if (!pos) {
         updateGuestOrder(order.id, {
