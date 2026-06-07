@@ -27,6 +27,11 @@ import { LiveIndicator } from "@/components/live-indicator";
 import { TradeList } from "@/components/trade-list";
 import { OpenPositions } from "@/components/open-positions";
 import { Watchlist } from "@/components/watchlist";
+import {
+  MiniPlanner,
+  PlannedTradeSummary,
+  type PlannedTrade,
+} from "@/components/trade-planner/mini-planner";
 import { useAccount } from "@/hooks/use-account";
 import { useToast } from "@/hooks/use-toast";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
@@ -392,13 +397,40 @@ function useDebounced<T>(value: T, delayMs: number): T {
   return debounced;
 }
 
-function TradePanel({ info }: { info: TokenInfo }) {
+/** Format an applied SOL amount for the buy input: up to 4 dp, no trailing zeros. */
+function formatAppliedSol(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) return "";
+  return String(Number(value.toFixed(4)));
+}
+
+function TradePanel({
+  info,
+  appliedAmount,
+  planned,
+  onClearPlanned,
+}: {
+  info: TokenInfo;
+  appliedAmount?: { amount: string; nonce: number } | null;
+  planned?: PlannedTrade | null;
+  onClearPlanned?: () => void;
+}) {
   const { wallet, account, isGuest } = useAccount();
   const { toast } = useToast();
   const qc = useQueryClient();
   const { setVisible: setWalletModalVisible } = useWalletModal();
   const [side, setSide] = useState<"buy" | "sell">("buy");
   const [solAmount, setSolAmount] = useState("");
+
+  // When the Mini Planner applies a plan, switch to Buy and pre-fill the amount.
+  // Keyed on `nonce` so re-applying the same value still re-fills the field.
+  const appliedNonce = appliedAmount?.nonce;
+  useEffect(() => {
+    if (appliedAmount && appliedAmount.amount) {
+      setSide("buy");
+      setSolAmount(appliedAmount.amount);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appliedNonce]);
   const [sellPercent, setSellPercent] = useState(100);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [savePromptOpen, setSavePromptOpen] = useState(false);
@@ -626,6 +658,10 @@ function TradePanel({ info }: { info: TokenInfo }) {
             {fmtSol(cashBalance)} SOL
           </span>
         </div>
+
+        {planned && onClearPlanned && (
+          <PlannedTradeSummary planned={planned} onClear={onClearPlanned} />
+        )}
 
         {side === "buy" ? (
           <>
@@ -987,6 +1023,21 @@ export default function TradingDesk() {
 
   const navigate = useNavigate();
 
+  // Shared bridge between the Mini Planner and the Buy/Sell panel. The planner
+  // never executes — it only pushes a SOL amount (bumping `nonce` so repeated
+  // applies re-fire) and saves the planned target/stop for display.
+  const [appliedAmount, setAppliedAmount] = useState<{
+    amount: string;
+    nonce: number;
+  } | null>(null);
+  const [planned, setPlanned] = useState<PlannedTrade | null>(null);
+
+  // Drop a previously applied plan when switching tokens so a stale target/stop
+  // from another market never lingers on the Buy/Sell panel.
+  useEffect(() => {
+    setPlanned(null);
+  }, [mint]);
+
   if (!mint) {
     return (
       <div className="w-full max-w-6xl mx-auto px-4 md:px-6 py-6">
@@ -1089,7 +1140,19 @@ export default function TradingDesk() {
           <PriceChart key={info.mint} info={info} />
         </div>
         <div className="space-y-4">
-          <TradePanel info={info} />
+          <TradePanel
+            info={info}
+            appliedAmount={appliedAmount}
+            planned={planned}
+            onClearPlanned={() => setPlanned(null)}
+          />
+          <MiniPlanner
+            info={info}
+            onApply={({ amountSol, planned: p }) => {
+              setAppliedAmount({ amount: formatAppliedSol(amountSol), nonce: Date.now() });
+              setPlanned(p);
+            }}
+          />
         </div>
       </div>
 

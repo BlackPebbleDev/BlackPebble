@@ -38,3 +38,10 @@ The trading-desk side panel shows the user's *own* paper trades from
 invalidates `["history"]` and `["paper-feed"]`). Status is honest: green "Live"
 only when the newest trade is < 120s old, otherwise gray "Idle". Do not show a
 green LIVE badge driven purely by websocket connectivity.
+
+## Frontend: getting SOL/USD on the trading page
+`TokenInfo` (api.getToken) does NOT carry `solUsd`, but the rate is derivable
+from the same payload: `solUsd = priceUsd / priceSol` (guard `priceSol > 0`).
+Used by the Mini Trade Planner to convert a USD investment amount into the SOL
+buy-field value. Elsewhere `solUsd` comes from `api.positions`/chart/quote
+responses or `guestValued.solUsd`. No standalone "sol price" endpoint exists.

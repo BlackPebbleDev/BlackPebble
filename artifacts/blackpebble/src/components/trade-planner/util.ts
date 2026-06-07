@@ -56,6 +56,12 @@ export function fmtRR(value: number | null | undefined): string {
   return `${s}R`;
 }
 
+/** Risk/reward ratio as "1 : 4.2". Used by the compact Mini Planner. */
+export function fmtRatioOneTo(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value) || value <= 0) return "—";
+  return `1 : ${value.toFixed(1)}`;
+}
+
 /** Multiple as "5×", "12.5×". */
 export function fmtMult(value: number | null | undefined): string {
   if (value == null || !Number.isFinite(value)) return "—";

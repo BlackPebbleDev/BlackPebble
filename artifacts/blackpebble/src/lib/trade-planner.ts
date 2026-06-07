@@ -260,6 +260,72 @@ export function computePlan(input: PlanInput): PlanResult {
 }
 
 /**
+ * Compact "Mini Planner" used on the token trading page. A lightweight execution
+ * assistant: from an entry/target/stop valuation plus an investment amount it
+ * derives the headline outcome stats. Pure and side-effect-free — like the rest
+ * of this module it never touches paper trading, the API, or the database.
+ *
+ * All math is ratio-based, so the investment unit (SOL or USD) only affects how
+ * `expectedValue`/`projectedProfit` are *displayed*, never the numbers here.
+ */
+export interface MiniPlanInput {
+  entry: number | null;
+  target: number | null;
+  stop: number | null;
+  investment: number | null;
+}
+
+export interface MiniPlanResult {
+  targetMultiple: number | null;
+  expectedValue: number | null;
+  projectedProfit: number | null;
+  returnPct: number | null;
+  rewardPct: number | null;
+  riskPct: number | null;
+  riskReward: number | null;
+  /** entry valid and target above entry. */
+  upsideValid: boolean;
+  /** entry valid and stop below entry (both positive). */
+  downsideValid: boolean;
+}
+
+export function computeMiniPlan(input: MiniPlanInput): MiniPlanResult {
+  const { entry, target, stop, investment } = input;
+
+  const entryOk = entry != null && entry > 0;
+  const upsideValid = entryOk && target != null && target > entry!;
+  const downsideValid =
+    entryOk && stop != null && stop > 0 && stop < entry!;
+
+  const targetMultiple = upsideValid ? target! / entry! : null;
+  const rewardPct = upsideValid ? ((target! - entry!) / entry!) * 100 : null;
+  const returnPct = rewardPct;
+  const riskPct = downsideValid ? ((entry! - stop!) / entry!) * 100 : null;
+  const riskReward =
+    rewardPct != null && riskPct != null && riskPct > 0
+      ? rewardPct / riskPct
+      : null;
+
+  const investOk = investment != null && investment > 0;
+  const expectedValue =
+    investOk && targetMultiple != null ? investment! * targetMultiple : null;
+  const projectedProfit =
+    expectedValue != null && investOk ? expectedValue - investment! : null;
+
+  return {
+    targetMultiple,
+    expectedValue,
+    projectedProfit,
+    returnPct,
+    rewardPct,
+    riskPct,
+    riskReward,
+    upsideValid,
+    downsideValid,
+  };
+}
+
+/**
  * Project position value + profit across fixed multiples, based on entry and the
  * effective position size. Valuation is entry * multiple (market cap or price).
  */
