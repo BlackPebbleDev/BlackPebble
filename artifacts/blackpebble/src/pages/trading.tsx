@@ -22,7 +22,13 @@ import {
   Info,
   RefreshCw,
 } from "lucide-react";
-import { api, type TokenInfo, type Trade, type TradeQuote } from "@/lib/api";
+import {
+  api,
+  type TokenInfo,
+  type Trade,
+  type TradeQuote,
+  type OrderType,
+} from "@/lib/api";
 import { LiveIndicator } from "@/components/live-indicator";
 import { TradeList } from "@/components/trade-list";
 import { OpenPositions } from "@/components/open-positions";
@@ -31,6 +37,7 @@ import {
   MiniPlanner,
   PlannedTradeSummary,
   type PlannedTrade,
+  type PlannedAttachments,
 } from "@/components/trade-planner/mini-planner";
 import { useAccount } from "@/hooks/use-account";
 import { useToast } from "@/hooks/use-toast";
@@ -40,6 +47,7 @@ import {
   useGuestValuedPositions,
   guestBuy,
   guestSell,
+  guestCreateOrder,
   guestWatchAdd,
   guestWatchRemove,
   guestHistory,
@@ -442,6 +450,8 @@ function TradePanel({
   appliedAmount,
   planned,
   onClearPlanned,
+  attachments,
+  onAttachmentsConsumed,
   unit,
   onUnitChange,
 }: {
@@ -449,6 +459,9 @@ function TradePanel({
   appliedAmount?: { amount: string; nonce: number } | null;
   planned?: PlannedTrade | null;
   onClearPlanned?: () => void;
+  /** Exit orders (TP/SL) to create after the next successful buy. */
+  attachments?: PlannedAttachments | null;
+  onAttachmentsConsumed?: () => void;
   unit: Unit;
   onUnitChange: (unit: Unit) => void;
 }) {
@@ -544,6 +557,78 @@ function TradePanel({
     setConfirmOpen(false);
   }, [side, solAmount, sellPercent, unit, info.mint]);
 
+  // Create the attached TP/SL exit orders after a successful buy. Each spec
+  // targets a market-cap trigger; failures are surfaced but never block the buy.
+  async function placeAttachedOrders(att: PlannedAttachments) {
+    const specs: { orderType: OrderType; triggerValue: number; percent: number }[] =
+      [];
+    if (att.tp.enabled && att.tp.triggerMc != null && att.tp.triggerMc > 0) {
+      specs.push({
+        orderType: "take_profit",
+        triggerValue: att.tp.triggerMc,
+        percent: att.tp.percent,
+      });
+    }
+    if (att.sl.enabled && att.sl.triggerMc != null && att.sl.triggerMc > 0) {
+      specs.push({
+        orderType: "stop_loss",
+        triggerValue: att.sl.triggerMc,
+        percent: att.sl.percent,
+      });
+    }
+    if (specs.length === 0) return;
+
+    let created = 0;
+    const failures: string[] = [];
+    for (const s of specs) {
+      try {
+        if (isGuest) {
+          const r = guestCreateOrder({
+            mint: info.mint,
+            symbol: info.symbol,
+            name: info.name,
+            orderType: s.orderType,
+            triggerType: "market_cap",
+            triggerValue: s.triggerValue,
+            amountPercent: s.percent,
+          });
+          if (r.ok) created++;
+          else if (r.error) failures.push(r.error);
+        } else {
+          const r = await api.createOrder({
+            wallet: wallet!,
+            mint: info.mint,
+            symbol: info.symbol,
+            name: info.name,
+            orderType: s.orderType,
+            triggerType: "market_cap",
+            triggerValue: s.triggerValue,
+            amountPercent: s.percent,
+          });
+          if (r.ok) created++;
+          else if (r.error) failures.push(r.error);
+        }
+      } catch (e) {
+        failures.push(e instanceof Error ? e.message : "Failed to create order");
+      }
+    }
+
+    if (created > 0) {
+      toast({
+        title: `${created} exit order${created > 1 ? "s" : ""} attached`,
+        description: "Take Profit / Stop Loss will fill automatically.",
+      });
+      if (!isGuest) qc.invalidateQueries({ queryKey: ["orders"] });
+    }
+    if (failures.length > 0) {
+      toast({
+        title: "Some exit orders weren't created",
+        description: failures[0],
+        variant: "destructive",
+      });
+    }
+  }
+
   const mutation = useMutation({
     mutationFn: async () => {
       // Convert the (possibly USD) field value to the SOL amount the trade API
@@ -619,6 +704,12 @@ function TradePanel({
       });
       setSolAmount("");
       setConfirmOpen(false);
+      // Create any attached TP/SL exit orders now that the buy succeeded and the
+      // position exists. Orders are only ever created after a manual buy.
+      if (t.side === "buy" && attachments) {
+        void placeAttachedOrders(attachments);
+        onAttachmentsConsumed?.();
+      }
       if (isGuest) {
         setSavePromptOpen(true);
       } else {
@@ -1155,11 +1246,15 @@ export default function TradingDesk() {
     nonce: number;
   } | null>(null);
   const [planned, setPlanned] = useState<PlannedTrade | null>(null);
+  // Exit orders staged by the planner, created after the next successful buy.
+  const [pendingAttachments, setPendingAttachments] =
+    useState<PlannedAttachments | null>(null);
 
   // Drop a previously applied plan when switching tokens so a stale target/stop
   // from another market never lingers on the Buy/Sell panel.
   useEffect(() => {
     setPlanned(null);
+    setPendingAttachments(null);
   }, [mint]);
 
   if (!mint) {
@@ -1269,6 +1364,8 @@ export default function TradingDesk() {
             appliedAmount={appliedAmount}
             planned={planned}
             onClearPlanned={() => setPlanned(null)}
+            attachments={pendingAttachments}
+            onAttachmentsConsumed={() => setPendingAttachments(null)}
             unit={unit}
             onUnitChange={setUnit}
           />
@@ -1276,12 +1373,17 @@ export default function TradingDesk() {
             info={info}
             unit={unit}
             onUnitChange={setUnit}
-            onApply={({ amount, planned: p }) => {
+            onApply={({ amount, planned: p, attachments }) => {
               setAppliedAmount({
                 amount: formatAppliedAmount(amount),
                 nonce: Date.now(),
               });
               setPlanned(p);
+              setPendingAttachments(
+                attachments.tp.enabled || attachments.sl.enabled
+                  ? attachments
+                  : null,
+              );
             }}
           />
         </div>

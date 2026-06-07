@@ -14,6 +14,7 @@ import { XLoginButton } from "@/components/x-login-button";
 import { GuestMigrationPrompt } from "@/components/guest-migration-prompt";
 import { RecoveryNotification } from "@/components/recovery-notification";
 import { useAccount } from "@/hooks/use-account";
+import { useOrderFillToasts } from "@/hooks/use-order-fills";
 import { cn } from "@/lib/utils";
 import { SupportSection } from "@/components/support-section";
 import { FeedbackSection } from "@/components/feedback-section";
@@ -58,6 +59,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [location, navigate] = useLocation();
   const [expanded, setExpanded] = useState(false);
   const { wallet, isGuest } = useAccount();
+  // Drive automatic TP/SL fill toasts for both signed-in and guest sessions.
+  useOrderFillToasts();
 
   function handleSearchSelect(mint: string) {
     navigate(`/?token=${mint}`);

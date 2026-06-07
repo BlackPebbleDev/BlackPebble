@@ -129,6 +129,19 @@ function TradeRow({
           )}
           <span className="shrink-0">{isBuy ? "Bought" : "Sold"}</span>
           <span className="text-foreground truncate">{sym}</span>
+          {!isBuy && (t.source === "take_profit" || t.source === "stop_loss") && (
+            <span
+              data-testid={`trade-source-${t.id}`}
+              className={cn(
+                "shrink-0 px-1.5 py-0.5 text-[9px] uppercase tracking-wider border",
+                t.source === "take_profit"
+                  ? "border-emerald-500/40 text-emerald-400"
+                  : "border-red-500/40 text-red-400",
+              )}
+            >
+              {t.source === "take_profit" ? "TP" : "SL"}
+            </span>
+          )}
         </span>
         <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">
           {timeAgo(t.executed_at)}

@@ -15,6 +15,12 @@ import {
   getHistory,
   getTradeQuote,
 } from "../lib/trading.js";
+import {
+  createOrder,
+  listOrders,
+  cancelOrder,
+  evaluateOrders,
+} from "../lib/orders.js";
 
 const router: IRouter = Router();
 
@@ -108,7 +114,67 @@ router.get(
     if (!wallet) return res.status(400).json({ error: "wallet is required" });
     const positions = await valuePositions(wallet);
     const solUsd = await getSolPriceUsd();
-    return res.json({ positions, solUsd });
+    // Evaluate TP/SL orders against the values we just fetched (no new external
+    // calls for the check). Returns the orders that filled this pass so the
+    // client can toast them. Never let an order-eval error break the positions
+    // response — paper positions must always render.
+    let orderFills: Awaited<ReturnType<typeof evaluateOrders>> = [];
+    try {
+      orderFills = await evaluateOrders(wallet, positions);
+    } catch {
+      orderFills = [];
+    }
+    // Re-value after fills so the client sees the post-sell position sizes.
+    const finalPositions =
+      orderFills.length > 0 ? await valuePositions(wallet) : positions;
+    return res.json({ positions: finalPositions, solUsd, orderFills });
+  }),
+);
+
+router.post(
+  "/trade/orders",
+  requireOwnership((req) => String(req.body?.wallet || "").trim()),
+  asyncHandler(async (req, res) => {
+    const b = req.body ?? {};
+    const result = await createOrder({
+      wallet: String(b.wallet || "").trim(),
+      mint: String(b.mint || "").trim(),
+      symbol: b.symbol ?? null,
+      name: b.name ?? null,
+      orderType: b.orderType,
+      triggerType: b.triggerType,
+      triggerValue: Number(b.triggerValue),
+      amountPercent: Number(b.amountPercent),
+    });
+    return res.status(result.ok ? 200 : 400).json(result);
+  }),
+);
+
+router.get(
+  "/trade/orders/:wallet",
+  // Pending TP/SL orders reveal a user's future trading intent, so unlike public
+  // positions/history reads this listing is restricted to the wallet's owner.
+  requireOwnership((req) => String(req.params.wallet || "").trim()),
+  asyncHandler(async (req, res) => {
+    const wallet = String(req.params.wallet || "").trim();
+    if (!wallet) return res.status(400).json({ error: "wallet is required" });
+    const mint = req.query.mint ? String(req.query.mint).trim() : undefined;
+    return res.json({ orders: await listOrders(wallet, mint) });
+  }),
+);
+
+router.post(
+  "/trade/orders/cancel",
+  requireOwnership((req) => String(req.body?.wallet || "").trim()),
+  asyncHandler(async (req, res) => {
+    const b = req.body ?? {};
+    const wallet = String(b.wallet || "").trim();
+    const id = Number(b.id);
+    if (!wallet || !Number.isFinite(id)) {
+      return res.status(400).json({ error: "wallet and id are required" });
+    }
+    const result = await cancelOrder(wallet, id);
+    return res.status(result.ok ? 200 : 400).json(result);
   }),
 );
 

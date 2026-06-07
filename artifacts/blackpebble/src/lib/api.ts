@@ -98,6 +98,7 @@ export interface Trade {
   token_amount: number;
   price: number;
   pnl: number | null;
+  source?: string | null;
   executed_at: number;
   raw_price_usd?: number | null;
   effective_price_usd?: number | null;
@@ -106,6 +107,48 @@ export interface Trade {
   liquidity_usd_at_execution?: number | null;
   sol_usd_price_at_execution?: number | null;
   trade_usd_value?: number | null;
+}
+
+export type OrderType = "take_profit" | "stop_loss";
+export type TriggerType = "market_cap" | "price";
+export type TriggerDirection = "gte" | "lte";
+
+export interface PaperOrder {
+  id: number;
+  wallet: string;
+  token_mint: string;
+  token_symbol: string | null;
+  token_name: string | null;
+  order_type: OrderType;
+  side: string;
+  trigger_type: TriggerType;
+  trigger_value: number;
+  trigger_direction: TriggerDirection;
+  amount_type: string;
+  amount_value: number;
+  status: string;
+  linked_group_id: string | null;
+  linked_trade_plan: string | null;
+  created_at: number;
+  updated_at: number;
+  last_checked_at: number | null;
+  filled_at: number | null;
+  fill_market_cap: number | null;
+  fill_price: number | null;
+  fill_reason: string | null;
+}
+
+export interface OrderFill {
+  orderId: number;
+  orderType: OrderType;
+  tokenMint: string;
+  tokenSymbol: string | null;
+  percent: number;
+  triggerType: TriggerType;
+  triggerValue: number;
+  fillMarketCap: number | null;
+  fillPrice: number | null;
+  pnl: number | null;
 }
 
 export type WarningLevel = "none" | "high" | "extreme";
@@ -272,11 +315,35 @@ export const api = {
       body: JSON.stringify(body),
     }),
   positions: (wallet: string) =>
-    request<{ positions: Position[]; solUsd: number }>(
+    request<{ positions: Position[]; solUsd: number; orderFills?: OrderFill[] }>(
       `/trade/positions/${wallet}`,
     ),
   history: (wallet: string) =>
     request<{ trades: Trade[] }>(`/trade/history/${wallet}`),
+
+  orders: (wallet: string, mint?: string) =>
+    request<{ orders: PaperOrder[] }>(
+      `/trade/orders/${wallet}${mint ? `?mint=${encodeURIComponent(mint)}` : ""}`,
+    ),
+  createOrder: (body: {
+    wallet: string;
+    mint: string;
+    symbol?: string | null;
+    name?: string | null;
+    orderType: OrderType;
+    triggerType: TriggerType;
+    triggerValue: number;
+    amountPercent: number;
+  }) =>
+    request<{ ok: boolean; error?: string; order?: PaperOrder }>(
+      "/trade/orders",
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+  cancelOrder: (wallet: string, id: number) =>
+    request<{ ok: boolean; error?: string }>("/trade/orders/cancel", {
+      method: "POST",
+      body: JSON.stringify({ wallet, id }),
+    }),
   watchlist: (wallet: string) =>
     request<{ watchlist: WatchItem[] }>(`/trade/watchlist/${wallet}`),
   watchlistAdd: (body: Record<string, unknown>) =>

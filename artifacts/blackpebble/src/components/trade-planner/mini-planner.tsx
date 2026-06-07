@@ -28,6 +28,22 @@ export interface PlannedTrade {
   riskReward: number | null;
 }
 
+/** One attachable exit order (TP or SL) carried up to the trading page. */
+export interface AttachmentSpec {
+  enabled: boolean;
+  /** The market-cap trigger value (USD), taken from Target/Stop MC. */
+  triggerMc: number | null;
+  /** Percentage of the position to sell when triggered: 25 | 50 | 100. */
+  percent: number;
+}
+
+export interface PlannedAttachments {
+  tp: AttachmentSpec;
+  sl: AttachmentSpec;
+}
+
+const PERCENT_CHOICES = [25, 50, 100] as const;
+
 const OPEN_KEY = "bp:mini-planner:open";
 const UNIT_KEY = "bp:mini-planner:unit";
 
@@ -53,7 +69,11 @@ export function MiniPlanner({
   onUnitChange,
 }: {
   info: TokenInfo;
-  onApply: (payload: { amount: number; planned: PlannedTrade }) => void;
+  onApply: (payload: {
+    amount: number;
+    planned: PlannedTrade;
+    attachments: PlannedAttachments;
+  }) => void;
   /** When provided, the SOL/USD unit is controlled by the parent (shared with
    *  the Buy/Sell panel). Falls back to local state + sessionStorage otherwise. */
   unit?: Unit;
@@ -79,6 +99,11 @@ export function MiniPlanner({
   const [stop, setStop] = useState("");
   const [investment, setInvestment] = useState("");
   const [applied, setApplied] = useState(false);
+  // Optional exit orders to attach after the next successful buy.
+  const [attachTp, setAttachTp] = useState(false);
+  const [attachSl, setAttachSl] = useState(false);
+  const [tpPercent, setTpPercent] = useState<number>(100);
+  const [slPercent, setSlPercent] = useState<number>(100);
   // Once the user manually edits Entry MC, auto-fill stops until the token
   // changes or the user clicks "Use Current MC".
   const [entryUserControlled, setEntryUserControlled] = useState(false);
@@ -94,6 +119,8 @@ export function MiniPlanner({
       setTarget("");
       setStop("");
       setApplied(false);
+      setAttachTp(false);
+      setAttachSl(false);
     } else if (!entryUserControlled && currentMcStr !== "" && entry !== currentMcStr) {
       // First load before market cap resolved, then it arrived.
       setEntry(currentMcStr);
@@ -150,6 +177,9 @@ export function MiniPlanner({
     parsed.investment > 0 &&
     !(unit === "USD" && (solUsd == null || solUsd <= 0));
 
+  const canAttachTp = parsed.target != null && parsed.target > 0;
+  const canAttachSl = parsed.stop != null && parsed.stop > 0;
+
   function handleApply() {
     if (!canApply || parsed.investment == null) return;
     // Fill the buy field in the active unit — the Buy/Sell panel handles the
@@ -161,6 +191,18 @@ export function MiniPlanner({
         stopMc: parsed.stop,
         returnPct: result.returnPct,
         riskReward: result.riskReward,
+      },
+      attachments: {
+        tp: {
+          enabled: attachTp && canAttachTp,
+          triggerMc: parsed.target,
+          percent: tpPercent,
+        },
+        sl: {
+          enabled: attachSl && canAttachSl,
+          triggerMc: parsed.stop,
+          percent: slPercent,
+        },
       },
     });
     setApplied(true);
@@ -305,6 +347,53 @@ export function MiniPlanner({
             />
           </div>
 
+          {/* Optional exit orders (TP/SL) attached after the next buy. */}
+          <div className="space-y-2 border-t border-border pt-4">
+            <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
+              Attach Exit Orders (optional)
+            </div>
+            <AttachRow
+              label="Take Profit"
+              triggerLabel="Sells when MC ≥ Target"
+              triggerMc={parsed.target}
+              canEnable={canAttachTp}
+              disabledHint="Set a Target MC to enable"
+              enabled={attachTp}
+              onToggle={(v) => {
+                setApplied(false);
+                setAttachTp(v);
+              }}
+              percent={tpPercent}
+              onPercent={(p) => {
+                setApplied(false);
+                setTpPercent(p);
+              }}
+              tone="profit"
+            />
+            <AttachRow
+              label="Stop Loss"
+              triggerLabel="Sells when MC ≤ Stop"
+              triggerMc={parsed.stop}
+              canEnable={canAttachSl}
+              disabledHint="Set a Stop MC to enable"
+              enabled={attachSl}
+              onToggle={(v) => {
+                setApplied(false);
+                setAttachSl(v);
+              }}
+              percent={slPercent}
+              onPercent={(p) => {
+                setApplied(false);
+                setSlPercent(p);
+              }}
+              tone="loss"
+            />
+            <p className="text-[11px] leading-relaxed text-muted-foreground">
+              Exit orders are created only after your next successful Buy and run
+              automatically against the live market cap.
+            </p>
+          </div>
+
           {usdRateMissing && (
             <p className="text-[11px] text-red-400">
               SOL price unavailable for this token — switch to SOL to apply.
@@ -326,6 +415,96 @@ export function MiniPlanner({
             notes. It does not place a trade — you still click Buy. Planning only,
             not financial advice.
           </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * One attachable exit-order row: a toggle to enable it, a 25/50/100% size
+ * selector, and a read-out of the resulting trigger. Disabled until the
+ * corresponding Target/Stop MC is set so the trigger is always concrete.
+ */
+function AttachRow({
+  label,
+  triggerLabel,
+  triggerMc,
+  canEnable,
+  disabledHint,
+  enabled,
+  onToggle,
+  percent,
+  onPercent,
+  tone,
+}: {
+  label: string;
+  triggerLabel: string;
+  triggerMc: number | null;
+  canEnable: boolean;
+  disabledHint: string;
+  enabled: boolean;
+  onToggle: (v: boolean) => void;
+  percent: number;
+  onPercent: (p: number) => void;
+  tone: "profit" | "loss";
+}) {
+  const active = enabled && canEnable;
+  return (
+    <div className="border border-border bg-background/40 p-3">
+      <div className="flex items-center justify-between gap-2">
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={active}
+            disabled={!canEnable}
+            onChange={(e) => onToggle(e.target.checked)}
+            data-testid={`checkbox-attach-${label.toLowerCase().replace(/\s/g, "-")}`}
+            className="h-4 w-4 accent-[var(--accent)] disabled:opacity-40"
+          />
+          <span
+            className={cn(
+              "font-medium",
+              tone === "profit" ? "text-emerald-400" : "text-red-400",
+              !canEnable && "opacity-60",
+            )}
+          >
+            {label}
+          </span>
+        </label>
+        {canEnable ? (
+          <span className="font-mono text-[11px] text-muted-foreground">
+            {triggerLabel.replace("Target", "").replace("Stop", "")}{" "}
+            {fmtMarketCap(triggerMc)}
+          </span>
+        ) : (
+          <span className="text-[11px] text-muted-foreground">{disabledHint}</span>
+        )}
+      </div>
+
+      {active && (
+        <div className="mt-2.5 flex items-center gap-2">
+          <span className="text-[11px] uppercase tracking-wider text-muted-foreground">
+            Sell
+          </span>
+          <div className="flex gap-1">
+            {PERCENT_CHOICES.map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => onPercent(p)}
+                data-testid={`button-attach-pct-${label.toLowerCase().replace(/\s/g, "-")}-${p}`}
+                className={cn(
+                  "h-7 px-2.5 text-xs font-medium border transition-colors",
+                  percent === p
+                    ? "border-accent text-accent bg-accent/10"
+                    : "border-border text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {p}%
+              </button>
+            ))}
+          </div>
         </div>
       )}
     </div>

@@ -518,7 +518,7 @@ export async function executeBuy(
 export async function executeSell(
   wallet: string,
   mint: string,
-  opts: { tokenAmount?: number; percent?: number },
+  opts: { tokenAmount?: number; percent?: number; source?: string | null },
 ): Promise<ExecuteResult> {
   await ensureAccount(wallet);
   if (opts.percent == null && opts.tokenAmount == null) {
@@ -692,12 +692,12 @@ export async function executeSell(
     await dbRun(
       `INSERT INTO trades (
          wallet, token_mint, token_name, token_symbol, token_logo, side,
-         sol_amount, token_amount, price, pnl, executed_at,
+         sol_amount, token_amount, price, pnl, source, executed_at,
          raw_price_usd, effective_price_usd, slippage_percent,
          trade_impact_percent, liquidity_usd_at_execution,
          sol_usd_price_at_execution, trade_usd_value
        )
-       VALUES ($1, $2, $3, $4, $5, 'sell', $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
+       VALUES ($1, $2, $3, $4, $5, 'sell', $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)`,
       [
         wallet,
         mint,
@@ -708,6 +708,7 @@ export async function executeSell(
         tokenAmount,
         price,
         pnl,
+        opts.source ?? null,
         now,
         priceUsd,
         effectivePriceUsd,

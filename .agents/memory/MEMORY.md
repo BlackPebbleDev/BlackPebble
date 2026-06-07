@@ -1,1 +1,3 @@
 - [Adding deps to an artifact](pnpm-add-to-artifact.md) — `pnpm add` from repo root fails ERR_PNPM_ADDING_TO_ROOT; install per-package instead.
+- [Drizzle push needs a TTY](drizzle-push-tty.md) — drizzle-kit push hangs (no TTY); apply DDL via executeSql + mirror in schema/index.ts.
+- [Zero-cost cache observers](zero-cost-cache-observer.md) — global hooks observe an existing polled query (enabled:false) to avoid new fetches; public-wallet GETs vs owner-only pending-intent.

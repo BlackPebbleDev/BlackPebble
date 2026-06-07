@@ -71,6 +71,9 @@ export const trades = pgTable(
     token_amount: doublePrecision("token_amount").notNull(),
     price: doublePrecision("price").notNull(),
     pnl: doublePrecision("pnl"), // only for sells
+    // What produced this trade: null = manual, 'take_profit' / 'stop_loss' for
+    // sells filled by an attached advanced order (used to label trade history).
+    source: text("source"),
     executed_at: bigint("executed_at", { mode: "number" }).default(epoch),
     // Slippage / liquidity-impact audit trail (older rows may be null).
     raw_price_usd: doublePrecision("raw_price_usd"),
@@ -115,6 +118,51 @@ export const portfolioSnapshots = pgTable(
     snapshot_at: bigint("snapshot_at", { mode: "number" }).default(epoch),
   },
   (t) => [index("idx_portfolio_wallet").on(t.wallet)],
+);
+
+// ── Advanced orders (TP/SL) ─────────────────────────────────────────────────
+// Take-profit / stop-loss sell orders attached to an existing paper position.
+// Evaluated on positions-refresh against the current market cap / price already
+// fetched by valuePositions() — no background workers, no extra price feeds.
+export const paperOrders = pgTable(
+  "paper_orders",
+  {
+    id: serial("id").primaryKey(),
+    wallet: text("wallet").notNull(),
+    token_mint: text("token_mint").notNull(),
+    token_symbol: text("token_symbol"),
+    token_name: text("token_name"),
+    // 'take_profit' | 'stop_loss'
+    order_type: text("order_type").notNull(),
+    // Always 'sell' in phase 1 (TP/SL exits). Buy limits are out of scope.
+    side: text("side").notNull().default("sell"),
+    // 'market_cap' | 'price'
+    trigger_type: text("trigger_type").notNull(),
+    trigger_value: doublePrecision("trigger_value").notNull(),
+    // 'gte' (take-profit) | 'lte' (stop-loss)
+    trigger_direction: text("trigger_direction").notNull(),
+    // 'percent_position' in phase 1.
+    amount_type: text("amount_type").notNull().default("percent_position"),
+    amount_value: doublePrecision("amount_value").notNull(),
+    // 'pending' | 'filling' | 'filled' | 'canceled' | 'failed'
+    status: text("status").notNull().default("pending"),
+    // Reserved for future OCO grouping; null in phase 1.
+    linked_group_id: text("linked_group_id"),
+    // Reserved for future plan linkage (JSON); null in phase 1.
+    linked_trade_plan: text("linked_trade_plan"),
+    created_at: bigint("created_at", { mode: "number" }).default(epoch),
+    updated_at: bigint("updated_at", { mode: "number" }).default(epoch),
+    last_checked_at: bigint("last_checked_at", { mode: "number" }),
+    filled_at: bigint("filled_at", { mode: "number" }),
+    fill_market_cap: doublePrecision("fill_market_cap"),
+    fill_price: doublePrecision("fill_price"),
+    fill_reason: text("fill_reason"),
+  },
+  (t) => [
+    index("idx_paper_orders_wallet").on(t.wallet),
+    index("idx_paper_orders_mint_status").on(t.token_mint, t.status),
+    index("idx_paper_orders_status").on(t.status),
+  ],
 );
 
 // ── Analytics ───────────────────────────────────────────────────────────────

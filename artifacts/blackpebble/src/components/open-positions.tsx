@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { ChevronDown, ArrowRight, BarChart3 } from "lucide-react";
 import { type Position } from "@/lib/api";
 import { PnlAmount } from "@/components/pnl-amount";
+import { PositionOrders } from "@/components/position-orders";
 import {
   fmtSol,
   fmtPrice,
@@ -377,6 +378,8 @@ function ExpandedAnalytics({
         Avg entry {fmtPrice(avgEntryUsd)} · Current{" "}
         {currentUsd != null ? fmtPrice(currentUsd) : "—"}
       </div>
+
+      <PositionOrders mint={p.token_mint} />
 
       <div className="flex flex-wrap items-center gap-2 pt-1">
         <button

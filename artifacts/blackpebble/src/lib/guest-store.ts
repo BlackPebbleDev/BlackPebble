@@ -7,6 +7,11 @@ import {
   type WatchItem,
   type PortfolioStats,
   type TradeQuote,
+  type PaperOrder,
+  type OrderFill,
+  type OrderType,
+  type TriggerType,
+  type TriggerDirection,
 } from "@/lib/api";
 import { tierFromRealizedPnl } from "@/lib/tiers";
 
@@ -60,11 +65,31 @@ export interface GuestWatchRow {
   added_at: number;
 }
 
+export interface GuestOrderRow {
+  id: number;
+  token_mint: string;
+  token_symbol: string | null;
+  token_name: string | null;
+  order_type: OrderType;
+  trigger_type: TriggerType;
+  trigger_value: number;
+  trigger_direction: TriggerDirection;
+  amount_value: number;
+  status: string;
+  created_at: number;
+  updated_at: number;
+  filled_at: number | null;
+  fill_market_cap: number | null;
+  fill_price: number | null;
+  fill_reason: string | null;
+}
+
 export interface GuestState {
   balance: number;
   positions: GuestPositionRow[];
   trades: GuestTrade[];
   watchlist: GuestWatchRow[];
+  orders: GuestOrderRow[];
   lastSolUsd: number;
   nextId: number;
   created_at: number;
@@ -76,6 +101,7 @@ function freshState(): GuestState {
     positions: [],
     trades: [],
     watchlist: [],
+    orders: [],
     lastSolUsd: 0,
     nextId: 1,
     created_at: Math.floor(Date.now() / 1000),
@@ -98,6 +124,7 @@ function load(): GuestState {
       positions: parsed.positions ?? [],
       trades: parsed.trades ?? [],
       watchlist: parsed.watchlist ?? [],
+      orders: parsed.orders ?? [],
     };
   } catch {
     return freshState();
@@ -404,8 +431,9 @@ export function guestSell(params: {
   mint: string;
   tokenAmount: number;
   quote: TradeQuote;
+  source?: string | null;
 }): GuestExecuteResult {
-  const { mint, tokenAmount, quote } = params;
+  const { mint, tokenAmount, quote, source } = params;
 
   if (!quote.ok) {
     return { ok: false, error: quote.error || "Trade not executed." };
@@ -461,6 +489,7 @@ export function guestSell(params: {
     token_amount: tokenAmount,
     price,
     pnl,
+    source: source ?? null,
     executed_at: now,
     raw_price_usd: rawPriceUsd,
     effective_price_usd: effectivePriceUsd,
@@ -485,6 +514,213 @@ export function guestSell(params: {
     trade: { side: "sell", mint, solAmount: solReceived, tokenAmount, price, pnl },
     balance: current.balance,
   };
+}
+
+// --- Advanced orders (TP/SL), guest parity ---------------------------------
+
+function updateGuestOrder(id: number, patch: Partial<GuestOrderRow>) {
+  const now = Math.floor(Date.now() / 1000);
+  setState({
+    ...current,
+    orders: current.orders.map((o) =>
+      o.id === id ? { ...o, ...patch, updated_at: now } : o,
+    ),
+  });
+}
+
+/** Create a guest TP/SL order. Requires an open guest position for the mint. */
+export function guestCreateOrder(params: {
+  mint: string;
+  symbol?: string | null;
+  name?: string | null;
+  orderType: OrderType;
+  triggerType: TriggerType;
+  triggerValue: number;
+  amountPercent: number;
+}): { ok: boolean; error?: string; order?: GuestOrderRow } {
+  const { mint, orderType, triggerType, triggerValue, amountPercent } = params;
+  if (!Number.isFinite(triggerValue) || triggerValue <= 0) {
+    return { ok: false, error: "triggerValue must be a positive number" };
+  }
+  if (!Number.isFinite(amountPercent) || amountPercent <= 0 || amountPercent > 100) {
+    return { ok: false, error: "amountPercent must be between 1 and 100" };
+  }
+  const pos = current.positions.find((p) => p.token_mint === mint);
+  if (!pos) {
+    return { ok: false, error: "No open position to attach this order to." };
+  }
+  const now = Math.floor(Date.now() / 1000);
+  let nextId = current.nextId;
+  const order: GuestOrderRow = {
+    id: nextId++,
+    token_mint: mint,
+    token_symbol: params.symbol ?? pos.token_symbol,
+    token_name: params.name ?? pos.token_name,
+    order_type: orderType,
+    trigger_type: triggerType,
+    trigger_value: triggerValue,
+    trigger_direction: orderType === "take_profit" ? "gte" : "lte",
+    amount_value: amountPercent,
+    status: "pending",
+    created_at: now,
+    updated_at: now,
+    filled_at: null,
+    fill_market_cap: null,
+    fill_price: null,
+    fill_reason: null,
+  };
+  setState({ ...current, orders: [...current.orders, order], nextId });
+  return { ok: true, order };
+}
+
+export function guestCancelOrder(id: number): { ok: boolean; error?: string } {
+  const order = current.orders.find((o) => o.id === id);
+  if (!order || (order.status !== "pending" && order.status !== "filling")) {
+    return { ok: false, error: "Order not found or not cancellable" };
+  }
+  updateGuestOrder(id, { status: "canceled" });
+  return { ok: true };
+}
+
+/** Map a guest order row to the shared PaperOrder shape for the UI. */
+export function guestOrderToPaperOrder(o: GuestOrderRow): PaperOrder {
+  return {
+    id: o.id,
+    wallet: "guest",
+    token_mint: o.token_mint,
+    token_symbol: o.token_symbol,
+    token_name: o.token_name,
+    order_type: o.order_type,
+    side: "sell",
+    trigger_type: o.trigger_type,
+    trigger_value: o.trigger_value,
+    trigger_direction: o.trigger_direction,
+    amount_type: "percent_position",
+    amount_value: o.amount_value,
+    status: o.status,
+    linked_group_id: null,
+    linked_trade_plan: null,
+    created_at: o.created_at,
+    updated_at: o.updated_at,
+    last_checked_at: null,
+    filled_at: o.filled_at,
+    fill_market_cap: o.fill_market_cap,
+    fill_price: o.fill_price,
+    fill_reason: o.fill_reason,
+  };
+}
+
+/** Active (pending/filling) guest orders for a mint, as PaperOrder[]. */
+export function guestActiveOrders(
+  state: GuestState,
+  mint?: string,
+): PaperOrder[] {
+  return state.orders
+    .filter(
+      (o) =>
+        (o.status === "pending" || o.status === "filling") &&
+        (mint ? o.token_mint === mint : true),
+    )
+    .sort((a, b) => b.created_at - a.created_at)
+    .map(guestOrderToPaperOrder);
+}
+
+// Guard against overlapping async evaluation passes (each fill awaits a quote).
+let guestEvalInFlight = false;
+
+/**
+ * Evaluate pending guest orders against already-valued positions. Mirrors the
+ * server: the trigger CHECK uses the values useGuestValuedPositions already
+ * fetched (zero new calls); a fill fetches one sell quote (same as a manual
+ * sell) and routes through guestSell so a failed fill never corrupts the local
+ * portfolio. Returns the orders that filled this pass for toasting.
+ */
+export async function evaluateGuestOrders(
+  valued: Position[],
+): Promise<OrderFill[]> {
+  if (guestEvalInFlight) return [];
+  const pending = current.orders.filter((o) => o.status === "pending");
+  if (pending.length === 0) return [];
+
+  guestEvalInFlight = true;
+  const fills: OrderFill[] = [];
+  try {
+    const byMint = new Map(valued.map((p) => [p.token_mint, p]));
+    for (const order of pending) {
+      // Re-check status: an earlier iteration / external change may have moved it.
+      const live = current.orders.find((o) => o.id === order.id);
+      if (!live || live.status !== "pending") continue;
+
+      const pos = byMint.get(order.token_mint);
+      if (!pos) {
+        updateGuestOrder(order.id, {
+          status: "canceled",
+          fill_reason: "position_closed",
+        });
+        continue;
+      }
+      const cur =
+        order.trigger_type === "market_cap"
+          ? pos.currentMarketCapUsd
+          : pos.currentPriceSol;
+      if (cur == null || !Number.isFinite(cur)) continue;
+      const met =
+        order.trigger_direction === "gte"
+          ? cur >= order.trigger_value
+          : cur <= order.trigger_value;
+      if (!met) continue;
+
+      updateGuestOrder(order.id, { status: "filling" });
+      const tokenAmount = pos.total_tokens * (order.amount_value / 100);
+      try {
+        const quote = await api.quote({
+          mint: order.token_mint,
+          side: "sell",
+          tokenAmount,
+        });
+        const res = guestSell({
+          mint: order.token_mint,
+          tokenAmount,
+          quote,
+          source: order.order_type,
+        });
+        if (res.ok) {
+          updateGuestOrder(order.id, {
+            status: "filled",
+            filled_at: Math.floor(Date.now() / 1000),
+            fill_market_cap: pos.currentMarketCapUsd,
+            fill_price: pos.currentPriceSol,
+            fill_reason: "triggered",
+          });
+          fills.push({
+            orderId: order.id,
+            orderType: order.order_type,
+            tokenMint: order.token_mint,
+            tokenSymbol: order.token_symbol,
+            percent: order.amount_value,
+            triggerType: order.trigger_type,
+            triggerValue: order.trigger_value,
+            fillMarketCap: pos.currentMarketCapUsd,
+            fillPrice: pos.currentPriceSol,
+            pnl: res.trade?.pnl ?? null,
+          });
+        } else {
+          updateGuestOrder(order.id, {
+            status: "pending",
+            fill_reason: (res.error ?? "fill_failed").slice(0, 200),
+          });
+        }
+      } catch (e) {
+        updateGuestOrder(order.id, {
+          status: "pending",
+          fill_reason: e instanceof Error ? e.message.slice(0, 200) : "fill_failed",
+        });
+      }
+    }
+  } finally {
+    guestEvalInFlight = false;
+  }
+  return fills;
 }
 
 // --- Watchlist --------------------------------------------------------------
@@ -519,11 +755,20 @@ export function guestWatchRemove(mint: string) {
  * valuePositions(): currentValueSol from the live SOL price, unrealized P&L,
  * and market-cap change since entry.
  */
-export function useGuestValuedPositions(): {
+export function useGuestValuedPositions(opts?: {
+  /**
+   * When true, this hook only OBSERVES the shared token-info cache (populated by
+   * the Trading/Portfolio pages) and never initiates its own fetches. Used by
+   * the global fill-toast hook so it adds zero new external API calls — guest
+   * fills can only happen while a page is already polling token data anyway.
+   */
+  observeOnly?: boolean;
+}): {
   positions: Position[];
   solUsd: number;
   isLoading: boolean;
 } {
+  const observeOnly = opts?.observeOnly ?? false;
   const state = useGuestStore();
   const mints = state.positions.map((p) => p.token_mint);
 
@@ -531,7 +776,8 @@ export function useGuestValuedPositions(): {
     queries: mints.map((mint) => ({
       queryKey: ["token", mint, null],
       queryFn: () => api.getToken(mint),
-      refetchInterval: 15_000,
+      enabled: !observeOnly,
+      refetchInterval: observeOnly ? (false as const) : 15_000,
       staleTime: 10_000,
     })),
   });

@@ -1,0 +1,353 @@
+PLAN ONLY — DO NOT CODE
+
+Design the cheapest, safest architecture for BlackPebble paper trading advanced orders.
+
+Goal:
+Integrate Buy Limit, Sell Limit, Take Profit, and Stop Loss orders with the existing paper trading system and the Mini Trade Planner.
+
+This should let users plan a trade, apply it to the paper trading form, and optionally attach planned order rules without requiring expensive always-on polling.
+
+====================================================
+CURRENT CONTEXT
+
+BlackPebble already has:
+
+* Paper buy/sell trading
+* Portfolio positions
+* Position value
+* Unrealized P&L
+* Token chart / market data
+* Mini Trade Planner on token page
+* Full Trade Planner utility
+* SOL/USD toggles
+* Apply To Trade button from Mini Trade Planner
+
+The Mini Trade Planner already has:
+
+* Entry MC
+* Target MC
+* Stop MC
+* Investment amount
+* SOL/USD unit
+* Expected value
+* Projected profit
+* Return %
+* Risk %
+* Reward %
+* Risk/reward
+* Target multiple
+* Buy amount
+* Apply To Trade
+
+====================================================
+MAIN PRODUCT GOAL
+
+The user should be able to:
+
+1. View token chart
+2. Open Mini Trade Planner
+3. Enter target MC and stop MC
+4. Enter investment amount
+5. Click Apply To Trade
+6. Paper buy manually
+7. Save planned take profit / stop loss rules to the position
+8. Have BlackPebble check those rules when the user returns, refreshes, or opens Trading / Portfolio
+
+This is a paper trading simulation, not real trading.
+
+====================================================
+IMPORTANT COST CONSTRAINT
+
+Avoid expensive always-on infrastructure.
+
+Do NOT recommend:
+
+* constant background polling for all users
+* checking every watchlist token
+* checking inactive users every minute
+* push notification workers
+* real-time order execution loops
+* expensive always-on candle scanning
+
+Preferred MVP:
+
+* refresh-based order checks
+* check only active user positions
+* check only tokens with open planned orders
+* use existing market data where available
+* optionally use candle history later only when needed
+
+====================================================
+ORDERS TO PLAN
+
+Plan architecture for:
+
+1. Buy Limit Order
+
+* User wants paper buy only if token reaches a lower/higher target MC or price
+* Order sits pending until checked
+
+2. Sell Limit / Take Profit
+
+* User already owns paper position
+* Sell X% or X SOL when target MC/price is reached
+
+3. Stop Loss
+
+* User already owns paper position
+* Sell X% or 100% when stop MC/price is reached
+
+4. Planned Trade From Mini Planner
+
+* Mini Planner can create:
+    * buy amount
+    * target MC
+    * stop MC
+    * optional take profit percentage
+    * optional stop loss percentage
+    * notes
+
+====================================================
+EXECUTION MODEL OPTIONS
+
+Analyze and compare:
+
+OPTION A — Current-price refresh only
+
+* On Trading/Portfolio load, fetch current MC/price
+* If order trigger is crossed, execute simulated fill
+* Cheapest
+* Less historically accurate
+
+OPTION B — Candle-history check on return
+
+* Store last checked timestamp
+* On user return, fetch candle history since last check
+* Check high/low to see if stop or target was touched
+* More accurate
+* Higher API cost
+
+OPTION C — Hybrid MVP
+
+* Start with current-price refresh
+* Add candle-history verification only for tokens with open orders and only when last checked is old enough
+
+Recommend the best MVP path.
+
+====================================================
+DATA MODEL
+
+Propose minimal database additions.
+
+Consider tables like:
+
+paperOrders
+
+* id
+* user/account id
+* wallet/account key
+* token address
+* token symbol
+* order type
+* side
+* trigger type: market_cap or price
+* trigger value
+* amount type: percent_position, sol_amount, usd_amount
+* amount value
+* status: pending, filled, canceled, expired, failed
+* created at
+* updated at
+* last checked at
+* filled at
+* fill MC
+* fill price
+* fill reason
+* linked position id
+* linked trade plan id if needed
+
+tradePlans or plannedTrade metadata if needed:
+
+* entry MC
+* target MC
+* stop MC
+* investment
+* investment unit
+* risk/reward snapshot
+* notes
+
+Keep schema minimal for MVP.
+
+====================================================
+ORDER RULES
+
+For long paper trades:
+
+Take Profit / Sell Limit:
+
+* Trigger when current MC/price >= target
+
+Stop Loss:
+
+* Trigger when current MC/price <= stop
+
+Buy Limit:
+
+* For dip buys: trigger when current MC/price <= entry target
+* For breakout buys later: trigger when current MC/price >= breakout target
+* For MVP, recommend whether to support only dip buy limits first
+
+OCO:
+
+* Do not build yet
+* But plan how take profit and stop loss can later cancel each other
+
+Partial sells:
+
+* Allow percentage-based sells later
+* Recommend MVP:
+    * 100% stop loss
+    * optional 25/50/100% take profit
+
+====================================================
+MINI TRADE PLANNER INTEGRATION
+
+Plan how Apply To Trade should evolve.
+
+Current:
+
+* Fill buy amount
+* Save target/stop as planning notes
+
+Future:
+Apply To Trade should allow:
+
+* Fill buy amount
+* Attach stop loss
+* Attach take profit
+* Save plan snapshot
+* User still manually confirms paper buy
+* After buy succeeds, linked stop/take-profit orders are created
+
+Do not auto-buy without user confirmation.
+
+====================================================
+UI PLAN
+
+Plan UI changes for token page:
+
+Buy/Sell panel:
+
+* Keep clean
+* Add optional Advanced Orders collapsed section
+
+Mini Planner:
+
+* Keep compact
+* Add checkbox options:
+    * Attach stop loss
+    * Attach take profit
+* Add percentage selector:
+    * 25%
+    * 50%
+    * 100%
+
+Positions section:
+
+* Show active planned orders attached to each position
+* Example:
+    Stop: 30k MC
+    TP: 500k MC
+    Status: Pending
+
+Portfolio page:
+
+* Show open orders summary
+* Check pending orders on load/refresh
+
+History:
+
+* When order triggers, write clear trade history:
+    Filled by Stop Loss
+    Filled by Take Profit
+    Filled by Limit Buy
+
+====================================================
+API COST CONTROL
+
+Plan exact API cost controls.
+
+Requirements:
+
+* Never scan all tokens
+* Never scan inactive users
+* Only check positions/orders for current user/session
+* Debounce refresh checks
+* Cache token market data where possible
+* Limit candle-history checks
+* Avoid repeated checks on same token within short window
+* Use existing market data already loaded on page when possible
+
+Recommend:
+
+* refresh interval
+* cache duration
+* when to call external APIs
+* when not to call external APIs
+
+====================================================
+SAFETY / INTEGRITY
+
+Plan how to avoid breaking existing paper trading.
+
+Requirements:
+
+* Existing manual buy/sell remains unchanged
+* Existing portfolio P&L remains unchanged
+* Leaderboard should only update after simulated fills are finalized
+* Failed order checks should not corrupt portfolio
+* Duplicate trigger prevention
+* Idempotent order execution
+* Orders cannot fill twice
+* Orders should respect existing slippage / liquidity rules if practical
+* Clear logs for debugging
+
+====================================================
+PHASED BUILD PLAN
+
+Return a phased plan:
+
+Phase 1:
+Planned stop/take-profit attached to positions, checked on page refresh using current MC only.
+
+Phase 2:
+Limit buy orders.
+
+Phase 3:
+Candle-history verification.
+
+Phase 4:
+OCO orders.
+
+Phase 5:
+Partial exits and moonbag planner integration.
+
+Phase 6:
+Notifications / alerts, only if cost-effective.
+
+====================================================
+DO NOT BUILD YET
+
+This is planning only.
+
+Return:
+
+1. Recommended MVP architecture
+2. Files likely to change
+3. Minimal database schema proposal
+4. How Mini Planner connects to paper trade
+5. How orders are checked cheaply
+6. API cost risks
+7. What should not be built yet
+8. Exact build phases
+9. Risk assessment
+10. Recommended next build prompt after planning
