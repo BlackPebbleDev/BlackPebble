@@ -1,4 +1,4 @@
-import { Loader2, AlertTriangle } from "lucide-react";
+import { Loader2, AlertTriangle, Info } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -8,8 +8,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { shortAddr } from "@/lib/format";
-import { formatRentSol, type UseWalletCleaner } from "@/hooks/use-wallet-cleaner";
+import { RecoverySummary } from "@/components/wallet-cleaner/recovery-summary";
+import { type UseWalletCleaner } from "@/hooks/use-wallet-cleaner";
 
 export function ClosePreviewDialog({
   cleaner,
@@ -22,74 +22,102 @@ export function ClosePreviewDialog({
   onOpenChange: (open: boolean) => void;
   onConfirm: () => void;
 }) {
-  const { selectedAccounts, selectedRecoverable, txCount, status } = cleaner;
+  const { selectedAccounts, txCount, status, progress, error } = cleaner;
   const isClosing = status === "closing";
+  const hasError = status === "error";
+
+  const pct =
+    progress && progress.totalBatches > 0
+      ? Math.round((progress.batchIndex / progress.totalBatches) * 100)
+      : 0;
 
   return (
-    <Dialog open={open} onOpenChange={(o) => (isClosing ? null : onOpenChange(o))}>
+    <Dialog
+      open={open}
+      onOpenChange={(o) => (isClosing ? null : onOpenChange(o))}
+    >
       <DialogContent className="max-w-md" data-testid="dialog-close-preview">
         <DialogHeader>
-          <DialogTitle>Confirm account closing</DialogTitle>
+          <DialogTitle>
+            {isClosing ? "Closing accounts" : "Confirm account closing"}
+          </DialogTitle>
           <DialogDescription>
-            Review exactly what will happen before you sign. This action cannot be
-            undone, but it only closes empty accounts.
+            {isClosing
+              ? "Approve each transaction in your wallet. Do not close this window."
+              : "Review exactly what will happen before you sign. This only closes empty accounts."}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
-          <div className="grid grid-cols-3 gap-px bg-border border border-border">
-            <div className="bg-card px-3 py-2.5">
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                Accounts
+        {isClosing && progress ? (
+          <div className="space-y-4 py-2" data-testid="close-progress">
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-foreground">
+                  Closing accounts {progress.fromIndex}–{progress.toIndex} of{" "}
+                  {progress.total}
+                </span>
               </div>
-              <div className="font-mono text-base text-foreground">
-                {selectedAccounts.length}
-              </div>
-            </div>
-            <div className="bg-card px-3 py-2.5">
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                Recover
-              </div>
-              <div className="font-mono text-base text-foreground">
-                {formatRentSol(selectedRecoverable)}
+              <div className="text-xs text-muted-foreground">
+                Transaction {progress.batchIndex} of {progress.totalBatches}
               </div>
             </div>
-            <div className="bg-card px-3 py-2.5">
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                Signatures
-              </div>
-              <div className="font-mono text-base text-foreground">
-                {txCount}
-              </div>
-            </div>
-          </div>
-
-          <div className="border border-border bg-card max-h-48 overflow-y-auto divide-y divide-border">
-            {selectedAccounts.map((acc) => (
+            <div className="h-1.5 w-full bg-secondary overflow-hidden">
               <div
-                key={acc.pubkey}
-                className="flex items-center justify-between gap-3 px-3 py-2 text-xs"
-              >
-                <span className="font-mono text-muted-foreground truncate">
-                  {shortAddr(acc.mint, 6)}
-                </span>
-                <span className="font-mono text-foreground flex-shrink-0">
-                  {formatRentSol(acc.sol)} SOL
-                </span>
-              </div>
-            ))}
+                className="h-full bg-accent transition-all"
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-accent" />
+              Waiting for wallet confirmation…
+            </div>
           </div>
+        ) : (
+          <div className="space-y-4">
+            <RecoverySummary cleaner={cleaner} />
 
-          <div className="flex items-start gap-2.5 text-[11px] text-muted-foreground leading-relaxed border-t border-border pt-3">
-            <AlertTriangle className="w-3.5 h-3.5 text-accent flex-shrink-0 mt-0.5" />
-            <span>
-              {txCount > 1
-                ? `Your wallet will prompt you ${txCount} times — once per transaction.`
-                : "Your wallet will prompt you once to sign."}{" "}
-              A small network fee applies. All recovered SOL goes to your wallet.
-            </span>
+            <div className="border border-border bg-card max-h-40 overflow-y-auto divide-y divide-border">
+              {selectedAccounts.map((acc) => (
+                <div
+                  key={acc.pubkey}
+                  className="flex items-center justify-between gap-3 px-3 py-2 text-xs"
+                >
+                  <span className="font-mono text-muted-foreground truncate">
+                    {acc.mint.slice(0, 6)}…{acc.mint.slice(-6)}
+                  </span>
+                  <span className="font-mono text-foreground flex-shrink-0">
+                    {acc.sol.toLocaleString("en-US", {
+                      minimumFractionDigits: 4,
+                      maximumFractionDigits: 6,
+                    })}{" "}
+                    SOL
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {hasError && error && (
+              <div
+                className="flex items-start gap-2.5 border border-destructive-border bg-destructive/10 px-3 py-2.5 text-xs text-foreground"
+                data-testid="preview-error"
+              >
+                <AlertTriangle className="w-3.5 h-3.5 text-red-400 flex-shrink-0 mt-0.5" />
+                <span>{error}</span>
+              </div>
+            )}
+
+            <div className="flex items-start gap-2.5 text-[11px] text-muted-foreground leading-relaxed border-t border-border pt-3">
+              <Info className="w-3.5 h-3.5 text-accent flex-shrink-0 mt-0.5" />
+              <span>
+                Closed token accounts cannot be recovered.{" "}
+                {txCount > 1
+                  ? `Your wallet will prompt you ${txCount} times — once per transaction.`
+                  : "Your wallet will prompt you once to sign."}{" "}
+                All recovered SOL goes to your connected wallet.
+              </span>
+            </div>
           </div>
-        </div>
+        )}
 
         <DialogFooter className="gap-2 sm:gap-2">
           <Button
@@ -110,6 +138,8 @@ export function ClosePreviewDialog({
                 <Loader2 className="w-4 h-4 animate-spin" />
                 Closing…
               </>
+            ) : hasError ? (
+              "Retry"
             ) : (
               `Close ${selectedAccounts.length} ${
                 selectedAccounts.length === 1 ? "account" : "accounts"

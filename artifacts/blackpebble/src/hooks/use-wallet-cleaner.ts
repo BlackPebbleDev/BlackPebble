@@ -41,6 +41,28 @@ export type CleanerStatus =
  */
 const MAX_CLOSES_PER_TX = 10;
 
+/**
+ * Solana's base fee is 5000 lamports per signature. Each close transaction we
+ * build has exactly one signer (the fee payer), so this is the per-transaction
+ * fee estimate. Total estimated fee = number of transactions × this value.
+ */
+const FEE_LAMPORTS_PER_TX = 5000;
+const FEE_SOL_PER_TX = FEE_LAMPORTS_PER_TX / LAMPORTS_PER_SOL;
+
+/** Live progress while closing batches of accounts. */
+export interface CloseProgress {
+  /** 1-based index of the batch currently being signed. */
+  batchIndex: number;
+  /** Total number of batches/transactions for this run. */
+  totalBatches: number;
+  /** 1-based index of the first account in the current batch. */
+  fromIndex: number;
+  /** 1-based index of the last account in the current batch. */
+  toIndex: number;
+  /** Total number of accounts being closed in this run. */
+  total: number;
+}
+
 /** Format a recoverable-rent SOL amount with enough precision for ~0.002 values. */
 export function formatRentSol(sol: number | null | undefined): string {
   if (sol == null || !Number.isFinite(sol)) return "—";
@@ -58,11 +80,14 @@ export interface UseWalletCleaner {
   selectedAccounts: CloseableAccount[];
   totalRecoverable: number;
   selectedRecoverable: number;
+  estimatedFee: number;
+  estimatedNet: number;
   closedCount: number;
   recoveredSol: number;
   txCount: number;
+  progress: CloseProgress | null;
   scan: () => Promise<void>;
-  closeSelected: () => Promise<void>;
+  closeSelected: () => Promise<boolean>;
   toggle: (pubkey: string) => void;
   selectAll: () => void;
   clearSelection: () => void;
@@ -79,6 +104,7 @@ export function useWalletCleaner(): UseWalletCleaner {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [closedCount, setClosedCount] = useState(0);
   const [recoveredSol, setRecoveredSol] = useState(0);
+  const [progress, setProgress] = useState<CloseProgress | null>(null);
 
   const scan = useCallback(async () => {
     if (!publicKey) return;
@@ -88,6 +114,7 @@ export function useWalletCleaner(): UseWalletCleaner {
     setSelected(new Set());
     setClosedCount(0);
     setRecoveredSol(0);
+    setProgress(null);
 
     try {
       const owner = publicKey.toBase58();
@@ -162,21 +189,29 @@ export function useWalletCleaner(): UseWalletCleaner {
     }
   }, [connection, publicKey]);
 
-  const closeSelected = useCallback(async () => {
-    if (!publicKey) return;
+  const closeSelected = useCallback(async (): Promise<boolean> => {
+    if (!publicKey) return false;
     const toClose = accounts.filter((a) => selected.has(a.pubkey));
-    if (toClose.length === 0) return;
+    if (toClose.length === 0) return false;
 
     setStatus("closing");
     setError(null);
 
-    try {
-      let closed = 0;
-      let recovered = 0;
-      const closedPubkeys = new Set<string>();
+    const totalBatches = Math.ceil(toClose.length / MAX_CLOSES_PER_TX);
+    let closed = 0;
+    let recovered = 0;
+    const closedPubkeys = new Set<string>();
 
+    try {
       for (let i = 0; i < toClose.length; i += MAX_CLOSES_PER_TX) {
         const batch = toClose.slice(i, i + MAX_CLOSES_PER_TX);
+        setProgress({
+          batchIndex: Math.floor(i / MAX_CLOSES_PER_TX) + 1,
+          totalBatches,
+          fromIndex: i + 1,
+          toIndex: i + batch.length,
+          total: toClose.length,
+        });
         const tx = new Transaction();
 
         for (const acc of batch) {
@@ -214,12 +249,33 @@ export function useWalletCleaner(): UseWalletCleaner {
       setRecoveredSol(recovered);
       setAccounts((prev) => prev.filter((a) => !closedPubkeys.has(a.pubkey)));
       setSelected(new Set());
+      setProgress(null);
       setStatus("done");
+      return true;
     } catch (e) {
+      // Drop any accounts that DID close so a retry only targets what remains.
+      if (closedPubkeys.size > 0) {
+        setAccounts((prev) => prev.filter((a) => !closedPubkeys.has(a.pubkey)));
+        setSelected((prev) => {
+          const next = new Set(prev);
+          for (const pk of closedPubkeys) next.delete(pk);
+          return next;
+        });
+        setClosedCount(closed);
+        setRecoveredSol(recovered);
+      }
+      const prefix =
+        closed > 0
+          ? `Closed ${closed} account${closed === 1 ? "" : "s"} before stopping. `
+          : "";
       setError(
-        e instanceof Error ? e.message : "Failed to close the selected accounts.",
+        prefix +
+          (e instanceof Error
+            ? e.message
+            : "Failed to close the selected accounts."),
       );
       setStatus("error");
+      return false;
     }
   }, [accounts, selected, publicKey, connection, sendTransaction]);
 
@@ -245,6 +301,7 @@ export function useWalletCleaner(): UseWalletCleaner {
     setSelected(new Set());
     setClosedCount(0);
     setRecoveredSol(0);
+    setProgress(null);
   }, []);
 
   const selectedAccounts = useMemo(
@@ -264,6 +321,11 @@ export function useWalletCleaner(): UseWalletCleaner {
 
   const txCount = Math.ceil(selectedAccounts.length / MAX_CLOSES_PER_TX);
 
+  // Fee is one base signature per transaction. Net is what actually lands in
+  // the wallet after that fee, floored at 0 so it never reads negative.
+  const estimatedFee = txCount * FEE_SOL_PER_TX;
+  const estimatedNet = Math.max(0, selectedRecoverable - estimatedFee);
+
   return {
     status,
     error,
@@ -272,9 +334,12 @@ export function useWalletCleaner(): UseWalletCleaner {
     selectedAccounts,
     totalRecoverable,
     selectedRecoverable,
+    estimatedFee,
+    estimatedNet,
     closedCount,
     recoveredSol,
     txCount,
+    progress,
     scan,
     closeSelected,
     toggle,

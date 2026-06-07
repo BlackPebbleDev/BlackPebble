@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { useWalletCleaner, formatRentSol } from "@/hooks/use-wallet-cleaner";
 import { SafetyBanner } from "@/components/wallet-cleaner/safety-banner";
 import { ScanResults } from "@/components/wallet-cleaner/scan-results";
+import { RecoverySummary } from "@/components/wallet-cleaner/recovery-summary";
 import { ClosePreviewDialog } from "@/components/wallet-cleaner/close-preview-dialog";
 
 export default function WalletCleaner() {
@@ -35,8 +36,9 @@ export default function WalletCleaner() {
   } = cleaner;
 
   async function handleConfirmClose() {
-    await closeSelected();
-    setPreviewOpen(false);
+    const ok = await closeSelected();
+    // Keep the modal open on failure so the error and progress stay visible.
+    if (ok) setPreviewOpen(false);
   }
 
   return (
@@ -81,7 +83,8 @@ export default function WalletCleaner() {
         </div>
       ) : (
         <>
-          {(status === "idle" || status === "error") && (
+          {(status === "idle" ||
+            (status === "error" && accounts.length === 0)) && (
             <div className="space-y-4">
               <Button
                 onClick={scan}
@@ -108,23 +111,37 @@ export default function WalletCleaner() {
             </div>
           )}
 
-          {(status === "scanned" || status === "closing") &&
-            (accounts.length > 0 ? (
-              <ScanResults cleaner={cleaner} />
-            ) : (
-              <div className="border border-border bg-card p-10 text-center space-y-3">
-                <CheckCircle2 className="w-8 h-8 text-accent mx-auto" />
-                <div className="space-y-1">
-                  <div className="font-semibold">Your wallet is clean</div>
-                  <p className="text-sm text-muted-foreground">
-                    No empty token accounts with recoverable rent were found.
-                  </p>
-                </div>
-                <Button variant="outline" onClick={scan} data-testid="button-rescan">
-                  Scan again
-                </Button>
+          {(status === "scanned" ||
+            status === "closing" ||
+            status === "error") &&
+            accounts.length > 0 && (
+              <div className="space-y-5">
+                <ScanResults cleaner={cleaner} />
+                {selectedAccounts.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
+                      Recovery summary
+                    </div>
+                    <RecoverySummary cleaner={cleaner} />
+                  </div>
+                )}
               </div>
-            ))}
+            )}
+
+          {status === "scanned" && accounts.length === 0 && (
+            <div className="border border-border bg-card p-10 text-center space-y-3">
+              <CheckCircle2 className="w-8 h-8 text-accent mx-auto" />
+              <div className="space-y-1">
+                <div className="font-semibold">Your wallet is clean</div>
+                <p className="text-sm text-muted-foreground">
+                  No empty token accounts with recoverable rent were found.
+                </p>
+              </div>
+              <Button variant="outline" onClick={scan} data-testid="button-rescan">
+                Scan again
+              </Button>
+            </div>
+          )}
 
           {status === "done" && (
             <div className="border border-border bg-card p-10 text-center space-y-3">
