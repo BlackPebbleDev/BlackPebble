@@ -79,6 +79,9 @@ export function MiniPlanner({
   const [stop, setStop] = useState("");
   const [investment, setInvestment] = useState("");
   const [applied, setApplied] = useState(false);
+  // Once the user manually edits Entry MC, auto-fill stops until the token
+  // changes or the user clicks "Use Current MC".
+  const [entryUserControlled, setEntryUserControlled] = useState(false);
 
   // Auto-fill / reset planning inputs when the viewed token changes so Entry MC
   // always defaults to the current token's market cap.
@@ -87,14 +90,15 @@ export function MiniPlanner({
     if (lastMint.current !== info.mint) {
       lastMint.current = info.mint;
       setEntry(currentMcStr);
+      setEntryUserControlled(false);
       setTarget("");
       setStop("");
       setApplied(false);
-    } else if (entry === "" && currentMcStr !== "") {
+    } else if (!entryUserControlled && currentMcStr !== "" && entry !== currentMcStr) {
       // First load before market cap resolved, then it arrived.
       setEntry(currentMcStr);
     }
-  }, [info.mint, currentMcStr, entry]);
+  }, [info.mint, currentMcStr, entry, entryUserControlled]);
 
   useEffect(() => writeSession(OPEN_KEY, open ? "1" : "0"), [open]);
   // Persist the unit only when uncontrolled; the parent owns persistence when
@@ -202,8 +206,20 @@ export function MiniPlanner({
             <PlannerField
               label="Entry MC"
               value={entry}
-              onChange={edited(setEntry)}
+              onChange={(v) => {
+                setEntryUserControlled(true);
+                setApplied(false);
+                setEntry(v);
+              }}
               placeholder="e.g. 100k"
+              action={{
+                label: "Use Current MC",
+                onClick: () => {
+                  setEntryUserControlled(false);
+                  setApplied(false);
+                  setEntry(currentMcStr);
+                },
+              }}
               testId="input-mini-entry"
             />
             <PlannerField

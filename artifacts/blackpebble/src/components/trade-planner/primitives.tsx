@@ -88,6 +88,7 @@ export function PlannerField({
   error,
   hint,
   optional,
+  action,
   inputMode = "decimal",
   testId,
 }: {
@@ -99,6 +100,7 @@ export function PlannerField({
   error?: string;
   hint?: string;
   optional?: boolean;
+  action?: { label: string; onClick: () => void };
   inputMode?: "decimal" | "text";
   testId?: string;
 }) {
@@ -106,7 +108,18 @@ export function PlannerField({
     <div className="space-y-1.5">
       <label className="flex items-center justify-between text-[11px] uppercase tracking-wider text-muted-foreground">
         <span>{label}</span>
-        {optional ? <span className="normal-case">Optional</span> : null}
+        <span className="flex items-center gap-2">
+          {action ? (
+            <button
+              type="button"
+              onClick={action.onClick}
+              className="normal-case text-[10px] text-accent transition-colors hover:text-accent/80"
+            >
+              {action.label}
+            </button>
+          ) : null}
+          {optional ? <span className="normal-case">Optional</span> : null}
+        </span>
       </label>
       <div className="relative">
         <Input
@@ -161,13 +174,13 @@ export function Stat({
           ? "text-accent"
           : "text-foreground";
   return (
-    <div className="space-y-1">
-      <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
+    <div className="min-w-0 space-y-1">
+      <div className="text-[11px] uppercase tracking-wider text-muted-foreground truncate">
         {label}
       </div>
       <div
         className={cn(
-          "font-mono tabular-nums",
+          "font-mono tabular-nums break-all",
           emphasis ? "text-lg font-semibold" : "text-sm",
           toneClass,
         )}
