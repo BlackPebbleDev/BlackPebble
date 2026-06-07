@@ -325,7 +325,7 @@ export default function Portfolio() {
           />
 
           <h2 className="text-lg font-semibold mb-3 mt-8">Exit Orders</h2>
-          <AllExitOrders />
+          <AllExitOrders onNavigate={(mint) => navigate(`/?token=${mint}`)} />
 
           <h2 className="text-lg font-semibold mb-3 mt-8">Watchlist</h2>
           <Watchlist onNavigate={(mint) => navigate(`/?token=${mint}`)} />

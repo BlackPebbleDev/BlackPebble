@@ -45,10 +45,12 @@ function OrderRow({
   order,
   showToken,
   onCancel,
+  onNavigate,
 }: {
   order: PaperOrder;
   showToken?: boolean;
   onCancel: (id: number) => void;
+  onNavigate?: (mint: string) => void;
 }) {
   const isBuyLimit = order.order_type === "buy_limit";
   const isTp = order.order_type === "take_profit";
@@ -72,11 +74,24 @@ function OrderRow({
       className="flex items-center justify-between gap-2 border border-border/60 bg-background/40 px-2.5 py-1.5 text-xs"
     >
       <span className="flex items-center gap-1.5 min-w-0">
-        {showToken && (
-          <span className="font-mono font-medium text-foreground/80 shrink-0">
-            {order.token_symbol ?? order.token_mint.slice(0, 6)}
-          </span>
-        )}
+        {showToken &&
+          (onNavigate ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onNavigate(order.token_mint);
+              }}
+              data-testid={`button-order-token-${order.id}`}
+              className="font-mono font-medium text-foreground/80 hover:text-accent transition-colors shrink-0"
+            >
+              {order.token_symbol ?? order.token_mint.slice(0, 6)}
+            </button>
+          ) : (
+            <span className="font-mono font-medium text-foreground/80 shrink-0">
+              {order.token_symbol ?? order.token_mint.slice(0, 6)}
+            </span>
+          ))}
         <span className={cn("font-medium shrink-0", labelColor)}>
           {label}
         </span>
@@ -150,7 +165,11 @@ export function PositionOrders({ mint }: { mint: string }) {
  * every position/token, with token symbol prefix and cancel. Used on the
  * Portfolio page.
  */
-export function AllExitOrders() {
+export function AllExitOrders({
+  onNavigate,
+}: {
+  onNavigate?: (mint: string) => void;
+}) {
   const { wallet, isGuest } = useAccount();
   const guestState = useGuestStore();
   const cancel = useCancelOrder();
@@ -193,7 +212,12 @@ export function AllExitOrders() {
           <div className="divide-y divide-border/40">
             {buyLimits.map((o) => (
               <div key={o.id} className="px-3 py-1.5">
-                <OrderRow order={o} showToken onCancel={cancel} />
+                <OrderRow
+                  order={o}
+                  showToken
+                  onCancel={cancel}
+                  onNavigate={onNavigate}
+                />
               </div>
             ))}
           </div>
@@ -203,7 +227,12 @@ export function AllExitOrders() {
         <div className="border border-border bg-card divide-y divide-border/40">
           {exitOrders.map((o) => (
             <div key={o.id} className="px-3 py-1.5">
-              <OrderRow order={o} showToken onCancel={cancel} />
+              <OrderRow
+                order={o}
+                showToken
+                onCancel={cancel}
+                onNavigate={onNavigate}
+              />
             </div>
           ))}
         </div>
