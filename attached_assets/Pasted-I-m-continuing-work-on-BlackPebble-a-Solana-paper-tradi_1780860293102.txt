@@ -1,0 +1,74 @@
+I'm continuing work on BlackPebble, a Solana paper trading platform built in Replit.
+
+The repository code was just reorganized for better maintainability (Phase 1 complete).
+All changes are non-breaking - 100% of functionality is preserved.
+
+Before I add new features, I need you to pull the latest code and verify everything still works.
+
+## STEP 1: PULL LATEST CODE FROM GITHUB
+- Pull the latest commit (check for REPLIT_NEXT_STEPS.md file to confirm)
+- Run: npm install (clean install)
+
+## STEP 2: VERIFY COMPILATION
+- Run: npm run typecheck
+  (Should show: "✅ Types OK" - no errors)
+- Run: npm run build
+  (Should show: "✅ Build OK" - completes without errors)
+- Run: npm run dev
+  (Should show: Dev server running on http://localhost:8080)
+
+## STEP 3: TEST CORE TRADING FUNCTIONALITY
+Navigate to the app in browser:
+- Go to home page (/)
+- Search for a token (try "USDC")
+- Execute a MANUAL BUY (0.5 SOL)
+- Verify: Trade appears in history, balance updates
+- Execute a MANUAL SELL (50% of position)
+- Verify: Sell completes, P&L shows green or red
+
+## STEP 4: TEST PORTFOLIO
+- Navigate to /portfolio
+- Verify: Open positions display
+- Verify: Total balance shows
+- Verify: P&L shows correct color (green if +, red if -)
+- Verify: Trade history displays
+- Verify: Watchlist displays
+
+## STEP 5: TEST LAYOUTS
+- Desktop: Full width should display everything
+- Mobile: Use Chrome DevTools (iPhone 12 view) - should be responsive
+- Verify: No layout shifts while loading
+- Verify: All buttons clickable
+
+## STEP 6: CHECK FOR ERRORS
+- Open DevTools (F12)
+- Check Console tab - should have NO red errors
+- Check Network tab - verify API calls are working
+- List any errors you see
+
+## STEP 7: REPORT RESULTS
+Tell me:
+✅ OR ❌ - npm run typecheck
+✅ OR ❌ - npm run build
+✅ OR ❌ - npm run dev (starts cleanly)
+✅ OR ❌ - Can buy paper token
+✅ OR ❌ - Can sell paper token
+✅ OR ❌ - Portfolio loads and updates
+✅ OR ❌ - Mobile layout responsive
+✅ OR ❌ - No console errors
+
+Any errors or broken features?
+
+## REFERENCE DOCUMENTS
+If you need details:
+- REPLIT_NEXT_STEPS.md - Full implementation guide
+- CLEANUP_PROGRESS.md - What changed and why
+- Check console for specific error messages
+
+## IMPORTANT NOTES
+⚠️ Do NOT modify code yet - just verify it works
+⚠️ The changes are organization-only, no feature changes
+⚠️ If tests fail, run: git checkout HEAD~1 to rollback
+⚠️ After verification, I'll ask you to implement Phase 2A improvements
+
+Just run the tests and report results. No coding needed from you yet.
