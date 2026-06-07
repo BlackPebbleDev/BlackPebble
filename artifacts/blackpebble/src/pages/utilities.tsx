@@ -1,7 +1,5 @@
 import { Sparkles, ChevronRight, Target } from "lucide-react";
 import { Link } from "wouter";
-import { SupportSection } from "@/components/support-section";
-import { FeedbackSection } from "@/components/feedback-section";
 
 const IN_DEVELOPMENT = [
   "Wallet and token research dashboards",
@@ -74,8 +72,6 @@ export default function Utilities() {
         </div>
       </div>
 
-      <SupportSection />
-      <FeedbackSection />
     </div>
   );
 }
