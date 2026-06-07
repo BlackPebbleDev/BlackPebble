@@ -1,11 +1,12 @@
 /** Section 4 — Trade Summary. Final read-out + setup rating + disclaimer. */
 import { SectionCard, Stat } from "./primitives";
-import { fmtValuation, fmtSolAmt, fmtRR } from "./util";
+import { fmtValuation, fmtUnitAmt, fmtRR } from "./util";
 import { cn } from "@/lib/utils";
 import type {
   InputMode,
   PlanResult,
   SetupRating,
+  Unit,
 } from "@/lib/trade-planner";
 
 /** Rating colours stay within brand: gold for strong, muted otherwise. No P&L green/red. */
@@ -23,12 +24,14 @@ function ratingClass(rating: SetupRating): string {
 }
 
 export function TradeSummary({
+  unit,
   inputMode,
   entry,
   stop,
   target,
   result,
 }: {
+  unit: Unit;
   inputMode: InputMode;
   entry: number | null;
   stop: number | null;
@@ -62,18 +65,18 @@ export function TradeSummary({
             <Stat label="Entry" value={fmtValuation(entry, inputMode)} />
             <Stat label="Stop" value={fmtValuation(stop, inputMode)} />
             <Stat label="Target" value={fmtValuation(target, inputMode)} />
-            <Stat label="Position Size" value={fmtSolAmt(result.positionSize)} />
-            <Stat label="Risk Amount" value={fmtSolAmt(result.lossAtStop)} tone="loss" />
+            <Stat label="Position Size" value={fmtUnitAmt(result.positionSize, unit)} />
+            <Stat label="Risk Amount" value={fmtUnitAmt(result.lossAtStop, unit)} tone="loss" />
             <Stat label="Risk / Reward" value={fmtRR(result.riskReward)} />
             <Stat
               label="Potential Profit"
-              value={fmtSolAmt(result.profitAtTarget)}
+              value={fmtUnitAmt(result.profitAtTarget, unit)}
               tone="profit"
             />
             <Stat
               label="Potential Loss"
               value={
-                result.lossAtStop != null ? fmtSolAmt(-result.lossAtStop) : "—"
+                result.lossAtStop != null ? fmtUnitAmt(-result.lossAtStop, unit) : "—"
               }
               tone="loss"
             />

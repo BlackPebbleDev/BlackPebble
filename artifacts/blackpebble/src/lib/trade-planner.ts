@@ -14,6 +14,9 @@
 
 export type InputMode = "marketcap" | "price";
 
+/** Investment unit used for position sizing and outcome calculations. */
+export type Unit = "SOL" | "USD";
+
 /**
  * Mode A ("risk"): account size + risk % + stop drive a *suggested* position.
  * Mode B ("fixed"): a preferred position size drives the *actual* risk taken.

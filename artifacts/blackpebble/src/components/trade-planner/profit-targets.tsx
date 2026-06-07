@@ -1,18 +1,21 @@
 /** Section 3 — Profit Targets. Quick multiples projected off entry + position. */
 import { SectionCard } from "./primitives";
-import { fmtValuation, fmtSolAmt } from "./util";
+import { fmtValuation, fmtUnitAmt } from "./util";
 import {
   projectTargets,
   QUICK_MULTIPLES,
   type InputMode,
+  type Unit,
 } from "@/lib/trade-planner";
 
 export function ProfitTargets({
+  unit,
   inputMode,
   entry,
   positionSize,
   onPickMultiple,
 }: {
+  unit: Unit;
   inputMode: InputMode;
   entry: number | null;
   positionSize: number | null;
@@ -68,10 +71,10 @@ export function ProfitTargets({
                       {fmtValuation(r.valuation, inputMode)}
                     </td>
                     <td className="px-3 py-2 text-right text-foreground">
-                      {r.positionValue != null ? fmtSolAmt(r.positionValue) : "—"}
+                      {r.positionValue != null ? fmtUnitAmt(r.positionValue, unit) : "—"}
                     </td>
                     <td className="px-3 py-2 text-right text-emerald-400">
-                      {r.profit != null ? fmtSolAmt(r.profit) : "—"}
+                      {r.profit != null ? fmtUnitAmt(r.profit, unit) : "—"}
                     </td>
                   </tr>
                 ))}

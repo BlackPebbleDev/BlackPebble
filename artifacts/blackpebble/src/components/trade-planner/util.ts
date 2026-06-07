@@ -4,7 +4,7 @@
  * planner modules format identically.
  */
 import { fmtMarketCap, fmtPrice } from "@/lib/format";
-import type { InputMode } from "@/lib/trade-planner";
+import type { InputMode, Unit } from "@/lib/trade-planner";
 
 /** Format a valuation for display: compact market cap or token price. */
 export function fmtValuation(
@@ -17,8 +17,22 @@ export function fmtValuation(
 
 /** SOL amount with a trailing unit, 2–4 decimals. */
 export function fmtSolAmt(value: number | null | undefined): string {
+  return fmtUnitAmt(value, "SOL");
+}
+
+/**
+ * Unit-aware amount: "2.00 SOL" in SOL mode, "$100.00" in USD mode.
+ * 2–4 decimal places (more for sub-1 SOL values, always 2 for USD).
+ */
+export function fmtUnitAmt(value: number | null | undefined, unit: Unit): string {
   if (value == null || !Number.isFinite(value)) return "—";
   const abs = Math.abs(value);
+  if (unit === "USD") {
+    return `$${value.toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+  }
   const digits = abs > 0 && abs < 1 ? 4 : 2;
   return `${value.toLocaleString("en-US", {
     minimumFractionDigits: digits,
