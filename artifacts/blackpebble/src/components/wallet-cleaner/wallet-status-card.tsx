@@ -12,10 +12,43 @@ function formatBalanceSol(sol: number | null): string {
   });
 }
 
+function Metric({
+  label,
+  value,
+  sub,
+  testId,
+  emphasis,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  testId: string;
+  emphasis?: boolean;
+}) {
+  return (
+    <div className="px-3.5 py-3" data-testid={testId}>
+      <div className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1">
+        {label}
+      </div>
+      <div
+        className={cn(
+          "font-mono",
+          emphasis ? "text-lg text-accent" : "text-lg text-foreground",
+        )}
+      >
+        {value}
+      </div>
+      {sub && <div className="text-[11px] text-muted-foreground mt-0.5">{sub}</div>}
+    </div>
+  );
+}
+
 /**
- * The post-connect overview of the wallet: live on-chain SOL balance plus the
- * scan totals (empty accounts, recoverable rent, estimated fees and net). Before
- * a scan completes the recovery rows read "—"; after a clean scan they read 0.
+ * Primary SOL Recovery status card: the connected wallet plus the four headline
+ * figures — live balance, recoverable SOL, estimated net recovery and a Wallet
+ * Health score. Recovery figures read "—" until a scan completes (they are never
+ * shown as a misleading 0), and Wallet Health is derived only from the real
+ * count of empty accounts found.
  */
 export function WalletStatusCard({ cleaner }: { cleaner: UseWalletCleaner }) {
   const {
@@ -25,8 +58,8 @@ export function WalletStatusCard({ cleaner }: { cleaner: UseWalletCleaner }) {
     balanceStatus,
     accounts,
     totalRecoverable,
-    totalFee,
     totalNet,
+    walletHealth,
     refreshBalance,
   } = cleaner;
 
@@ -43,32 +76,7 @@ export function WalletStatusCard({ cleaner }: { cleaner: UseWalletCleaner }) {
         ? "Unavailable"
         : `${formatBalanceSol(walletBalance)} SOL`;
 
-  const recovery = hasScanned ? "value" : ("pending" as const);
-  const fmt = (sol: number) =>
-    recovery === "value" ? `${formatRentSol(sol)} SOL` : "—";
-
-  const rows: Array<{ label: string; value: string; testId: string }> = [
-    {
-      label: "Empty accounts found",
-      value: hasScanned ? String(accounts.length) : "—",
-      testId: "status-empty-accounts",
-    },
-    {
-      label: "Recoverable SOL",
-      value: fmt(totalRecoverable),
-      testId: "status-recoverable",
-    },
-    {
-      label: "Estimated network fees",
-      value: fmt(totalFee),
-      testId: "status-fees",
-    },
-    {
-      label: "Estimated net receive",
-      value: fmt(totalNet),
-      testId: "status-net",
-    },
-  ];
+  const fmt = (sol: number) => (hasScanned ? `${formatRentSol(sol)} SOL` : "—");
 
   return (
     <div
@@ -92,54 +100,65 @@ export function WalletStatusCard({ cleaner }: { cleaner: UseWalletCleaner }) {
             </div>
           </div>
         </div>
-        <div className="text-right flex-shrink-0">
-          <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
-            Balance
-          </div>
-          <div className="flex items-center justify-end gap-1.5">
-            <span
-              className={cn(
-                "font-mono text-sm",
-                balanceStatus === "error"
-                  ? "text-muted-foreground"
-                  : "text-foreground",
-              )}
-              data-testid="text-wallet-balance"
-            >
-              {balanceText}
-            </span>
-            <button
-              type="button"
-              onClick={() => void refreshBalance()}
-              disabled={balanceStatus === "loading"}
-              className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-              aria-label="Refresh balance"
-              data-testid="button-refresh-balance"
-            >
-              <RefreshCw
-                className={cn(
-                  "w-3.5 h-3.5",
-                  balanceStatus === "loading" && "animate-spin",
-                )}
-              />
-            </button>
-          </div>
-        </div>
+        <button
+          type="button"
+          onClick={() => void refreshBalance()}
+          disabled={balanceStatus === "loading"}
+          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+          aria-label="Refresh balance"
+          data-testid="button-refresh-balance"
+        >
+          <RefreshCw
+            className={cn(
+              "w-3.5 h-3.5",
+              balanceStatus === "loading" && "animate-spin",
+            )}
+          />
+          Refresh
+        </button>
       </div>
 
-      <div className="border border-border divide-y divide-border">
-        {rows.map((row) => (
-          <div
-            key={row.label}
-            className="flex items-center justify-between gap-4 px-3 py-2.5"
-            data-testid={`row-${row.testId}`}
-          >
-            <span className="text-xs text-muted-foreground">{row.label}</span>
-            <span className="font-mono text-sm text-foreground">
-              {row.value}
-            </span>
-          </div>
-        ))}
+      <div className="grid grid-cols-2 border border-border divide-border [&>*]:border-border">
+        <div className="border-b border-r">
+          <Metric
+            label="Wallet balance"
+            value={balanceText}
+            testId="metric-balance"
+          />
+        </div>
+        <div className="border-b">
+          <Metric
+            label="Recoverable SOL"
+            value={fmt(totalRecoverable)}
+            sub={hasScanned ? `${accounts.length} empty accounts` : undefined}
+            testId="metric-recoverable"
+            emphasis={hasScanned && totalRecoverable > 0}
+          />
+        </div>
+        <div className="border-r">
+          <Metric
+            label="Est. net recovery"
+            value={fmt(totalNet)}
+            sub="after network fees"
+            testId="metric-net"
+          />
+        </div>
+        <div>
+          <Metric
+            label="Wallet health"
+            value={hasScanned ? `${walletHealth} / 100` : "—"}
+            sub={
+              hasScanned
+                ? accounts.length === 0
+                  ? "No cleanup needed"
+                  : `${accounts.length} cleanup ${
+                      accounts.length === 1 ? "opportunity" : "opportunities"
+                    }`
+                : undefined
+            }
+            testId="metric-health"
+          />
+        </div>
       </div>
     </div>
   );

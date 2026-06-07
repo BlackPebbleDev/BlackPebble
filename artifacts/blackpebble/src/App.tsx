@@ -18,6 +18,7 @@ import { AppShell } from "@/components/app-shell";
 import { AccountProvider } from "@/hooks/use-account";
 import { XAuthProvider } from "@/hooks/use-x-auth";
 import { PnlCurrencyProvider } from "@/lib/pnl-currency";
+import { RecoveryDiscoveryProvider } from "@/lib/recovery-discovery";
 import NotFound from "@/pages/not-found";
 import TradingDesk from "@/pages/trading";
 import Markets from "@/pages/markets";
@@ -38,6 +39,7 @@ function Router() {
         <Route path="/portfolio" component={Portfolio} />
         <Route path="/position/:mint" component={PositionDetail} />
         <Route path="/leaderboard" component={Leaderboard} />
+        <Route path="/utilities/sol-recovery" component={WalletCleaner} />
         <Route path="/utilities/wallet-cleaner" component={WalletCleaner} />
         <Route path="/utilities" component={Utilities} />
         <Route component={NotFound} />
@@ -74,11 +76,15 @@ function App() {
         <SolanaProviders>
           <XAuthProvider>
             <AccountProvider>
-              <PnlCurrencyProvider>
-                <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-                  <Router />
-                </WouterRouter>
-              </PnlCurrencyProvider>
+              <RecoveryDiscoveryProvider>
+                <PnlCurrencyProvider>
+                  <WouterRouter
+                    base={import.meta.env.BASE_URL.replace(/\/$/, "")}
+                  >
+                    <Router />
+                  </WouterRouter>
+                </PnlCurrencyProvider>
+              </RecoveryDiscoveryProvider>
             </AccountProvider>
           </XAuthProvider>
         </SolanaProviders>

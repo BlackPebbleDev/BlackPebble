@@ -1,0 +1,478 @@
+BLACKPEBBLE SOL RECOVERY ECOSYSTEM
+
+OBJECTIVE
+
+Transform Wallet Cleaner into a flagship utility called:
+
+SOL Recovery
+
+Build a better experience than:
+
+* RefundYourSOL
+* Sol Incinerator
+* Similar rent recovery utilities
+
+Do NOT copy their design.
+
+Maintain BlackPebble’s premium black/gold trading-terminal aesthetic.
+
+====================================================
+CRITICAL REQUIREMENTS
+
+Do NOT modify:
+
+* Paper Trading calculations
+* Paper Trading PnL
+* Portfolio performance metrics
+* Leaderboards
+* Market feeds
+* Charts
+* Trading engine
+* X authentication
+* Wallet authentication
+* Database schema
+* Existing API routes
+
+All work should remain isolated to:
+
+* Utilities
+* SOL Recovery
+* Discovery widgets
+* Portfolio visibility components
+
+====================================================
+STEP 1
+RENAME UTILITY
+
+Rename user-facing utility:
+
+Wallet Cleaner
+
+to
+
+SOL Recovery
+
+Utility Card:
+
+Title:
+SOL Recovery
+
+Description:
+Recover trapped SOL from unused token accounts and reclaim locked rent safely.
+
+Future-proof description:
+
+Recoverable assets and wallet cleanup tools.
+
+====================================================
+STEP 2
+SOL RECOVERY DASHBOARD
+
+Replace current utility page with a future-ready dashboard.
+
+Header:
+
+SOL Recovery
+
+Recover trapped SOL from unused token accounts and reclaim locked rent safely.
+
+====================================================
+PRIMARY STATUS CARD
+
+Display:
+
+Connected Wallet
+
+Wallet Balance
+
+Recoverable SOL
+
+Estimated Net Recovery
+
+Wallet Health
+
+Example:
+
+Wallet Balance
+1.245 SOL
+
+Recoverable SOL
+0.084 SOL
+
+Estimated Net Recovery
+0.0837 SOL
+
+Wallet Health
+92 / 100
+
+Wallet Health should be derived from:
+
+* Empty accounts
+* Dust accounts
+* Cleanup opportunities
+
+No fabricated values.
+
+====================================================
+SCAN RESULTS
+
+Structure into expandable sections.
+
+====================================================
+RECOVER NOW
+
+Current safe recovery candidates.
+
+Examples:
+
+* Empty token accounts
+
+Display:
+
+Account count
+
+Recoverable SOL
+
+====================================================
+REVIEW
+
+Future category.
+
+Architecture only.
+
+Examples:
+
+* Dust tokens
+* Burn candidates
+* Small balance accounts
+
+Do not implement burn logic yet.
+
+====================================================
+PROTECTED
+
+Examples:
+
+* SOL
+* Verified assets
+* Important assets
+* NFTs
+
+Never auto-select.
+
+====================================================
+RECOVERY SUMMARY
+
+Display:
+
+Accounts Selected
+
+Recoverable SOL
+
+Estimated Network Fees
+
+Estimated Net Recovery
+
+Transactions Required
+
+====================================================
+PREVIEW SCREEN
+
+Before signing:
+
+Display:
+
+Accounts being closed
+
+Recoverable SOL
+
+Estimated Fees
+
+Estimated Net
+
+Transactions Required
+
+Buttons:
+
+Cancel
+
+Recover SOL
+
+Require explicit confirmation.
+
+====================================================
+PROGRESS SCREEN
+
+Display:
+
+Transaction X of Y
+
+Accounts completed
+
+Accounts remaining
+
+Current batch progress
+
+Live progress updates.
+
+====================================================
+COMPLETION SCREEN
+
+Display:
+
+Recovery Complete
+
+SOL Recovered
+
+Accounts Closed
+
+Updated Wallet Balance
+
+Buttons:
+
+Scan Again
+
+View Details
+
+====================================================
+EMPTY WALLET EXPERIENCE
+
+If no recoverable accounts exist:
+
+Display:
+
+Wallet Clean
+
+No recoverable token accounts were found.
+
+Current wallet balance remains visible.
+
+Do NOT display errors.
+
+====================================================
+STEP 3
+PORTFOLIO DISCOVERY SYSTEM
+
+IMPORTANT
+
+Recoverable SOL must be visible from Portfolio.
+
+However:
+
+Recoverable SOL must NEVER be mixed into paper trading performance.
+
+Recoverable SOL is a wallet utility metric.
+
+Not a trading metric.
+
+Not portfolio PnL.
+
+Not account equity.
+
+====================================================
+PORTFOLIO CARD
+
+Add separate card:
+
+SOL Recovery
+
+Display:
+
+Recoverable SOL
+
+Status
+
+Action
+
+Example:
+
+SOL Recovery
+
+Recoverable SOL
+0.084 SOL
+
+Status
+Available
+
+Button:
+Recover →
+
+Opens:
+
+Utilities → SOL Recovery
+
+====================================================
+WHEN NO WALLET IS CONNECTED
+
+Many users will sign in with:
+
+X only
+
+without connecting a wallet.
+
+The SOL Recovery card should still appear.
+
+Example:
+
+SOL Recovery
+
+Connect a wallet to check for recoverable SOL.
+
+Button:
+
+Connect Wallet
+
+This keeps the feature visible and educates users that recovery exists.
+
+====================================================
+WHEN WALLET IS CONNECTED
+
+Display live data.
+
+Example:
+
+Recoverable SOL
+
+0.084 SOL
+
+Status
+
+Available
+
+Recover →
+
+====================================================
+WHEN WALLET IS CLEAN
+
+Display:
+
+Recoverable SOL
+
+0.0000 SOL
+
+Status
+
+Wallet Clean
+
+Scan Again →
+
+====================================================
+DISCOVERY NOTIFICATION
+
+After wallet connection:
+
+Run lightweight background recovery scan.
+
+If recoverable SOL > 0:
+
+Display small dismissible notification.
+
+Title:
+
+Recoverable SOL Available
+
+Body:
+
+X.XXXX SOL is available for recovery.
+
+Buttons:
+
+Recover Now
+
+Dismiss
+
+Requirements:
+
+* Non-blocking
+* No modal
+* No interruption
+* Session dismissal support
+
+Recover Now opens:
+
+Utilities → SOL Recovery
+
+====================================================
+NO WALLET CONNECTED
+
+Do not display notification.
+
+====================================================
+STEP 4
+FUTURE ARCHITECTURE
+
+Prepare architecture for future modules.
+
+Do NOT implement yet.
+
+Future modules:
+
+* Burn Dust Tokens
+* Burn + Close
+* NFT Cleanup
+* Spam Asset Cleanup
+* LP Cleanup
+* Wallet Audit
+* Token Audit
+* Portfolio Cleanup
+
+The current SOL Recovery page should support future modules without redesign.
+
+====================================================
+SAFETY RULES
+
+Maintain:
+
+* No auto-selection
+* No auto-burning
+* No platform fees
+* No database changes
+* No backend changes
+* No NFT burning
+* No token burning
+* No closing accounts with balances
+
+Current functionality remains:
+
+Close Empty Accounts
+
+Only.
+
+====================================================
+USER EXPERIENCE GOAL
+
+A user should discover SOL Recovery in three places:
+
+1. Utilities tab
+2. Portfolio SOL Recovery card
+3. Wallet connection notification
+
+This ensures users discover the feature naturally without advertisements or intrusive popups.
+
+====================================================
+FINAL QA
+
+Verify:
+
+* Paper Trading untouched
+* Portfolio calculations untouched
+* PnL untouched
+* Leaderboards untouched
+* Charts untouched
+* Market feeds untouched
+* Authentication untouched
+* Wallet balance accurate
+* Recoverable SOL accurate
+* Portfolio SOL Recovery card works
+* X-only users see Connect Wallet version
+* Wallet users see live recovery version
+* Notification functions correctly
+* Future architecture prepared
+
+Return:
+
+* Files changed
+* SOL Recovery implementation summary
+* Portfolio discovery summary
+* Future architecture summary
+* Confirmation that paper trading was not modified

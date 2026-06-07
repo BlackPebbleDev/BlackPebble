@@ -1,31 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { LAMPORTS_PER_SOL, PublicKey, Transaction } from "@solana/web3.js";
+import { createCloseAccountInstruction } from "@solana/spl-token";
 import {
-  TOKEN_PROGRAM_ID,
-  TOKEN_2022_PROGRAM_ID,
-  createCloseAccountInstruction,
-} from "@solana/spl-token";
+  scanCloseableAccounts,
+  computeWalletHealth,
+  formatRentSol,
+  MAX_CLOSES_PER_TX,
+  FEE_SOL_PER_TX,
+  type CloseableAccount,
+} from "@/lib/recovery-scan";
 
-/**
- * A token account that is SAFE to close. An account only ever reaches this list
- * when it holds a zero token balance, so closing it can never move an NFT or any
- * valuable token — there is nothing in it but the locked rent.
- */
-export interface CloseableAccount {
-  /** The token account address (this is what gets closed). */
-  pubkey: string;
-  /** The token mint the (now empty) account was created for. */
-  mint: string;
-  /** Actual lamports locked as rent in this account — read from chain, never assumed. */
-  lamports: number;
-  /** Recoverable SOL derived from the real lamports value. */
-  sol: number;
-  /** Token decimals, used only for display. */
-  decimals: number;
-  /** Owning token program (classic SPL or Token-2022) — needed to build the close ix. */
-  programId: string;
-}
+export { formatRentSol } from "@/lib/recovery-scan";
+export type { CloseableAccount } from "@/lib/recovery-scan";
 
 export type CleanerStatus =
   | "idle"
@@ -41,20 +28,6 @@ export type CleanerStatus =
  */
 export type BalanceStatus = "idle" | "loading" | "ready" | "error";
 
-/**
- * Solana caps a transaction at 1232 bytes. Each close instruction is small, but
- * we batch conservatively so large wallets never produce an oversized tx.
- */
-const MAX_CLOSES_PER_TX = 10;
-
-/**
- * Solana's base fee is 5000 lamports per signature. Each close transaction we
- * build has exactly one signer (the fee payer), so this is the per-transaction
- * fee estimate. Total estimated fee = number of transactions × this value.
- */
-const FEE_LAMPORTS_PER_TX = 5000;
-const FEE_SOL_PER_TX = FEE_LAMPORTS_PER_TX / LAMPORTS_PER_SOL;
-
 /** Live progress while closing batches of accounts. */
 export interface CloseProgress {
   /** 1-based index of the batch currently being signed. */
@@ -67,15 +40,6 @@ export interface CloseProgress {
   toIndex: number;
   /** Total number of accounts being closed in this run. */
   total: number;
-}
-
-/** Format a recoverable-rent SOL amount with enough precision for ~0.002 values. */
-export function formatRentSol(sol: number | null | undefined): string {
-  if (sol == null || !Number.isFinite(sol)) return "—";
-  return sol.toLocaleString("en-US", {
-    minimumFractionDigits: 4,
-    maximumFractionDigits: 6,
-  });
 }
 
 export interface UseWalletCleaner {
@@ -94,6 +58,7 @@ export interface UseWalletCleaner {
   totalTxCount: number;
   totalFee: number;
   totalNet: number;
+  walletHealth: number;
   closedCount: number;
   recoveredSol: number;
   txCount: number;
@@ -169,70 +134,7 @@ export function useWalletCleaner(): UseWalletCleaner {
     setProgress(null);
 
     try {
-      const owner = publicKey.toBase58();
-      const programs = [TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID];
-      const found: CloseableAccount[] = [];
-      let anySuccess = false;
-
-      for (const programId of programs) {
-        try {
-          const resp = await connection.getParsedTokenAccountsByOwner(
-            publicKey,
-            { programId },
-          );
-          anySuccess = true;
-
-          for (const { pubkey, account } of resp.value) {
-            const info = (account.data as { parsed?: { info?: any } })?.parsed
-              ?.info;
-            // SAFETY: anything we cannot confidently parse is skipped entirely.
-            if (!info) continue;
-
-            const tokenAmount = info.tokenAmount;
-            if (!tokenAmount || typeof tokenAmount.amount !== "string") continue;
-
-            // SAFETY: only ever consider accounts with a zero balance. An empty
-            // account holds no token or NFT, so closing it cannot move anything.
-            if (tokenAmount.amount !== "0") continue;
-
-            // SAFETY: if a custom close authority is set and it is not us, the
-            // account is controlled by someone else — skip it.
-            const closeAuth = info.closeAuthority as string | undefined;
-            if (closeAuth && closeAuth !== owner) continue;
-
-            const lamports = account.lamports ?? 0;
-            // Nothing to recover — skip rather than show a misleading 0.
-            if (lamports <= 0) continue;
-
-            found.push({
-              pubkey: pubkey.toBase58(),
-              mint: typeof info.mint === "string" ? info.mint : "unknown",
-              lamports,
-              sol: lamports / LAMPORTS_PER_SOL,
-              decimals:
-                typeof tokenAmount.decimals === "number"
-                  ? tokenAmount.decimals
-                  : 0,
-              programId: programId.toBase58(),
-            });
-          }
-        } catch (e) {
-          // Some RPCs do not support Token-2022 lookups; keep classic results.
-          console.warn(
-            `Wallet cleaner: scan failed for program ${programId.toBase58()}`,
-            e,
-          );
-        }
-      }
-
-      if (!anySuccess) {
-        throw new Error(
-          "Could not read token accounts from the network. Please try again.",
-        );
-      }
-
-      // Largest recoverable first so the most impactful accounts surface on top.
-      found.sort((a, b) => b.lamports - a.lamports);
+      const found = await scanCloseableAccounts(connection, publicKey);
       setAccounts(found);
       setStatus("scanned");
       // A scan does not change the balance, but refresh so the status card is
@@ -389,6 +291,9 @@ export function useWalletCleaner(): UseWalletCleaner {
   const totalFee = totalTxCount * FEE_SOL_PER_TX;
   const totalNet = Math.max(0, totalRecoverable - totalFee);
 
+  // Cleanup score derived purely from the real number of empty accounts found.
+  const walletHealth = computeWalletHealth(accounts.length);
+
   return {
     status,
     error,
@@ -405,6 +310,7 @@ export function useWalletCleaner(): UseWalletCleaner {
     totalTxCount,
     totalFee,
     totalNet,
+    walletHealth,
     closedCount,
     recoveredSol,
     txCount,

@@ -9,14 +9,24 @@ import {
   CheckCircle2,
   AlertTriangle,
   Wallet,
+  ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useWalletCleaner, formatRentSol } from "@/hooks/use-wallet-cleaner";
 import { SafetyBanner } from "@/components/wallet-cleaner/safety-banner";
 import { WalletStatusCard } from "@/components/wallet-cleaner/wallet-status-card";
-import { ScanResults } from "@/components/wallet-cleaner/scan-results";
+import { RecoverySections } from "@/components/wallet-cleaner/recovery-sections";
 import { RecoverySummary } from "@/components/wallet-cleaner/recovery-summary";
 import { ClosePreviewDialog } from "@/components/wallet-cleaner/close-preview-dialog";
+
+/** Wallet-balance precision matching the status card. */
+function formatBalanceSol(sol: number | null): string {
+  if (sol == null || !Number.isFinite(sol)) return "—";
+  return sol.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 4,
+  });
+}
 
 export default function WalletCleaner() {
   const { connected } = useWallet();
@@ -26,6 +36,8 @@ export default function WalletCleaner() {
   const {
     status,
     error,
+    owner,
+    walletBalance,
     accounts,
     selectedAccounts,
     selectedRecoverable,
@@ -59,12 +71,11 @@ export default function WalletCleaner() {
           </div>
           <div className="space-y-1.5">
             <h1 className="text-2xl font-semibold leading-tight">
-              Recover trapped SOL from empty token accounts
+              SOL Recovery
             </h1>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Solana token accounts can keep rent locked after trades.
-              BlackPebble scans for empty accounts and lets you safely close
-              them.
+              Recover trapped SOL from unused token accounts and reclaim locked
+              rent safely.
             </p>
           </div>
         </div>
@@ -78,12 +89,69 @@ export default function WalletCleaner() {
           <div className="space-y-1">
             <div className="font-semibold">Connect your wallet to begin</div>
             <p className="text-sm text-muted-foreground">
-              The cleaner reads your token accounts directly from the Solana
+              SOL Recovery reads your token accounts directly from the Solana
               network. Nothing is signed until you choose to close accounts.
             </p>
           </div>
           <div className="flex justify-center">
             <WalletMultiButton />
+          </div>
+        </div>
+      ) : status === "done" ? (
+        <div
+          className="border border-border bg-card p-6 sm:p-8 text-center space-y-5"
+          data-testid="recovery-complete"
+        >
+          <CheckCircle2 className="w-9 h-9 text-accent mx-auto" />
+          <div className="space-y-1">
+            <div className="text-lg font-semibold">Recovery complete</div>
+            <p className="text-sm text-muted-foreground">
+              Your recovered SOL has landed in your connected wallet.
+            </p>
+          </div>
+          <div className="grid grid-cols-3 border border-border divide-x divide-border max-w-md mx-auto">
+            <div className="px-3 py-3">
+              <div className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1">
+                SOL recovered
+              </div>
+              <div className="font-mono text-sm text-accent">
+                {formatRentSol(recoveredSol)}
+              </div>
+            </div>
+            <div className="px-3 py-3">
+              <div className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1">
+                Accounts closed
+              </div>
+              <div className="font-mono text-sm text-foreground">
+                {closedCount}
+              </div>
+            </div>
+            <div className="px-3 py-3">
+              <div className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1">
+                Wallet balance
+              </div>
+              <div className="font-mono text-sm text-foreground">
+                {formatBalanceSol(walletBalance)} SOL
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center justify-center gap-2">
+            <Button onClick={scan} data-testid="button-scan-again">
+              Scan again
+            </Button>
+            {owner && (
+              <a
+                href={`https://solscan.io/account/${owner}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                data-testid="link-view-details"
+              >
+                <Button variant="outline">
+                  View details
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </Button>
+              </a>
+            )}
           </div>
         </div>
       ) : (
@@ -100,7 +168,7 @@ export default function WalletCleaner() {
               >
                 {status === "error"
                   ? "Try scanning again"
-                  : "Scan for empty accounts"}
+                  : "Scan for recoverable SOL"}
               </Button>
               {status === "error" && error && (
                 <div className="flex items-start gap-2.5 border border-destructive-border bg-destructive/10 px-4 py-3 text-sm text-foreground">
@@ -125,7 +193,7 @@ export default function WalletCleaner() {
             status === "error") &&
             accounts.length > 0 && (
               <div className="space-y-5">
-                <ScanResults cleaner={cleaner} />
+                <RecoverySections cleaner={cleaner} />
                 {selectedAccounts.length > 0 && (
                   <div className="space-y-2">
                     <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
@@ -138,35 +206,19 @@ export default function WalletCleaner() {
             )}
 
           {status === "scanned" && accounts.length === 0 && (
-            <div className="border border-border bg-card p-10 text-center space-y-3">
+            <div
+              className="border border-border bg-card p-10 text-center space-y-3"
+              data-testid="wallet-clean"
+            >
               <CheckCircle2 className="w-8 h-8 text-accent mx-auto" />
               <div className="space-y-1">
                 <div className="font-semibold">Wallet clean</div>
                 <p className="text-sm text-muted-foreground">
-                  No empty token accounts were found for this wallet.
+                  No recoverable token accounts were found. Your current balance
+                  is shown above.
                 </p>
               </div>
               <Button variant="outline" onClick={scan} data-testid="button-rescan">
-                Scan again
-              </Button>
-            </div>
-          )}
-
-          {status === "done" && (
-            <div className="border border-border bg-card p-10 text-center space-y-3">
-              <CheckCircle2 className="w-8 h-8 text-accent mx-auto" />
-              <div className="space-y-1">
-                <div className="font-semibold">Wallet cleaned</div>
-                <p className="text-sm text-muted-foreground">
-                  Recovered{" "}
-                  <span className="font-mono text-foreground">
-                    {formatRentSol(recoveredSol)} SOL
-                  </span>{" "}
-                  by closing {closedCount}{" "}
-                  {closedCount === 1 ? "account" : "accounts"}.
-                </p>
-              </div>
-              <Button variant="outline" onClick={scan} data-testid="button-scan-again">
                 Scan again
               </Button>
             </div>
@@ -201,7 +253,7 @@ export default function WalletCleaner() {
                 disabled={selectedAccounts.length === 0}
                 data-testid="button-open-preview"
               >
-                Preview &amp; close
+                Preview &amp; recover
               </Button>
             </div>
           </div>

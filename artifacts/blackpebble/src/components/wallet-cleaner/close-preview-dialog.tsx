@@ -39,12 +39,12 @@ export function ClosePreviewDialog({
       <DialogContent className="max-w-md" data-testid="dialog-close-preview">
         <DialogHeader>
           <DialogTitle>
-            {isClosing ? "Closing accounts" : "Confirm account closing"}
+            {isClosing ? "Recovering SOL" : "Confirm SOL recovery"}
           </DialogTitle>
           <DialogDescription>
             {isClosing
               ? "Approve each transaction in your wallet. Do not close this window."
-              : "Review exactly what will happen before you sign. This only closes empty accounts."}
+              : "Review exactly what will happen before you sign. This only closes empty token accounts to reclaim their locked rent."}
           </DialogDescription>
         </DialogHeader>
 
@@ -136,12 +136,12 @@ export function ClosePreviewDialog({
             {isClosing ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Closing…
+                Recovering…
               </>
             ) : hasError ? (
               "Retry"
             ) : (
-              `Close ${selectedAccounts.length} ${
+              `Recover from ${selectedAccounts.length} ${
                 selectedAccounts.length === 1 ? "account" : "accounts"
               }`
             )}

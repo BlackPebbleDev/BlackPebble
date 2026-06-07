@@ -22,7 +22,7 @@ export default function Utilities() {
       </div>
 
       <Link
-        href="/utilities/wallet-cleaner"
+        href="/utilities/sol-recovery"
         className="group border border-border bg-card hover:border-accent transition-colors p-5 flex items-center gap-4"
         data-testid="link-wallet-cleaner"
       >
@@ -30,9 +30,10 @@ export default function Utilities() {
           <Sparkles className="w-5 h-5 text-accent" />
         </div>
         <div className="flex-1 min-w-0">
-          <div className="font-semibold">Wallet Cleaner</div>
+          <div className="font-semibold">SOL Recovery</div>
           <p className="text-sm text-muted-foreground">
-            Scan for empty token accounts and reclaim their locked SOL rent.
+            Recover trapped SOL from unused token accounts and reclaim locked
+            rent safely.
           </p>
         </div>
         <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-accent transition-colors flex-shrink-0" />

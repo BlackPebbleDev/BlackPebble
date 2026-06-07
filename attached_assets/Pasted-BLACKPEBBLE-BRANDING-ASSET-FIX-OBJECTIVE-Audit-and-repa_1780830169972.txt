@@ -1,0 +1,154 @@
+BLACKPEBBLE BRANDING ASSET FIX
+
+OBJECTIVE
+
+Audit and repair all branding images throughout BlackPebble.
+
+Several areas are currently displaying missing, incorrect, outdated, or fallback images.
+
+Use the attached official BlackPebble assets.
+
+====================================================
+ASSET RULES
+
+Use:
+
+BLACKPEBBLE ICON
+
+For:
+
+* Wallet Connect modal
+* Wallet Explorer
+* Utility cards
+* Mobile shortcuts
+* App icon references
+* Compact UI locations
+* Small avatar-style placements
+
+Use:
+
+FULL BLACKPEBBLE LOGO
+
+For:
+
+* Social sharing
+* OpenGraph previews
+* Twitter/X previews
+* Browser previews
+* Link previews
+* Landing page branding
+* Metadata previews
+* SEO previews
+
+====================================================
+AUDIT ALL IMAGE REFERENCES
+
+Search the entire project for:
+
+* missing images
+* broken asset paths
+* placeholder images
+* fallback icons
+* old logo references
+* incorrect imports
+* stale metadata references
+
+Replace with official BlackPebble assets.
+
+====================================================
+SOCIAL PREVIEW FIX
+
+Verify:
+
+OpenGraph metadata
+
+Twitter/X metadata
+
+Link preview metadata
+
+Social preview image generation
+
+Requirements:
+
+When a BlackPebble URL is shared:
+
+Display:
+
+* Full BlackPebble logo
+* Correct site title
+* Correct site description
+* Correct preview image
+
+No missing images.
+
+No generic browser icon.
+
+No placeholder graphics.
+
+====================================================
+FAVICON FIX
+
+Verify:
+
+favicon
+
+apple-touch-icon
+
+PWA icon
+
+browser tab icon
+
+mobile bookmark icon
+
+Use BlackPebble icon asset.
+
+====================================================
+WALLET CONNECT FIX
+
+Verify:
+
+Wallet Connect
+
+Wallet Explorer
+
+Wallet Adapter UI
+
+Wallet-related branding
+
+Use BlackPebble icon.
+
+No broken images.
+
+No fallback avatars.
+
+====================================================
+SEARCH BAR / HEADER FIX
+
+Verify:
+
+Header branding
+
+Mobile branding
+
+Desktop branding
+
+Logo references
+
+Use correct asset sizes.
+
+No stretching.
+
+No blurry scaling.
+
+====================================================
+QA
+
+Return:
+
+* All files changed
+* All image references updated
+* Metadata verified
+* OpenGraph verified
+* Twitter/X preview verified
+* Wallet branding verified
+* No broken image references remaining

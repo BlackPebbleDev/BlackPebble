@@ -8,10 +8,11 @@ import {
   Wrench,
 } from "lucide-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
-import logoFlat from "@assets/IMG_4199_1780657073789.jpeg";
+import logoFlat from "@assets/bp-wordmark.png";
 import { TokenSearch } from "@/components/token-search";
 import { XLoginButton } from "@/components/x-login-button";
 import { GuestMigrationPrompt } from "@/components/guest-migration-prompt";
+import { RecoveryNotification } from "@/components/recovery-notification";
 import { useAccount } from "@/hooks/use-account";
 import { cn } from "@/lib/utils";
 import { SupportSection } from "@/components/support-section";
@@ -171,6 +172,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </nav>
 
       <GuestMigrationPrompt />
+      <RecoveryNotification />
     </div>
   );
 }

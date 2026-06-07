@@ -21,6 +21,7 @@ import { TradeList } from "@/components/trade-list";
 import { TierBadge } from "@/components/tier-badge";
 import { fmtSol, fmtUsd, fmtPercent, pnlColor } from "@/lib/format";
 import { PnlAmount } from "@/components/pnl-amount";
+import { RecoveryDiscoveryCard } from "@/components/recovery-discovery-card";
 import { cn } from "@/lib/utils";
 import {
   useGuestStore,
@@ -276,6 +277,11 @@ export default function Portfolio() {
               </div>
               <TierBadge tier={stats?.graduationTier} />
             </div>
+          </div>
+
+          {/* Wallet utility — strictly isolated from paper-trading metrics above. */}
+          <div className="mb-6">
+            <RecoveryDiscoveryCard />
           </div>
 
           {!isGuest && (
