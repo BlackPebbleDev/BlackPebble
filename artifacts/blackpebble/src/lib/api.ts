@@ -83,6 +83,12 @@ export interface Position {
   currentValueSol: number;
   unrealizedPnlSol: number;
   unrealizedPnlPercent: number;
+  // P&L split (#8): slippage-free cost basis, pure market movement, the entry
+  // trading costs paid (≤ 0), and the net result (= unrealizedPnlSol).
+  costBasisMarketSol: number;
+  unrealizedPnlMarketSol: number;
+  tradingCostsSol: number;
+  netResultSol: number;
   currentMarketCapUsd: number | null;
   marketCapChangePercent: number | null;
 }

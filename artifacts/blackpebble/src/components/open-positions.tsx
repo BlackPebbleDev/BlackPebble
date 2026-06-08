@@ -368,13 +368,29 @@ function ExpandedAnalytics({
           cls={pnlColor(p.unrealizedPnlPercent)}
         />
         <Field
-          label="Unrealized P&L"
-          value={<PnlAmount sol={p.unrealizedPnlSol} solUsd={solUsd} />}
-          cls={pnlColor(p.unrealizedPnlSol)}
+          label="P&L (Market)"
+          value={<PnlAmount sol={p.unrealizedPnlMarketSol} solUsd={solUsd} />}
+          cls={pnlColor(p.unrealizedPnlMarketSol)}
+        />
+        <Field
+          label="Trading Costs"
+          value={<PnlAmount sol={p.tradingCostsSol} solUsd={solUsd} />}
+          cls={pnlColor(p.tradingCostsSol)}
+        />
+        <Field
+          label="Net Result"
+          value={<PnlAmount sol={p.netResultSol} solUsd={solUsd} />}
+          cls={pnlColor(p.netResultSol)}
         />
         <Field label="Hold Time" value={fmtHoldTime(p.opened_at)} />
         <Field label="Quantity" value={fmtTokenAmount(p.total_tokens)} />
       </div>
+
+      <p className="text-[10px] text-muted-foreground/80 leading-relaxed">
+        P&amp;L (Market) is pure price movement vs. the mid-price cost basis.
+        Trading Costs is the slippage paid entering this position. Net Result =
+        Market + Costs and is your true unrealized P&amp;L.
+      </p>
 
       <div className="text-[11px] font-mono text-muted-foreground">
         Avg entry {fmtPrice(avgEntryUsd)} · Current{" "}

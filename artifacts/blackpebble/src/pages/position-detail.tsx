@@ -309,10 +309,25 @@ export default function PositionDetail() {
             testId="metric-cost-basis"
           />
           <Metric
-            label="Unrealized P&L"
-            value={<PnlAmount sol={p.unrealizedPnlSol} solUsd={solUsd} />}
-            valueClass={pnlColor(p.unrealizedPnlSol)}
-            testId="metric-unrealized-pnl"
+            label="P&L (Market)"
+            value={<PnlAmount sol={p.unrealizedPnlMarketSol} solUsd={solUsd} />}
+            valueClass={pnlColor(p.unrealizedPnlMarketSol)}
+            sub="Price move only"
+            testId="metric-pnl-market"
+          />
+          <Metric
+            label="Trading Costs"
+            value={<PnlAmount sol={p.tradingCostsSol} solUsd={solUsd} />}
+            valueClass={pnlColor(p.tradingCostsSol)}
+            sub="Entry slippage"
+            testId="metric-trading-costs"
+          />
+          <Metric
+            label="Net Result"
+            value={<PnlAmount sol={p.netResultSol} solUsd={solUsd} />}
+            valueClass={pnlColor(p.netResultSol)}
+            sub="True P&L"
+            testId="metric-net-result"
           />
           <Metric
             label="ROI"

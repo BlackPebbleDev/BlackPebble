@@ -84,6 +84,9 @@ export interface PositionRow {
   total_tokens: number;
   total_sol_spent: number;
   avg_entry_price: number;
+  // Slippage-free market cost basis (SOL). Null on legacy rows; callers fall
+  // back to total_sol_spent when it is missing.
+  cost_basis_market_sol: number | null;
   entry_market_cap: number | null;
   opened_at: number;
 }
@@ -177,6 +180,16 @@ export interface ValuedPosition extends PositionRow {
   currentValueSol: number;
   unrealizedPnlSol: number;
   unrealizedPnlPercent: number;
+  // Slippage-free market cost basis (SOL), with the legacy null fallback
+  // already resolved to total_sol_spent.
+  costBasisMarketSol: number;
+  // Pure market movement P&L: currentValue measured against the slippage-free
+  // cost basis (what the position would be worth ignoring entry trading costs).
+  unrealizedPnlMarketSol: number;
+  // Slippage/impact already paid on entry (≤ 0): costBasisMarket − total spent.
+  tradingCostsSol: number;
+  // Actual unrealized result including trading costs (= unrealizedPnlSol).
+  netResultSol: number;
   currentMarketCapUsd: number | null;
   marketCapChangePercent: number | null;
 }
@@ -200,6 +213,13 @@ export async function valuePositions(
         p.total_sol_spent > 0
           ? (unrealizedPnlSol / p.total_sol_spent) * 100
           : 0;
+      // P&L split (#8): separate pure market movement from the slippage/impact
+      // already paid on entry. The slippage-free cost basis falls back to
+      // total_sol_spent for legacy rows (then trading costs read as 0).
+      const costBasisMarketSol = p.cost_basis_market_sol ?? p.total_sol_spent;
+      const tradingCostsSol = costBasisMarketSol - p.total_sol_spent;
+      const unrealizedPnlMarketSol = currentValueSol - costBasisMarketSol;
+      const netResultSol = unrealizedPnlSol;
       // Null (not 0) when we cannot compute a real change: no entry MC stored,
       // a non-positive entry MC, or no current MC available right now.
       const marketCapChangePercent =
@@ -215,6 +235,10 @@ export async function valuePositions(
         currentValueSol,
         unrealizedPnlSol,
         unrealizedPnlPercent,
+        costBasisMarketSol,
+        unrealizedPnlMarketSol,
+        tradingCostsSol,
+        netResultSol,
         currentMarketCapUsd,
         marketCapChangePercent,
       };
@@ -325,6 +349,10 @@ export async function executeBuy(
   const effectivePriceUsd = slip.effectivePriceUsd;
   const price = effectivePriceUsd / solUsd; // effective price in SOL
   const tokensReceived = amountInUsd / effectivePriceUsd;
+  // Slippage-free market cost basis added by this buy (#8): the tokens received
+  // valued at the RAW mid price (priceSol), NOT the worse effective fill. The
+  // gap between this and solAmount spent is the entry slippage/impact cost.
+  const marketCostAddSol = tokensReceived * priceSol;
   // Entry market cap is display-only (never used in any quantity/PnL math).
   const entryMc =
     marketCapUsd != null && Number.isFinite(marketCapUsd) && marketCapUsd > 0
@@ -437,15 +465,25 @@ export async function executeBuy(
               totalSpent
             : entryMc;
       }
+      const newCostBasisMarket =
+        (existing.cost_basis_market_sol ?? existing.total_sol_spent) +
+        marketCostAddSol;
       await dbRun(
-        "UPDATE positions SET total_tokens = $1, total_sol_spent = $2, avg_entry_price = $3, entry_market_cap = $4 WHERE id = $5",
-        [totalTokens, totalSpent, totalSpent / totalTokens, newEntryMc, existing.id],
+        "UPDATE positions SET total_tokens = $1, total_sol_spent = $2, avg_entry_price = $3, cost_basis_market_sol = $4, entry_market_cap = $5 WHERE id = $6",
+        [
+          totalTokens,
+          totalSpent,
+          totalSpent / totalTokens,
+          newCostBasisMarket,
+          newEntryMc,
+          existing.id,
+        ],
         c,
       );
     } else {
       await dbRun(
-        `INSERT INTO positions (wallet, token_mint, token_name, token_symbol, token_logo, total_tokens, total_sol_spent, avg_entry_price, entry_market_cap, opened_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+        `INSERT INTO positions (wallet, token_mint, token_name, token_symbol, token_logo, total_tokens, total_sol_spent, avg_entry_price, cost_basis_market_sol, entry_market_cap, opened_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
         [
           wallet,
           mint,
@@ -455,6 +493,7 @@ export async function executeBuy(
           tokensReceived,
           solAmount,
           solAmount / tokensReceived,
+          marketCostAddSol,
           entryMc,
           now,
         ],
@@ -644,12 +683,17 @@ export async function executeSell(
 
     const remainingTokens = position.total_tokens - tokenAmount;
     const remainingSpent = position.total_sol_spent - costBasis;
+    // Reduce the slippage-free market cost basis (#8) by the same fraction so
+    // the trading-costs split stays proportional after a partial sell.
+    const costBasisMarket =
+      position.cost_basis_market_sol ?? position.total_sol_spent;
+    const remainingCostBasisMarket = costBasisMarket * (1 - fraction);
     if (remainingTokens <= position.total_tokens * 0.000001) {
       await dbRun("DELETE FROM positions WHERE id = $1", [position.id], c);
     } else {
       await dbRun(
-        "UPDATE positions SET total_tokens = $1, total_sol_spent = $2 WHERE id = $3",
-        [remainingTokens, remainingSpent, position.id],
+        "UPDATE positions SET total_tokens = $1, total_sol_spent = $2, cost_basis_market_sol = $3 WHERE id = $4",
+        [remainingTokens, remainingSpent, remainingCostBasisMarket, position.id],
         c,
       );
     }

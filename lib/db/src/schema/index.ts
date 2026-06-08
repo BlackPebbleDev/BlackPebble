@@ -46,6 +46,13 @@ export const positions = pgTable(
     total_tokens: doublePrecision("total_tokens").notNull(),
     total_sol_spent: doublePrecision("total_sol_spent").notNull(),
     avg_entry_price: doublePrecision("avg_entry_price").notNull(),
+    // Slippage-free market cost basis (SOL): what the held tokens would have
+    // cost at the RAW mid price at entry, summed across buys and reduced
+    // proportionally on sells. Diverges from total_sol_spent only by the
+    // slippage/impact paid, which lets the UI split unrealized P&L into pure
+    // market movement vs. trading costs. Null on legacy rows (backfilled to
+    // total_sol_spent by migration).
+    cost_basis_market_sol: doublePrecision("cost_basis_market_sol"),
     // SOL-weighted average market cap (USD) at entry; null when upstream data
     // had no market cap / FDV at the time the position was opened.
     entry_market_cap: doublePrecision("entry_market_cap"),

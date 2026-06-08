@@ -529,6 +529,7 @@ export function MiniPlanner({
                 setSlPercent(p);
               }}
               tone="loss"
+              fixedPercent
             />
             <p className="text-[11px] leading-relaxed text-muted-foreground">
               Exit orders are created only after your next successful Buy and run
@@ -580,6 +581,7 @@ function AttachRow({
   percent,
   onPercent,
   tone,
+  fixedPercent = false,
 }: {
   label: string;
   triggerLabel: string;
@@ -591,6 +593,7 @@ function AttachRow({
   percent: number;
   onPercent: (p: number) => void;
   tone: "profit" | "loss";
+  fixedPercent?: boolean;
 }) {
   const active = enabled && canEnable;
   return (
@@ -625,7 +628,14 @@ function AttachRow({
         )}
       </div>
 
-      {active && (
+      {active && fixedPercent && (
+        <div className="mt-2.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          Sells <span className="font-mono text-foreground">100%</span> of the
+          position when triggered.
+        </div>
+      )}
+
+      {active && !fixedPercent && (
         <div className="mt-2.5 flex items-center gap-2">
           <span className="text-[11px] uppercase tracking-wider text-muted-foreground">
             Sell

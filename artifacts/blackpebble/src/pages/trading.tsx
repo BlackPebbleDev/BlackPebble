@@ -533,14 +533,22 @@ function fmtUnitPnl(solValue: number, unit: Unit, solUsd: number | null): string
 
 type QuickOrder = { enabled: boolean; mcValue: string; percent: number };
 const QUICK_ORDER_DEFAULT: QuickOrder = { enabled: false, mcValue: "", percent: 100 };
-const QUICK_PERCENT_CHOICES = [25, 50, 100] as const;
 
+/** One rung of the multi-target take-profit ladder: an MC trigger + sell %. */
+type TpRung = { mcValue: string; percent: number };
+const MAX_TP_RUNGS = 4;
+const TP_LADDER_DEFAULT: TpRung[] = [{ mcValue: "", percent: 100 }];
+
+/**
+ * A single automated order row (Stop Loss). Take Profit now uses the dedicated
+ * ladder below; this stays for the single-target Stop Loss (always sells 100%
+ * per the trading spec — no percent selector).
+ */
 function QuickOrderToggle({
   label,
   tone,
   enabled,
   mcValue,
-  percent,
   onChange,
   helpText,
 }: {
@@ -548,7 +556,6 @@ function QuickOrderToggle({
   tone: "profit" | "loss";
   enabled: boolean;
   mcValue: string;
-  percent: number;
   onChange: (v: QuickOrder) => void;
   helpText?: string;
 }) {
@@ -559,7 +566,9 @@ function QuickOrderToggle({
         <input
           type="checkbox"
           checked={enabled}
-          onChange={(e) => onChange({ enabled: e.target.checked, mcValue, percent })}
+          onChange={(e) =>
+            onChange({ enabled: e.target.checked, mcValue, percent: 100 })
+          }
           className="h-3.5 w-3.5 accent-[var(--accent)]"
         />
         <span
@@ -574,29 +583,156 @@ function QuickOrderToggle({
         <input
           type="text"
           value={mcValue}
-          onChange={(e) => onChange({ enabled, mcValue: e.target.value, percent })}
+          onChange={(e) =>
+            onChange({ enabled, mcValue: e.target.value, percent: 100 })
+          }
           placeholder={tone === "profit" ? "Take Profit MC" : "Stop Loss MC"}
           className="flex-1 h-7 bg-background border border-border px-2 font-mono text-[11px] focus:outline-none focus:border-accent"
         />
       </div>
       {enabled && (
-        <div className="flex items-center gap-1.5 pl-5">
-          <span className="text-[11px] text-muted-foreground">Sell</span>
-          {QUICK_PERCENT_CHOICES.map((p) => (
-            <button
-              key={p}
-              type="button"
-              onClick={() => onChange({ enabled, mcValue, percent: p })}
-              className={cn(
-                "h-6 px-2 text-[11px] border transition-colors",
-                percent === p
-                  ? "border-accent text-accent bg-accent/10"
-                  : "border-border text-muted-foreground hover:text-foreground",
+        <div className="flex items-center gap-1.5 pl-5 text-[11px] text-muted-foreground">
+          Sells <span className="font-mono text-foreground">100%</span> of the
+          position when triggered.
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Multi-target Take Profit ladder (spec #1). Up to four rungs, each an MC
+ * trigger + a sell %. Percent inputs are clamped so the combined allocation can
+ * never exceed 100%, and an Allocated / Remaining read-out keeps it obvious how
+ * much of the position is still unsold. Each enabled rung becomes its own
+ * take_profit order (evaluated independently by the order engine).
+ */
+function TpLadder({
+  enabled,
+  rungs,
+  onToggle,
+  onChange,
+}: {
+  enabled: boolean;
+  rungs: TpRung[];
+  onToggle: (v: boolean) => void;
+  onChange: (rungs: TpRung[]) => void;
+}) {
+  const allocated = rungs.reduce(
+    (s, r) => s + (Number.isFinite(r.percent) ? r.percent : 0),
+    0,
+  );
+  const remaining = Math.max(0, 100 - allocated);
+
+  const patchRung = (i: number, patch: Partial<TpRung>) =>
+    onChange(rungs.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
+
+  const setPercent = (i: number, raw: string) => {
+    const n = Math.max(0, Math.floor(Number(raw) || 0));
+    const others = rungs.reduce(
+      (s, r, idx) => (idx === i ? s : s + (r.percent || 0)),
+      0,
+    );
+    const maxAllowed = Math.max(0, 100 - others);
+    patchRung(i, { percent: Math.min(n, maxAllowed) });
+  };
+
+  const addRung = () => {
+    if (rungs.length >= MAX_TP_RUNGS) return;
+    onChange([...rungs, { mcValue: "", percent: remaining }]);
+  };
+  const removeRung = (i: number) => {
+    if (rungs.length <= 1) return;
+    onChange(rungs.filter((_, idx) => idx !== i));
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <input
+          type="checkbox"
+          checked={enabled}
+          onChange={(e) => onToggle(e.target.checked)}
+          data-testid="checkbox-quick-take-profit"
+          className="h-3.5 w-3.5 accent-[var(--accent)]"
+        />
+        <span className="flex items-center gap-1 text-xs font-medium text-emerald-400">
+          Take Profit
+        </span>
+        <HelpTip
+          label="Take Profit"
+          text="Set up to four targets. Each sells a slice of your position when the market cap rises to or above its level."
+        />
+        {enabled && (
+          <span
+            data-testid="tp-allocated"
+            className={cn(
+              "ml-auto font-mono text-[11px]",
+              allocated > 100 ? "text-red-400" : "text-muted-foreground",
+            )}
+          >
+            Allocated {allocated}%
+            {remaining > 0 && (
+              <span className="text-muted-foreground/70">
+                {" "}
+                · Remaining {remaining}%
+              </span>
+            )}
+          </span>
+        )}
+      </div>
+
+      {enabled && (
+        <div className="space-y-2 pl-5">
+          {rungs.map((r, i) => (
+            <div key={i} className="flex items-center gap-1.5">
+              <span className="w-[58px] shrink-0 text-[11px] text-muted-foreground">
+                Target {i + 1}
+              </span>
+              <input
+                type="text"
+                value={r.mcValue}
+                onChange={(e) => patchRung(i, { mcValue: e.target.value })}
+                placeholder="MC ≥"
+                data-testid={`input-tp-mc-${i}`}
+                className="flex-1 h-7 bg-background border border-border px-2 font-mono text-[11px] focus:outline-none focus:border-accent"
+              />
+              <div className="flex items-center">
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={r.percent === 0 ? "" : r.percent}
+                  onChange={(e) => setPercent(i, e.target.value)}
+                  placeholder="%"
+                  data-testid={`input-tp-pct-${i}`}
+                  className="w-14 h-7 bg-background border border-border px-2 font-mono text-[11px] focus:outline-none focus:border-accent"
+                />
+                <span className="px-1 text-[11px] text-muted-foreground">%</span>
+              </div>
+              {rungs.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => removeRung(i)}
+                  aria-label={`Remove target ${i + 1}`}
+                  data-testid={`button-tp-remove-${i}`}
+                  className="h-7 w-7 shrink-0 border border-border text-muted-foreground hover:text-red-400 hover:border-red-400/50 transition-colors"
+                >
+                  ×
+                </button>
               )}
-            >
-              {p}%
-            </button>
+            </div>
           ))}
+          {rungs.length < MAX_TP_RUNGS && (
+            <button
+              type="button"
+              onClick={addRung}
+              data-testid="button-tp-add"
+              className="h-7 px-2.5 text-[11px] border border-border text-muted-foreground hover:text-accent hover:border-accent/50 transition-colors"
+            >
+              + Add Target
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -740,20 +876,29 @@ function TradePanel({
   const [savePromptOpen, setSavePromptOpen] = useState(false);
 
   // Automated orders set directly in the buy box without the planner:
-  // a buy-limit entry plus TP/SL exits.
+  // a buy-limit entry plus a TP ladder + single SL exit.
   const [quickBl, setQuickBl] = useState<QuickBuyLimit>(QUICK_BUY_LIMIT_DEFAULT);
-  const [quickTp, setQuickTp] = useState<QuickOrder>(QUICK_ORDER_DEFAULT);
+  const [tpEnabled, setTpEnabled] = useState(false);
+  const [tpRungs, setTpRungs] = useState<TpRung[]>(TP_LADDER_DEFAULT);
   const [quickSl, setQuickSl] = useState<QuickOrder>(QUICK_ORDER_DEFAULT);
   const [exitOrdersOpen, setExitOrdersOpen] = useState(false);
   // Paper-trading rules collapsed into an info panel (UX pass item 7).
   const [rulesOpen, setRulesOpen] = useState(false);
 
+  const resetQuickExits = () => {
+    setTpEnabled(false);
+    setTpRungs(TP_LADDER_DEFAULT);
+    setQuickSl(QUICK_ORDER_DEFAULT);
+  };
+
   // Reset automated orders whenever the token changes.
   useEffect(() => {
     setQuickBl(QUICK_BUY_LIMIT_DEFAULT);
-    setQuickTp(QUICK_ORDER_DEFAULT);
+    setTpEnabled(false);
+    setTpRungs(TP_LADDER_DEFAULT);
     setQuickSl(QUICK_ORDER_DEFAULT);
     setExitOrdersOpen(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [info.mint]);
 
   // Create a buy-limit entry order immediately from the Automated Orders
@@ -832,25 +977,12 @@ function TradePanel({
     setConfirmOpen(false);
   }, [side, solAmount, sellPercent, unit, info.mint]);
 
-  // Create the attached TP/SL exit orders after a successful buy. Each spec
-  // targets a market-cap trigger; failures are surfaced but never block the buy.
-  async function placeAttachedOrders(att: PlannedAttachments) {
-    const specs: { orderType: OrderType; triggerValue: number; percent: number }[] =
-      [];
-    if (att.tp.enabled && att.tp.triggerMc != null && att.tp.triggerMc > 0) {
-      specs.push({
-        orderType: "take_profit",
-        triggerValue: att.tp.triggerMc,
-        percent: att.tp.percent,
-      });
-    }
-    if (att.sl.enabled && att.sl.triggerMc != null && att.sl.triggerMc > 0) {
-      specs.push({
-        orderType: "stop_loss",
-        triggerValue: att.sl.triggerMc,
-        percent: att.sl.percent,
-      });
-    }
+  // Create a batch of automated orders (TP rungs / SL) against this token. Each
+  // spec targets a market-cap trigger; failures are surfaced but never block the
+  // surrounding flow (a buy, or an immediate "create exits" on the Sell tab).
+  async function placeOrderSpecs(
+    specs: { orderType: OrderType; triggerValue: number; percent: number }[],
+  ) {
     if (specs.length === 0) return;
 
     let created = 0;
@@ -902,6 +1034,43 @@ function TradePanel({
         variant: "destructive",
       });
     }
+  }
+
+  // Build the TP-ladder + SL specs currently set in the Automated Orders panel.
+  function buildQuickExitSpecs() {
+    const specs: {
+      orderType: OrderType;
+      triggerValue: number;
+      percent: number;
+    }[] = [];
+    if (tpEnabled) {
+      for (const r of tpRungs) {
+        const mc = parseAbbreviatedNumber(r.mcValue);
+        if (mc != null && mc > 0 && r.percent > 0) {
+          specs.push({ orderType: "take_profit", triggerValue: mc, percent: r.percent });
+        }
+      }
+    }
+    if (quickSl.enabled) {
+      const mc = parseAbbreviatedNumber(quickSl.mcValue);
+      if (mc != null && mc > 0) {
+        specs.push({ orderType: "stop_loss", triggerValue: mc, percent: 100 });
+      }
+    }
+    return specs;
+  }
+
+  const quickExitSpecs = buildQuickExitSpecs();
+
+  // Sell tab: create the configured exit orders immediately against the held
+  // position (spec #4 — automated orders are available after you already own a
+  // position, not only when buying).
+  async function handleCreateExitsNow() {
+    if (!position) return;
+    const specs = buildQuickExitSpecs();
+    if (specs.length === 0) return;
+    await placeOrderSpecs(specs);
+    resetQuickExits();
   }
 
   const mutation = useMutation({
@@ -979,35 +1148,56 @@ function TradePanel({
       });
       setSolAmount("");
       setConfirmOpen(false);
-      // Create exit orders after a successful buy. Merges planner attachments
-      // with any quick exit orders set directly in the buy box. Planner takes
-      // priority when both sources have the same order type enabled.
+      // Create exit orders after a successful buy. Combines planner attachments
+      // with any quick exit orders set directly in the buy box. For each order
+      // type the planner takes priority when enabled; otherwise the quick TP
+      // ladder / SL is used.
       if (t.side === "buy") {
-        const parsedTpMc = parseAbbreviatedNumber(quickTp.mcValue);
-        const parsedSlMc = parseAbbreviatedNumber(quickSl.mcValue);
-        const merged: PlannedAttachments = {
-          tp: attachments?.tp.enabled
-            ? attachments.tp
-            : {
-                enabled: quickTp.enabled && parsedTpMc != null && parsedTpMc > 0,
-                triggerMc: parsedTpMc ?? null,
-                percent: quickTp.percent,
-              },
-          sl: attachments?.sl.enabled
-            ? attachments.sl
-            : {
-                enabled: quickSl.enabled && parsedSlMc != null && parsedSlMc > 0,
-                triggerMc: parsedSlMc ?? null,
-                percent: quickSl.percent,
-              },
-          buyLimit: attachments?.buyLimit ?? { enabled: false, triggerMc: null, solAmount: null },
-        };
-        if (merged.tp.enabled || merged.sl.enabled || merged.buyLimit.enabled) {
-          void placeAttachedOrders(merged);
+        const specs: {
+          orderType: OrderType;
+          triggerValue: number;
+          percent: number;
+        }[] = [];
+
+        if (attachments?.tp.enabled && attachments.tp.triggerMc != null) {
+          specs.push({
+            orderType: "take_profit",
+            triggerValue: attachments.tp.triggerMc,
+            percent: attachments.tp.percent,
+          });
+        } else if (tpEnabled) {
+          for (const r of tpRungs) {
+            const mc = parseAbbreviatedNumber(r.mcValue);
+            if (mc != null && mc > 0 && r.percent > 0) {
+              specs.push({
+                orderType: "take_profit",
+                triggerValue: mc,
+                percent: r.percent,
+              });
+            }
+          }
         }
+
+        if (attachments?.sl.enabled && attachments.sl.triggerMc != null) {
+          specs.push({
+            orderType: "stop_loss",
+            triggerValue: attachments.sl.triggerMc,
+            percent: attachments.sl.percent,
+          });
+        } else if (quickSl.enabled) {
+          const mc = parseAbbreviatedNumber(quickSl.mcValue);
+          if (mc != null && mc > 0) {
+            specs.push({
+              orderType: "stop_loss",
+              triggerValue: mc,
+              percent: 100,
+            });
+          }
+        }
+
+        if (specs.length > 0) void placeOrderSpecs(specs);
         if (attachments) onAttachmentsConsumed?.();
-        setQuickTp(QUICK_ORDER_DEFAULT);
-        setQuickSl(QUICK_ORDER_DEFAULT);
+        resetQuickExits();
       }
       if (isGuest) {
         setSavePromptOpen(true);
@@ -1174,72 +1364,6 @@ function TradePanel({
                 </button>
               ))}
             </div>
-
-            {/* Automated orders — collapsible, buy side only: buy limit + TP/SL */}
-            <div className="border border-border/60">
-              <button
-                type="button"
-                onClick={() => setExitOrdersOpen((o) => !o)}
-                data-testid="button-quick-exit-orders-toggle"
-                className="flex w-full items-center justify-between px-3 py-2 text-left text-xs text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <span className="flex items-center gap-1.5">
-                  Automated Orders
-                  {(quickBl.enabled || quickTp.enabled || quickSl.enabled) && (
-                    <span className="h-1.5 w-1.5 rounded-full bg-accent" />
-                  )}
-                </span>
-                <ChevronDown
-                  className={cn(
-                    "h-3.5 w-3.5 transition-transform",
-                    exitOrdersOpen && "rotate-180",
-                  )}
-                />
-              </button>
-              {exitOrdersOpen && (
-                <div className="border-t border-border/60 px-3 py-2.5 space-y-3">
-                  <p className="text-[11px] leading-relaxed text-muted-foreground">
-                    Orders that run automatically when the market cap hits your
-                    level.{" "}
-                    <span className="text-accent">Buy Limit</span> enters a
-                    position,{" "}
-                    <span className="text-emerald-400">Take Profit</span> locks in
-                    gains, and{" "}
-                    <span className="text-red-400">Stop Loss</span> limits losses.
-                  </p>
-                  <BuyLimitRow
-                    enabled={quickBl.enabled}
-                    mcValue={quickBl.mcValue}
-                    solAmount={toSol(solAmount)}
-                    canCreate={onCreateBuyLimit != null}
-                    onChange={setQuickBl}
-                    onCreate={handleSetBuyLimit}
-                  />
-                  <QuickOrderToggle
-                    label="Take Profit"
-                    tone="profit"
-                    helpText="Sells automatically when the market cap rises to or above your target."
-                    enabled={quickTp.enabled}
-                    mcValue={quickTp.mcValue}
-                    percent={quickTp.percent}
-                    onChange={setQuickTp}
-                  />
-                  <QuickOrderToggle
-                    label="Stop Loss"
-                    tone="loss"
-                    helpText="Sells automatically when the market cap falls to or below your level, capping losses."
-                    enabled={quickSl.enabled}
-                    mcValue={quickSl.mcValue}
-                    percent={quickSl.percent}
-                    onChange={setQuickSl}
-                  />
-                  <p className="text-[11px] text-muted-foreground leading-relaxed">
-                    Take Profit / Stop Loss are created automatically after your
-                    next Buy fills.
-                  </p>
-                </div>
-              )}
-            </div>
           </>
         ) : (
           <>
@@ -1280,6 +1404,95 @@ function TradePanel({
           </>
         )}
 
+        {/* Automated orders — available on both Buy and Sell tabs. On Buy they
+            attach after the next fill; on Sell they're created immediately
+            against the held position. Buy Limit is buy-only. */}
+        <div className="border border-border/60">
+          <button
+            type="button"
+            onClick={() => setExitOrdersOpen((o) => !o)}
+            data-testid="button-quick-exit-orders-toggle"
+            className="flex w-full items-center justify-between px-3 py-2 text-left text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <span className="flex items-center gap-1.5">
+              Automated Orders
+              {(quickBl.enabled || tpEnabled || quickSl.enabled) && (
+                <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+              )}
+            </span>
+            <ChevronDown
+              className={cn(
+                "h-3.5 w-3.5 transition-transform",
+                exitOrdersOpen && "rotate-180",
+              )}
+            />
+          </button>
+          {exitOrdersOpen && (
+            <div className="border-t border-border/60 px-3 py-2.5 space-y-3">
+              <p className="text-[11px] leading-relaxed text-muted-foreground">
+                Orders that run automatically when the market cap hits your
+                level.{" "}
+                {side === "buy" && (
+                  <>
+                    <span className="text-accent">Buy Limit</span> enters a
+                    position,{" "}
+                  </>
+                )}
+                <span className="text-emerald-400">Take Profit</span> locks in
+                gains, and{" "}
+                <span className="text-red-400">Stop Loss</span> limits losses.
+              </p>
+              {side === "buy" && (
+                <BuyLimitRow
+                  enabled={quickBl.enabled}
+                  mcValue={quickBl.mcValue}
+                  solAmount={toSol(solAmount)}
+                  canCreate={onCreateBuyLimit != null}
+                  onChange={setQuickBl}
+                  onCreate={handleSetBuyLimit}
+                />
+              )}
+              <TpLadder
+                enabled={tpEnabled}
+                rungs={tpRungs}
+                onToggle={setTpEnabled}
+                onChange={setTpRungs}
+              />
+              <QuickOrderToggle
+                label="Stop Loss"
+                tone="loss"
+                helpText="Sells your whole position when the market cap falls to or below your level, capping losses."
+                enabled={quickSl.enabled}
+                mcValue={quickSl.mcValue}
+                onChange={setQuickSl}
+              />
+              {side === "buy" ? (
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  Take Profit / Stop Loss are created automatically after your
+                  next Buy fills.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    {position
+                      ? "Create these orders now against your open position."
+                      : "Open a position in this token to create exit orders."}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => void handleCreateExitsNow()}
+                    disabled={!position || quickExitSpecs.length === 0}
+                    data-testid="button-create-exits-now"
+                    className="h-9 w-full bg-accent text-accent-foreground text-xs font-medium hover:bg-accent/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Create Orders
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
         <TradeEstimate
           quote={quote}
           loading={quoteFetching && quoteEnabled}
@@ -1289,9 +1502,14 @@ function TradePanel({
         />
 
         {side === "buy" && toSol(solAmount) > 0 && (() => {
-          const tpMc = quickTp.enabled
-            ? parseAbbreviatedNumber(quickTp.mcValue)
-            : null;
+          const tpTargets = tpEnabled
+            ? tpRungs
+                .map((r) => ({
+                  mc: parseAbbreviatedNumber(r.mcValue),
+                  percent: r.percent,
+                }))
+                .filter((t) => t.mc != null && t.mc > 0 && t.percent > 0)
+            : [];
           const slMc = quickSl.enabled
             ? parseAbbreviatedNumber(quickSl.mcValue)
             : null;
@@ -1317,14 +1535,16 @@ function TradePanel({
                     : "—"}
                 </span>
               </div>
-              {tpMc != null && tpMc > 0 && (
-                <div className="flex justify-between gap-2">
-                  <span className="text-muted-foreground">Take Profit</span>
+              {tpTargets.map((t, i) => (
+                <div key={i} className="flex justify-between gap-2">
+                  <span className="text-muted-foreground">
+                    Take Profit {tpTargets.length > 1 ? i + 1 : ""}
+                  </span>
                   <span className="font-mono text-emerald-400">
-                    MC {fmtMarketCap(tpMc)}
+                    {t.percent}% @ MC {fmtMarketCap(t.mc!)}
                   </span>
                 </div>
-              )}
+              ))}
               {slMc != null && slMc > 0 && (
                 <div className="flex justify-between gap-2">
                   <span className="text-muted-foreground">Stop Loss</span>

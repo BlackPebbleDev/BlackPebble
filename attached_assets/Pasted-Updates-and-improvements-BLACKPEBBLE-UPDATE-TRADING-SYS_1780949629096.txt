@@ -1,0 +1,334 @@
+Updates and improvements 
+
+BLACKPEBBLE UPDATE — TRADING SYSTEM IMPROVEMENTS
+
+Please implement the following improvements exactly as described.
+
+==================================================
+1. MULTI-TARGET TAKE PROFIT SYSTEM
+==================================================
+
+Current behavior:
+
+Take Profit only supports:
+
+- Sell 100%
+- At one market cap target
+
+Example:
+Sell 100% at 500k MC
+
+This is too limiting.
+
+Replace the current Take Profit system with a multi-target ladder system.
+
+New behavior:
+
+Enable Take Profit
+
+Target 1
+- Market Cap Target
+- Sell %
+
+Target 2
+- Market Cap Target
+- Sell %
+
+Target 3
+- Market Cap Target
+- Sell %
+
+Target 4
+- Market Cap Target
+- Sell %
+
+Example:
+
+Target 1:
+150k MC
+Sell 10%
+
+Target 2:
+250k MC
+Sell 20%
+
+Target 3:
+500k MC
+Sell 30%
+
+Target 4:
+1M MC
+Sell 40%
+
+Total Allocation:
+100%
+
+The system should automatically verify that all target percentages combined cannot exceed 100%.
+
+Display:
+
+Allocated: 100%
+
+or
+
+Allocated: 70%
+Remaining: 30%
+
+This makes it obvious how much of the position is still unsold.
+
+==================================================
+2. KEEP CURRENT MANUAL SELL BUTTONS
+==================================================
+
+DO NOT REMOVE:
+
+25%
+50%
+75%
+100%
+
+These are manual sell controls.
+
+Keep them exactly as they are.
+
+The new Take Profit ladder is only for AUTOMATED ORDERS.
+
+==================================================
+3. STOP LOSS
+==================================================
+
+Keep Stop Loss simple.
+
+One target only.
+
+Enable Stop Loss
+
+Market Cap:
+________
+
+Sell:
+100%
+
+No need for multiple stop-loss targets right now.
+
+==================================================
+4. AUTOMATED ORDERS ON SELL TAB
+==================================================
+
+Currently:
+
+When viewing BUY tab:
+Automated Orders are available.
+
+When viewing SELL tab:
+Automated Orders disappear.
+
+This is incorrect.
+
+Users often want to create:
+
+- Take Profit orders
+- Stop Loss orders
+- Exit plans
+
+AFTER they already own a position.
+
+Automated Orders must be available on BOTH tabs.
+
+BUY TAB:
+Create entry + exits
+
+SELL TAB:
+Manage exits for existing positions
+
+==================================================
+5. CLICKABLE TOKEN NAMES EVERYWHERE
+==================================================
+
+Every token ticker and token name throughout the platform should navigate to the token page.
+
+Examples:
+
+Portfolio
+Active Orders
+Trade History
+Positions
+Leaderboard
+Watchlist
+Market tables
+
+Examples:
+
+SU26
+Streamer University 2026
+
+WHATEVER token is displayed
+
+Should be clickable.
+
+Expected behavior:
+
+Tap token name
+→ Opens token page
+
+Tap ticker
+→ Opens token page
+
+This should be consistent site-wide.
+
+==================================================
+6. POSITION CARD IMPROVEMENTS
+==================================================
+
+Current behavior is confusing.
+
+Expanded position card currently contains:
+
+View Full Detail
+Continue Trading
+
+Keep both buttons.
+
+They do NOT perform the same function.
+
+View Full Detail:
+→ Opens analytics page
+
+Continue Trading:
+→ Opens token trading page
+
+However:
+
+Token name itself should ALSO be clickable.
+
+Example:
+
+SU26
+Streamer University 2026
+
+Tap name
+→ Trading page
+
+This is expected behavior.
+
+==================================================
+7. TRADE DETAILS IMPROVEMENT
+==================================================
+
+Trade Details currently hides important information.
+
+Execution Price
+Slippage
+Trade Impact
+
+are hidden behind a dropdown.
+
+New behavior:
+
+When Trade Details is collapsed:
+
+Show a compact summary row:
+
+Execution: $0.00001613
+Slip: 12.0%
+Impact: 6.0%
+
+Then allow expansion for full details.
+
+This keeps critical information visible without clutter.
+
+==================================================
+8. P&L / SLIPPAGE ACCOUNTING FIX
+==================================================
+
+Current issue:
+
+Users buy a token.
+
+Market cap does not move.
+
+Position immediately shows red P&L.
+
+This feels wrong.
+
+New accounting model:
+
+Cost Basis:
+Includes slippage
+
+Position Value:
+Uses current market price
+
+Display:
+
+Unrealized P&L:
+Based on current market movement
+
+Trading Costs:
+Separate field
+
+Example:
+
+Unrealized P&L
++$0.00
+
+Trading Costs
+-$0.37
+
+Net Result
+-$0.37
+
+This preserves realism while making it obvious WHY the position is negative.
+
+Users should not think the token instantly dumped.
+
+==================================================
+9. ACTIVE ORDERS DISPLAY
+==================================================
+
+For ladder take-profits:
+
+Display each target individually.
+
+Example:
+
+TAKE PROFITS
+
+SU26
+Sell 10%
+MC ≥ 150k
+
+SU26
+Sell 20%
+MC ≥ 250k
+
+SU26
+Sell 30%
+MC ≥ 500k
+
+SU26
+Sell 40%
+MC ≥ 1M
+
+This makes the exit ladder easy to understand.
+
+==================================================
+10. OVERALL GOAL
+==================================================
+
+BlackPebble should feel closer to a real trading terminal.
+
+Priorities:
+
+1. Easy for beginners
+2. Fast on mobile
+3. Professional enough for experienced traders
+4. Clear trade planning
+5. Clear position tracking
+6. Realistic paper-trading behavior
+
+Do not redesign the overall look.
+
+Keep the current visual style.
+
+Only improve functionality, clarity, and trading workflow.

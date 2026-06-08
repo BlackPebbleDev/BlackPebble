@@ -51,6 +51,9 @@ export interface GuestPositionRow {
   total_tokens: number;
   total_sol_spent: number;
   avg_entry_price: number;
+  // Slippage-free market cost basis (SOL); mirrors the server column. Older
+  // guest states may lack it (load() backfills to total_sol_spent).
+  cost_basis_market_sol: number;
   entry_market_cap: number | null;
   opened_at: number;
 }
@@ -121,7 +124,13 @@ function load(): GuestState {
     return {
       ...freshState(),
       ...parsed,
-      positions: parsed.positions ?? [],
+      // Backfill the slippage-free cost basis on legacy guest states that
+      // predate the column, so the P&L split (#8) never reads undefined.
+      positions: (parsed.positions ?? []).map((p) => ({
+        ...p,
+        cost_basis_market_sol:
+          p.cost_basis_market_sol ?? p.total_sol_spent,
+      })),
       trades: parsed.trades ?? [],
       watchlist: parsed.watchlist ?? [],
       orders: parsed.orders ?? [],
@@ -299,6 +308,9 @@ export function guestBuy(params: {
   const amountInUsd = solAmount * solUsd;
   const price = effectivePriceUsd / solUsd; // SOL per token
   const tokensReceived = amountInUsd / effectivePriceUsd;
+  // Slippage-free market cost basis added by this buy (#8): tokens valued at the
+  // RAW mid price, mirroring the server's executeBuy (tokensReceived*priceSol).
+  const marketCostAddSol = tokensReceived * (rawPriceUsd / solUsd);
   const entryMc =
     marketCapUsd != null && Number.isFinite(marketCapUsd) && marketCapUsd > 0
       ? marketCapUsd
@@ -363,6 +375,8 @@ export function guestBuy(params: {
       total_tokens: totalTokens,
       total_sol_spent: totalSpent,
       avg_entry_price: totalSpent / totalTokens,
+      cost_basis_market_sol:
+        (ex.cost_basis_market_sol ?? ex.total_sol_spent) + marketCostAddSol,
       entry_market_cap: newEntryMc,
     };
   } else {
@@ -375,6 +389,7 @@ export function guestBuy(params: {
       total_tokens: tokensReceived,
       total_sol_spent: solAmount,
       avg_entry_price: solAmount / tokensReceived,
+      cost_basis_market_sol: marketCostAddSol,
       entry_market_cap: entryMc,
       opened_at: now,
     });
@@ -467,6 +482,11 @@ export function guestSell(params: {
 
   const remainingTokens = position.total_tokens - tokenAmount;
   const remainingSpent = position.total_sol_spent - costBasis;
+  // Reduce the slippage-free market cost basis (#8) proportionally, mirroring
+  // the server's executeSell.
+  const remainingCostBasisMarket =
+    (position.cost_basis_market_sol ?? position.total_sol_spent) *
+    (1 - fraction);
   if (remainingTokens <= position.total_tokens * 0.000001) {
     positions.splice(idx, 1);
   } else {
@@ -474,6 +494,7 @@ export function guestSell(params: {
       ...position,
       total_tokens: remainingTokens,
       total_sol_spent: remainingSpent,
+      cost_basis_market_sol: remainingCostBasisMarket,
     };
   }
 
@@ -931,6 +952,11 @@ export function useGuestValuedPositions(opts?: {
       p.total_sol_spent > 0
         ? (unrealizedPnlSol / p.total_sol_spent) * 100
         : 0;
+    // P&L split (#8), mirroring the server's valuePositions().
+    const costBasisMarketSol = p.cost_basis_market_sol ?? p.total_sol_spent;
+    const tradingCostsSol = costBasisMarketSol - p.total_sol_spent;
+    const unrealizedPnlMarketSol = currentValueSol - costBasisMarketSol;
+    const netResultSol = unrealizedPnlSol;
     const marketCapChangePercent =
       p.entry_market_cap != null &&
       p.entry_market_cap > 0 &&
@@ -953,6 +979,10 @@ export function useGuestValuedPositions(opts?: {
       currentValueSol,
       unrealizedPnlSol,
       unrealizedPnlPercent,
+      costBasisMarketSol,
+      unrealizedPnlMarketSol,
+      tradingCostsSol,
+      netResultSol,
       currentMarketCapUsd,
       marketCapChangePercent,
     };
