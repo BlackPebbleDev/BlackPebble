@@ -17,11 +17,14 @@ function readDismissed(): boolean {
   }
 }
 
+const DESCRIPTION =
+  "Practice trading with simulated money using live Solana market data. Learn, experiment, and improve without risking real funds.";
+
 const STEPS = [
   "Search or browse Markets to find a token.",
-  "Set your buy amount and hit Buy — it's all simulated, no real money.",
-  "Add a Take Profit or Stop Loss to automate your exit.",
-  "Track your P&L any time on the Portfolio page.",
+  "Set your buy amount and hit Buy.",
+  "Add Take Profit or Stop Loss orders.",
+  "Track your P&L on the Portfolio page.",
 ];
 
 export function BeginnerGuide() {
@@ -51,10 +54,11 @@ export function BeginnerGuide() {
       >
         <X className="w-4 h-4" />
       </button>
-      <div className="flex items-center gap-2 mb-2.5">
+      <div className="flex items-center gap-2 mb-2">
         <GraduationCap className="w-4 h-4 text-accent" />
-        <h3 className="text-sm font-semibold">New to Paper Trading?</h3>
+        <h3 className="text-sm font-semibold">What is Paper Trading?</h3>
       </div>
+      <p className="text-xs text-muted-foreground mb-2.5">{DESCRIPTION}</p>
       <ol className="grid gap-1.5 sm:grid-cols-2 text-xs text-muted-foreground">
         {STEPS.map((s, i) => (
           <li key={i} className="flex items-start gap-2">

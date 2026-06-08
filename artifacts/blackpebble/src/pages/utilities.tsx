@@ -1,11 +1,15 @@
 import { Sparkles, ChevronRight, Target } from "lucide-react";
 import { Link } from "wouter";
 
-const IN_DEVELOPMENT = [
-  "Wallet and token research dashboards",
-  "Position sizing and risk calculators",
-  "Market scanners with custom filters",
-  "Performance reports and exportable insights",
+const COMING_SOON = [
+  "Copy Trading Simulation — Paper trade alongside top-performing users and leaderboard traders.",
+  "Advanced Trading Analytics — Sharpe ratio, profit factor, expectancy, streak tracking, and detailed trade reviews.",
+  "Smart Wallet Intelligence — Track successful wallets and study trading behavior.",
+  "Community Challenges & Seasonal Competitions — Compete in structured paper trading tournaments.",
+  "Community Growth Tools — DEX boost pools, marketing pools, community funding tools, and collaborative growth systems for projects.",
+  "Telegram Trading & Research Tools — Market alerts, wallet tracking, scanners, and trading utilities.",
+  "BlackPebble Token Ecosystem — Future rewards, incentives, platform perks, and community participation.",
+  "BlackPebble Terminal — A more advanced trading workspace with professional-grade market intelligence.",
 ];
 
 export default function Utilities() {
@@ -57,15 +61,15 @@ export default function Utilities() {
 
       <div className="space-y-3">
         <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
-          In development
+          Coming Soon
         </div>
         <div className="border border-border bg-card divide-y divide-border">
-          {IN_DEVELOPMENT.map((feature) => (
+          {COMING_SOON.map((feature) => (
             <div
               key={feature}
-              className="px-5 py-3.5 text-sm text-muted-foreground flex items-center gap-3"
+              className="px-5 py-3.5 text-sm text-muted-foreground flex items-start gap-3"
             >
-              <span className="w-1.5 h-1.5 bg-accent flex-shrink-0" />
+              <span className="w-1.5 h-1.5 bg-accent flex-shrink-0 mt-1.5" />
               {feature}
             </div>
           ))}

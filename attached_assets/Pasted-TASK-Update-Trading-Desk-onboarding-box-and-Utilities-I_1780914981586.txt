@@ -1,0 +1,73 @@
+TASK: Update Trading Desk onboarding box and Utilities “In Development” section.
+
+PART 1 — UPDATE TRADING DESK INTRO BOX
+
+Replace the current “New to Paper Trading?” content with:
+
+Title:
+What is Paper Trading?
+
+Description:
+Practice trading with simulated money using live Solana market data. Learn, experiment, and improve without risking real funds.
+
+Steps:
+
+1. Search or browse Markets to find a token.
+2. Set your buy amount and hit Buy.
+3. Add Take Profit or Stop Loss orders.
+4. Track your P&L on the Portfolio page.
+
+Keep the existing visual style and beginner-friendly design. This should remain the first thing new users see when they land on Trading Desk.
+
+⸻
+
+PART 2 — UPDATE UTILITIES PAGE ROADMAP
+
+Replace the current “IN DEVELOPMENT” section completely.
+
+Change heading from:
+
+IN DEVELOPMENT
+
+to:
+
+COMING SOON
+
+Replace all existing roadmap items with:
+
+🔹 Copy Trading Simulation
+Paper trade alongside top-performing users and leaderboard traders.
+
+🔹 Advanced Trading Analytics
+Sharpe ratio, profit factor, expectancy, streak tracking, and detailed trade reviews.
+
+🔹 Smart Wallet Intelligence
+Track successful wallets and study trading behavior.
+
+🔹 Community Challenges & Seasonal Competitions
+Compete in structured paper trading tournaments.
+
+🔹 Community Growth Tools
+DEX boost pools, marketing pools, community funding tools, and collaborative growth systems for projects.
+
+🔹 Telegram Trading & Research Tools
+Market alerts, wallet tracking, scanners, and trading utilities.
+
+🔹 BlackPebble Token Ecosystem
+Future rewards, incentives, platform perks, and community participation.
+
+🔹 BlackPebble Terminal
+A more advanced trading workspace with professional-grade market intelligence.
+
+⸻
+
+REQUIREMENTS
+
+* Keep styling consistent with existing BlackPebble theme.
+* Mobile-first layout.
+* Do not modify functionality.
+* Do not remove any existing Utilities page sections outside of this roadmap area.
+* Preserve spacing, responsiveness, and visual hierarchy.
+* Verify build passes after changes.
+
+This is a content/UI update only.
