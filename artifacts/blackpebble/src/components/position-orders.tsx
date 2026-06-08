@@ -312,7 +312,7 @@ export function AllOrders({
             <div className="border border-border bg-card">
               <div className="px-3 py-2 border-b border-border/60">
                 <span className="text-[11px] font-medium uppercase tracking-wider text-emerald-400/80">
-                  Exit Orders
+                  Take Profit / Stop Loss
                 </span>
               </div>
               <div className="divide-y divide-border/40">

@@ -3,6 +3,7 @@ import { asyncHandler } from "../lib/asyncHandler.js";
 import {
   getTrendingTokens,
   getMarketStatus,
+  getTokenStatsBatch,
   type MarketToken,
 } from "../lib/prices.js";
 import { pumpportal } from "../lib/pumpportal.js";
@@ -70,10 +71,59 @@ router.get(
   }),
 );
 
+/**
+ * Recently migrated (graduated to Raydium) tokens, hydrated with DexScreener
+ * stats so the Markets "Just Migrated" feed can show market cap, liquidity and
+ * volume alongside time-since-migration. Hydration is best-effort and cached
+ * briefly so rapid client polling doesn't hammer DexScreener.
+ */
+interface MigratedToken {
+  mint: string;
+  name: string | null;
+  symbol: string | null;
+  logo: string | null;
+  migratedAt: number;
+  priceUsd: number | null;
+  priceChange24h: number | null;
+  marketCapUsd: number | null;
+  liquidityUsd: number | null;
+  volume24hUsd: number | null;
+}
+
+let migratedCache: { at: number; tokens: MigratedToken[] } | null = null;
+const MIGRATED_CACHE_MS = 20_000;
+
 router.get(
   "/markets/migrated",
-  asyncHandler((_req, res) => {
-    return res.json({ tokens: pumpportal.getMigrations(40) });
+  asyncHandler(async (_req, res) => {
+    if (migratedCache && Date.now() - migratedCache.at < MIGRATED_CACHE_MS) {
+      return res.json({
+        tokens: migratedCache.tokens,
+        connected: pumpportal.isConnected(),
+      });
+    }
+
+    const events = pumpportal.getMigrations(40);
+    const stats = await getTokenStatsBatch(events.map((e) => e.mint));
+
+    const tokens: MigratedToken[] = events.map((e) => {
+      const s = stats.get(e.mint);
+      return {
+        mint: e.mint,
+        name: s?.name ?? e.name ?? null,
+        symbol: s?.symbol ?? e.symbol ?? null,
+        logo: s?.logo ?? null,
+        migratedAt: e.migratedAt,
+        priceUsd: s?.priceUsd ?? null,
+        priceChange24h: s?.priceChange24h ?? null,
+        marketCapUsd: s?.marketCapUsd ?? null,
+        liquidityUsd: s?.liquidityUsd ?? null,
+        volume24hUsd: s?.volume24hUsd ?? null,
+      };
+    });
+
+    migratedCache = { at: Date.now(), tokens };
+    return res.json({ tokens, connected: pumpportal.isConnected() });
   }),
 );
 

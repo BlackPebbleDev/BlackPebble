@@ -33,7 +33,6 @@ import {
 import { LiveIndicator } from "@/components/live-indicator";
 import { TradeList } from "@/components/trade-list";
 import { OpenPositions } from "@/components/open-positions";
-import { Watchlist } from "@/components/watchlist";
 import {
   MiniPlanner,
   PlannedTradeSummary,
@@ -1484,9 +1483,7 @@ function WatchButton({ info }: { info: TokenInfo }) {
 function ActivityTabs() {
   const { wallet, isGuest } = useAccount();
   const navigate = useNavigate();
-  const [tab, setTab] = useState<"positions" | "history" | "watchlist">(
-    "positions",
-  );
+  const [tab, setTab] = useState<"positions" | "history">("positions");
 
   const { data: posData } = useQuery({
     queryKey: ["positions", wallet],
@@ -1510,7 +1507,6 @@ function ActivityTabs() {
   const tabs = [
     { id: "positions" as const, label: "Positions" },
     { id: "history" as const, label: "History" },
-    { id: "watchlist" as const, label: "Watchlist" },
   ];
 
   return (
@@ -1548,9 +1544,6 @@ function ActivityTabs() {
             empty="No trade history yet."
             onNavigate={(mint) => navigate(`/?token=${mint}`)}
           />
-        )}
-        {tab === "watchlist" && (
-          <Watchlist onNavigate={(mint) => navigate(`/?token=${mint}`)} />
         )}
       </div>
     </div>

@@ -341,6 +341,50 @@ function pairToMarketToken(p: DexPair & { txns?: { h24?: { buys?: number; sells?
   };
 }
 
+/**
+ * Hydrate a set of mints into MarketToken stats (price, market cap, liquidity,
+ * volume) via the DexScreener batch tokens endpoint. Used to enrich feeds that
+ * only carry mints (e.g. recently migrated tokens). Best-effort: mints with no
+ * DexScreener pair simply won't appear in the returned map.
+ */
+export async function getTokenStatsBatch(
+  mints: string[],
+): Promise<Map<string, MarketToken>> {
+  const out = new Map<string, MarketToken>();
+  const unique = [...new Set(mints.filter(Boolean))];
+  if (unique.length === 0) return out;
+
+  // DexScreener allows up to 30 comma-separated addresses per request.
+  for (let i = 0; i < unique.length; i += 30) {
+    const chunk = unique.slice(i, i + 30);
+    try {
+      const res = await axios.get(
+        `https://api.dexscreener.com/latest/dex/tokens/${chunk.join(",")}`,
+        { timeout: 8000 },
+      );
+      const pairs: DexPair[] = res.data?.pairs ?? [];
+      // Keep the deepest-liquidity pair per mint (DexScreener may return
+      // several pools for the same token).
+      const bestPair = new Map<string, DexPair>();
+      for (const p of pairs) {
+        if (p.chainId !== "solana") continue;
+        const addr = p.baseToken?.address;
+        if (!addr) continue;
+        const existing = bestPair.get(addr);
+        if (!existing || (p.liquidity?.usd ?? 0) > (existing.liquidity?.usd ?? 0)) {
+          bestPair.set(addr, p);
+        }
+      }
+      for (const [addr, p] of bestPair) {
+        if (!out.has(addr)) out.set(addr, pairToMarketToken(p));
+      }
+    } catch (e) {
+      logger.warn({ err: e }, "Token stats batch fetch failed");
+    }
+  }
+  return out;
+}
+
 // ── Market status tracking ────────────────────────────────────────────────
 let lastTrendingUpdate: number | null = null;
 let trendingTokenCount = 0;

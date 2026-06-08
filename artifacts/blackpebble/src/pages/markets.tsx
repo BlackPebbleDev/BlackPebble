@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
-import { Loader2, TrendingUp, Zap } from "lucide-react";
+import { Loader2, TrendingUp, Sparkles } from "lucide-react";
 import { LiveIndicator } from "@/components/live-indicator";
-import { api, type TokenInfo, type NewToken } from "@/lib/api";
+import { Watchlist } from "@/components/watchlist";
+import { api, type TokenInfo, type MigratedToken } from "@/lib/api";
 import {
   fmtMarketCap,
   fmtVolume,
@@ -15,16 +16,20 @@ import {
 } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
-type Tab = "trending" | "gainers" | "volume" | "new";
+type Tab = "trending" | "gainers" | "volume" | "migrated" | "watchlist";
 
 const tabs: { id: Tab; label: string }[] = [
   { id: "trending", label: "Trending" },
   { id: "gainers", label: "Top Gainers" },
-  { id: "volume", label: "Volume" },
-  { id: "new", label: "New Launches" },
+  { id: "volume", label: "Highest Volume" },
+  { id: "migrated", label: "Just Migrated" },
+  { id: "watchlist", label: "Watchlist" },
 ];
 
-function TokenLogo({ token }: { token: Pick<TokenInfo, "logo" | "symbol"> }) {
+/** How many rows to reveal per "Load More" click. */
+const PAGE_SIZE = 30;
+
+function TokenLogo({ token }: { token: { logo?: string | null; symbol?: string | null } }) {
   return token.logo ? (
     <img
       src={token.logo}
@@ -35,6 +40,21 @@ function TokenLogo({ token }: { token: Pick<TokenInfo, "logo" | "symbol"> }) {
   ) : (
     <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-[10px] text-muted-foreground flex-shrink-0 font-mono">
       {(token.symbol ?? "?").slice(0, 2).toUpperCase()}
+    </div>
+  );
+}
+
+function LoadMore({ onClick }: { onClick: () => void }) {
+  return (
+    <div className="flex justify-center pt-4">
+      <button
+        type="button"
+        onClick={onClick}
+        data-testid="button-load-more"
+        className="px-5 py-2 text-sm border border-border text-muted-foreground hover:text-foreground hover:border-accent/50 transition-colors"
+      >
+        Load More
+      </button>
     </div>
   );
 }
@@ -162,50 +182,139 @@ function MarketTable({ tokens, navigate }: { tokens: TokenInfo[]; navigate: (p: 
   );
 }
 
-function NewTokenRow({ t, navigate }: { t: NewToken; navigate: (p: string) => void }) {
-  return (
-    <tr
-      key={t.mint}
-      onClick={() => navigate(`/?token=${t.mint}`)}
-      data-testid={`row-new-${t.mint}`}
-      className="border-b border-border/50 last:border-0 hover:bg-accent/5 cursor-pointer transition-colors"
-    >
-      <td className="px-4 py-3">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-[10px] text-muted-foreground flex-shrink-0 font-mono">
-            {(t.symbol ?? "?").slice(0, 2).toUpperCase()}
-          </div>
-          <div className="min-w-0">
-            <div className="text-foreground font-medium truncate">
-              {t.symbol ?? shortAddr(t.mint)}
-            </div>
-            <div className="text-xs text-muted-foreground truncate">
-              {t.name ?? shortAddr(t.mint)}
-            </div>
-          </div>
+/** Just Migrated: tokens that recently graduated from the bonding curve. */
+function MigratedTable({
+  tokens,
+  navigate,
+}: {
+  tokens: MigratedToken[];
+  navigate: (p: string) => void;
+}) {
+  if (tokens.length === 0) {
+    return (
+      <div className="border border-border bg-card">
+        <div className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
+          <Sparkles className="w-8 h-8 opacity-30" />
+          <p className="text-sm">No recent migrations yet.</p>
+          <p className="text-xs opacity-60 text-center max-w-xs">
+            Tokens appear here as they graduate from the bonding curve and become
+            actively tradable.
+          </p>
         </div>
-      </td>
-      <td className="px-4 py-3 text-right font-mono text-muted-foreground text-xs">
-        {shortAddr(t.mint)}
-      </td>
-      <td className="px-4 py-3 text-right font-mono text-xs text-muted-foreground">
-        {t.marketCapSol != null ? `${t.marketCapSol.toFixed(0)} SOL` : "—"}
-      </td>
-      <td className="px-4 py-3 text-right text-xs text-muted-foreground">
-        {timeAgo(t.timestamp)}
-      </td>
-    </tr>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {/* Mobile: card layout */}
+      <div className="md:hidden flex flex-col gap-2">
+        {tokens.map((t) => (
+          <button
+            key={t.mint}
+            type="button"
+            onClick={() => navigate(`/?token=${t.mint}`)}
+            data-testid={`card-migrated-${t.mint}`}
+            className="w-full border border-border bg-card p-3 flex items-center gap-3 text-left active:bg-accent/5 transition-colors"
+          >
+            <TokenLogo token={t} />
+            <div className="min-w-0 flex-1">
+              <div className="font-medium text-foreground truncate">
+                {t.symbol ?? "Unknown"}
+              </div>
+              <div className="text-xs text-muted-foreground truncate">
+                {t.name ?? shortAddr(t.mint)}
+              </div>
+              <div className="text-[11px] text-accent">
+                {timeAgo(t.migratedAt)}
+              </div>
+            </div>
+            <div className="text-right flex-shrink-0">
+              <div className="font-mono text-sm text-foreground">
+                {fmtMarketCap(t.marketCapUsd)}
+                <span className="text-[10px] text-muted-foreground ml-1">MC</span>
+              </div>
+              <div className="font-mono text-xs text-muted-foreground">
+                Vol {fmtVolume(t.volume24hUsd)}
+              </div>
+            </div>
+          </button>
+        ))}
+      </div>
+
+      {/* Desktop: table layout */}
+      <div className="hidden md:block border border-border bg-card overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-muted-foreground border-b border-border">
+              <th className="font-medium px-4 py-3">Token</th>
+              <th className="font-medium px-4 py-3 text-right">Market Cap</th>
+              <th className="font-medium px-4 py-3 text-right hidden md:table-cell">
+                Liquidity
+              </th>
+              <th className="font-medium px-4 py-3 text-right hidden sm:table-cell">
+                Volume 24h
+              </th>
+              <th className="font-medium px-4 py-3 text-right">Migrated</th>
+            </tr>
+          </thead>
+          <tbody>
+            {tokens.map((t) => (
+              <tr
+                key={t.mint}
+                onClick={() => navigate(`/?token=${t.mint}`)}
+                data-testid={`row-migrated-${t.mint}`}
+                className="border-b border-border/50 last:border-0 hover:bg-accent/5 cursor-pointer transition-colors"
+              >
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <TokenLogo token={t} />
+                    <div className="min-w-0">
+                      <div className="text-foreground font-medium truncate">
+                        {t.symbol ?? "Unknown"}
+                      </div>
+                      <div className="text-xs text-muted-foreground truncate flex items-center gap-1.5">
+                        <span>{t.name ?? shortAddr(t.mint)}</span>
+                        {t.priceUsd != null && (
+                          <span className="font-mono text-muted-foreground/70">
+                            {fmtPrice(t.priceUsd)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </td>
+                <td className="px-4 py-3 text-right font-mono">
+                  {fmtMarketCap(t.marketCapUsd)}
+                </td>
+                <td className="px-4 py-3 text-right font-mono hidden md:table-cell">
+                  {fmtMarketCap(t.liquidityUsd)}
+                </td>
+                <td className="px-4 py-3 text-right font-mono hidden sm:table-cell">
+                  {fmtVolume(t.volume24hUsd)}
+                </td>
+                <td className="px-4 py-3 text-right text-xs text-accent whitespace-nowrap">
+                  {timeAgo(t.migratedAt)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
   );
 }
 
-function NewLaunchesTab({ navigate }: { navigate: (p: string) => void }) {
+function MigratedTab({ navigate }: { navigate: (p: string) => void }) {
+  const [visible, setVisible] = useState(PAGE_SIZE);
   const { data, isLoading } = useQuery({
-    queryKey: ["markets", "new"],
-    queryFn: () => api.newTokens(),
-    refetchInterval: 5_000,
+    queryKey: ["markets", "migrated"],
+    queryFn: () => api.migrated(),
+    refetchInterval: 30_000,
+    placeholderData: keepPreviousData,
   });
 
-  const tokens: NewToken[] = data?.tokens ?? [];
+  const tokens: MigratedToken[] = data?.tokens ?? [];
   const connected = data?.connected ?? false;
 
   if (isLoading) {
@@ -225,35 +334,13 @@ function NewLaunchesTab({ navigate }: { navigate: (p: string) => void }) {
             connected ? "bg-emerald-400 animate-pulse" : "bg-muted-foreground/40",
           )}
         />
-        {connected ? "Live — new tokens appear as they launch" : "Connecting to live feed…"}
+        {connected
+          ? "Live — recently graduated tokens, newest first"
+          : "Connecting to live feed…"}
       </div>
-
-      {tokens.length === 0 ? (
-        <div className="border border-border bg-card">
-          <div className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
-            <Zap className="w-8 h-8 opacity-30" />
-            <p className="text-sm">Waiting for new token launches…</p>
-            <p className="text-xs opacity-60">Tokens appear here in real time as they are created on Pump.fun</p>
-          </div>
-        </div>
-      ) : (
-        <div className="border border-border bg-card overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-muted-foreground border-b border-border">
-                <th className="font-medium px-4 py-3">Token</th>
-                <th className="font-medium px-4 py-3 text-right hidden sm:table-cell">Address</th>
-                <th className="font-medium px-4 py-3 text-right">Market Cap</th>
-                <th className="font-medium px-4 py-3 text-right">Launched</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tokens.map((t) => (
-                <NewTokenRow key={t.mint} t={t} navigate={navigate} />
-              ))}
-            </tbody>
-          </table>
-        </div>
+      <MigratedTable tokens={tokens.slice(0, visible)} navigate={navigate} />
+      {tokens.length > visible && (
+        <LoadMore onClick={() => setVisible((v) => v + PAGE_SIZE)} />
       )}
     </div>
   );
@@ -261,7 +348,16 @@ function NewLaunchesTab({ navigate }: { navigate: (p: string) => void }) {
 
 export default function Markets() {
   const [tab, setTab] = useState<Tab>("trending");
+  const [visible, setVisible] = useState(PAGE_SIZE);
   const [, navigate] = useLocation();
+
+  // Reset the reveal count whenever the list feed changes so a new tab starts
+  // at the first page rather than inheriting the previous tab's expansion.
+  useEffect(() => {
+    setVisible(PAGE_SIZE);
+  }, [tab]);
+
+  const isListFeed = tab === "trending" || tab === "gainers" || tab === "volume";
 
   const { data, isLoading, dataUpdatedAt } = useQuery({
     queryKey: ["markets", tab],
@@ -273,7 +369,7 @@ export default function Markets() {
           : tab === "volume"
             ? api.volume()
             : null,
-    enabled: tab !== "new",
+    enabled: isListFeed,
     refetchInterval: 30_000,
     // Keep the previous tab's rows on screen while the next feed loads so
     // switching tabs / background refreshes never blank the list or jump scroll.
@@ -284,22 +380,25 @@ export default function Markets() {
 
   return (
     <div className="w-full max-w-6xl mx-auto px-4 md:px-6 py-6">
-      <div className="flex items-center gap-3 mb-6">
+      <div className="flex items-center gap-3 mb-2">
         <TrendingUp className="w-6 h-6 text-accent" />
         <h1 className="text-2xl font-semibold">Markets</h1>
-        {tab !== "new" && dataUpdatedAt > 0 && (
+        {isListFeed && dataUpdatedAt > 0 && (
           <LiveIndicator dataUpdatedAt={dataUpdatedAt} />
         )}
       </div>
+      <p className="text-sm text-muted-foreground mb-6">
+        Discover opportunities — tap any token to open it on the Trading desk.
+      </p>
 
-      <div className="flex gap-1 mb-4 border-b border-border">
+      <div className="flex gap-1 mb-4 border-b border-border overflow-x-auto">
         {tabs.map((t) => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
             data-testid={`tab-market-${t.id}`}
             className={cn(
-              "px-4 py-2.5 text-sm transition-colors border-b-2 -mb-px",
+              "px-4 py-2.5 text-sm transition-colors border-b-2 -mb-px whitespace-nowrap",
               tab === t.id
                 ? "border-accent text-accent"
                 : "border-transparent text-muted-foreground hover:text-foreground",
@@ -310,14 +409,21 @@ export default function Markets() {
         ))}
       </div>
 
-      {tab === "new" ? (
-        <NewLaunchesTab navigate={navigate} />
+      {tab === "migrated" ? (
+        <MigratedTab navigate={navigate} />
+      ) : tab === "watchlist" ? (
+        <Watchlist onNavigate={(mint) => navigate(`/?token=${mint}`)} />
       ) : isLoading ? (
         <div className="flex items-center justify-center py-20">
           <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
         </div>
       ) : (
-        <MarketTable tokens={tokens} navigate={navigate} />
+        <>
+          <MarketTable tokens={tokens.slice(0, visible)} navigate={navigate} />
+          {tokens.length > visible && (
+            <LoadMore onClick={() => setVisible((v) => v + PAGE_SIZE)} />
+          )}
+        </>
       )}
     </div>
   );

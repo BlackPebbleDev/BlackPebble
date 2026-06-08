@@ -234,6 +234,19 @@ export interface NewToken {
   timestamp: number;
 }
 
+export interface MigratedToken {
+  mint: string;
+  name: string | null;
+  symbol: string | null;
+  logo: string | null;
+  migratedAt: number;
+  priceUsd: number | null;
+  priceChange24h: number | null;
+  marketCapUsd: number | null;
+  liquidityUsd: number | null;
+  volume24hUsd: number | null;
+}
+
 export interface WatchItem {
   mint: string;
   name: string | null;
@@ -385,6 +398,10 @@ export const api = {
   trending: () => request<{ tokens: TokenInfo[] }>(`/markets/trending`),
   gainers: () => request<{ tokens: TokenInfo[] }>(`/markets/gainers`),
   volume: () => request<{ tokens: TokenInfo[] }>(`/markets/volume`),
+  migrated: () =>
+    request<{ tokens: MigratedToken[]; connected: boolean }>(
+      `/markets/migrated`,
+    ),
   marketStatus: () =>
     request<{
       lastUpdated: number | null;
