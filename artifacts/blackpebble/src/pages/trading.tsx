@@ -21,6 +21,7 @@ import {
   AlertTriangle,
   Info,
   RefreshCw,
+  ChevronDown,
 } from "lucide-react";
 import {
   api,
@@ -65,6 +66,7 @@ import {
   timeAgo,
 } from "@/lib/format";
 import { fmtUnitAmt } from "@/components/trade-planner/util";
+import { parseAbbreviatedNumber } from "@/lib/trade-planner";
 import type { Unit } from "@/lib/trade-planner";
 import { cn } from "@/lib/utils";
 
@@ -446,6 +448,70 @@ function fmtUnitPnl(solValue: number, unit: Unit, solUsd: number | null): string
   return `${fmtSol(solValue)} SOL`;
 }
 
+type QuickOrder = { enabled: boolean; mcValue: string; percent: number };
+const QUICK_ORDER_DEFAULT: QuickOrder = { enabled: false, mcValue: "", percent: 100 };
+const QUICK_PERCENT_CHOICES = [25, 50, 100] as const;
+
+function QuickOrderToggle({
+  label,
+  tone,
+  enabled,
+  mcValue,
+  percent,
+  onChange,
+}: {
+  label: string;
+  tone: "profit" | "loss";
+  enabled: boolean;
+  mcValue: string;
+  percent: number;
+  onChange: (v: QuickOrder) => void;
+}) {
+  const labelColor = tone === "profit" ? "text-emerald-400" : "text-red-400";
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center gap-2">
+        <input
+          type="checkbox"
+          checked={enabled}
+          onChange={(e) => onChange({ enabled: e.target.checked, mcValue, percent })}
+          className="h-3.5 w-3.5 accent-[var(--accent)]"
+        />
+        <span className={cn("text-xs font-medium w-[74px] shrink-0", labelColor)}>
+          {label}
+        </span>
+        <input
+          type="text"
+          value={mcValue}
+          onChange={(e) => onChange({ enabled, mcValue: e.target.value, percent })}
+          placeholder={tone === "profit" ? "Target MC" : "Stop MC"}
+          className="flex-1 h-7 bg-background border border-border px-2 font-mono text-[11px] focus:outline-none focus:border-accent"
+        />
+      </div>
+      {enabled && (
+        <div className="flex items-center gap-1.5 pl-5">
+          <span className="text-[11px] text-muted-foreground">Sell</span>
+          {QUICK_PERCENT_CHOICES.map((p) => (
+            <button
+              key={p}
+              type="button"
+              onClick={() => onChange({ enabled, mcValue, percent: p })}
+              className={cn(
+                "h-6 px-2 text-[11px] border transition-colors",
+                percent === p
+                  ? "border-accent text-accent bg-accent/10"
+                  : "border-border text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {p}%
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TradePanel({
   info,
   appliedAmount,
@@ -499,6 +565,18 @@ function TradePanel({
   const [sellPercent, setSellPercent] = useState(100);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [savePromptOpen, setSavePromptOpen] = useState(false);
+
+  // Quick exit orders: TP/SL set directly in the buy box without the planner.
+  const [quickTp, setQuickTp] = useState<QuickOrder>(QUICK_ORDER_DEFAULT);
+  const [quickSl, setQuickSl] = useState<QuickOrder>(QUICK_ORDER_DEFAULT);
+  const [exitOrdersOpen, setExitOrdersOpen] = useState(false);
+
+  // Reset quick exit orders whenever the token changes.
+  useEffect(() => {
+    setQuickTp(QUICK_ORDER_DEFAULT);
+    setQuickSl(QUICK_ORDER_DEFAULT);
+    setExitOrdersOpen(false);
+  }, [info.mint]);
 
   const guestState = useGuestStore();
   const guestValued = useGuestValuedPositions();
@@ -705,11 +783,35 @@ function TradePanel({
       });
       setSolAmount("");
       setConfirmOpen(false);
-      // Create any attached TP/SL exit orders now that the buy succeeded and the
-      // position exists. Orders are only ever created after a manual buy.
-      if (t.side === "buy" && attachments) {
-        void placeAttachedOrders(attachments);
-        onAttachmentsConsumed?.();
+      // Create exit orders after a successful buy. Merges planner attachments
+      // with any quick exit orders set directly in the buy box. Planner takes
+      // priority when both sources have the same order type enabled.
+      if (t.side === "buy") {
+        const parsedTpMc = parseAbbreviatedNumber(quickTp.mcValue);
+        const parsedSlMc = parseAbbreviatedNumber(quickSl.mcValue);
+        const merged: PlannedAttachments = {
+          tp: attachments?.tp.enabled
+            ? attachments.tp
+            : {
+                enabled: quickTp.enabled && parsedTpMc != null && parsedTpMc > 0,
+                triggerMc: parsedTpMc ?? null,
+                percent: quickTp.percent,
+              },
+          sl: attachments?.sl.enabled
+            ? attachments.sl
+            : {
+                enabled: quickSl.enabled && parsedSlMc != null && parsedSlMc > 0,
+                triggerMc: parsedSlMc ?? null,
+                percent: quickSl.percent,
+              },
+          buyLimit: attachments?.buyLimit ?? { enabled: false, triggerMc: null, solAmount: null },
+        };
+        if (merged.tp.enabled || merged.sl.enabled || merged.buyLimit.enabled) {
+          void placeAttachedOrders(merged);
+        }
+        if (attachments) onAttachmentsConsumed?.();
+        setQuickTp(QUICK_ORDER_DEFAULT);
+        setQuickSl(QUICK_ORDER_DEFAULT);
       }
       if (isGuest) {
         setSavePromptOpen(true);
@@ -875,6 +977,52 @@ function TradePanel({
                   {unit === "USD" ? `$${p}` : p}
                 </button>
               ))}
+            </div>
+
+            {/* Quick exit orders — collapsible, buy side only */}
+            <div className="border border-border/60">
+              <button
+                type="button"
+                onClick={() => setExitOrdersOpen((o) => !o)}
+                data-testid="button-quick-exit-orders-toggle"
+                className="flex w-full items-center justify-between px-3 py-2 text-left text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <span className="flex items-center gap-1.5">
+                  Exit Orders
+                  {(quickTp.enabled || quickSl.enabled) && (
+                    <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+                  )}
+                </span>
+                <ChevronDown
+                  className={cn(
+                    "h-3.5 w-3.5 transition-transform",
+                    exitOrdersOpen && "rotate-180",
+                  )}
+                />
+              </button>
+              {exitOrdersOpen && (
+                <div className="border-t border-border/60 px-3 py-2.5 space-y-2.5">
+                  <QuickOrderToggle
+                    label="Take Profit"
+                    tone="profit"
+                    enabled={quickTp.enabled}
+                    mcValue={quickTp.mcValue}
+                    percent={quickTp.percent}
+                    onChange={setQuickTp}
+                  />
+                  <QuickOrderToggle
+                    label="Stop Loss"
+                    tone="loss"
+                    enabled={quickSl.enabled}
+                    mcValue={quickSl.mcValue}
+                    percent={quickSl.percent}
+                    onChange={setQuickSl}
+                  />
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    Orders are created automatically after your next Buy fills.
+                  </p>
+                </div>
+              )}
             </div>
           </>
         ) : (

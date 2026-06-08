@@ -13,7 +13,7 @@
  * clicks Buy — so the token is purchased automatically when its MC dips.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { TokenInfo } from "@/lib/api";
 import {
@@ -356,13 +356,26 @@ export function MiniPlanner({
           </div>
 
           {blBelowCurrent && (
-            <p
-              data-testid="mini-below-current-warning"
-              className="text-[11px] leading-relaxed text-amber-400"
-            >
-              Entry MC is below current market cap. Results represent a
-              hypothetical earlier entry.
-            </p>
+            attachBl ? (
+              <div
+                data-testid="mini-buy-limit-scenario"
+                className="flex items-start gap-1.5 text-[11px] leading-relaxed text-blue-400"
+              >
+                <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                <span>
+                  Buy Limit Scenario — order stays pending until market cap
+                  drops to {fmtMarketCap(parsed.entry)}.
+                </span>
+              </div>
+            ) : (
+              <p
+                data-testid="mini-below-current-warning"
+                className="text-[11px] leading-relaxed text-amber-400"
+              >
+                Earlier Entry Scenario — calculations assume entry at{" "}
+                {fmtMarketCap(parsed.entry)} MC rather than the current price.
+              </p>
+            )
           )}
 
           <div className="space-y-1.5">
