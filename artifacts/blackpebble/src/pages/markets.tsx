@@ -391,17 +391,23 @@ export default function Markets() {
         Discover opportunities — tap any token to open it on the Trading desk.
       </p>
 
-      <div className="flex gap-1 mb-4 border-b border-border overflow-x-auto">
+      <div
+        role="tablist"
+        aria-label="Market category"
+        className="flex flex-wrap gap-2 mb-5"
+      >
         {tabs.map((t) => (
           <button
             key={t.id}
+            role="tab"
+            aria-selected={tab === t.id}
             onClick={() => setTab(t.id)}
             data-testid={`tab-market-${t.id}`}
             className={cn(
-              "px-4 py-2.5 text-sm transition-colors border-b-2 -mb-px whitespace-nowrap",
+              "px-4 py-2 text-sm rounded-md border transition-colors",
               tab === t.id
-                ? "border-accent text-accent"
-                : "border-transparent text-muted-foreground hover:text-foreground",
+                ? "border-accent text-accent bg-accent/10"
+                : "border-border text-muted-foreground hover:text-foreground hover:border-accent/40",
             )}
           >
             {t.label}

@@ -229,15 +229,18 @@ function PositionCard({
       className="border border-border bg-card"
       data-testid={`card-position-${p.token_mint}`}
     >
-      {/* L1 header: token (navigates) + Unrealized P&L / ROI% + expand toggle. */}
-      <div className="flex items-stretch">
-        <button
-          type="button"
-          onClick={() => onNavigate(p.token_mint)}
-          data-testid={`token-link-${p.token_mint}`}
-          className="min-w-0 flex-1 text-left px-4 py-2.5"
-        >
-          <div className="font-medium text-foreground truncate hover:text-accent">
+      {/* L1 header: tap anywhere to expand/collapse. Token + Unrealized P&L /
+          ROI% + chevron. Navigation moves into the expanded "Continue Trading". */}
+      <button
+        type="button"
+        onClick={onToggle}
+        data-testid={`toggle-position-${p.token_mint}`}
+        aria-expanded={open}
+        aria-label={open ? "Collapse position" : "Expand position"}
+        className="flex w-full items-stretch text-left"
+      >
+        <div className="min-w-0 flex-1 px-4 py-2.5">
+          <div className="font-medium text-foreground truncate">
             {p.token_symbol ?? shortAddr(p.token_mint)}
           </div>
           {p.token_name && (
@@ -245,14 +248,8 @@ function PositionCard({
               {p.token_name}
             </div>
           )}
-        </button>
-        <button
-          type="button"
-          onClick={onToggle}
-          data-testid={`toggle-position-${p.token_mint}`}
-          aria-label={open ? "Collapse position" : "Expand position"}
-          className="flex items-center gap-2 px-4 py-2.5"
-        >
+        </div>
+        <div className="flex items-center gap-2 px-4 py-2.5">
           <div className="text-right">
             <div className={cn("font-mono text-sm", pnlColor(p.unrealizedPnlSol))}>
               <PnlAmount sol={p.unrealizedPnlSol} solUsd={solUsd} />
@@ -272,11 +269,16 @@ function PositionCard({
               open && "rotate-180",
             )}
           />
-        </button>
-      </div>
+        </div>
+      </button>
 
-      {/* L1 market-cap strip: Entry MC · Current MC · MC Multiple. */}
-      <button type="button" onClick={onToggle} className="w-full text-left px-4 pb-3">
+      {/* L1 market-cap strip: Entry MC · Current MC · MC Multiple (also taps to expand). */}
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-label={open ? "Collapse position" : "Expand position"}
+        className="w-full text-left px-4 pb-3"
+      >
         <div className="grid grid-cols-3 border border-border/60 bg-background/40 divide-x divide-border/60">
           <McCell label="Entry MC" value={fmtMarketCap(p.entry_market_cap)} />
           <McCell

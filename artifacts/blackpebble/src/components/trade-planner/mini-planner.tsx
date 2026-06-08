@@ -289,12 +289,10 @@ export function MiniPlanner({
         className="flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-secondary/40"
       >
         <span className="flex items-center gap-2 text-sm font-semibold">
-          Trade Planner
-          {!open && (
-            <span className="text-[11px] font-normal text-muted-foreground">
-              Plan a trade and apply it
-            </span>
-          )}
+          Advanced Trade Planner
+          <span className="text-[11px] font-normal text-muted-foreground">
+            (Optional)
+          </span>
         </span>
         <ChevronDown
           className={cn(

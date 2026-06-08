@@ -17,6 +17,7 @@ import {
   Star,
   ArrowDownRight,
   ArrowUpRight,
+  ArrowRight,
   ExternalLink,
   AlertTriangle,
   Info,
@@ -30,7 +31,6 @@ import {
   type TradeQuote,
   type OrderType,
 } from "@/lib/api";
-import { LiveIndicator } from "@/components/live-indicator";
 import { TradeList } from "@/components/trade-list";
 import { OpenPositions } from "@/components/open-positions";
 import {
@@ -69,6 +69,7 @@ import { parseAbbreviatedNumber } from "@/lib/trade-planner";
 import type { Unit } from "@/lib/trade-planner";
 import { cn } from "@/lib/utils";
 import { AllOrders } from "@/components/position-orders";
+import { BeginnerGuide } from "@/components/beginner-guide";
 import {
   Tooltip as UITooltip,
   TooltipTrigger,
@@ -744,6 +745,8 @@ function TradePanel({
   const [quickTp, setQuickTp] = useState<QuickOrder>(QUICK_ORDER_DEFAULT);
   const [quickSl, setQuickSl] = useState<QuickOrder>(QUICK_ORDER_DEFAULT);
   const [exitOrdersOpen, setExitOrdersOpen] = useState(false);
+  // Paper-trading rules collapsed into an info panel (UX pass item 7).
+  const [rulesOpen, setRulesOpen] = useState(false);
 
   // Reset automated orders whenever the token changes.
   useEffect(() => {
@@ -1285,6 +1288,63 @@ function TradePanel({
           symbol={info.symbol}
         />
 
+        {side === "buy" && toSol(solAmount) > 0 && (() => {
+          const tpMc = quickTp.enabled
+            ? parseAbbreviatedNumber(quickTp.mcValue)
+            : null;
+          const slMc = quickSl.enabled
+            ? parseAbbreviatedNumber(quickSl.mcValue)
+            : null;
+          return (
+            <div
+              data-testid="trade-summary"
+              className="border border-border bg-background/40 p-3 space-y-1.5 text-xs"
+            >
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                Trade Summary
+              </div>
+              <div className="flex justify-between gap-2">
+                <span className="text-muted-foreground">Buy</span>
+                <span className="font-mono text-foreground">
+                  {unit === "USD" ? `$${solAmount}` : `${solAmount} SOL`}
+                </span>
+              </div>
+              <div className="flex justify-between gap-2">
+                <span className="text-muted-foreground">Receive</span>
+                <span className="font-mono text-foreground">
+                  {quote?.ok
+                    ? `${fmtTokenAmount(quote.estimatedTokens)} ${info.symbol ?? ""}`.trim()
+                    : "—"}
+                </span>
+              </div>
+              {tpMc != null && tpMc > 0 && (
+                <div className="flex justify-between gap-2">
+                  <span className="text-muted-foreground">Take Profit</span>
+                  <span className="font-mono text-emerald-400">
+                    MC {fmtMarketCap(tpMc)}
+                  </span>
+                </div>
+              )}
+              {slMc != null && slMc > 0 && (
+                <div className="flex justify-between gap-2">
+                  <span className="text-muted-foreground">Stop Loss</span>
+                  <span className="font-mono text-red-400">
+                    MC {fmtMarketCap(slMc)}
+                  </span>
+                </div>
+              )}
+              {planned?.riskReward != null && (
+                <div className="flex justify-between gap-2">
+                  <span className="text-muted-foreground">Risk / Reward</span>
+                  <span className="font-mono text-foreground">
+                    1 : {planned.riskReward.toFixed(1)}
+                  </span>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
         {confirmOpen && quote?.ok ? (
           <div
             className={cn(
@@ -1386,13 +1446,37 @@ function TradePanel({
           </p>
         )}
 
-        <p className="flex items-start gap-1.5 text-[11px] leading-relaxed text-muted-foreground">
-          <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-          BlackPebble simulates slippage from each token's available liquidity, so
-          larger orders fill at a worse price — just like a real swap. Trades above
-          20% of liquidity, or that would leave you holding more than 4% of a
-          token's supply, are blocked.
-        </p>
+        <div className="border border-border/60 bg-background/40">
+          <button
+            type="button"
+            onClick={() => setRulesOpen((o) => !o)}
+            aria-expanded={rulesOpen}
+            data-testid="button-paper-rules-toggle"
+            className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left transition-colors hover:bg-secondary/40"
+          >
+            <span className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
+              <Info className="w-3.5 h-3.5 shrink-0" />
+              Paper Trading Rules
+            </span>
+            <ChevronDown
+              className={cn(
+                "w-3.5 h-3.5 text-muted-foreground transition-transform shrink-0",
+                rulesOpen && "rotate-180",
+              )}
+            />
+          </button>
+          {rulesOpen && (
+            <p
+              data-testid="paper-rules-body"
+              className="border-t border-border/60 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground"
+            >
+              BlackPebble simulates slippage from each token's available
+              liquidity, so larger orders fill at a worse price — just like a
+              real swap. Trades above 20% of liquidity, or that would leave you
+              holding more than 4% of a token's supply, are blocked.
+            </p>
+          )}
+        </div>
 
         {position && (
           <div className="pt-3 border-t border-border text-xs space-y-1.5">
@@ -1634,13 +1718,6 @@ export default function TradingDesk() {
     refetchInterval: 15_000,
   });
 
-  const { data: trending, dataUpdatedAt: trendingUpdatedAt } = useQuery({
-    queryKey: ["trending-quick"],
-    queryFn: () => api.trending(),
-    enabled: !mint,
-    refetchInterval: 30_000,
-  });
-
   const navigate = useNavigate();
 
   // Shared SOL/USD unit between the Buy/Sell panel and the Mini Planner so the
@@ -1686,45 +1763,21 @@ export default function TradingDesk() {
         <div className="flex items-center gap-3 mb-6">
           <LineChart className="w-6 h-6 text-accent" />
           <h1 className="text-2xl font-semibold">Trading Desk</h1>
-          <LiveIndicator dataUpdatedAt={trendingUpdatedAt} />
         </div>
-        <div className="border border-border bg-card p-8 text-center mb-8">
-          <p className="text-muted-foreground">
-            Search for a token above or pick a trending market below to start
-            paper trading.
+        <BeginnerGuide />
+        <div className="border border-border bg-card p-8 text-center">
+          <p className="text-muted-foreground mb-4">
+            Search for a token above, or browse Markets to find something to
+            paper trade.
           </p>
-        </div>
-        <h2 className="text-sm uppercase tracking-wider text-muted-foreground mb-3">
-          Trending
-        </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {(trending?.tokens ?? []).slice(0, 12).map((t) => (
-            <button
-              key={t.mint}
-              onClick={() => navigate(`/?token=${t.mint}`)}
-              data-testid={`trending-${t.mint}`}
-              className="border border-border bg-card p-4 flex items-center gap-3 hover:border-accent/50 transition-colors text-left"
-            >
-              {t.logo ? (
-                <img src={t.logo} alt="" className="w-9 h-9 object-cover" />
-              ) : (
-                <div className="w-9 h-9 bg-secondary flex items-center justify-center text-xs text-muted-foreground">
-                  {t.symbol?.slice(0, 2) ?? "?"}
-                </div>
-              )}
-              <div className="min-w-0 flex-1">
-                <div className="font-medium truncate">{t.symbol ?? "Unknown"}</div>
-                <div className="text-xs text-muted-foreground truncate font-mono">
-                  {t.marketCapUsd != null
-                    ? `${fmtMarketCap(t.marketCapUsd).replace("$", "")} MC`
-                    : fmtPrice(t.priceUsd)}
-                </div>
-              </div>
-              <div className={cn("text-xs font-mono", pnlColor(t.priceChange24h))}>
-                {fmtPercent(t.priceChange24h)}
-              </div>
-            </button>
-          ))}
+          <button
+            onClick={() => navigate("/markets")}
+            data-testid="button-browse-markets"
+            className="inline-flex items-center gap-1.5 h-10 px-4 text-sm font-medium border border-accent/50 text-accent hover:bg-accent/10 transition-colors"
+          >
+            Browse Markets
+            <ArrowRight className="w-4 h-4" />
+          </button>
         </div>
       </div>
     );
@@ -1757,6 +1810,7 @@ export default function TradingDesk() {
   return (
     <TooltipProvider delayDuration={0}>
     <div className="w-full max-w-7xl mx-auto px-4 md:px-6 py-6 space-y-4">
+      <BeginnerGuide />
       <div className="flex items-center gap-3">
         <div className="flex-1">
           <TokenHeader info={info} />

@@ -160,88 +160,16 @@ export function PositionOrders({ mint }: { mint: string }) {
   );
 }
 
-/**
- * Two-line card row used only in the portfolio-level EXIT ORDERS section.
- * Line 1: [token symbol (linked)] [TP/SL label] [Cancel | Filling…]
- * Line 2: Sell X% · Trigger: MC ≥/≤ $Y
- */
-function ExitOrderCard({
-  order,
-  onCancel,
-  onNavigate,
-}: {
-  order: PaperOrder;
-  onCancel: (id: number) => void;
-  onNavigate?: (mint: string) => void;
-}) {
-  const isTp = order.order_type === "take_profit";
-  const labelColor = isTp ? "text-emerald-400" : "text-red-400";
-  const label = isTp ? "Take Profit" : "Stop Loss";
-  const triggerDir = order.trigger_direction === "gte" ? "≥" : "≤";
-
-  return (
-    <div
-      data-testid={`order-row-${order.id}`}
-      className="px-3 py-2.5 space-y-1"
-    >
-      <div className="flex items-center justify-between gap-2">
-        <span className="flex items-center gap-2 min-w-0">
-          {onNavigate ? (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onNavigate(order.token_mint);
-              }}
-              data-testid={`button-order-token-${order.id}`}
-              className="font-mono font-semibold text-sm text-foreground/90 hover:text-accent transition-colors shrink-0"
-            >
-              {order.token_symbol ?? order.token_mint.slice(0, 6)}
-            </button>
-          ) : (
-            <span className="font-mono font-semibold text-sm text-foreground/90 shrink-0">
-              {order.token_symbol ?? order.token_mint.slice(0, 6)}
-            </span>
-          )}
-          <span className={cn("text-xs font-medium shrink-0", labelColor)}>
-            {label}
-          </span>
-        </span>
-        {order.status === "pending" ? (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onCancel(order.id);
-            }}
-            data-testid={`button-cancel-order-${order.id}`}
-            aria-label="Cancel order"
-            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-red-400 transition-colors shrink-0"
-          >
-            <X className="h-3.5 w-3.5" />
-            Cancel
-          </button>
-        ) : (
-          <span className="text-[11px] text-muted-foreground shrink-0">
-            Filling…
-          </span>
-        )}
-      </div>
-      <div className="flex items-center gap-2 text-xs text-muted-foreground font-mono">
-        <span>Sell {order.amount_value}%</span>
-        <span>·</span>
-        <span>
-          Trigger: MC {triggerDir} {fmtMarketCap(order.trigger_value)}
-        </span>
-      </div>
-    </div>
-  );
+/** Display order within a token group: Buy Limit, then Take Profit, then Stop Loss. */
+function orderTypeRank(t: PaperOrder["order_type"]): number {
+  return t === "buy_limit" ? 0 : t === "take_profit" ? 1 : 2;
 }
 
 /**
- * Portfolio-level view: all active orders (TP/SL exits + buy limits) across
- * every position/token, with token symbol prefix and cancel. Used on the
- * Portfolio page. Renders its own section heading with live order count.
+ * Portfolio-level view: all active orders grouped BY TOKEN. Each token gets one
+ * card listing its Buy Limit / Take Profit / Stop Loss orders together, with
+ * cancel. Used on the Portfolio and Trading pages. Renders its own section
+ * heading with live order count.
  */
 export function AllOrders({
   onNavigate,
@@ -263,8 +191,26 @@ export function AllOrders({
     ? guestActiveOrders(guestState)
     : data?.orders ?? [];
 
-  const exitOrders = orders.filter((o) => o.order_type !== "buy_limit");
-  const buyLimits = orders.filter((o) => o.order_type === "buy_limit");
+  // Group every active order by its token, preserving first-seen order. Each
+  // group lists its Buy Limit / TP / SL together (display only — no engine change).
+  const groups: { mint: string; symbol: string; orders: PaperOrder[] }[] = [];
+  const indexByMint = new Map<string, number>();
+  for (const o of orders) {
+    let idx = indexByMint.get(o.token_mint);
+    if (idx == null) {
+      idx = groups.length;
+      indexByMint.set(o.token_mint, idx);
+      groups.push({
+        mint: o.token_mint,
+        symbol: o.token_symbol ?? o.token_mint.slice(0, 6),
+        orders: [],
+      });
+    }
+    groups[idx].orders.push(o);
+  }
+  for (const g of groups) {
+    g.orders.sort((a, b) => orderTypeRank(a.order_type) - orderTypeRank(b.order_type));
+  }
 
   return (
     <div data-testid="all-orders-section" className="mt-8">
@@ -287,46 +233,38 @@ export function AllOrders({
         </div>
       ) : (
         <div data-testid="exit-orders-list" className="space-y-3">
-          {buyLimits.length > 0 && (
-            <div className="border border-border bg-card">
-              <div className="px-3 py-2 border-b border-border/60">
-                <span className="text-[11px] font-medium uppercase tracking-wider text-accent">
-                  Buy Limits
+          {groups.map((g) => (
+            <div
+              key={g.mint}
+              data-testid={`order-group-${g.mint}`}
+              className="border border-border bg-card"
+            >
+              <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border/60">
+                {onNavigate ? (
+                  <button
+                    type="button"
+                    onClick={() => onNavigate(g.mint)}
+                    data-testid={`button-order-group-${g.mint}`}
+                    className="font-mono font-semibold text-sm text-foreground/90 hover:text-accent transition-colors"
+                  >
+                    {g.symbol}
+                  </button>
+                ) : (
+                  <span className="font-mono font-semibold text-sm text-foreground/90">
+                    {g.symbol}
+                  </span>
+                )}
+                <span className="text-[11px] text-muted-foreground">
+                  {g.orders.length} {g.orders.length === 1 ? "order" : "orders"}
                 </span>
               </div>
-              <div className="divide-y divide-border/40">
-                {buyLimits.map((o) => (
-                  <div key={o.id} className="px-3 py-1.5">
-                    <OrderRow
-                      order={o}
-                      showToken
-                      onCancel={cancel}
-                      onNavigate={onNavigate}
-                    />
-                  </div>
+              <div className="p-2 space-y-1.5">
+                {g.orders.map((o) => (
+                  <OrderRow key={o.id} order={o} onCancel={cancel} />
                 ))}
               </div>
             </div>
-          )}
-          {exitOrders.length > 0 && (
-            <div className="border border-border bg-card">
-              <div className="px-3 py-2 border-b border-border/60">
-                <span className="text-[11px] font-medium uppercase tracking-wider text-emerald-400/80">
-                  Take Profit / Stop Loss
-                </span>
-              </div>
-              <div className="divide-y divide-border/40">
-                {exitOrders.map((o) => (
-                  <ExitOrderCard
-                    key={o.id}
-                    order={o}
-                    onCancel={cancel}
-                    onNavigate={onNavigate}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
+          ))}
         </div>
       )}
     </div>
