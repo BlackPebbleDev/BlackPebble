@@ -5,8 +5,15 @@
  * only, mono for numbers.
  */
 import * as React from "react";
+import { Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+  TooltipProvider,
+} from "@/components/ui/tooltip";
 
 /** A titled card that wraps each planner section. */
 export function SectionCard({
@@ -159,11 +166,13 @@ export function Stat({
   value,
   tone = "default",
   emphasis,
+  help,
 }: {
   label: string;
   value: string;
   tone?: "default" | "profit" | "loss" | "accent";
   emphasis?: boolean;
+  help?: string;
 }) {
   const toneClass =
     tone === "profit"
@@ -175,8 +184,30 @@ export function Stat({
           : "text-foreground";
   return (
     <div className="min-w-0 space-y-1">
-      <div className="text-[11px] uppercase leading-tight tracking-wider text-muted-foreground">
-        {label}
+      <div className="flex items-center gap-1 text-[11px] uppercase leading-tight tracking-wider text-muted-foreground">
+        <span>{label}</span>
+        {help ? (
+          <TooltipProvider delayDuration={0}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  aria-label={`${label} help`}
+                  onClick={(e) => e.preventDefault()}
+                  className="inline-flex shrink-0 text-muted-foreground/70 transition-colors hover:text-accent"
+                >
+                  <Info className="h-3 w-3" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent
+                side="top"
+                className="max-w-[220px] text-xs normal-case leading-relaxed"
+              >
+                {help}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        ) : null}
       </div>
       <div
         className={cn(

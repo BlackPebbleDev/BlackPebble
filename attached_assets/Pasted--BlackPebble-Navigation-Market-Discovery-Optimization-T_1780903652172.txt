@@ -1,0 +1,153 @@
+# BlackPebble Navigation & Market Discovery Optimization
+
+This is a product structure update.
+
+Do not modify trading logic, orders, portfolio calculations, leaderboard logic, or backend APIs.
+
+====================================================
+GOAL
+====================================================
+
+Reduce overlap between Trading and Markets.
+
+Currently:
+
+Trading =
+- Search
+- Token discovery
+- Trading
+
+Markets =
+- Search
+- Token discovery
+- Trading
+
+This creates redundancy.
+
+====================================================
+TRADING PAGE
+====================================================
+
+Trading should become the execution workspace.
+
+Purpose:
+
+"Trade the selected token."
+
+Trading page should focus on:
+
+- Selected token information
+- Buy / Sell panel
+- Automated Orders
+- Trade Planner
+- Active Orders
+- Position information
+
+Remove the standalone Trending token list from Trading if Markets already provides discovery.
+
+Users can still reach Trading by:
+
+- Global search bar
+- Clicking a token in Markets
+- Clicking a token in Portfolio
+- Clicking a token in Watchlist
+
+====================================================
+MARKETS PAGE
+====================================================
+
+Markets becomes the discovery center.
+
+Tabs:
+
+- Trending
+- Top Gainers
+- Highest Volume
+- Recent Graduations
+- Watchlist
+
+Display approximately 30 tokens per tab.
+
+Allow Load More or pagination if needed.
+
+====================================================
+REPLACE "NEW LAUNCHES"
+====================================================
+
+Remove or replace New Launches.
+
+Current New Launches data quality is poor and creates a cluttered experience.
+
+Replace with:
+
+Recent Graduations
+
+Show:
+
+- Token
+- Market Cap
+- Liquidity
+- Volume
+- Time Since Graduation
+
+Goal:
+
+Surface higher-quality opportunities.
+
+====================================================
+CLICK FLOW
+====================================================
+
+When a user taps a token inside Markets:
+
+Navigate to Trading Desk
+
+AND
+
+Preload that token automatically.
+
+This should feel like:
+
+Markets = discover
+
+Trading = execute
+
+====================================================
+REVIEW NAVIGATION
+====================================================
+
+Current bottom navigation:
+
+Trading
+Markets
+Portfolio
+Leaderboard
+Utilities
+
+Keep this structure.
+
+Do not add more tabs.
+
+Simply make each tab more specialized.
+
+====================================================
+MOBILE REVIEW
+====================================================
+
+Verify:
+
+- Markets remains fast
+- 30-token lists render properly
+- No horizontal scrolling
+- Cards fit mobile widths
+- Token tap targets remain easy to press
+
+====================================================
+GOAL
+====================================================
+
+Markets = Find Opportunities
+
+Trading = Execute Trades
+
+Reduce duplication and make the app easier for new users to understand.

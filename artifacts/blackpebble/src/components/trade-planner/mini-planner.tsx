@@ -424,6 +424,7 @@ export function MiniPlanner({
             <Stat
               label="Risk / Reward"
               value={fmtRatioOneTo(result.riskReward)}
+              help="How much you stand to gain compared to what you risk. A 1:3 ratio means the potential reward is three times the potential loss — higher is generally better."
             />
             <Stat label="Reward %" value={fmtPct(result.rewardPct)} />
             <Stat label="Risk %" value={fmtPct(result.riskPct)} tone="loss" />

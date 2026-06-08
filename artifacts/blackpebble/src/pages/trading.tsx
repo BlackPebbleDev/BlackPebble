@@ -69,6 +69,13 @@ import { fmtUnitAmt } from "@/components/trade-planner/util";
 import { parseAbbreviatedNumber } from "@/lib/trade-planner";
 import type { Unit } from "@/lib/trade-planner";
 import { cn } from "@/lib/utils";
+import { AllOrders } from "@/components/position-orders";
+import {
+  Tooltip as UITooltip,
+  TooltipTrigger,
+  TooltipContent,
+  TooltipProvider,
+} from "@/components/ui/tooltip";
 
 ChartJS.register(
   CategoryScale,
@@ -78,6 +85,27 @@ ChartJS.register(
   Tooltip,
   Filler,
 );
+
+/** Small inline help icon with a tap/hover tooltip (works on mobile). */
+function HelpTip({ text, label }: { text: string; label: string }) {
+  return (
+    <UITooltip delayDuration={0}>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          aria-label={`${label} help`}
+          onClick={(e) => e.preventDefault()}
+          className="inline-flex shrink-0 text-muted-foreground/60 hover:text-foreground transition-colors align-middle"
+        >
+          <Info className="w-3 h-3" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-[220px] text-[11px] leading-relaxed">
+        {text}
+      </TooltipContent>
+    </UITooltip>
+  );
+}
 
 const BUY_PRESETS = [0.5, 1, 5, 10];
 const USD_BUY_PRESETS = [25, 50, 100, 500];
@@ -144,14 +172,22 @@ function TokenHeader({ info }: { info: TokenInfo }) {
           <div className="font-mono text-sm">{fmtUsd(info.volume24hUsd)}</div>
         </div>
         <div className="hidden md:block">
-          <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+          <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted-foreground">
             Liquidity
+            <HelpTip
+              label="Liquidity"
+              text="The pool of funds available to trade against. Higher liquidity means your orders fill closer to the listed price."
+            />
           </div>
           <div className="font-mono text-sm">{fmtUsd(info.liquidityUsd)}</div>
         </div>
         <div className="hidden lg:block">
-          <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+          <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted-foreground">
             Market Cap
+            <HelpTip
+              label="Market Cap"
+              text="The total value of all tokens in circulation (price × supply). Often used as the trigger level for automated orders."
+            />
           </div>
           <div className="font-mono text-sm">{fmtUsd(info.marketCapUsd)}</div>
         </div>
@@ -322,6 +358,8 @@ function TradeEstimate({
   side: "buy" | "sell";
   symbol: string | null;
 }) {
+  const [detailsOpen, setDetailsOpen] = useState(false);
+
   if (!show) return null;
 
   if (loading && !quote) {
@@ -355,12 +393,12 @@ function TradeEstimate({
 
   return (
     <div
-      className="border border-border bg-background p-3 text-xs space-y-1.5"
+      className="border border-border bg-background text-xs"
       data-testid="trade-estimate"
     >
       {quote.lowData && (
         <div
-          className="flex items-start gap-2 -mx-3 -mt-3 mb-1 px-3 py-2 border-b border-amber-500/30 bg-amber-500/10 text-amber-300"
+          className="flex items-start gap-2 px-3 py-2 border-b border-amber-500/30 bg-amber-500/10 text-amber-300"
           data-testid="low-data-notice"
         >
           <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
@@ -369,34 +407,79 @@ function TradeEstimate({
           </span>
         </div>
       )}
-      <div className="flex justify-between">
-        <span className="text-muted-foreground">Execution price</span>
-        <span className="font-mono">{fmtPrice(quote.effectivePriceUsd)}</span>
-      </div>
-      <div className="flex justify-between">
-        <span className="text-muted-foreground">Estimated slippage</span>
-        <span className={cn("font-mono", impactColor)}>
-          {quote.slippagePercent.toFixed(2)}%
+
+      {/* Headline always visible; the breakdown collapses by default. */}
+      <button
+        type="button"
+        onClick={() => setDetailsOpen((o) => !o)}
+        data-testid="button-trade-details-toggle"
+        className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left transition-colors hover:bg-secondary/40"
+      >
+        <span className="flex items-center gap-2">
+          <span className="text-muted-foreground">
+            {side === "buy" ? "You receive" : "You get"}
+          </span>
+          <span className="font-mono text-foreground">
+            {side === "buy"
+              ? `${fmtTokenAmount(quote.estimatedTokens)} ${symbol ?? ""}`.trim()
+              : `${fmtSol(quote.estimatedSol)} SOL`}
+          </span>
         </span>
-      </div>
-      <div className="flex justify-between">
-        <span className="text-muted-foreground">Trade impact (of liquidity)</span>
-        <span className={cn("font-mono", impactColor)}>
-          {quote.tradeImpactPercent < 0.01
-            ? "<0.01%"
-            : `${quote.tradeImpactPercent.toFixed(2)}%`}
+        <span className="flex items-center gap-1.5 text-muted-foreground">
+          Trade Details
+          <ChevronDown
+            className={cn(
+              "h-3.5 w-3.5 transition-transform",
+              detailsOpen && "rotate-180",
+            )}
+          />
         </span>
-      </div>
-      <div className="flex justify-between pt-1.5 border-t border-border/60">
-        <span className="text-muted-foreground">
-          {side === "buy" ? "Estimated receive" : "Estimated proceeds"}
-        </span>
-        <span className="font-mono text-foreground">
-          {side === "buy"
-            ? `${fmtTokenAmount(quote.estimatedTokens)} ${symbol ?? ""}`.trim()
-            : `${fmtSol(quote.estimatedSol)} SOL`}
-        </span>
-      </div>
+      </button>
+
+      {detailsOpen && (
+        <div className="space-y-1.5 border-t border-border/60 px-3 py-2.5">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Execution price</span>
+            <span className="font-mono">{fmtPrice(quote.effectivePriceUsd)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="flex items-center gap-1 text-muted-foreground">
+              Estimated slippage
+              <HelpTip
+                label="Slippage"
+                text="The gap between the listed price and your actual fill price. Bigger orders move the price more, so they slip further."
+              />
+            </span>
+            <span className={cn("font-mono", impactColor)}>
+              {quote.slippagePercent.toFixed(2)}%
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span className="flex items-center gap-1 text-muted-foreground">
+              Trade impact (of liquidity)
+              <HelpTip
+                label="Trade Impact"
+                text="What share of the token's available liquidity this order consumes. Large shares lead to worse fills."
+              />
+            </span>
+            <span className={cn("font-mono", impactColor)}>
+              {quote.tradeImpactPercent < 0.01
+                ? "<0.01%"
+                : `${quote.tradeImpactPercent.toFixed(2)}%`}
+            </span>
+          </div>
+          <div className="flex justify-between pt-1.5 border-t border-border/60">
+            <span className="text-muted-foreground">
+              {side === "buy" ? "Estimated receive" : "Estimated proceeds"}
+            </span>
+            <span className="font-mono text-foreground">
+              {side === "buy"
+                ? `${fmtTokenAmount(quote.estimatedTokens)} ${symbol ?? ""}`.trim()
+                : `${fmtSol(quote.estimatedSol)} SOL`}
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -459,6 +542,7 @@ function QuickOrderToggle({
   mcValue,
   percent,
   onChange,
+  helpText,
 }: {
   label: string;
   tone: "profit" | "loss";
@@ -466,6 +550,7 @@ function QuickOrderToggle({
   mcValue: string;
   percent: number;
   onChange: (v: QuickOrder) => void;
+  helpText?: string;
 }) {
   const labelColor = tone === "profit" ? "text-emerald-400" : "text-red-400";
   return (
@@ -477,14 +562,20 @@ function QuickOrderToggle({
           onChange={(e) => onChange({ enabled: e.target.checked, mcValue, percent })}
           className="h-3.5 w-3.5 accent-[var(--accent)]"
         />
-        <span className={cn("text-xs font-medium w-[74px] shrink-0", labelColor)}>
+        <span
+          className={cn(
+            "flex items-center gap-1 text-xs font-medium w-[74px] shrink-0",
+            labelColor,
+          )}
+        >
           {label}
         </span>
+        {helpText && <HelpTip label={label} text={helpText} />}
         <input
           type="text"
           value={mcValue}
           onChange={(e) => onChange({ enabled, mcValue: e.target.value, percent })}
-          placeholder={tone === "profit" ? "Target MC" : "Stop MC"}
+          placeholder={tone === "profit" ? "Take Profit MC" : "Stop Loss MC"}
           className="flex-1 h-7 bg-background border border-border px-2 font-mono text-[11px] focus:outline-none focus:border-accent"
         />
       </div>
@@ -512,6 +603,85 @@ function QuickOrderToggle({
   );
 }
 
+type QuickBuyLimit = { enabled: boolean; mcValue: string };
+const QUICK_BUY_LIMIT_DEFAULT: QuickBuyLimit = { enabled: false, mcValue: "" };
+
+/**
+ * Buy Limit row for the Automated Orders section. Unlike TP/SL (which attach
+ * after the next buy), a buy limit is an entry order created immediately via the
+ * page-level `createBuyLimitOrder` helper. The SOL it spends is the buy box's
+ * current Amount. No order engine logic lives here — this only collects inputs.
+ */
+function BuyLimitRow({
+  enabled,
+  mcValue,
+  solAmount,
+  canCreate,
+  onChange,
+  onCreate,
+}: {
+  enabled: boolean;
+  mcValue: string;
+  /** SOL the order will spend (the buy box Amount, converted to SOL). */
+  solAmount: number;
+  canCreate: boolean;
+  onChange: (v: QuickBuyLimit) => void;
+  onCreate: () => void;
+}) {
+  const parsedMc = parseAbbreviatedNumber(mcValue);
+  const validMc = parsedMc != null && parsedMc > 0;
+  const validAmount = Number.isFinite(solAmount) && solAmount >= 0.1;
+  const ready = enabled && validMc && validAmount && canCreate;
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center gap-2">
+        <input
+          type="checkbox"
+          checked={enabled}
+          onChange={(e) => onChange({ enabled: e.target.checked, mcValue })}
+          data-testid="checkbox-quick-buy-limit"
+          className="h-3.5 w-3.5 accent-[var(--accent)]"
+        />
+        <span className="flex items-center gap-1 text-xs font-medium w-[74px] shrink-0 text-accent">
+          Buy Limit
+        </span>
+        <HelpTip
+          label="Buy Limit"
+          text="Automatically buys using your Amount above when the market cap drops to or below your target."
+        />
+        <input
+          type="text"
+          value={mcValue}
+          onChange={(e) => onChange({ enabled, mcValue: e.target.value })}
+          placeholder="Buy when MC ≤"
+          data-testid="input-quick-buy-limit-mc"
+          className="flex-1 h-7 bg-background border border-border px-2 font-mono text-[11px] focus:outline-none focus:border-accent"
+        />
+      </div>
+      {enabled && (
+        <div className="flex items-center justify-between gap-2 pl-5">
+          <span className="text-[11px] text-muted-foreground">
+            {!validAmount
+              ? "Enter an Amount above (≥ 0.1 SOL)"
+              : !validMc
+                ? "Enter a target market cap"
+                : `Buy ${fmtSol(solAmount)} SOL @ ≤ ${fmtMarketCap(parsedMc)}`}
+          </span>
+          <button
+            type="button"
+            onClick={onCreate}
+            disabled={!ready}
+            data-testid="button-quick-buy-limit-set"
+            className="h-6 px-2.5 text-[11px] border border-accent text-accent hover:bg-accent/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            Set Buy Limit
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TradePanel({
   info,
   appliedAmount,
@@ -521,6 +691,7 @@ function TradePanel({
   onAttachmentsConsumed,
   unit,
   onUnitChange,
+  onCreateBuyLimit,
 }: {
   info: TokenInfo;
   appliedAmount?: { amount: string; nonce: number } | null;
@@ -531,6 +702,8 @@ function TradePanel({
   onAttachmentsConsumed?: () => void;
   unit: Unit;
   onUnitChange: (unit: Unit) => void;
+  /** Create a buy-limit entry order immediately (reuses the page helper). */
+  onCreateBuyLimit?: (p: { triggerMc: number; solAmount: number }) => void;
 }) {
   const { wallet, account, isGuest } = useAccount();
   const { toast } = useToast();
@@ -566,17 +739,38 @@ function TradePanel({
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [savePromptOpen, setSavePromptOpen] = useState(false);
 
-  // Quick exit orders: TP/SL set directly in the buy box without the planner.
+  // Automated orders set directly in the buy box without the planner:
+  // a buy-limit entry plus TP/SL exits.
+  const [quickBl, setQuickBl] = useState<QuickBuyLimit>(QUICK_BUY_LIMIT_DEFAULT);
   const [quickTp, setQuickTp] = useState<QuickOrder>(QUICK_ORDER_DEFAULT);
   const [quickSl, setQuickSl] = useState<QuickOrder>(QUICK_ORDER_DEFAULT);
   const [exitOrdersOpen, setExitOrdersOpen] = useState(false);
 
-  // Reset quick exit orders whenever the token changes.
+  // Reset automated orders whenever the token changes.
   useEffect(() => {
+    setQuickBl(QUICK_BUY_LIMIT_DEFAULT);
     setQuickTp(QUICK_ORDER_DEFAULT);
     setQuickSl(QUICK_ORDER_DEFAULT);
     setExitOrdersOpen(false);
   }, [info.mint]);
+
+  // Create a buy-limit entry order immediately from the Automated Orders
+  // section. Spends the current buy-box Amount (converted to SOL) and delegates
+  // creation to the existing page-level helper — no new order logic here.
+  function handleSetBuyLimit() {
+    const mc = parseAbbreviatedNumber(quickBl.mcValue);
+    const spend = toSol(solAmount);
+    if (
+      !onCreateBuyLimit ||
+      mc == null ||
+      mc <= 0 ||
+      !(Number.isFinite(spend) && spend >= 0.1)
+    ) {
+      return;
+    }
+    onCreateBuyLimit({ triggerMc: mc, solAmount: spend });
+    setQuickBl(QUICK_BUY_LIMIT_DEFAULT);
+  }
 
   const guestState = useGuestStore();
   const guestValued = useGuestValuedPositions();
@@ -979,7 +1173,7 @@ function TradePanel({
               ))}
             </div>
 
-            {/* Quick exit orders — collapsible, buy side only */}
+            {/* Automated orders — collapsible, buy side only: buy limit + TP/SL */}
             <div className="border border-border/60">
               <button
                 type="button"
@@ -988,8 +1182,8 @@ function TradePanel({
                 className="flex w-full items-center justify-between px-3 py-2 text-left text-xs text-muted-foreground hover:text-foreground transition-colors"
               >
                 <span className="flex items-center gap-1.5">
-                  Exit Orders
-                  {(quickTp.enabled || quickSl.enabled) && (
+                  Automated Orders
+                  {(quickBl.enabled || quickTp.enabled || quickSl.enabled) && (
                     <span className="h-1.5 w-1.5 rounded-full bg-accent" />
                   )}
                 </span>
@@ -1001,10 +1195,28 @@ function TradePanel({
                 />
               </button>
               {exitOrdersOpen && (
-                <div className="border-t border-border/60 px-3 py-2.5 space-y-2.5">
+                <div className="border-t border-border/60 px-3 py-2.5 space-y-3">
+                  <p className="text-[11px] leading-relaxed text-muted-foreground">
+                    Orders that run automatically when the market cap hits your
+                    level.{" "}
+                    <span className="text-accent">Buy Limit</span> enters a
+                    position,{" "}
+                    <span className="text-emerald-400">Take Profit</span> locks in
+                    gains, and{" "}
+                    <span className="text-red-400">Stop Loss</span> limits losses.
+                  </p>
+                  <BuyLimitRow
+                    enabled={quickBl.enabled}
+                    mcValue={quickBl.mcValue}
+                    solAmount={toSol(solAmount)}
+                    canCreate={onCreateBuyLimit != null}
+                    onChange={setQuickBl}
+                    onCreate={handleSetBuyLimit}
+                  />
                   <QuickOrderToggle
                     label="Take Profit"
                     tone="profit"
+                    helpText="Sells automatically when the market cap rises to or above your target."
                     enabled={quickTp.enabled}
                     mcValue={quickTp.mcValue}
                     percent={quickTp.percent}
@@ -1013,13 +1225,15 @@ function TradePanel({
                   <QuickOrderToggle
                     label="Stop Loss"
                     tone="loss"
+                    helpText="Sells automatically when the market cap falls to or below your level, capping losses."
                     enabled={quickSl.enabled}
                     mcValue={quickSl.mcValue}
                     percent={quickSl.percent}
                     onChange={setQuickSl}
                   />
                   <p className="text-[11px] text-muted-foreground leading-relaxed">
-                    Orders are created automatically after your next Buy fills.
+                    Take Profit / Stop Loss are created automatically after your
+                    next Buy fills.
                   </p>
                 </div>
               )}
@@ -1548,6 +1762,7 @@ export default function TradingDesk() {
   }
 
   return (
+    <TooltipProvider delayDuration={0}>
     <div className="w-full max-w-7xl mx-auto px-4 md:px-6 py-6 space-y-4">
       <div className="flex items-center gap-3">
         <div className="flex-1">
@@ -1584,6 +1799,17 @@ export default function TradingDesk() {
             onAttachmentsConsumed={() => setPendingAttachments(null)}
             unit={unit}
             onUnitChange={setUnit}
+            onCreateBuyLimit={({ triggerMc, solAmount }) =>
+              void createBuyLimitOrder({
+                mint: info.mint,
+                symbol: info.symbol,
+                name: info.name,
+                triggerMc,
+                solAmount,
+                isGuest,
+                wallet,
+              })
+            }
           />
           <MiniPlanner
             info={info}
@@ -1624,7 +1850,10 @@ export default function TradingDesk() {
         </div>
       </div>
 
+      <AllOrders onNavigate={(m) => navigate(`/?token=${m}`)} />
+
       <ActivityTabs />
     </div>
+    </TooltipProvider>
   );
 }
