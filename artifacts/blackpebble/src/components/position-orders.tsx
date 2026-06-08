@@ -65,7 +65,7 @@ function OrderRow({
 
   const detail = isBuyLimit
     ? `${fmtSol(order.amount_value)} SOL @ ≤ ${fmtMarketCap(order.trigger_value)} MC`
-    : `${order.amount_value}% @ ${order.trigger_direction === "gte" ? "≥" : "≤"} ${fmtMarketCap(order.trigger_value)} MC`;
+    : `Sell ${order.amount_value}% of remaining @ ${order.trigger_direction === "gte" ? "≥" : "≤"} ${fmtMarketCap(order.trigger_value)} MC`;
 
   return (
     <div

@@ -1,4 +1,5 @@
 - [Adding deps to an artifact](pnpm-add-to-artifact.md) — `pnpm add` from repo root fails ERR_PNPM_ADDING_TO_ROOT; install per-package instead.
+- [TP/SL paper order fill semantics](tp-sl-order-fill-semantics.md) — TP/SL fills sell % of the *current remaining* balance, not original; ladder = N orders, no engine change.
 - [Production DB is separate from dev](prod-db-separate.md) — published app uses its own prod DB; dev resets/executeSql don't touch it. Reset prod via the live admin endpoint.
 - [Drizzle push needs a TTY](drizzle-push-tty.md) — drizzle-kit push hangs (no TTY); apply DDL via executeSql + mirror in schema/index.ts.
 - [Zero-cost cache observers](zero-cost-cache-observer.md) — global hooks observe an existing polled query (enabled:false) to avoid new fetches; public-wallet GETs vs owner-only pending-intent.

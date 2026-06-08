@@ -630,8 +630,8 @@ function AttachRow({
 
       {active && fixedPercent && (
         <div className="mt-2.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
-          Sells <span className="font-mono text-foreground">100%</span> of the
-          position when triggered.
+          Sells <span className="font-mono text-foreground">100%</span> of your
+          remaining position when triggered.
         </div>
       )}
 

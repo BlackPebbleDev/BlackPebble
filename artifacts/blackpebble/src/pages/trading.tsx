@@ -534,10 +534,15 @@ function fmtUnitPnl(solValue: number, unit: Unit, solUsd: number | null): string
 type QuickOrder = { enabled: boolean; mcValue: string; percent: number };
 const QUICK_ORDER_DEFAULT: QuickOrder = { enabled: false, mcValue: "", percent: 100 };
 
-/** One rung of the multi-target take-profit ladder: an MC trigger + sell %. */
+/**
+ * One rung of the multi-target take-profit ladder: an MC trigger + a sell % of
+ * the *remaining* position at the time the rung fills (not % of the original
+ * position). Rungs fire sequentially as the MC rises, so percentages compound
+ * down the ladder and are NOT required to add up to 100%.
+ */
 type TpRung = { mcValue: string; percent: number };
 const MAX_TP_RUNGS = 4;
-const TP_LADDER_DEFAULT: TpRung[] = [{ mcValue: "", percent: 100 }];
+const TP_LADDER_DEFAULT: TpRung[] = [{ mcValue: "", percent: 50 }];
 
 /**
  * A single automated order row (Stop Loss). Take Profit now uses the dedicated
@@ -592,8 +597,8 @@ function QuickOrderToggle({
       </div>
       {enabled && (
         <div className="flex items-center gap-1.5 pl-5 text-[11px] text-muted-foreground">
-          Sells <span className="font-mono text-foreground">100%</span> of the
-          position when triggered.
+          Sells <span className="font-mono text-foreground">100%</span> of your
+          remaining position when triggered.
         </div>
       )}
     </div>
@@ -602,10 +607,11 @@ function QuickOrderToggle({
 
 /**
  * Multi-target Take Profit ladder (spec #1). Up to four rungs, each an MC
- * trigger + a sell %. Percent inputs are clamped so the combined allocation can
- * never exceed 100%, and an Allocated / Remaining read-out keeps it obvious how
- * much of the position is still unsold. Each enabled rung becomes its own
- * take_profit order (evaluated independently by the order engine).
+ * trigger + a sell % of the *remaining* position at the moment that rung fills.
+ * Rungs fire sequentially as the market cap rises, so each percent compounds on
+ * what's left — totals are NOT capped at or required to reach 100%. Each enabled
+ * rung becomes its own take_profit order (evaluated independently by the order
+ * engine, which already sells a % of the live remaining balance).
  */
 function TpLadder({
   enabled,
@@ -618,28 +624,17 @@ function TpLadder({
   onToggle: (v: boolean) => void;
   onChange: (rungs: TpRung[]) => void;
 }) {
-  const allocated = rungs.reduce(
-    (s, r) => s + (Number.isFinite(r.percent) ? r.percent : 0),
-    0,
-  );
-  const remaining = Math.max(0, 100 - allocated);
-
   const patchRung = (i: number, patch: Partial<TpRung>) =>
     onChange(rungs.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
 
   const setPercent = (i: number, raw: string) => {
-    const n = Math.max(0, Math.floor(Number(raw) || 0));
-    const others = rungs.reduce(
-      (s, r, idx) => (idx === i ? s : s + (r.percent || 0)),
-      0,
-    );
-    const maxAllowed = Math.max(0, 100 - others);
-    patchRung(i, { percent: Math.min(n, maxAllowed) });
+    const n = Math.max(0, Math.min(100, Math.floor(Number(raw) || 0)));
+    patchRung(i, { percent: n });
   };
 
   const addRung = () => {
     if (rungs.length >= MAX_TP_RUNGS) return;
-    onChange([...rungs, { mcValue: "", percent: remaining }]);
+    onChange([...rungs, { mcValue: "", percent: 50 }]);
   };
   const removeRung = (i: number) => {
     if (rungs.length <= 1) return;
@@ -661,29 +656,18 @@ function TpLadder({
         </span>
         <HelpTip
           label="Take Profit"
-          text="Set up to four targets. Each sells a slice of your position when the market cap rises to or above its level."
+          text="Set up to four targets that fill in order as the market cap rises. Each one sells a percentage of whatever is left of your position at that moment — they don't need to add up to 100%."
         />
-        {enabled && (
-          <span
-            data-testid="tp-allocated"
-            className={cn(
-              "ml-auto font-mono text-[11px]",
-              allocated > 100 ? "text-red-400" : "text-muted-foreground",
-            )}
-          >
-            Allocated {allocated}%
-            {remaining > 0 && (
-              <span className="text-muted-foreground/70">
-                {" "}
-                · Remaining {remaining}%
-              </span>
-            )}
-          </span>
-        )}
       </div>
 
       {enabled && (
         <div className="space-y-2 pl-5">
+          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+            <span className="w-[58px] shrink-0">Target</span>
+            <span className="flex-1">Market cap ≥</span>
+            <span className="w-[88px] shrink-0">Sell % of rem.</span>
+            {rungs.length > 1 && <span className="w-7 shrink-0" />}
+          </div>
           {rungs.map((r, i) => (
             <div key={i} className="flex items-center gap-1.5">
               <span className="w-[58px] shrink-0 text-[11px] text-muted-foreground">
@@ -697,7 +681,7 @@ function TpLadder({
                 data-testid={`input-tp-mc-${i}`}
                 className="flex-1 h-7 bg-background border border-border px-2 font-mono text-[11px] focus:outline-none focus:border-accent"
               />
-              <div className="flex items-center">
+              <div className="flex w-[88px] shrink-0 items-center">
                 <input
                   type="number"
                   min={0}
@@ -706,7 +690,7 @@ function TpLadder({
                   onChange={(e) => setPercent(i, e.target.value)}
                   placeholder="%"
                   data-testid={`input-tp-pct-${i}`}
-                  className="w-14 h-7 bg-background border border-border px-2 font-mono text-[11px] focus:outline-none focus:border-accent"
+                  className="w-full h-7 bg-background border border-border px-2 font-mono text-[11px] focus:outline-none focus:border-accent"
                 />
                 <span className="px-1 text-[11px] text-muted-foreground">%</span>
               </div>
@@ -733,6 +717,11 @@ function TpLadder({
               + Add Target
             </button>
           )}
+          <p className="text-[11px] leading-relaxed text-muted-foreground">
+            Each target sells that % of your{" "}
+            <span className="text-foreground">remaining</span> position as the
+            market cap rises — they fill in order and don't need to total 100%.
+          </p>
         </div>
       )}
     </div>
@@ -1541,7 +1530,7 @@ function TradePanel({
                     Take Profit {tpTargets.length > 1 ? i + 1 : ""}
                   </span>
                   <span className="font-mono text-emerald-400">
-                    {t.percent}% @ MC {fmtMarketCap(t.mc!)}
+                    Sell {t.percent}% of remaining @ MC {fmtMarketCap(t.mc!)}
                   </span>
                 </div>
               ))}
@@ -1549,7 +1538,7 @@ function TradePanel({
                 <div className="flex justify-between gap-2">
                   <span className="text-muted-foreground">Stop Loss</span>
                   <span className="font-mono text-red-400">
-                    MC {fmtMarketCap(slMc)}
+                    Sell 100% of remaining @ MC {fmtMarketCap(slMc)}
                   </span>
                 </div>
               )}
