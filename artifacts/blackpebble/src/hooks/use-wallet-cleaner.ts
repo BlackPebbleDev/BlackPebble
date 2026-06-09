@@ -11,8 +11,19 @@ import {
   type CloseableAccount,
 } from "@/lib/recovery-scan";
 
+import { api, type RecoveryTrackBody } from "@/lib/api";
+
 export { formatRentSol } from "@/lib/recovery-scan";
 export type { CloseableAccount } from "@/lib/recovery-scan";
+
+/**
+ * Best-effort usage tracking for SOL Recovery analytics. Fire-and-forget: it
+ * runs only AFTER the on-chain recovery logic and swallows every error, so it
+ * can never affect scanning or account closing.
+ */
+function trackRecovery(body: RecoveryTrackBody): void {
+  void api.recovery.track(body).catch(() => {});
+}
 
 export type CleanerStatus =
   | "idle"
@@ -137,6 +148,12 @@ export function useWalletCleaner(): UseWalletCleaner {
       const found = await scanCloseableAccounts(connection, publicKey);
       setAccounts(found);
       setStatus("scanned");
+      trackRecovery({
+        eventType: "scan",
+        wallet: publicKey.toBase58(),
+        accountsFound: found.length,
+        recoverableSol: found.reduce((sum, a) => sum + a.sol, 0),
+      });
       // A scan does not change the balance, but refresh so the status card is
       // always showing a current figure alongside the fresh results.
       void refreshBalance();
@@ -208,6 +225,15 @@ export function useWalletCleaner(): UseWalletCleaner {
       setSelected(new Set());
       setProgress(null);
       setStatus("done");
+      trackRecovery({
+        eventType: "cleanup",
+        wallet: publicKey.toBase58(),
+        status: "success",
+        accountsFound: toClose.length,
+        accountsClosed: closed,
+        recoverableSol: toClose.reduce((sum, a) => sum + a.sol, 0),
+        recoveredSol: recovered,
+      });
       // Recovered rent has landed in the wallet — pull the new balance.
       void refreshBalance();
       return true;
@@ -227,13 +253,22 @@ export function useWalletCleaner(): UseWalletCleaner {
         closed > 0
           ? `Closed ${closed} account${closed === 1 ? "" : "s"} before stopping. `
           : "";
-      setError(
-        prefix +
-          (e instanceof Error
-            ? e.message
-            : "Failed to close the selected accounts."),
-      );
+      const message =
+        e instanceof Error
+          ? e.message
+          : "Failed to close the selected accounts.";
+      setError(prefix + message);
       setStatus("error");
+      trackRecovery({
+        eventType: "cleanup",
+        wallet: publicKey.toBase58(),
+        status: "failed",
+        accountsFound: toClose.length,
+        accountsClosed: closed,
+        recoverableSol: toClose.reduce((sum, a) => sum + a.sol, 0),
+        recoveredSol: recovered,
+        error: message,
+      });
       return false;
     }
   }, [accounts, selected, publicKey, connection, sendTransaction, refreshBalance]);

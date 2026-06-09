@@ -9,6 +9,7 @@ import leaderboardRouter from "./leaderboard.js";
 import authXRouter from "./auth-x.js";
 import adminResetRouter from "./admin-reset.js";
 import adminRouter from "./admin.js";
+import recoveryRouter from "./recovery.js";
 import settingsRouter from "./settings.js";
 
 const router: IRouter = Router();
@@ -23,6 +24,7 @@ router.use(leaderboardRouter);
 router.use(authXRouter);
 router.use(adminResetRouter);
 router.use(adminRouter);
+router.use(recoveryRouter);
 router.use(settingsRouter);
 
 export default router;

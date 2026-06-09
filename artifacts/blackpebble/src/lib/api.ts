@@ -358,6 +358,60 @@ export interface LeaderboardResponse {
   solUsd: number;
 }
 
+// ---- SOL Recovery analytics ----
+export interface RecoveryTrackBody {
+  eventType: "scan" | "cleanup";
+  wallet: string;
+  accountsFound?: number;
+  accountsClosed?: number;
+  recoverableSol?: number;
+  recoveredSol?: number;
+  status?: "success" | "failed";
+  error?: string;
+}
+
+export interface RecoveryWindowStats {
+  scans: number;
+  unique_wallets: number;
+  accounts_closed: number;
+  sol_recovered: number;
+  successful_cleanups: number;
+}
+
+export interface RecoveryLifetimeStats extends RecoveryWindowStats {
+  failed_cleanups: number;
+  largest_recovery: number;
+  avg_recovered: number;
+}
+
+export interface RecoveryRecentRow {
+  created_at: number;
+  wallet: string;
+  accounts_closed: number;
+  recovered_sol: number;
+  status: string;
+  x_username: string | null;
+}
+
+export interface RecoveryTopUser {
+  wallet: string;
+  x_username: string | null;
+  total_recovered: number;
+  total_closed: number;
+}
+
+export interface RecoveryStatsResponse {
+  generatedAt: number;
+  lifetime: RecoveryLifetimeStats;
+  windows: {
+    day: RecoveryWindowStats;
+    week: RecoveryWindowStats;
+    month: RecoveryWindowStats;
+  };
+  recent: RecoveryRecentRow[];
+  topUsers: RecoveryTopUser[];
+}
+
 export interface ExecuteResult {
   ok: boolean;
   error?: string;
@@ -515,6 +569,15 @@ export const api = {
   // Public feature flags (read-only) consumed by the trading UI.
   featureFlags: () => request<{ flags: FeatureFlags }>("/feature-flags"),
 
+  // SOL Recovery usage tracking (public — recovery works for guests too).
+  recovery: {
+    track: (body: RecoveryTrackBody) =>
+      request<{ ok: boolean }>("/recovery/events", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+  },
+
   admin: {
     me: () => request<AdminMe>("/admin/me"),
     stats: () => request<{ stats: AdminStats; generatedAt: number }>("/admin/stats"),
@@ -552,5 +615,7 @@ export const api = {
         method: "POST",
         body: JSON.stringify({ options }),
       }),
+    recoveryStats: () =>
+      request<RecoveryStatsResponse>("/admin/recovery-stats"),
   },
 };

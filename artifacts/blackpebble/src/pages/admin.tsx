@@ -10,6 +10,7 @@ import {
   ListOrdered,
   AlertTriangle,
   Loader2,
+  Sparkles,
 } from "lucide-react";
 import { useAdmin } from "@/hooks/use-admin";
 import { useToast } from "@/hooks/use-toast";
@@ -17,6 +18,7 @@ import {
   api,
   type FeatureFlagKey,
   type ResetOptions,
+  type RecoveryWindowStats,
 } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -488,6 +490,203 @@ function ResetSection() {
   );
 }
 
+function shortWallet(w: string): string {
+  if (!w) return "—";
+  if (w.length <= 12) return w;
+  return `${w.slice(0, 4)}…${w.slice(-4)}`;
+}
+
+function WindowCard({
+  label,
+  stats,
+}: {
+  label: string;
+  stats?: RecoveryWindowStats;
+}) {
+  return (
+    <div className="border border-border bg-background/40 p-3">
+      <div className="mb-2 text-[11px] uppercase tracking-wider text-accent">
+        {label}
+      </div>
+      <dl className="space-y-1 text-sm">
+        <div className="flex justify-between">
+          <dt className="text-muted-foreground">Scans</dt>
+          <dd className="font-mono">{fmt(stats?.scans)}</dd>
+        </div>
+        <div className="flex justify-between">
+          <dt className="text-muted-foreground">Unique wallets</dt>
+          <dd className="font-mono">{fmt(stats?.unique_wallets)}</dd>
+        </div>
+        <div className="flex justify-between">
+          <dt className="text-muted-foreground">Accounts closed</dt>
+          <dd className="font-mono">{fmt(stats?.accounts_closed)}</dd>
+        </div>
+        <div className="flex justify-between">
+          <dt className="text-muted-foreground">SOL recovered</dt>
+          <dd className="font-mono text-accent">{fmt(stats?.sol_recovered, 3)}</dd>
+        </div>
+        <div className="flex justify-between">
+          <dt className="text-muted-foreground">Cleanups</dt>
+          <dd className="font-mono">{fmt(stats?.successful_cleanups)}</dd>
+        </div>
+      </dl>
+    </div>
+  );
+}
+
+function RecoverySection() {
+  const qc = useQueryClient();
+  const { data, isFetching } = useQuery({
+    queryKey: ["admin-recovery-stats"],
+    queryFn: () => api.admin.recoveryStats(),
+    refetchInterval: 60_000,
+  });
+  const l = data?.lifetime;
+  const recent = data?.recent ?? [];
+  const top = data?.topUsers ?? [];
+
+  return (
+    <Card
+      title="SOL Recovery analytics"
+      icon={Sparkles}
+      action={
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => qc.invalidateQueries({ queryKey: ["admin-recovery-stats"] })}
+          disabled={isFetching}
+          data-testid="button-refresh-recovery"
+        >
+          <RefreshCw className={isFetching ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
+        </Button>
+      }
+    >
+      <div className="space-y-5">
+        <div>
+          <div className="mb-2 text-[11px] uppercase tracking-wider text-muted-foreground">
+            Lifetime
+          </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+            <Stat label="Total scans" value={fmt(l?.scans)} />
+            <Stat label="Unique wallets" value={fmt(l?.unique_wallets)} />
+            <Stat label="Accounts closed" value={fmt(l?.accounts_closed)} />
+            <Stat label="SOL recovered" value={fmt(l?.sol_recovered, 3)} />
+            <Stat label="Avg / cleanup" value={fmt(l?.avg_recovered, 4)} />
+            <Stat label="Largest recovery" value={fmt(l?.largest_recovery, 4)} />
+            <Stat label="Successful cleanups" value={fmt(l?.successful_cleanups)} />
+            <Stat label="Failed cleanups" value={fmt(l?.failed_cleanups)} />
+          </div>
+        </div>
+
+        <div>
+          <div className="mb-2 text-[11px] uppercase tracking-wider text-muted-foreground">
+            Time windows
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <WindowCard label="Last 24 hours" stats={data?.windows.day} />
+            <WindowCard label="Last 7 days" stats={data?.windows.week} />
+            <WindowCard label="Last 30 days" stats={data?.windows.month} />
+          </div>
+        </div>
+
+        <div>
+          <div className="mb-2 text-[11px] uppercase tracking-wider text-muted-foreground">
+            Recent activity
+          </div>
+          <div className="max-h-80 overflow-auto border border-border">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-card text-left text-[11px] uppercase tracking-wider text-muted-foreground">
+                <tr>
+                  <th className="px-3 py-2">When</th>
+                  <th className="px-3 py-2">Wallet</th>
+                  <th className="px-3 py-2">X user</th>
+                  <th className="px-3 py-2 text-right">Closed</th>
+                  <th className="px-3 py-2 text-right">SOL</th>
+                  <th className="px-3 py-2">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recent.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-6 text-center text-muted-foreground">
+                      No recovery activity yet.
+                    </td>
+                  </tr>
+                ) : (
+                  recent.map((r, i) => (
+                    <tr key={i} className="border-t border-border/60">
+                      <td className="px-3 py-2 text-xs text-muted-foreground">
+                        {timeAgo(r.created_at)}
+                      </td>
+                      <td className="px-3 py-2 font-mono text-xs">
+                        {shortWallet(r.wallet)}
+                      </td>
+                      <td className="px-3 py-2 text-xs">
+                        {r.x_username ? `@${r.x_username}` : "—"}
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono">
+                        {fmt(r.accounts_closed)}
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono text-accent">
+                        {fmt(r.recovered_sol, 4)}
+                      </td>
+                      <td className="px-3 py-2">
+                        <span
+                          className={
+                            r.status === "success"
+                              ? "text-emerald-400"
+                              : "text-red-400"
+                          }
+                        >
+                          {r.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {top.length > 0 && (
+          <div>
+            <div className="mb-2 text-[11px] uppercase tracking-wider text-muted-foreground">
+              Top recovery users
+            </div>
+            <div className="overflow-auto border border-border">
+              <table className="w-full text-sm">
+                <thead className="text-left text-[11px] uppercase tracking-wider text-muted-foreground">
+                  <tr>
+                    <th className="px-3 py-2">Wallet / X user</th>
+                    <th className="px-3 py-2 text-right">SOL recovered</th>
+                    <th className="px-3 py-2 text-right">Accounts closed</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {top.map((u, i) => (
+                    <tr key={i} className="border-t border-border/60">
+                      <td className="px-3 py-2 font-mono text-xs">
+                        {u.x_username ? `@${u.x_username}` : shortWallet(u.wallet)}
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono text-accent">
+                        {fmt(u.total_recovered, 4)}
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono">
+                        {fmt(u.total_closed)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+}
+
 export default function AdminPage() {
   const { isAdmin, loading } = useAdmin();
 
@@ -529,6 +728,7 @@ export default function AdminPage() {
           <HealthSection />
           <MarketSection />
         </div>
+        <RecoverySection />
         <FlagsSection />
         <OrdersSection />
         <ResetSection />

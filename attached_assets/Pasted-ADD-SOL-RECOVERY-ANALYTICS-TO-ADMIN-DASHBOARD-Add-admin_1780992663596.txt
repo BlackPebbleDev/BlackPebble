@@ -1,0 +1,110 @@
+ADD SOL RECOVERY ANALYTICS TO ADMIN DASHBOARD
+
+Add admin analytics for the existing SOL Recovery / wallet cleanup tool.
+
+Do NOT modify SOL Recovery transaction logic.
+Do NOT modify wallet closing logic.
+Do NOT modify user-facing recovery flow unless required for tracking successful events.
+
+Goal:
+The admin dashboard should show whether people are actually using SOL Recovery and how much value the tool is recovering.
+
+Admin dashboard should include a SOL Recovery Analytics section.
+
+Track and display:
+
+Lifetime:
+
+* Total recovery scans
+* Unique wallets scanned
+* Total accounts closed
+* Total SOL recovered
+* Average SOL recovered per successful cleanup
+* Largest single recovery
+* Total successful cleanup sessions
+* Failed cleanup attempts if available
+
+Time windows:
+
+* Last 24 hours
+* Last 7 days
+* Last 30 days
+
+For each time window show:
+
+* scans
+* unique wallets
+* accounts closed
+* SOL recovered
+* successful cleanup sessions
+
+Recent activity table:
+
+* timestamp
+* wallet short address
+* accounts closed
+* SOL recovered
+* status
+
+If user is linked with X:
+
+* show X username where available
+
+Optional if easy:
+Top recovery users:
+
+* wallet / X user
+* total SOL recovered
+* total accounts closed
+
+Implementation guidance:
+
+* If recovery events are already stored, aggregate from existing tables.
+* If events are not stored yet, add minimal event tracking for:
+    * scan_started
+    * scan_completed
+    * cleanup_started
+    * cleanup_completed
+    * cleanup_failed
+* Store only what is needed:
+    * wallet
+    * user id if available
+    * accounts found
+    * accounts closed
+    * recoverable SOL
+    * recovered SOL
+    * status
+    * timestamp
+    * error message if failed
+
+Privacy:
+
+* Do not expose full wallet addresses publicly.
+* Admin dashboard can show shortened wallet addresses.
+* Do not store private keys.
+* Do not store sensitive wallet data beyond recovery analytics.
+
+Admin access:
+
+* Keep this protected behind the existing admin X user ID system.
+* Non-admins must not access these analytics.
+
+QA:
+
+* Admin can view SOL Recovery analytics.
+* Non-admin cannot view analytics.
+* Existing SOL Recovery still works.
+* Recovery scans are tracked.
+* Successful cleanups are tracked.
+* Failed attempts do not break the tool.
+* Typecheck passes.
+* Build passes.
+
+Return:
+
+* files changed
+* analytics fields added
+* database changes if any
+* admin dashboard changes
+* confirmation SOL Recovery logic was not altered
+* confirmation safe to publish

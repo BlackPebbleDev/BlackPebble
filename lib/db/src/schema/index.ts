@@ -258,6 +258,37 @@ export const utilityUsage = pgTable("utility_usage", {
   executed_at: bigint("executed_at", { mode: "number" }).default(epoch),
 });
 
+// SOL Recovery (wallet cleaner) usage analytics. One row per completed scan
+// and per cleanup attempt from the foreground recovery tool. We only ever
+// store public, non-sensitive data: the public wallet address, the linked X
+// identity (if any), counts, and the SOL amounts. NO private keys or signing
+// material ever touch this table — closing happens entirely client-side.
+export const recoveryEvents = pgTable(
+  "recovery_events",
+  {
+    id: serial("id").primaryKey(),
+    // 'scan' (a completed scan) | 'cleanup' (a close-accounts attempt)
+    event_type: text("event_type").notNull(),
+    wallet: text("wallet").notNull(),
+    // Linked X identity resolved from the session server-side, when present.
+    x_user_id: text("x_user_id"),
+    x_username: text("x_username"),
+    accounts_found: integer("accounts_found").default(0),
+    accounts_closed: integer("accounts_closed").default(0),
+    recoverable_sol: doublePrecision("recoverable_sol").default(0),
+    recovered_sol: doublePrecision("recovered_sol").default(0),
+    // scan: 'completed'; cleanup: 'success' | 'failed'
+    status: text("status").notNull(),
+    error_message: text("error_message"),
+    created_at: bigint("created_at", { mode: "number" }).default(epoch),
+  },
+  (t) => [
+    index("idx_recovery_events_type").on(t.event_type),
+    index("idx_recovery_events_created").on(t.created_at),
+    index("idx_recovery_events_wallet").on(t.wallet),
+  ],
+);
+
 export const walletChallenges = pgTable(
   "wallet_challenges",
   {
