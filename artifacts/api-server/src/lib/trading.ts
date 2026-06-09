@@ -1067,8 +1067,15 @@ export async function startNewSeason(wallet: string): Promise<NewSeasonResult> {
 }
 
 export async function getHistory(wallet: string, limit = 100) {
+  // Windowed to the current season: a "Start New Season" reset bumps
+  // accounts.last_reset_at, so only trades executed after that boundary belong
+  // to the active season. Accounts that have never reset (NULL) see all trades.
   return dbAll(
-    "SELECT * FROM trades WHERE wallet = $1 ORDER BY executed_at DESC LIMIT $2",
+    `SELECT * FROM trades
+     WHERE wallet = $1
+       AND executed_at > COALESCE(
+         (SELECT last_reset_at FROM accounts WHERE wallet = $1), 0)
+     ORDER BY executed_at DESC LIMIT $2`,
     [wallet, limit],
   );
 }

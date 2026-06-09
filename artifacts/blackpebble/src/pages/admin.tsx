@@ -204,7 +204,7 @@ function MarketSection() {
         <Stat label="Last updated" value={timeAgo(data?.market.lastUpdated ?? null)} />
         <Stat
           label="Cache age"
-          value={data?.market.cacheAge != null ? `${Math.floor(data.market.cacheAge / 1000)}s` : "—"}
+          value={data?.market.cacheAge != null ? `${data.market.cacheAge}s` : "—"}
         />
       </div>
     </Card>
