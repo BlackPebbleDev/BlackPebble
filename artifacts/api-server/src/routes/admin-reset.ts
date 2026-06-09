@@ -7,9 +7,12 @@ import { logger } from "../lib/logger.js";
 const router: IRouter = Router();
 
 // Tables whose every row is paper-trading / performance data and is deleted in
-// full by the reset. Order matters: competition_results references competitions,
-// so it is listed first to satisfy the foreign key.
+// full by the reset. Order matters:
+//   - paper_leverage_trades must come before paper_leverage_positions (child first)
+//   - competition_results references competitions, so it is listed first
 const TABLES_TO_CLEAR = [
+  "paper_leverage_trades",
+  "paper_leverage_positions",
   "positions",
   "trades",
   "portfolio_snapshots",
