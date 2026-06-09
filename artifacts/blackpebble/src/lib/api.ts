@@ -119,6 +119,14 @@ export interface TokenInfo {
   pairAddress: string | null;
 }
 
+export interface MarketFeedResponse {
+  tokens: TokenInfo[];
+  /** ms epoch of the last upstream feed fetch, or null if never fetched yet. */
+  lastUpdated: number | null;
+  /** Age of the cached feed in seconds, or null if never fetched yet. */
+  cacheAge: number | null;
+}
+
 export interface SearchResult {
   mint: string;
   name: string | null;
@@ -462,9 +470,18 @@ export const api = {
   migrations: () =>
     request<{ migrations: NewToken[]; connected: boolean }>(`/live/migrations`),
 
-  trending: () => request<{ tokens: TokenInfo[] }>(`/markets/trending`),
-  gainers: () => request<{ tokens: TokenInfo[] }>(`/markets/gainers`),
-  volume: () => request<{ tokens: TokenInfo[] }>(`/markets/volume`),
+  trending: () => request<MarketFeedResponse>(`/markets/trending`),
+  gainers: () => request<MarketFeedResponse>(`/markets/gainers`),
+  volume: () => request<MarketFeedResponse>(`/markets/volume`),
+  // Manual force-refresh: bypasses the server feed caches, then the client
+  // refetches the active feed. Returns the new market status.
+  refreshMarkets: () =>
+    request<{
+      lastUpdated: number | null;
+      tokenCount: number;
+      pumpportalConnected: boolean;
+      cacheAge: number | null;
+    }>(`/markets/refresh`, { method: "POST" }),
   migrated: () =>
     request<{ tokens: MigratedToken[]; connected: boolean }>(
       `/markets/migrated`,

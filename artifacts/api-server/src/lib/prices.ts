@@ -395,8 +395,16 @@ let lastTrendingUpdate: number | null = null;
 let trendingTokenCount = 0;
 
 /**
- * Force a fresh trending fetch by dropping the 60 s cache then refetching.
- * Used by the admin "force refresh market cache" action. Returns the new list.
+ * How long the merged trending feed is cached before the next page-open or
+ * refetch hits DexScreener again. Kept short so listings turn over quickly,
+ * but long enough that rapid client polling never hammers the upstream API.
+ */
+export const TRENDING_CACHE_MS = 30 * 1000;
+
+/**
+ * Force a fresh trending fetch by dropping the cache then refetching.
+ * Used by the admin "force refresh market cache" action and the Markets-page
+ * manual Refresh button. Returns the new list.
  */
 export async function forceRefreshTrending(): Promise<MarketToken[]> {
   deleteCacheValue("market_trending");
@@ -421,25 +429,39 @@ export function getMarketStatus(): {
 }
 
 /**
- * Exclude tokens that are effectively dead: no symbol/name, no price, no
- * market cap, or insufficient liquidity (< $200).
+ * Conservative dead/rugged-token thresholds. Tuned low so legitimately
+ * volatile memecoins still pass — only pairs that are effectively dead or have
+ * had their liquidity pulled are dropped.
+ */
+const MIN_LIQUIDITY_USD = 500;
+const MIN_VOLUME_24H_USD = 250;
+
+/**
+ * Exclude tokens that are effectively dead or rugged:
+ *  - missing symbol/name, price, or market cap,
+ *  - extremely low liquidity — this also catches collapsed-liquidity rugs whose
+ *    pool was pulled to near zero,
+ *  - no meaningful recent trading volume (a stale market cap with no 24h volume
+ *    is a dead pair, not a tradable one).
+ * Thresholds are intentionally conservative so volatile-but-real tokens remain.
  */
 function isDeadToken(t: MarketToken): boolean {
   if (!t.symbol || !t.name) return true;
   if (t.priceUsd == null || t.priceUsd === 0) return true;
   if (t.marketCapUsd == null) return true;
-  if (t.liquidityUsd == null || t.liquidityUsd < 200) return true;
+  if (t.liquidityUsd == null || t.liquidityUsd < MIN_LIQUIDITY_USD) return true;
+  if (t.volume24hUsd == null || t.volume24hUsd < MIN_VOLUME_24H_USD) return true;
   return false;
 }
 
 /**
  * Trending Solana tokens. Merges "latest" boosts (fresh activity) with "top"
  * boosts (sustained momentum), hydrates via DexScreener pair stats, then
- * filters dead tokens. Result is cached 60 s.
+ * filters dead tokens. Result is cached for TRENDING_CACHE_MS.
  */
 export async function getTrendingTokens(): Promise<MarketToken[]> {
   const key = "market_trending";
-  if (isCacheFresh(key, 60 * 1000)) {
+  if (isCacheFresh(key, TRENDING_CACHE_MS)) {
     const v = getCacheValue(key);
     if (v) {
       try {

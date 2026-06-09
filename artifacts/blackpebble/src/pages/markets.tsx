@@ -1,7 +1,11 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
-import { useQuery, keepPreviousData } from "@tanstack/react-query";
-import { Loader2, TrendingUp, Sparkles } from "lucide-react";
+import {
+  useQuery,
+  useQueryClient,
+  keepPreviousData,
+} from "@tanstack/react-query";
+import { Loader2, TrendingUp, Sparkles, RefreshCw } from "lucide-react";
 import { LiveIndicator } from "@/components/live-indicator";
 import { Watchlist } from "@/components/watchlist";
 import { api, type TokenInfo, type MigratedToken } from "@/lib/api";
@@ -310,7 +314,6 @@ function MigratedTab({ navigate }: { navigate: (p: string) => void }) {
   const { data, isLoading } = useQuery({
     queryKey: ["markets", "migrated"],
     queryFn: () => api.migrated(),
-    refetchInterval: 30_000,
     placeholderData: keepPreviousData,
   });
 
@@ -349,7 +352,9 @@ function MigratedTab({ navigate }: { navigate: (p: string) => void }) {
 export default function Markets() {
   const [tab, setTab] = useState<Tab>("trending");
   const [visible, setVisible] = useState(PAGE_SIZE);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [, navigate] = useLocation();
+  const queryClient = useQueryClient();
 
   // Reset the reveal count whenever the list feed changes so a new tab starts
   // at the first page rather than inheriting the previous tab's expansion.
@@ -370,13 +375,34 @@ export default function Markets() {
             ? api.volume()
             : null,
     enabled: isListFeed,
-    refetchInterval: 30_000,
+    // No background polling — feeds refresh only on page open / tab switch or
+    // when the user clicks Refresh (the server cache turns over every 30s).
     // Keep the previous tab's rows on screen while the next feed loads so
     // switching tabs / background refreshes never blank the list or jump scroll.
     placeholderData: keepPreviousData,
   });
 
-  const tokens: TokenInfo[] = (data as { tokens: TokenInfo[] } | null)?.tokens ?? [];
+  const feed = data as
+    | { tokens: TokenInfo[]; lastUpdated?: number | null }
+    | null;
+  const tokens: TokenInfo[] = feed?.tokens ?? [];
+  const lastUpdated = feed?.lastUpdated ?? null;
+
+  // Manual refresh: force the server to bypass its feed caches, then refetch
+  // every Markets query so the active tab (and the others) pull fresh data.
+  const handleRefresh = async () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+      await api.refreshMarkets();
+      await queryClient.invalidateQueries({ queryKey: ["markets"] });
+    } catch {
+      // Surface nothing intrusive — the existing list stays on screen and the
+      // user can retry. (Network errors already log to the console.)
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   return (
     <div className="w-full max-w-6xl mx-auto px-4 md:px-6 py-6">
@@ -386,9 +412,30 @@ export default function Markets() {
         {isListFeed && dataUpdatedAt > 0 && (
           <LiveIndicator dataUpdatedAt={dataUpdatedAt} />
         )}
+        <button
+          type="button"
+          onClick={handleRefresh}
+          disabled={isRefreshing}
+          data-testid="button-refresh-markets"
+          title="Refresh market data"
+          className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-border text-muted-foreground hover:text-foreground hover:border-accent/50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          <RefreshCw
+            className={cn("w-3.5 h-3.5", isRefreshing && "animate-spin")}
+          />
+          {isRefreshing ? "Refreshing…" : "Refresh"}
+        </button>
       </div>
-      <p className="text-sm text-muted-foreground mb-6">
+      <p className="text-sm text-muted-foreground mb-1">
         Discover opportunities — tap any token to open it on the Trading desk.
+      </p>
+      <p
+        className="text-xs text-muted-foreground/70 mb-6"
+        data-testid="text-last-updated"
+      >
+        {lastUpdated
+          ? `Last updated ${timeAgo(lastUpdated)}`
+          : "Awaiting first update…"}
       </p>
 
       <div
