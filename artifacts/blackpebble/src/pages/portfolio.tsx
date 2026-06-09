@@ -232,7 +232,7 @@ export default function Portfolio() {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
             <Stat
               label="Equity"
               value={`${fmtSol(stats?.equitySol)} SOL`}
@@ -283,6 +283,62 @@ export default function Portfolio() {
               <TierBadge tier={stats?.graduationTier} />
             </div>
           </div>
+
+          {/* P&L breakdown — only shown for signed-in users with any leverage activity */}
+          {!isGuest && flags.leverage && serverStats != null &&
+            (serverStats.leverageOpenCount > 0 ||
+              serverStats.leverageRealizedPnlSol !== 0 ||
+              serverStats.openLeverageEquitySol > 0) && (
+              <div className="border border-border bg-card p-4 mb-3 text-xs" data-testid="pnl-breakdown">
+                <div className="text-[11px] uppercase tracking-wider text-muted-foreground mb-3">
+                  Equity Breakdown
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2">
+                  <div>
+                    <div className="text-muted-foreground">Cash</div>
+                    <div className="font-mono">{fmtSol(serverStats.balance)} SOL</div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground">Open Spot Value</div>
+                    <div className="font-mono">
+                      {fmtSol(serverStats.equitySol - serverStats.balance - serverStats.openLeverageEquitySol)} SOL
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground">Open Leverage Equity</div>
+                    <div className="font-mono">{fmtSol(serverStats.openLeverageEquitySol)} SOL</div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground font-semibold">Total Equity</div>
+                    <div className="font-mono font-semibold">{fmtSol(serverStats.equitySol)} SOL</div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground">Spot P&L</div>
+                    <div className={cn("font-mono", pnlColor(serverStats.realizedPnlSol + serverStats.unrealizedPnlSol))}>
+                      {fmtSol(serverStats.realizedPnlSol + serverStats.unrealizedPnlSol)} SOL
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground">Leverage Realized P&L</div>
+                    <div className={cn("font-mono", pnlColor(serverStats.leverageRealizedPnlSol))}>
+                      {fmtSol(serverStats.leverageRealizedPnlSol)} SOL
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground">Leverage Unrealized P&L</div>
+                    <div className={cn("font-mono", pnlColor(serverStats.leverageUnrealizedPnlSol))}>
+                      {fmtSol(serverStats.leverageUnrealizedPnlSol)} SOL
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground font-semibold">Total P&L</div>
+                    <div className={cn("font-mono font-semibold", pnlColor(serverStats.totalPnlSol))}>
+                      {fmtSol(serverStats.totalPnlSol)} SOL
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
           {/* Wallet utility — strictly isolated from paper-trading metrics above. */}
           <div className="mb-6">

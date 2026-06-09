@@ -1089,5 +1089,9 @@ export function computeGuestStats(
     graduationTier: graduationTier(realizedPnl),
     openPositions: valued.length,
     solUsd,
+    openLeverageEquitySol: 0,
+    leverageRealizedPnlSol: 0,
+    leverageUnrealizedPnlSol: 0,
+    leverageOpenCount: 0,
   };
 }

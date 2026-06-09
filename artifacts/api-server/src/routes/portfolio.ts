@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { asyncHandler } from "../lib/asyncHandler.js";
-import { dbAll } from "../lib/database.js";
+import { dbAll, dbGet } from "../lib/database.js";
 import {
   getPortfolio,
   ensureAccount,
@@ -8,6 +8,7 @@ import {
   STARTING_BALANCE,
 } from "../lib/trading.js";
 import { getSolPriceUsd } from "../lib/prices.js";
+import { getLeveragePortfolio } from "../lib/leverage.js";
 import { logger } from "../lib/logger.js";
 
 const router: IRouter = Router();
@@ -58,31 +59,70 @@ router.get(
   asyncHandler(async (req, res) => {
     const wallet = String(req.params.wallet || "").trim();
     if (!wallet) return res.status(400).json({ error: "wallet is required" });
-    const a = await ensureAccount(wallet);
-    const portfolio = await getPortfolio(wallet);
-    const solUsd = await getSolPriceUsd();
 
-    // Closed-trade stats come from the trades table (source of truth) rather
-    // than the account counter columns: total_trades used to include buys, and
-    // best_trade could go stale. Deriving keeps Best Trade / Win Rate accurate
-    // and consistent across refreshes, reconnects and redeploys.
-    const cs = await getClosedTradeStats(wallet);
+    // Run all data fetches in parallel to minimise latency.
+    const [a, portfolio, cs, solUsd, levPortfolio, levCounts] =
+      await Promise.all([
+        ensureAccount(wallet),
+        getPortfolio(wallet),
+        getClosedTradeStats(wallet),
+        getSolPriceUsd(),
+        getLeveragePortfolio(wallet),
+        dbGet<{ total: number; closed: number }>(
+          `SELECT COUNT(*)::int AS total,
+                  COUNT(CASE WHEN action != 'open' THEN 1 END)::int AS closed
+           FROM paper_leverage_trades WHERE wallet = $1`,
+          [wallet],
+        ),
+      ]);
+
+    // ── Leverage equity ──────────────────────────────────────────────────────
+    // For each open leverage position use positionEquitySol (margin + unrealized
+    // P&L) when the price is available, fall back to margin_sol when it is not
+    // (price unavailable → treat position as worth at least its collateral).
+    // Floor at 0: a position whose losses exceed margin is liquidated first.
+    const openLeverageEquitySol = levPortfolio.positions.reduce(
+      (s, p) => s + Math.max(0, p.positionEquitySol ?? p.margin_sol),
+      0,
+    );
+
+    // ── Combined equity & P&L ────────────────────────────────────────────────
+    //   totalEquitySol = cash + open spot value + open leverage equity
+    //
+    // This works because:
+    //   • paper_balance already has margin deducted (done at open) and realized
+    //     leverage P&L re-added (done at close) — so closed positions are
+    //     automatically reflected through the cash balance.
+    //   • openLeverageEquitySol adds back the current value of OPEN positions
+    //     so equity doesn't crater just because margin moved into a position.
+    //
+    //   totalPnlSol  = totalEquitySol − STARTING_BALANCE
+    //   roi%         = totalPnlSol / STARTING_BALANCE × 100
+    const totalEquitySol = portfolio.equitySol + openLeverageEquitySol;
     const realizedPnlSol = cs.realizedPnl;
-    const totalPnlSol = realizedPnlSol + portfolio.unrealizedPnlSol;
-    const roi =
-      ((portfolio.equitySol - STARTING_BALANCE) / STARTING_BALANCE) * 100;
+    const totalPnlSol = totalEquitySol - STARTING_BALANCE;
+    const roi = (totalPnlSol / STARTING_BALANCE) * 100;
+
+    // ── Combined trade counts ────────────────────────────────────────────────
+    // executions: every buy/sell action (spot) + every leverage trade event
+    // closedTrades: realized spot exits + realized leverage closures
+    const totalExecutions = cs.executions + (levCounts?.total ?? 0);
+    const totalClosedTrades = cs.closedTrades + (levCounts?.closed ?? 0);
 
     if (process.env.NODE_ENV !== "production") {
       logger.debug(
         {
           wallet,
+          spotEquity: portfolio.equitySol,
+          openLeverageEquitySol,
+          totalEquitySol,
           closedTrades: cs.closedTrades,
-          winningTrades: cs.winningTrades,
-          bestTradeSource: "MAX(pnl) over closed sell trades",
-          bestTrade: cs.bestTrade,
-          realizedPnl: realizedPnlSol,
-          unrealizedPnl: portfolio.unrealizedPnlSol,
-          currentEquity: portfolio.equitySol,
+          leverageClosedTrades: levCounts?.closed ?? 0,
+          spotRealizedPnl: realizedPnlSol,
+          spotUnrealizedPnl: portfolio.unrealizedPnlSol,
+          leverageRealizedPnl: levPortfolio.realizedPnlSol,
+          leverageUnrealizedPnl: levPortfolio.unrealizedPnlSol,
+          totalPnlSol,
         },
         "[stats-debug] portfolio stats",
       );
@@ -91,25 +131,31 @@ router.get(
     return res.json({
       wallet,
       balance: a.paper_balance,
-      equitySol: portfolio.equitySol,
-      equityUsd: portfolio.equitySol * solUsd,
+      equitySol: totalEquitySol,
+      equityUsd: totalEquitySol * solUsd,
       totalPnlSol,
       realizedPnlSol,
       unrealizedPnlSol: portfolio.unrealizedPnlSol,
       roiPercent: roi,
-      // Two distinct counts so the UI can be unambiguous:
-      // executions = every buy/sell action; closedTrades = realized exits.
-      totalExecutions: cs.executions,
-      closedTrades: cs.closedTrades,
+      // Spot trade counts (post-reset window). Win rate is spot-only so it
+      // remains a fair competitive metric independent of leverage activity.
       winningTrades: cs.winningTrades,
       winRate: cs.winRate,
       bestTrade: cs.bestTrade,
       worstTrade: cs.worstTrade,
+      // Combined counts for executions and closed-trades display.
+      totalExecutions,
+      closedTrades: totalClosedTrades,
       currentStreak: a.current_streak,
       participationPoints: a.participation_points,
       graduationTier: a.graduation_tier,
       openPositions: portfolio.positions.length,
       solUsd,
+      // Leverage breakdown — used by the portfolio P&L breakdown section.
+      openLeverageEquitySol,
+      leverageRealizedPnlSol: levPortfolio.realizedPnlSol,
+      leverageUnrealizedPnlSol: levPortfolio.unrealizedPnlSol,
+      leverageOpenCount: levPortfolio.positions.length,
     });
   }),
 );

@@ -1,0 +1,99 @@
+BUG: Portfolio stats are inconsistent after leverage trade.
+
+Starting balance was 100 SOL.
+
+Current portfolio shows:
+- Equity: 74.54 SOL
+- Cash Balance: 74.11 SOL
+- Total P&L: -$4.40
+- ROI: -25.46%
+- Executions: 1
+- Closed Trades: 0
+
+These numbers do not align.
+
+If equity is 74.54 SOL and starting equity was 100 SOL:
+- Total account-level P&L should be approximately -25.46 SOL or the USD equivalent of -25.46 SOL.
+- ROI -25.46% matches equity loss, but Total P&L does not.
+- Total P&L should not show only spot P&L if Equity and ROI include leverage margin/equity impact.
+
+Please audit Portfolio summary calculations.
+
+Clarify and fix the intended accounting model:
+
+Option A — Recommended:
+Portfolio Equity includes:
+cash balance
++ spot position value
++ open leverage position equity
+
+Where:
+open leverage position equity = max(0, margin + unrealized_pnl)
+
+Total P&L should equal:
+current_equity - starting_balance
+
+ROI should equal:
+total_pnl / starting_balance
+
+Executions should count:
+spot executions + leverage opens/closes/liquidations
+
+Closed Trades should count:
+spot closed trades + closed/liquidated leverage positions
+
+Best Trade should consider:
+spot closed trades only OR both spot + leverage, but label clearly.
+
+Option B:
+If leverage is intentionally isolated from main portfolio stats, then:
+- Equity should not drop from leverage margin
+- ROI should not include leverage
+- Total P&L should not include leverage
+- Executions should not include leverage
+
+Right now it appears mixed, which is the bug.
+
+Use Option A unless there is a strong reason not to.
+
+Also add a separate breakdown if needed:
+- Spot P&L
+- Leverage P&L
+- Total P&L
+- Cash Balance
+- Open Spot Value
+- Open Leverage Equity
+- Account Equity
+
+Verify after fix:
+Starting 100 SOL.
+Open 10 SOL margin leverage position.
+Immediately after open, equity should remain near 100 SOL minus any simulated slippage/fees, NOT drop to 90 SOL just because margin was moved into a position.
+
+Example:
+Cash = 90 SOL
+Open leverage equity = 10 SOL
+Total equity ≈ 100 SOL
+
+If position loses 2 SOL:
+Cash = 90 SOL
+Open leverage equity = 8 SOL
+Total equity = 98 SOL
+Total P&L = -2 SOL
+ROI = -2%
+
+If liquidated:
+Cash = 90 SOL
+Open leverage equity = 0
+Total equity = 90 SOL
+Total P&L = -10 SOL
+ROI = -10%
+
+Run typecheck/build and return:
+- exact accounting formula used
+- what was wrong
+- what was fixed
+- confirmation leverage and spot stats now align
+
+
+Perform a leverage abuse audit. Identify every possible way a user could gain free paper balance through leverage open/close/liquidation cycles, TP/SL triggers, duplicate refreshes, race conditions, cron jobs, or concurrent requests. Fix any exploit found and report results.

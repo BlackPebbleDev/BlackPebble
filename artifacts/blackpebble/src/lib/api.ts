@@ -265,19 +265,25 @@ export interface Portfolio {
 export interface PortfolioStats {
   wallet: string;
   balance: number;
+  /** Total account equity: cash + open spot value + open leverage equity. */
   equitySol: number;
   equityUsd: number;
+  /** totalEquitySol − STARTING_BALANCE (all sources: spot + leverage). */
   totalPnlSol: number;
+  /** Spot realized P&L only (post-reset). */
   realizedPnlSol: number;
+  /** Spot unrealized P&L only. */
   unrealizedPnlSol: number;
   roiPercent: number;
-  /** Every buy + sell action (post-reset). */
+  /** Spot + leverage trade events. */
   totalExecutions: number;
-  /** Realized position exits (sell trades, post-reset). */
+  /** Spot closed trades + leverage closes/liquidations. */
   closedTrades: number;
+  /** Spot winning trades only (win rate stays a spot-only metric). */
   winningTrades: number;
+  /** Spot win rate only. */
   winRate: number;
-  /** Largest winning trade, or null when there are no winning closed trades. */
+  /** Largest winning spot trade, or null when none. */
   bestTrade: number | null;
   worstTrade: number;
   currentStreak: number;
@@ -285,6 +291,15 @@ export interface PortfolioStats {
   graduationTier: string;
   openPositions: number;
   solUsd: number;
+  // ── Leverage breakdown ──────────────────────────────────────────────────
+  /** Sum of max(0, positionEquitySol ?? margin) for each open leverage position. */
+  openLeverageEquitySol: number;
+  /** Cumulative realized P&L from closed/liquidated leverage positions. */
+  leverageRealizedPnlSol: number;
+  /** Cumulative unrealized P&L across open leverage positions. */
+  leverageUnrealizedPnlSol: number;
+  /** Number of currently open leverage positions. */
+  leverageOpenCount: number;
 }
 
 export interface ChartPoint {
