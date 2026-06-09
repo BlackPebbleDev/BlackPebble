@@ -30,8 +30,8 @@ const FEATURES: { icon: LucideIcon; title: string; desc: string }[] = [
   },
   {
     icon: Target,
-    title: "Trade planning & exits",
-    desc: "Plan entries, position size, and risk, then automate take-profit and stop-loss targets on every position.",
+    title: "Trade planning & smart exits",
+    desc: "Plan entries, position size, and risk; set buy limit orders; and automate take-profit and stop-loss with multi-target exits that scale out of a position.",
   },
   {
     icon: Trophy,

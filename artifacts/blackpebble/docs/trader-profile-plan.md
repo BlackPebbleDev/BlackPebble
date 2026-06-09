@@ -6,14 +6,16 @@ The route `/trader/:id` is registered and rendered by
 `src/pages/trader-profile.tsx`, and leaderboard rows link to it via the
 `profileId()` helper in `src/pages/leaderboard.tsx`. The page is currently a
 placeholder. This document captures the plan for the full, login-free public
-trader profile.
+trader profile (a public paper-trading portfolio).
 
 ## Goals
 
 - A login-free, shareable, SEO-friendly page showing a trader's public
-  paper-trading track record.
-- Only ever expose data that is already public on the leaderboard. No private
-  account data, no real wallet custody data, no admin/internal fields.
+  paper-trading portfolio and track record.
+- Because all balances and trades are simulated paper-trading data, the public
+  profile may show the trader's full paper portfolio. It must still never expose
+  real-wallet custody data, account secrets, admin/internal fields, or synthetic
+  internal keys.
 
 ## The `:id` scheme
 
@@ -25,7 +27,29 @@ trader profile.
    a URL, and those rows are not linkable.
 
 The full implementation must keep this rule: the public id is either a real X
-handle or a real wallet address. The backend lookup must accept both forms.
+handle or a real wallet address. The backend lookup must accept both forms and
+404 anything that resolves to a synthetic `x:<id>` key so internal keys never
+round-trip through the URL.
+
+## Public profile data model (the full set of fields to plan for)
+
+The profile is a public paper-trading portfolio. Plan to surface all of:
+
+- **Identity / X profile link** — display name, X handle, avatar, and an
+  outbound link to the trader's x.com profile; graduation tier badge.
+- **Equity** — total paper-portfolio value (cash + value of open positions).
+- **Cash** — available (uninvested) virtual SOL balance.
+- **P&L** — realized and unrealized P&L (SOL and USD), plus best trade.
+- **ROI** — return on investment, consistent with leaderboard semantics.
+- **Rank** — current leaderboard rank (optionally per period: daily / weekly /
+  all-time).
+- **Open positions** — current paper positions (token, size, average entry,
+  current price, unrealized P&L / ROI).
+- **Pending orders** — open limit / TP / SL orders attached to positions.
+- **Trade history** — recent closed trades (token, side, realized P&L, ROI,
+  timestamp), paginated/capped.
+- **Equity chart** — time series of paper-portfolio equity for a visual track
+  record.
 
 ## Backend (api-server)
 
@@ -35,42 +59,42 @@ Add a public, unauthenticated, read-only endpoint, e.g.:
 GET /api/traders/:id
 ```
 
-- Resolve `:id` to a trader: if it matches a known `x_username`, look up by that;
-  otherwise treat it as a wallet address. Reject/404 anything that resolves to a
-  synthetic `x:<id>` key so internal keys never round-trip through the URL.
-- Return ONLY public fields, mirroring what the leaderboard already exposes:
-  - Display name, X handle, avatar url (public profile bits).
-  - Aggregate stats: realized P&L, ROI, win rate, total closed trades, best
-    trade, current graduation tier, rank (optional, per period).
-  - A capped list of recent **closed** trades (token, side, realized P&L, ROI,
-    timestamp) — closed trades only, matching leaderboard semantics. No open
-    positions, no balances, no order book, no wallet internals.
+- Resolve `:id`: if it matches a known `x_username`, look up by that; otherwise
+  treat it as a wallet address. Reject/404 anything resolving to a synthetic
+  `x:<id>` key.
+- Return ONLY the public paper-trading fields in the data model above:
+  identity + X link, equity, cash, P&L (realized/unrealized), ROI, rank, open
+  positions, pending orders, trade history, and equity-chart series.
 - Respect the same minimum-trades gating as the leaderboard (e.g. 404 / "not
-  ranked yet" if below the threshold) so profiles only exist for ranked traders.
-- Read-only. No mutations. No auth required. No rate-limited secrets exposed.
+  ranked yet" below threshold) so profiles only exist for ranked traders.
+- Read-only. No mutations. No auth required. Never expose real-wallet custody
+  data, session/account secrets, admin fields, or internal keys.
 
 ## Frontend (blackpebble)
 
 Replace the placeholder in `src/pages/trader-profile.tsx` with:
 
 - A TanStack Query fetch to `GET /api/traders/:id`.
-- Header: avatar, display name, X handle (linking out to x.com), graduation tier
+- Header: avatar, display name, X handle linking out to x.com, graduation tier
   badge — reuse `Trader`-style presentation and `TierBadge`.
-- Stat grid reusing `PnlAmount`, `fmtPercent`, and `pnlClass` for consistency
-  with the leaderboard (P&L, ROI, win rate, trades, best trade).
-- Recent closed-trades list.
+- Summary stat grid reusing `PnlAmount`, `fmtPercent`, and `pnlClass`: equity,
+  cash, realized/unrealized P&L, ROI, rank, best trade.
+- Open positions list and pending orders list.
+- Equity chart (reuse the project's existing chart approach).
+- Recent closed-trades history list.
 - Loading, empty/not-ranked, and 404 states (mirror leaderboard styling).
 - Keep black/gold styling; numbers in `font-mono`; emerald/red for P&L sign.
 
 ## SEO
 
-- Add `/trader/:id` patterns are dynamic; do not enumerate them in
-  `sitemap.xml`. Instead rely on internal links from the leaderboard.
-- Optionally add per-profile `<title>`/meta via a small head effect (already
-  setting `document.title`).
+- `/trader/:id` is dynamic; do not enumerate profiles in `sitemap.xml`. Rely on
+  internal links from the leaderboard instead.
+- Set per-profile `<title>`/meta via a small head effect (already setting
+  `document.title`).
 
 ## Out of scope (do NOT build here)
 
-- No real SOL custody or real-money features.
+- No real SOL custody or real-money features (paper trading only).
 - No Community Boost Pool / DEX boost pools.
-- No private/admin data on the public profile.
+- No private/admin data, account secrets, or internal keys on the public
+  profile.
