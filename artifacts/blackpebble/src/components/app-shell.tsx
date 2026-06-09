@@ -47,8 +47,38 @@ function SiteFooter() {
             <FeedbackSection compact />
           </div>
         </div>
-        <div className="mt-6 pt-4 border-t border-border text-center">
-          <p className="text-xs text-muted-foreground">
+        <div className="mt-6 pt-4 border-t border-border flex flex-col items-center gap-3">
+          <nav className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs">
+            <Link
+              href="/about"
+              data-testid="footer-link-about"
+              className="text-muted-foreground hover:text-accent transition-colors"
+            >
+              About
+            </Link>
+            <Link
+              href="/features"
+              data-testid="footer-link-features"
+              className="text-muted-foreground hover:text-accent transition-colors"
+            >
+              Features
+            </Link>
+            <Link
+              href="/roadmap"
+              data-testid="footer-link-roadmap"
+              className="text-muted-foreground hover:text-accent transition-colors"
+            >
+              Roadmap
+            </Link>
+            <Link
+              href="/leaderboard"
+              data-testid="footer-link-leaderboard"
+              className="text-muted-foreground hover:text-accent transition-colors"
+            >
+              Leaderboard
+            </Link>
+          </nav>
+          <p className="text-xs text-muted-foreground text-center">
             © {new Date().getFullYear()} Blackpebble · Paper trading for
             entertainment. Not financial advice.
           </p>

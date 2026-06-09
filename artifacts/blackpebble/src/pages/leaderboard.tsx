@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Trophy, Loader2, ExternalLink } from "lucide-react";
 import { useAccount } from "@/hooks/use-account";
@@ -18,6 +19,16 @@ function pnlClass(v: number): string {
   if (v > 0) return "text-emerald-400";
   if (v < 0) return "text-red-400";
   return "text-muted-foreground";
+}
+
+// Derive a public, non-sensitive id for the trader profile route. Prefer the
+// public X handle; fall back to a real wallet address. Synthetic internal keys
+// ("x:<id>") must never surface in a URL, so those rows aren't linkable yet.
+function profileId(entry: LeaderboardEntry): string | null {
+  const handle = entry.x_username?.trim().replace(/^@+/, "");
+  if (handle) return handle;
+  if (!entry.wallet.startsWith("x:")) return entry.wallet;
+  return null;
 }
 
 function Trader({ entry }: { entry: LeaderboardEntry }) {
@@ -93,7 +104,18 @@ function RankBadge({ rank }: { rank: number }) {
 
 export default function Leaderboard() {
   const { wallet, isGuest } = useAccount();
+  const [, navigate] = useLocation();
   const [period, setPeriod] = useState<LeaderboardPeriod>("all");
+
+  function goToProfile(pid: string) {
+    navigate(`/trader/${encodeURIComponent(pid)}`);
+  }
+  function onRowKeyDown(e: React.KeyboardEvent, pid: string) {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      goToProfile(pid);
+    }
+  }
 
   const { data, isLoading } = useQuery({
     queryKey: ["leaderboard", period],
@@ -164,13 +186,20 @@ export default function Leaderboard() {
           <div className="md:hidden space-y-2">
             {entries.map((e) => {
               const isMe = wallet && e.wallet === wallet;
+              const pid = profileId(e);
               return (
                 <div
                   key={e.wallet}
                   data-testid={`card-rank-${e.rank}`}
+                  onClick={pid ? () => goToProfile(pid) : undefined}
+                  onKeyDown={pid ? (ev) => onRowKeyDown(ev, pid) : undefined}
+                  role={pid ? "link" : undefined}
+                  tabIndex={pid ? 0 : undefined}
                   className={cn(
                     "border bg-card p-3",
                     isMe ? "border-accent/60 bg-accent/10" : "border-border",
+                    pid &&
+                      "cursor-pointer hover:border-accent/60 focus:outline-none focus-visible:border-accent",
                   )}
                 >
                   <div className="flex items-center gap-3 mb-3">
@@ -251,13 +280,20 @@ export default function Leaderboard() {
             <tbody>
               {entries.map((e) => {
                 const isMe = wallet && e.wallet === wallet;
+                const pid = profileId(e);
                 return (
                   <tr
                     key={e.wallet}
                     data-testid={`row-rank-${e.rank}`}
+                    onClick={pid ? () => goToProfile(pid) : undefined}
+                    onKeyDown={pid ? (ev) => onRowKeyDown(ev, pid) : undefined}
+                    role={pid ? "link" : undefined}
+                    tabIndex={pid ? 0 : undefined}
                     className={cn(
                       "border-b border-border/50 last:border-0 transition-colors",
                       isMe ? "bg-accent/10" : "hover:bg-accent/5",
+                      pid &&
+                        "cursor-pointer focus:outline-none focus-visible:bg-accent/10",
                     )}
                   >
                     <td className="px-4 py-3">

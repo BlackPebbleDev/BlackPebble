@@ -1,4 +1,9 @@
 User-agent: *
 Allow: /
 
+# Public informational pages
+Allow: /about
+Allow: /features
+Allow: /roadmap
+
 Sitemap: https://blackpebble.fun/sitemap.xml

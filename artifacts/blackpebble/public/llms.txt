@@ -1,0 +1,20 @@
+# BlackPebble
+
+> BlackPebble is a free Solana paper-trading platform. Users trade real, live Solana tokens with virtual SOL — practicing strategies and competing on leaderboards without risking real money. All prices and market data are live and on-chain; all balances and trades are simulated. BlackPebble never takes custody of real funds and never executes real swaps.
+
+## Pages
+
+- [Home / Trading Desk](https://blackpebble.fun/): Trade live Solana tokens with paper money.
+- [Markets](https://blackpebble.fun/markets): Trending Solana tokens with live price, market cap, liquidity, and volume.
+- [Portfolio](https://blackpebble.fun/portfolio): Open positions, realized and unrealized P&L, ROI, and trade history.
+- [Leaderboard](https://blackpebble.fun/leaderboard): Traders ranked by realized P&L across daily, weekly, and all-time periods.
+- [Utilities](https://blackpebble.fun/utilities): Standalone wallet tools, including SOL Recovery for reclaiming trapped rent.
+- [About](https://blackpebble.fun/about): What BlackPebble is and how it works.
+- [Features](https://blackpebble.fun/features): The full set of trading, planning, and portfolio features.
+- [Roadmap](https://blackpebble.fun/roadmap): What is live today and what is planned next.
+
+## Notes
+
+- BlackPebble is for entertainment and education only and is not financial advice.
+- Trading uses virtual SOL; no real money is ever at risk in the paper-trading experience.
+- SOL Recovery is the only feature that interacts with a real wallet, and it operates entirely on-chain and separately from paper trading.

@@ -29,6 +29,10 @@ import Utilities from "@/pages/utilities";
 import WalletCleaner from "@/pages/wallet-cleaner";
 import TradePlanner from "@/pages/trade-planner";
 import AdminPage from "@/pages/admin";
+import About from "@/pages/about";
+import Features from "@/pages/features";
+import Roadmap from "@/pages/roadmap";
+import TraderProfile from "@/pages/trader-profile";
 
 const queryClient = new QueryClient();
 
@@ -45,6 +49,10 @@ function Router() {
         <Route path="/utilities/wallet-cleaner" component={WalletCleaner} />
         <Route path="/utilities/trade-planner" component={TradePlanner} />
         <Route path="/utilities" component={Utilities} />
+        <Route path="/about" component={About} />
+        <Route path="/features" component={Features} />
+        <Route path="/roadmap" component={Roadmap} />
+        <Route path="/trader/:id" component={TraderProfile} />
         <Route path="/admin" component={AdminPage} />
         <Route component={NotFound} />
       </Switch>
