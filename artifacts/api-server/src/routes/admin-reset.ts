@@ -13,6 +13,7 @@ const router: IRouter = Router();
 const TABLES_TO_CLEAR = [
   "paper_leverage_trades",
   "paper_leverage_positions",
+  "paper_orders",
   "positions",
   "trades",
   "portfolio_snapshots",

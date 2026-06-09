@@ -1,0 +1,127 @@
+====================================================
+9. LEADERBOARD ISOLATION
+====================================================
+
+Do not accidentally let these USD/SOL fixes cause leverage P&L to leak into leaderboard stats unless intentionally designed.
+
+Verify:
+
+- Spot leaderboard still uses intended spot stats.
+- Leverage P&L remains isolated from spot leaderboard Phase 1.
+- USD/SOL display changes do not alter stored leaderboard data.
+
+====================================================
+10. ADMIN RESET
+====================================================
+
+Verify admin reset still clears:
+
+- spot positions
+- spot trades
+- spot orders
+- leverage positions
+- leverage trades
+- portfolio snapshots if applicable
+
+And resets account to:
+
+100 SOL
+
+When displayed in USD, it should show:
+
+100 × SOL price
+
+not $100.
+
+====================================================
+11. MOBILE + DESKTOP QA
+====================================================
+
+Check both mobile and desktop.
+
+Mobile:
+- USD/SOL toggles fit.
+- Portfolio cards still look clean.
+- Clickable Equity/Cash/P&L cards work.
+- No horizontal scrolling.
+- Trade detail panel fits.
+
+Desktop:
+- Portfolio cards align cleanly.
+- Equity/Cash/P&L toggle behavior works.
+- Search/header layout remains clean.
+
+====================================================
+12. FINAL TEST MATRIX
+====================================================
+
+Run these tests and report exact results:
+
+A. Fresh reset
+- Balance = 100 SOL
+- Portfolio USD mode = 100 × SOL price
+- Portfolio SOL mode = 100 SOL
+
+B. Spot USD buy
+- Buy $25
+- Confirm SOL deducted = $25 / SOL price
+- Confirm $25 buy is not blocked on normal liquidity token
+
+C. Spot SOL buy
+- Buy 1 SOL
+- Confirm exactly 1 SOL deducted plus intended slippage behavior
+
+D. Leverage USD margin
+- Open $100 margin at 10x
+- Confirm margin_sol = 100 / SOL price
+- Confirm position size = margin_sol × 10
+- Confirm USD preview = $1,000 notional
+
+E. Leverage close
+- Close winning and losing leverage trades
+- Confirm equity reconciles
+
+F. Liquidation
+- Confirm max loss is margin only
+- Balance never negative
+
+G. Portfolio unit toggle
+- Click Equity
+- Equity, Cash Balance, and Total P&L all switch together
+- Click Cash Balance
+- Same behavior
+- Click Total P&L
+- Same behavior
+
+H. Liquidity depth
+For token with about $27K liquidity:
+- $25 passes
+- $50 passes
+- $100 passes
+- $500 passes or warns
+- >10% liquidity blocks
+
+====================================================
+13. FINAL BUILD
+====================================================
+
+Run:
+
+- typecheck
+- frontend build
+- backend build
+- available tests
+
+Return:
+
+1. What was wrong
+2. Files changed
+3. SOL/USD conversion formula used
+4. Liquidity threshold formula used
+5. Portfolio toggle behavior implemented
+6. Confirmation USD is default
+7. Confirmation $25 trades work on normal liquidity
+8. Confirmation leverage USD margin works
+9. Confirmation portfolio accounting reconciles
+10. Confirmation spot/leverage/leaderboard/admin were not broken
+11. Whether safe to publish for beta
