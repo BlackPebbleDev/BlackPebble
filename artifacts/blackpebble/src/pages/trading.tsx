@@ -33,6 +33,7 @@ import {
 } from "@/lib/api";
 import { TradeList } from "@/components/trade-list";
 import { OpenPositions } from "@/components/open-positions";
+import { LeveragePanel } from "@/components/leverage-panel";
 import {
   MiniPlanner,
   PlannedTradeSummary,
@@ -839,6 +840,7 @@ function TradePanel({
   const qc = useQueryClient();
   const flags = useFeatureFlags();
   const { setVisible: setWalletModalVisible } = useWalletModal();
+  const [tradeMode, setTradeMode] = useState<"spot" | "leverage">("spot");
   const [side, setSide] = useState<"buy" | "sell">("buy");
   const [solAmount, setSolAmount] = useState("");
 
@@ -894,6 +896,12 @@ function TradePanel({
     setExitOrdersOpen(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [info.mint]);
+
+  // If the leverage feature flag is off (or turned off), never leave the panel
+  // stuck in leverage mode — fall back to the spot experience.
+  useEffect(() => {
+    if (!flags.leverage && tradeMode === "leverage") setTradeMode("spot");
+  }, [flags.leverage, tradeMode]);
 
   // Create a buy-limit entry order immediately from the Automated Orders
   // section. Spends the current buy-box Amount (converted to SOL) and delegates
@@ -1262,6 +1270,31 @@ function TradePanel({
         </div>
       )}
 
+      {flags.leverage && (
+        <div className="flex border-b border-border">
+          {(["spot", "leverage"] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => setTradeMode(m)}
+              data-testid={`button-mode-${m}`}
+              className={cn(
+                "flex-1 py-2.5 text-xs font-medium uppercase tracking-wider transition-colors",
+                tradeMode === m
+                  ? "text-accent border-b-2 border-accent -mb-px"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {m === "spot" ? "Spot" : "Leverage"}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {tradeMode === "leverage" ? (
+        <LeveragePanel info={info} />
+      ) : (
+        <>
       <div className="grid grid-cols-2">
         <button
           onClick={() => setSide("buy")}
@@ -1723,6 +1756,8 @@ function TradePanel({
           </div>
         )}
       </div>
+        </>
+      )}
     </div>
   );
 }

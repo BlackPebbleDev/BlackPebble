@@ -177,6 +177,94 @@ export const paperOrders = pgTable(
   ],
 );
 
+// ── Paper leverage trading (Phase 1: longs only) ────────────────────────────
+// Simulated leverage positions, fully isolated from the spot tables above. A
+// position debits `margin_sol` from accounts.paper_balance on open and credits
+// max(0, margin + realized_pnl) on close (0 on liquidation). Liquidation and the
+// optional single TP/SL are evaluated on positions-refresh against the price /
+// market cap already fetched by valuation — no background workers. Realized P&L
+// here is intentionally NOT added to accounts.realized_pnl or the leaderboard.
+export const paperLeveragePositions = pgTable(
+  "paper_leverage_positions",
+  {
+    id: serial("id").primaryKey(),
+    wallet: text("wallet").notNull(),
+    token_mint: text("token_mint").notNull(),
+    token_name: text("token_name"),
+    token_symbol: text("token_symbol"),
+    token_logo: text("token_logo"),
+    // 'long' only in Phase 1.
+    direction: text("direction").notNull().default("long"),
+    // 2 | 5 | 10 | 20
+    leverage: integer("leverage").notNull(),
+    // User collateral (SOL) debited from paper_balance on open.
+    margin_sol: doublePrecision("margin_sol").notNull(),
+    // Position size in SOL = margin × leverage.
+    notional_sol: doublePrecision("notional_sol").notNull(),
+    // Tokens acquired at entry = notional / effective_entry_price.
+    tokens: doublePrecision("tokens").notNull(),
+    // Effective entry price (SOL) incl. slippage, and entry market cap (USD).
+    entry_price_sol: doublePrecision("entry_price_sol").notNull(),
+    entry_market_cap: doublePrecision("entry_market_cap"),
+    // Liquidation level, derived at open from leverage + maintenance buffer.
+    liq_price_sol: doublePrecision("liq_price_sol").notNull(),
+    liq_market_cap: doublePrecision("liq_market_cap"),
+    // Optional single take-profit / stop-loss triggers, by market cap (USD).
+    tp_trigger_mc: doublePrecision("tp_trigger_mc"),
+    sl_trigger_mc: doublePrecision("sl_trigger_mc"),
+    // 'open' | 'closing' | 'closed' | 'liquidated'
+    status: text("status").notNull().default("open"),
+    // Set on close/liquidation.
+    realized_pnl_sol: doublePrecision("realized_pnl_sol"),
+    exit_price_sol: doublePrecision("exit_price_sol"),
+    exit_market_cap: doublePrecision("exit_market_cap"),
+    // 'manual' | 'take_profit' | 'stop_loss' | 'liquidated'
+    close_reason: text("close_reason"),
+    // Slippage / impact audit at entry (full notional), older rows may be null.
+    entry_slippage_percent: doublePrecision("entry_slippage_percent"),
+    entry_trade_impact_percent: doublePrecision("entry_trade_impact_percent"),
+    opened_at: bigint("opened_at", { mode: "number" }).default(epoch),
+    updated_at: bigint("updated_at", { mode: "number" }).default(epoch),
+    closed_at: bigint("closed_at", { mode: "number" }),
+  },
+  (t) => [
+    index("idx_lev_positions_wallet").on(t.wallet),
+    index("idx_lev_positions_status").on(t.status),
+    index("idx_lev_positions_mint_status").on(t.token_mint, t.status),
+  ],
+);
+
+export const paperLeverageTrades = pgTable(
+  "paper_leverage_trades",
+  {
+    id: serial("id").primaryKey(),
+    position_id: integer("position_id").notNull(),
+    wallet: text("wallet").notNull(),
+    token_mint: text("token_mint").notNull(),
+    token_name: text("token_name"),
+    token_symbol: text("token_symbol"),
+    token_logo: text("token_logo"),
+    // 'open' | 'close' | 'liquidated'
+    action: text("action").notNull(),
+    direction: text("direction").notNull().default("long"),
+    leverage: integer("leverage").notNull(),
+    margin_sol: doublePrecision("margin_sol").notNull(),
+    notional_sol: doublePrecision("notional_sol").notNull(),
+    tokens: doublePrecision("tokens").notNull(),
+    // Entry price on 'open', exit price on 'close'/'liquidated' (SOL).
+    price_sol: doublePrecision("price_sol").notNull(),
+    market_cap: doublePrecision("market_cap"),
+    // Realized P&L (SOL) on close / liquidation; null on open.
+    pnl_sol: doublePrecision("pnl_sol"),
+    executed_at: bigint("executed_at", { mode: "number" }).default(epoch),
+  },
+  (t) => [
+    index("idx_lev_trades_wallet").on(t.wallet),
+    index("idx_lev_trades_executed").on(t.executed_at),
+    index("idx_lev_trades_position").on(t.position_id),
+  ],
+);
+
 // ── Analytics ───────────────────────────────────────────────────────────────
 export const tokenViews = pgTable(
   "token_views",

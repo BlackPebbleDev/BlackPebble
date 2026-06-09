@@ -1,0 +1,221 @@
+PLAN ONLY — ADD PAPER LEVERAGE TRADING WITHOUT CLUTTERING SPOT MODE
+
+Do NOT build yet.
+
+Goal:
+Add simulated leverage trading to BlackPebble while preserving the current clean Spot Buy/Sell interface.
+
+This must be paper trading only:
+
+* no real leverage
+* no real funds
+* no real perps integration
+
+Current UI:
+
+* Buy/Sell tabs are polished.
+* Automated Orders works for Buy Limit, Take Profit, Stop Loss.
+* Advanced Trade Planner is separate.
+* Do not clutter the existing Spot trade box.
+
+Recommended UX:
+Add a compact mode selector at the top of the trade box:
+
+Spot | Leverage
+
+Default = Spot.
+
+When Spot is selected:
+
+* Current Buy/Sell UI remains unchanged.
+* Existing Automated Orders remain unchanged.
+* Existing Buy Limit, TP, SL, multi-target exits remain unchanged.
+
+When Leverage is selected:
+Show a separate Leverage panel using the same style.
+
+Phase 1 scope:
+
+* Longs only
+* No shorts yet
+* No funding rates yet
+* No real perps
+* Leverage options: 2x, 5x, 10x, 20x
+
+Leverage inputs:
+
+* Margin amount
+* SOL / USD toggle if compatible with current system
+* Leverage selector: 2x / 5x / 10x / 20x
+* Position size display
+* Entry MC / price
+* Liquidation MC / price
+* Estimated slippage
+* Trade impact
+* Short risk warning
+
+Core formulas:
+margin = user collateral
+leverage = selected multiplier
+position_size = margin × leverage
+
+For long P&L:
+price_move_percent = (current_price - entry_price) / entry_price
+unrealized_pnl = position_size × price_move_percent
+ROI_on_margin = unrealized_pnl / margin
+
+Example:
+10 SOL margin at 10x = 100 SOL exposure.
+If token moves +10%, P&L = +10 SOL.
+If token moves -10%, P&L = -10 SOL and position is liquidated.
+
+Simple liquidation:
+liquidation_drop_percent = 1 / leverage
+
+Examples:
+2x liquidates around -50%
+5x liquidates around -20%
+10x liquidates around -10%
+20x liquidates around -5%
+
+Use a small maintenance buffer only if needed, but explain it clearly.
+
+Liquidation behavior:
+
+* If current MC/price reaches liquidation threshold, close position automatically.
+* Mark trade as Liquidated.
+* User loses margin only.
+* Do not allow leverage position to make account equity negative.
+* Add liquidation to trade history and admin stats.
+
+Position model:
+Leverage positions should be separate from Spot positions.
+
+Track:
+
+* user id / wallet
+* token mint
+* token symbol
+* side: long
+* margin
+* leverage
+* notional position size
+* entry price
+* entry MC
+* liquidation price
+* liquidation MC
+* status: open / closed / liquidated
+* realized P&L
+* unrealized P&L
+* opened_at
+* closed_at
+* close reason
+
+Portfolio display:
+Add separate section:
+
+Spot Positions
+Leverage Positions
+
+Leverage card should show:
+
+* Token
+* Long
+* Leverage
+* Margin
+* Position size
+* Entry MC
+* Current MC
+* Liquidation MC
+* Unrealized P&L
+* ROI on margin
+
+Example:
+WISP Long 10x
+Margin: 5 SOL
+Position: 50 SOL
+Entry MC: 100K
+Current MC: 108K
+Liq MC: 90K
+P&L: +4 SOL
+ROI: +80%
+
+Trade history:
+Support:
+
+* Opened Long
+* Closed Long
+* Liquidated
+
+Show:
+
+* margin
+* leverage
+* position size
+* entry MC
+* exit MC
+* P&L
+
+Orders:
+For Phase 1, leverage should support simple TP/SL if practical:
+
+* Take Profit closes % of remaining leveraged position
+* Stop Loss closes position before liquidation
+
+Do not break existing Spot multi-target exits.
+
+Admin dashboard:
+Plan stats for:
+
+* total leverage positions
+* open leverage positions
+* total leverage volume
+* total liquidations
+* top leverage users
+* reset/clear leverage positions
+
+Database:
+Recommend clean separate tables if safer:
+
+* paper_leverage_positions
+* paper_leverage_trades
+* paper_leverage_orders if needed
+
+Avoid modifying Spot tables unless absolutely necessary.
+
+Performance:
+Do not add expensive global polling.
+Check leverage P&L/liquidations during:
+
+* token page refresh
+* portfolio refresh
+* position refresh
+* same style as existing TP/SL system
+
+Safety:
+Do not break:
+
+* Spot buy
+* Spot sell
+* Buy Limits
+* TP/SL
+* multi-target exits
+* portfolio
+* leaderboard
+* admin reset
+* SOL Recovery
+
+Return:
+
+1. Recommended UX layout
+2. Exact formulas
+3. Liquidation logic
+4. Schema plan
+5. API plan
+6. Portfolio changes
+7. Trade history changes
+8. Admin dashboard changes
+9. Risks
+10. Suggested build phases
+
+Do not build until I approve the plan.

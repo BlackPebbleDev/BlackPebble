@@ -22,6 +22,8 @@ export interface ResetOptions {
   resetLeaderboard?: boolean;
   /** Only when explicitly opted in. */
   clearWatchlist?: boolean;
+  /** Clear paper leverage positions + trades (separate from spot). */
+  clearLeverage?: boolean;
 }
 
 export interface ResetResult {
@@ -139,6 +141,11 @@ export async function adminReset(
     if (options.clearWatchlist) {
       await backupAndDelete(c, "watchlist", where, params, s, tag, backups, deleted);
       applied.push("clearWatchlist");
+    }
+    if (options.clearLeverage) {
+      await backupAndDelete(c, "paper_leverage_positions", where, params, s, tag, backups, deleted);
+      await backupAndDelete(c, "paper_leverage_trades", where, params, s, tag, backups, deleted);
+      applied.push("clearLeverage");
     }
 
     let reset = 0;

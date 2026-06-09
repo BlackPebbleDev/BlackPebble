@@ -33,6 +33,47 @@ router.get(
 router.use("/admin", requireAdmin);
 
 router.get(
+  "/admin/leverage-stats",
+  asyncHandler(async (_req, res) => {
+    const agg = await dbGet<Record<string, number>>(
+      `SELECT
+         (SELECT count(*)::int FROM paper_leverage_positions) AS "totalPositions",
+         (SELECT count(*)::int FROM paper_leverage_positions WHERE status IN ('open','closing')) AS "openPositions",
+         (SELECT count(*)::int FROM paper_leverage_positions WHERE status = 'liquidated') AS "liquidations",
+         (SELECT COALESCE(SUM(notional_sol),0) FROM paper_leverage_trades WHERE action = 'open') AS "totalVolumeSol",
+         (SELECT COALESCE(SUM(margin_sol),0) FROM paper_leverage_trades WHERE action = 'open') AS "totalMarginSol",
+         (SELECT COALESCE(SUM(pnl_sol),0) FROM paper_leverage_trades WHERE action IN ('close','liquidated')) AS "realizedPnlSol",
+         (SELECT count(DISTINCT wallet)::int FROM paper_leverage_positions) AS "uniqueTraders"`,
+    );
+    const topUsers = await dbAll<Record<string, unknown>>(
+      `SELECT t.wallet,
+              x.x_username,
+              count(*) FILTER (WHERE t.action = 'open')::int AS positions,
+              COALESCE(SUM(t.notional_sol) FILTER (WHERE t.action = 'open'),0) AS volume_sol,
+              COALESCE(SUM(t.pnl_sol) FILTER (WHERE t.action IN ('close','liquidated')),0) AS realized_pnl_sol
+       FROM paper_leverage_trades t
+       LEFT JOIN user_identities w
+         ON w.provider = 'wallet' AND w.provider_user_id = t.wallet
+       LEFT JOIN user_identities x
+         ON x.user_id = w.user_id AND x.provider = 'x'
+       GROUP BY t.wallet, x.x_username
+       ORDER BY volume_sol DESC
+       LIMIT 10`,
+    );
+    return res.json({
+      totalPositions: agg?.totalPositions ?? 0,
+      openPositions: agg?.openPositions ?? 0,
+      liquidations: agg?.liquidations ?? 0,
+      totalVolumeSol: agg?.totalVolumeSol ?? 0,
+      totalMarginSol: agg?.totalMarginSol ?? 0,
+      realizedPnlSol: agg?.realizedPnlSol ?? 0,
+      uniqueTraders: agg?.uniqueTraders ?? 0,
+      topUsers,
+    });
+  }),
+);
+
+router.get(
   "/admin/stats",
   asyncHandler(async (_req, res) => {
     const now = Math.floor(Date.now() / 1000);
@@ -184,6 +225,7 @@ function parseOptions(body: unknown): ResetOptions {
     clearTrades: o.clearTrades === true,
     resetLeaderboard: o.resetLeaderboard === true,
     clearWatchlist: o.clearWatchlist === true,
+    clearLeverage: o.clearLeverage === true,
   };
 }
 

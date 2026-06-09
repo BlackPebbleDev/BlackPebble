@@ -94,6 +94,7 @@ const FLAG_LABELS: Record<FeatureFlagKey, string> = {
   tp_sl: "Take-profit / Stop-loss",
   multi_target_tp: "Multi-target take-profit",
   experimental_utilities: "Experimental utilities",
+  leverage: "Leverage trading (longs)",
 };
 
 function StatsSection() {
@@ -360,6 +361,7 @@ const RESET_TOGGLES: { key: keyof ResetOptions; label: string; defaultOn: boolea
   { key: "clearTrades", label: "Clear trade history", defaultOn: false },
   { key: "resetLeaderboard", label: "Reset leaderboard / competition stats", defaultOn: false },
   { key: "clearWatchlist", label: "Clear watchlist", defaultOn: false },
+  { key: "clearLeverage", label: "Clear leverage positions & trades", defaultOn: false },
 ];
 
 function ResetSection() {
@@ -687,6 +689,89 @@ function RecoverySection() {
   );
 }
 
+function LeverageSection() {
+  const qc = useQueryClient();
+  const { data, isFetching } = useQuery({
+    queryKey: ["admin-leverage-stats"],
+    queryFn: () => api.admin.leverageStats(),
+    refetchInterval: 60_000,
+  });
+  const top = data?.topUsers ?? [];
+
+  return (
+    <Card
+      title="Leverage analytics"
+      icon={Activity}
+      action={
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => qc.invalidateQueries({ queryKey: ["admin-leverage-stats"] })}
+          disabled={isFetching}
+          data-testid="button-refresh-leverage"
+        >
+          <RefreshCw className={isFetching ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
+        </Button>
+      }
+    >
+      <div className="space-y-5">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          <Stat label="Total positions" value={fmt(data?.totalPositions)} />
+          <Stat label="Open positions" value={fmt(data?.openPositions)} />
+          <Stat label="Liquidations" value={fmt(data?.liquidations)} />
+          <Stat label="Unique traders" value={fmt(data?.uniqueTraders)} />
+          <Stat label="Volume (SOL)" value={fmt(data?.totalVolumeSol, 2)} />
+          <Stat label="Margin (SOL)" value={fmt(data?.totalMarginSol, 2)} />
+          <Stat label="Realized P&L (SOL)" value={fmt(data?.realizedPnlSol, 3)} />
+        </div>
+
+        {top.length > 0 && (
+          <div>
+            <div className="mb-2 text-[11px] uppercase tracking-wider text-muted-foreground">
+              Top leverage traders
+            </div>
+            <div className="overflow-auto border border-border">
+              <table className="w-full text-sm">
+                <thead className="text-left text-[11px] uppercase tracking-wider text-muted-foreground">
+                  <tr>
+                    <th className="px-3 py-2">Wallet / X user</th>
+                    <th className="px-3 py-2 text-right">Positions</th>
+                    <th className="px-3 py-2 text-right">Volume (SOL)</th>
+                    <th className="px-3 py-2 text-right">Realized P&L</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {top.map((u, i) => (
+                    <tr key={i} className="border-t border-border/60">
+                      <td className="px-3 py-2 font-mono text-xs">
+                        {u.x_username ? `@${u.x_username}` : shortWallet(u.wallet)}
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono">
+                        {fmt(u.positions)}
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono text-accent">
+                        {fmt(u.volume_sol, 2)}
+                      </td>
+                      <td
+                        className={
+                          "px-3 py-2 text-right font-mono " +
+                          (u.realized_pnl_sol >= 0 ? "text-emerald-400" : "text-red-400")
+                        }
+                      >
+                        {fmt(u.realized_pnl_sol, 3)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+}
+
 export default function AdminPage() {
   const { isAdmin, loading } = useAdmin();
 
@@ -729,6 +814,7 @@ export default function AdminPage() {
           <MarketSection />
         </div>
         <RecoverySection />
+        <LeverageSection />
         <FlagsSection />
         <OrdersSection />
         <ResetSection />

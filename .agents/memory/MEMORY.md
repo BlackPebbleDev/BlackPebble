@@ -5,3 +5,4 @@
 - [Zero-cost cache observers](zero-cost-cache-observer.md) — global hooks observe an existing polled query (enabled:false) to avoid new fetches; public-wallet GETs vs owner-only pending-intent.
 - [Architect git-diff false scope flags](architect-gitdiff-scope.md) — review's diff can include prior-merged committed work; confirm actual scope with `git status --short` before trusting "out of scope" flags.
 - [blackpebble vite build slow/OOM](blackpebble-vite-build.md) — full build OOMs + outlasts tool timeout; use raised heap backgrounded, or rely on tsc + dev preview.
+- [Leverage P&L isolation](leverage-pnl-isolation.md) — leverage open/close only mutate paper_balance; never spot stat columns (realized_pnl/total_trades/etc).

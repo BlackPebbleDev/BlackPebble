@@ -11,6 +11,7 @@ export const FEATURE_FLAG_KEYS = [
   "tp_sl",
   "multi_target_tp",
   "experimental_utilities",
+  "leverage",
 ] as const;
 
 export type FeatureFlagKey = (typeof FEATURE_FLAG_KEYS)[number];
@@ -24,6 +25,8 @@ export const DEFAULT_FLAGS: FeatureFlags = {
   tp_sl: true,
   multi_target_tp: true,
   experimental_utilities: true,
+  // Paper leverage trading ships dark; an admin enables it explicitly.
+  leverage: false,
 };
 
 function isFlagKey(v: string): v is FeatureFlagKey {

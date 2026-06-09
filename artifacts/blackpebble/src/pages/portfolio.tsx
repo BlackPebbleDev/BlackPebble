@@ -16,6 +16,8 @@ import { Wallet, Loader2, AlertTriangle } from "lucide-react";
 import { useAccount } from "@/hooks/use-account";
 import { api, type PortfolioStats } from "@/lib/api";
 import { OpenPositions } from "@/components/open-positions";
+import { LeveragePortfolioSection } from "@/components/leverage-portfolio";
+import { useFeatureFlags } from "@/hooks/use-feature-flags";
 import { AllOrders } from "@/components/position-orders";
 import { Watchlist } from "@/components/watchlist";
 import { TradeList } from "@/components/trade-list";
@@ -97,6 +99,7 @@ function BestTradeStat({
 
 export default function Portfolio() {
   const { wallet, isGuest } = useAccount();
+  const flags = useFeatureFlags();
   const [, navigate] = useLocation();
   const [historyExpanded, setHistoryExpanded] = useState(false);
 
@@ -323,6 +326,13 @@ export default function Portfolio() {
             empty="No open positions. Head to the Trading Desk to start."
             onNavigate={(mint) => navigate(`/?token=${mint}`)}
           />
+
+          {flags.leverage && !isGuest && wallet && (
+            <LeveragePortfolioSection
+              wallet={wallet}
+              onNavigate={(mint) => navigate(`/?token=${mint}`)}
+            />
+          )}
 
           <AllOrders onNavigate={(mint) => navigate(`/?token=${mint}`)} />
 

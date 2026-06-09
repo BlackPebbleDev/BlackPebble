@@ -11,6 +11,7 @@ import adminResetRouter from "./admin-reset.js";
 import adminRouter from "./admin.js";
 import recoveryRouter from "./recovery.js";
 import settingsRouter from "./settings.js";
+import leverageRouter from "./leverage.js";
 
 const router: IRouter = Router();
 
@@ -26,5 +27,6 @@ router.use(adminResetRouter);
 router.use(adminRouter);
 router.use(recoveryRouter);
 router.use(settingsRouter);
+router.use(leverageRouter);
 
 export default router;

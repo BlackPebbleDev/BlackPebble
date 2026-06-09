@@ -48,7 +48,8 @@ export type FeatureFlagKey =
   | "buy_limits"
   | "tp_sl"
   | "multi_target_tp"
-  | "experimental_utilities";
+  | "experimental_utilities"
+  | "leverage";
 
 export type FeatureFlags = Record<FeatureFlagKey, boolean>;
 
@@ -92,6 +93,7 @@ export interface ResetOptions {
   clearTrades?: boolean;
   resetLeaderboard?: boolean;
   clearWatchlist?: boolean;
+  clearLeverage?: boolean;
 }
 
 export interface ResetResult {
@@ -426,6 +428,115 @@ export interface ExecuteResult {
   balance?: number;
 }
 
+// ---- Paper leverage trading ----
+export type LeverageCloseReason =
+  | "manual"
+  | "take_profit"
+  | "stop_loss"
+  | "liquidated";
+
+export interface LeveragePosition {
+  id: number;
+  wallet: string;
+  token_mint: string;
+  token_name: string | null;
+  token_symbol: string | null;
+  token_logo: string | null;
+  direction: string;
+  leverage: number;
+  margin_sol: number;
+  notional_sol: number;
+  tokens: number;
+  entry_price_sol: number;
+  entry_market_cap: number | null;
+  liq_price_sol: number;
+  liq_market_cap: number | null;
+  tp_trigger_mc: number | null;
+  sl_trigger_mc: number | null;
+  status: string;
+  realized_pnl_sol: number | null;
+  exit_price_sol: number | null;
+  exit_market_cap: number | null;
+  close_reason: string | null;
+  entry_slippage_percent: number | null;
+  entry_trade_impact_percent: number | null;
+  opened_at: number;
+  updated_at: number;
+  closed_at: number | null;
+  // Valuation fields (present on the positions endpoint).
+  currentPriceSol: number | null;
+  currentMarketCapUsd: number | null;
+  priceMovePercent: number | null;
+  unrealizedPnlSol: number | null;
+  roiOnMargin: number | null;
+  positionEquitySol: number | null;
+  marketCapChangePercent: number | null;
+}
+
+export interface LeverageFill {
+  positionId: number;
+  tokenMint: string;
+  tokenSymbol: string | null;
+  reason: LeverageCloseReason;
+  exitPriceSol: number | null;
+  exitMarketCap: number | null;
+  realizedPnlSol: number | null;
+}
+
+export interface LeverageTrade {
+  id: number;
+  position_id: number;
+  wallet: string;
+  token_mint: string;
+  token_name: string | null;
+  token_symbol: string | null;
+  token_logo: string | null;
+  action: "open" | "close" | "liquidated";
+  direction: string;
+  leverage: number;
+  margin_sol: number;
+  notional_sol: number;
+  tokens: number;
+  price_sol: number;
+  market_cap: number | null;
+  pnl_sol: number | null;
+  executed_at: number;
+}
+
+export interface LeverageOpenResult {
+  ok: boolean;
+  error?: string;
+  blocked?: boolean;
+  position?: LeveragePosition;
+  balance?: number;
+}
+
+export interface LeverageCloseResult {
+  ok: boolean;
+  error?: string;
+  position?: LeveragePosition;
+  realizedPnlSol?: number;
+  reason?: LeverageCloseReason;
+  balance?: number;
+}
+
+export interface LeverageStats {
+  totalPositions: number;
+  openPositions: number;
+  liquidations: number;
+  totalVolumeSol: number;
+  totalMarginSol: number;
+  realizedPnlSol: number;
+  uniqueTraders: number;
+  topUsers: {
+    wallet: string;
+    x_username: string | null;
+    positions: number;
+    volume_sol: number;
+    realized_pnl_sol: number;
+  }[];
+}
+
 // ---- API ----
 export const api = {
   createAccount: (wallet: string) =>
@@ -569,6 +680,38 @@ export const api = {
   // Public feature flags (read-only) consumed by the trading UI.
   featureFlags: () => request<{ flags: FeatureFlags }>("/feature-flags"),
 
+  // Paper leverage trading (gated behind the `leverage` feature flag).
+  leverage: {
+    open: (body: {
+      wallet: string;
+      mint: string;
+      symbol?: string | null;
+      name?: string | null;
+      logo?: string | null;
+      marginSol: number;
+      leverage: number;
+      tpTriggerMc?: number | null;
+      slTriggerMc?: number | null;
+    }) =>
+      request<LeverageOpenResult>("/leverage/open", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    close: (wallet: string, id: number) =>
+      request<LeverageCloseResult>("/leverage/close", {
+        method: "POST",
+        body: JSON.stringify({ wallet, id }),
+      }),
+    positions: (wallet: string) =>
+      request<{
+        positions: LeveragePosition[];
+        solUsd: number;
+        fills?: LeverageFill[];
+      }>(`/leverage/positions/${wallet}`),
+    history: (wallet: string) =>
+      request<{ trades: LeverageTrade[] }>(`/leverage/history/${wallet}`),
+  },
+
   // SOL Recovery usage tracking (public — recovery works for guests too).
   recovery: {
     track: (body: RecoveryTrackBody) =>
@@ -617,5 +760,6 @@ export const api = {
       }),
     recoveryStats: () =>
       request<RecoveryStatsResponse>("/admin/recovery-stats"),
+    leverageStats: () => request<LeverageStats>("/admin/leverage-stats"),
   },
 };

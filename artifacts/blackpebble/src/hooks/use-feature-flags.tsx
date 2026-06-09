@@ -6,12 +6,16 @@ const DEFAULT_FLAGS: FeatureFlags = {
   tp_sl: true,
   multi_target_tp: true,
   experimental_utilities: true,
+  // Leverage is the one capability that ships off — never reveal it until the
+  // server confirms it is enabled.
+  leverage: false,
 };
 
 /**
  * Reads the public feature flags. While loading (or on error) it falls back to
- * "all enabled" so the trading UI never hides a capability spuriously. The
- * query key is shared so every consumer dedupes onto one request.
+ * the defaults above so the trading UI never hides an always-on capability
+ * spuriously. The query key is shared so every consumer dedupes onto one
+ * request.
  */
 export function useFeatureFlags(): FeatureFlags {
   const { data } = useQuery({
