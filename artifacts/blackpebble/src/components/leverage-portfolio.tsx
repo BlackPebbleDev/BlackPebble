@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import {
@@ -18,18 +18,35 @@ const FILL_LABELS: Record<string, string> = {
   manual: "Closed",
 };
 
+/** Current market value of a leverage position: notional + unrealized P&L. */
+function currentValueSol(p: LeveragePosition): number | null {
+  return p.unrealizedPnlSol != null ? p.notional_sol + p.unrealizedPnlSol : null;
+}
+
 /**
- * Leverage portfolio section: open positions (live unrealized P&L + liquidation)
- * and leverage trade history. Polls positions so liquidation / TP / SL evaluate
- * server-side; surfaces any auto-closes as toasts. Signed-in only.
+ * Distance from the current market cap down to the liquidation market cap, as a
+ * percentage of the current market cap. Smaller = closer to liquidation.
+ *   distance% = ((currentMC − liqMC) / currentMC) × 100
  */
-export function LeveragePortfolioSection({
-  wallet,
-  onNavigate,
-}: {
-  wallet: string;
-  onNavigate: (mint: string) => void;
-}) {
+function distanceToLiqPercent(p: LeveragePosition): number | null {
+  const cur = p.currentMarketCapUsd;
+  const liq = p.liq_market_cap;
+  if (cur == null || liq == null || cur <= 0) return null;
+  return ((cur - liq) / cur) * 100;
+}
+
+function fmtDistance(d: number | null): string {
+  if (d == null || !Number.isFinite(d)) return "—";
+  return `${d.toFixed(1)}%`;
+}
+
+/**
+ * Shared leverage data hook: polls positions (so the server can evaluate
+ * liquidation / TP / SL), surfaces any auto-closes as toasts, exposes history,
+ * and a close mutation. Exactly one mounted consumer should announce fills, so
+ * pass `announce: false` for read-only consumers (e.g. summaries).
+ */
+function useLeverageData(wallet: string, announce = true) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const seenFills = useRef<Set<number>>(new Set());
@@ -46,11 +63,8 @@ export function LeveragePortfolioSection({
     enabled: !!wallet,
   });
 
-  const positions = posData?.positions ?? [];
-  const trades = histData?.trades ?? [];
-
-  // Toast any newly auto-closed positions, then refresh balance + history.
   useEffect(() => {
+    if (!announce) return;
     const fills = posData?.fills ?? [];
     const fresh = fills.filter((f) => !seenFills.current.has(f.positionId));
     if (fresh.length === 0) return;
@@ -60,13 +74,7 @@ export function LeveragePortfolioSection({
     }
     qc.invalidateQueries({ queryKey: ["account"] });
     qc.invalidateQueries({ queryKey: ["leverage-history", wallet] });
-  }, [posData?.fills, qc, toast, wallet]);
-
-  const openMargin = positions.reduce((s, p) => s + p.margin_sol, 0);
-  const unrealized = positions.reduce((s, p) => s + (p.unrealizedPnlSol ?? 0), 0);
-  const realized = trades
-    .filter((t) => t.action === "close" || t.action === "liquidated")
-    .reduce((s, t) => s + (t.pnl_sol ?? 0), 0);
+  }, [posData?.fills, qc, toast, wallet, announce]);
 
   const closeMutation = useMutation({
     mutationFn: (id: number) => api.leverage.close(wallet, id),
@@ -93,6 +101,32 @@ export function LeveragePortfolioSection({
     onError: (e: Error) =>
       toast({ title: "Close failed", description: e.message, variant: "destructive" }),
   });
+
+  return {
+    positions: posData?.positions ?? [],
+    trades: histData?.trades ?? [],
+    closeMutation,
+  };
+}
+
+/**
+ * Portfolio-page leverage section: every open position (live unrealized P&L +
+ * liquidation) plus full leverage trade history. Signed-in only.
+ */
+export function LeveragePortfolioSection({
+  wallet,
+  onNavigate,
+}: {
+  wallet: string;
+  onNavigate: (mint: string) => void;
+}) {
+  const { positions, trades, closeMutation } = useLeverageData(wallet);
+
+  const openMargin = positions.reduce((s, p) => s + p.margin_sol, 0);
+  const unrealized = positions.reduce((s, p) => s + (p.unrealizedPnlSol ?? 0), 0);
+  const realized = trades
+    .filter((t) => t.action === "close" || t.action === "liquidated")
+    .reduce((s, t) => s + (t.pnl_sol ?? 0), 0);
 
   return (
     <section className="mt-8">
@@ -141,28 +175,111 @@ export function LeveragePortfolioSection({
       {trades.length > 0 && (
         <>
           <h2 className="mb-3 mt-8 text-lg font-semibold">Leverage History</h2>
-          <div className="overflow-auto border border-border bg-card">
-            <table className="w-full text-sm">
-              <thead className="text-left text-[11px] uppercase tracking-wider text-muted-foreground">
-                <tr>
-                  <th className="px-3 py-2">When</th>
-                  <th className="px-3 py-2">Token</th>
-                  <th className="px-3 py-2">Action</th>
-                  <th className="px-3 py-2 text-right">Lev</th>
-                  <th className="px-3 py-2 text-right">Margin</th>
-                  <th className="px-3 py-2 text-right">P&L</th>
-                </tr>
-              </thead>
-              <tbody>
-                {trades.map((t) => (
-                  <LeverageHistoryRow key={t.id} t={t} onNavigate={onNavigate} />
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <LeverageHistoryTable trades={trades} onNavigate={onNavigate} />
         </>
       )}
     </section>
+  );
+}
+
+/**
+ * Token-page leverage box: a separate, tabbed Positions / History panel scoped
+ * to a single token. Mirrors the spot Positions / History box but stays fully
+ * isolated from spot. Signed-in only (leverage requires a wallet).
+ */
+export function TokenLeverageActivity({
+  wallet,
+  mint,
+  onNavigate,
+}: {
+  wallet: string;
+  mint: string;
+  onNavigate: (mint: string) => void;
+}) {
+  const [tab, setTab] = useState<"positions" | "history">("positions");
+  const { positions, trades, closeMutation } = useLeverageData(wallet);
+
+  const tokenPositions = positions.filter((p) => p.token_mint === mint);
+  const tokenTrades = trades.filter((t) => t.token_mint === mint);
+
+  const tabs = [
+    { id: "positions" as const, label: "Leverage Positions" },
+    { id: "history" as const, label: "Leverage History" },
+  ];
+
+  return (
+    <div className="mt-8 border border-border bg-card" data-testid="leverage-activity">
+      <div className="flex border-b border-border">
+        {tabs.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            data-testid={`tab-leverage-${t.id}`}
+            className={cn(
+              "px-4 py-3 text-sm transition-colors border-b-2 -mb-px",
+              tab === t.id
+                ? "border-accent text-accent"
+                : "border-transparent text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "positions" && (
+        <div className="p-3">
+          {tokenPositions.length === 0 ? (
+            <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+              No open leverage positions for this token.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {tokenPositions.map((p) => (
+                <LeverageRow
+                  key={p.id}
+                  p={p}
+                  onNavigate={onNavigate}
+                  onClose={() => closeMutation.mutate(p.id)}
+                  closing={
+                    closeMutation.isPending && closeMutation.variables === p.id
+                  }
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === "history" && (
+        <div className="p-3">
+          {tokenTrades.length === 0 ? (
+            <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+              No leverage history for this token.
+            </div>
+          ) : (
+            <LeverageHistoryTable trades={tokenTrades} onNavigate={onNavigate} />
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StatCell({
+  label,
+  value,
+  valueClass,
+}: {
+  label: string;
+  value: string;
+  valueClass?: string;
+}) {
+  return (
+    <div>
+      <div className="text-muted-foreground">{label}</div>
+      <div className={cn("font-mono text-foreground", valueClass)}>{value}</div>
+    </div>
   );
 }
 
@@ -179,9 +296,11 @@ function LeverageRow({
 }) {
   const pnl = p.unrealizedPnlSol;
   const roi = p.roiOnMargin;
+  const curVal = currentValueSol(p);
+  const dist = distanceToLiqPercent(p);
   return (
     <div className="border border-border bg-card p-3">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex items-start justify-between gap-3">
         <button
           type="button"
           onClick={() => onNavigate(p.token_mint)}
@@ -196,16 +315,17 @@ function LeverageRow({
             />
           )}
           <div>
-            <div className="text-sm font-medium">
-              {p.token_symbol ?? "Token"}{" "}
-              <span className="ml-1 text-[11px] font-semibold uppercase text-accent">
+            <div className="flex items-center gap-1.5 text-sm font-medium">
+              {p.token_symbol ?? "Token"}
+              <span className="text-[11px] font-semibold uppercase text-accent">
                 {p.leverage}x Long
               </span>
             </div>
-            <div className="text-[11px] text-muted-foreground">
-              Entry {fmtMarketCap(p.entry_market_cap)} · Liq{" "}
-              <span className="text-red-400">{fmtMarketCap(p.liq_market_cap)}</span>
-            </div>
+            {p.token_name && (
+              <div className="text-[11px] text-muted-foreground">
+                {p.token_name}
+              </div>
+            )}
           </div>
         </button>
         <div className="text-right">
@@ -217,25 +337,35 @@ function LeverageRow({
           </div>
         </div>
       </div>
+
+      <div className="mt-3 grid grid-cols-3 gap-x-3 gap-y-2 text-[11px]">
+        <StatCell label="Margin" value={`${fmtSol(p.margin_sol)} SOL`} />
+        <StatCell label="Position Size" value={`${fmtSol(p.notional_sol)} SOL`} />
+        <StatCell
+          label="Current Value"
+          value={curVal != null ? `${fmtSol(curVal)} SOL` : "—"}
+        />
+        <StatCell label="Entry MC" value={fmtMarketCap(p.entry_market_cap)} />
+        <StatCell label="Current MC" value={fmtMarketCap(p.currentMarketCapUsd)} />
+        <StatCell
+          label="Liq MC"
+          value={fmtMarketCap(p.liq_market_cap)}
+          valueClass="text-red-400"
+        />
+      </div>
+
       <div className="mt-3 flex items-center justify-between gap-3">
-        <div className="flex gap-4 text-[11px] text-muted-foreground">
-          <span>
-            Margin{" "}
-            <span className="font-mono text-foreground">{fmtSol(p.margin_sol)}</span>
+        <span className="text-[11px] text-muted-foreground">
+          Distance to Liq:{" "}
+          <span
+            className={cn(
+              "font-mono",
+              dist != null && dist < 10 ? "text-red-400" : "text-foreground",
+            )}
+          >
+            {fmtDistance(dist)}
           </span>
-          <span>
-            Size{" "}
-            <span className="font-mono text-foreground">
-              {fmtSol(p.notional_sol)}
-            </span>
-          </span>
-          <span>
-            Now{" "}
-            <span className="font-mono text-foreground">
-              {fmtMarketCap(p.currentMarketCapUsd)}
-            </span>
-          </span>
-        </div>
+        </span>
         <button
           type="button"
           onClick={onClose}
@@ -251,6 +381,38 @@ function LeverageRow({
   );
 }
 
+function LeverageHistoryTable({
+  trades,
+  onNavigate,
+}: {
+  trades: LeverageTrade[];
+  onNavigate: (mint: string) => void;
+}) {
+  return (
+    <div className="overflow-auto border border-border bg-card">
+      <table className="w-full text-sm">
+        <thead className="text-left text-[11px] uppercase tracking-wider text-muted-foreground">
+          <tr>
+            <th className="px-3 py-2">When</th>
+            <th className="px-3 py-2">Token</th>
+            <th className="px-3 py-2">Action</th>
+            <th className="px-3 py-2 text-right">Lev</th>
+            <th className="px-3 py-2 text-right">Margin</th>
+            <th className="px-3 py-2 text-right">Size</th>
+            <th className="px-3 py-2 text-right">MC</th>
+            <th className="px-3 py-2 text-right">P&L</th>
+          </tr>
+        </thead>
+        <tbody>
+          {trades.map((t) => (
+            <LeverageHistoryRow key={t.id} t={t} onNavigate={onNavigate} />
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function LeverageHistoryRow({
   t,
   onNavigate,
@@ -261,10 +423,10 @@ function LeverageHistoryRow({
   const isOpen = t.action === "open";
   const actionLabel =
     t.action === "open"
-      ? "Open"
+      ? "Opened Long"
       : t.action === "liquidated"
         ? "Liquidated"
-        : "Close";
+        : "Closed Long";
   const actionColor =
     t.action === "liquidated"
       ? "text-red-400"
@@ -291,6 +453,12 @@ function LeverageHistoryRow({
       <td className="px-3 py-2 text-right font-mono text-xs">{t.leverage}x</td>
       <td className="px-3 py-2 text-right font-mono text-xs">
         {fmtSol(t.margin_sol)}
+      </td>
+      <td className="px-3 py-2 text-right font-mono text-xs">
+        {fmtSol(t.notional_sol)}
+      </td>
+      <td className="px-3 py-2 text-right font-mono text-xs">
+        {fmtMarketCap(t.market_cap)}
       </td>
       <td
         className={cn(

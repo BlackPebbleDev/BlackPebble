@@ -1,0 +1,187 @@
+LEVERAGE POSITION VISIBILITY FIXES
+
+The leverage engine is working, but leverage visibility on the token trading page needs to be improved.
+
+Current issue:
+The token trading page shows the normal Spot position value and unrealized P&L under the buy/sell box, but leveraged positions are not shown in the same area.
+
+Also, the existing Positions / History box only shows normal Spot positions and Spot history. Leveraged positions/history need their own separate box.
+
+Do not break existing Spot positions.
+Do not break existing Spot history.
+Do not mix Spot positions and Leverage positions together.
+Do not include leverage P&L in Spot leaderboard stats.
+
+====================================================
+
+1. ADD LEVERAGE SUMMARY UNDER BUY/SELL BOX
+    ====================================================
+
+Under the buy/sell box, where Spot currently shows:
+
+Position value
+Unrealized P&L
+
+Add an equivalent leverage summary when the user has an open leverage position for the selected token.
+
+If the user has a Spot position only:
+
+* show the existing Spot summary only
+
+If the user has a Leverage position only:
+
+* show the Leverage summary only
+
+If the user has both Spot and Leverage positions:
+
+* show both summaries stacked cleanly
+
+Recommended labels:
+
+Spot Position
+
+* Position value
+* Unrealized P&L
+
+Leverage Position
+
+* Margin used
+* Position size
+* Current value
+* Unrealized P&L
+* ROI
+* Liquidation MC
+* Distance to liquidation
+
+Keep it compact and mobile-friendly.
+
+Leverage current value formula:
+current_position_value = notional + unrealized_pnl
+
+or if token exposure is stored:
+current_position_value = exposure_tokens × current_price
+
+Distance to liquidation:
+For long positions:
+distance_to_liq_percent = ((current_market_cap - liquidation_market_cap) / current_market_cap) × 100
+
+Display clearly:
+Distance to Liq: 4.2%
+
+====================================================
+2. ADD SEPARATE LEVERAGE POSITIONS / HISTORY BOX
+
+Below the existing Spot Positions / History box, add a separate box:
+
+Leverage Positions / History
+
+This should look similar to the current Positions / History section but must be separate from Spot.
+
+Tab 1:
+Leverage Positions
+
+Each open leverage position card should show:
+
+* token symbol
+* token name if available
+* Long badge
+* leverage multiplier badge
+* margin used
+* position size / notional
+* current value
+* unrealized P&L
+* ROI on margin
+* entry MC
+* current MC
+* liquidation MC
+* distance to liquidation
+* Close button
+
+Example card:
+
+MUMU 20x Long
+P&L: -0.3226 SOL (-42.54%)
+Margin: 0.7583 SOL
+Position Size: 15.17 SOL
+Current Value: 14.85 SOL
+Entry MC: $3.54M
+Current MC: $3.53M
+Liq MC: $3.38M
+Distance to Liq: 4.2%
+[Close]
+
+Tab 2:
+Leverage History
+
+Show leverage trade history for the selected wallet/token.
+
+Rows should show:
+
+* time
+* token
+* action: Opened Long / Closed Long / Liquidated
+* leverage
+* margin
+* position size
+* entry MC
+* exit MC if closed
+* realized P&L if closed
+* status
+
+Keep existing Spot History unchanged.
+
+====================================================
+3. ACTIVE ORDERS CLARITY
+
+Do not label open leverage positions as normal Active Orders.
+
+However, if leverage TP/SL orders exist, show them under Active Orders as:
+
+Leverage TP/SL
+
+Example:
+MUMU 20x Long TP — Close 100% at MC ≥ $4.5M
+MUMU 20x Long SL — Close 100% at MC ≤ $3.45M
+
+If no Spot orders and no leverage TP/SL orders exist, keep the current empty state.
+
+====================================================
+4. TOKEN PAGE BEHAVIOR
+
+On a token page:
+
+* Spot positions for that token should show in Spot Positions.
+* Leverage positions for that token should show in Leverage Positions.
+* If user has both, both should be visible.
+* If user has neither, show clean empty states.
+
+Do not force the user to go to Portfolio to see leverage position status.
+
+====================================================
+5. QA
+
+Verify:
+
+1. Spot summary still works.
+2. Spot Positions / History still works.
+3. Leverage summary appears under buy/sell box.
+4. Leverage Positions / History box appears separately.
+5. Leverage position current value is visible.
+6. Leverage unrealized P&L is visible.
+7. Leverage ROI is visible.
+8. Liquidation MC is visible.
+9. Distance to liquidation is visible.
+10. Close leverage button works.
+11. Spot and Leverage positions can both appear for the same token.
+12. Leverage P&L remains isolated from Spot leaderboard stats.
+13. Mobile layout remains clean.
+14. Typecheck/build pass.
+
+Return:
+
+* files changed
+* UI changes made
+* leverage value formula used
+* distance-to-liquidation formula used
+* confirmation Spot UI was not broken
+* confirmation safe to publish

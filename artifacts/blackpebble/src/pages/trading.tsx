@@ -27,6 +27,7 @@ import {
 import {
   api,
   type TokenInfo,
+  type LeveragePosition,
   type Trade,
   type TradeQuote,
   type OrderType,
@@ -34,6 +35,7 @@ import {
 import { TradeList } from "@/components/trade-list";
 import { OpenPositions } from "@/components/open-positions";
 import { LeveragePanel } from "@/components/leverage-panel";
+import { TokenLeverageActivity } from "@/components/leverage-portfolio";
 import {
   MiniPlanner,
   PlannedTradeSummary,
@@ -812,6 +814,88 @@ function BuyLimitRow({
   );
 }
 
+/**
+ * Compact leverage position summary shown under the buy/sell box (alongside the
+ * spot summary). Read-only; the token-page Leverage box handles closing/toasts.
+ *   current value = notional + unrealized P&L
+ *   distance to liq% = ((currentMC − liqMC) / currentMC) × 100
+ */
+function LeverageSummary({
+  p,
+  unit,
+  solUsd,
+}: {
+  p: LeveragePosition;
+  unit: Unit;
+  solUsd: number | null;
+}) {
+  const curVal =
+    p.unrealizedPnlSol != null ? p.notional_sol + p.unrealizedPnlSol : null;
+  const cur = p.currentMarketCapUsd;
+  const liq = p.liq_market_cap;
+  const dist =
+    cur != null && liq != null && cur > 0 ? ((cur - liq) / cur) * 100 : null;
+  return (
+    <div className="space-y-1.5" data-testid="summary-leverage">
+      <div className="flex items-center justify-between">
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+          Leverage Position
+        </span>
+        <span className="text-[11px] font-semibold uppercase text-accent">
+          {p.leverage}x Long
+        </span>
+      </div>
+      <div className="flex justify-between">
+        <span className="text-muted-foreground">Margin used</span>
+        <span className="font-mono">{fmtUnitValue(p.margin_sol, unit, solUsd)}</span>
+      </div>
+      <div className="flex justify-between">
+        <span className="text-muted-foreground">Position size</span>
+        <span className="font-mono">
+          {fmtUnitValue(p.notional_sol, unit, solUsd)}
+        </span>
+      </div>
+      <div className="flex justify-between">
+        <span className="text-muted-foreground">Current value</span>
+        <span className="font-mono">
+          {curVal != null ? fmtUnitValue(curVal, unit, solUsd) : "—"}
+        </span>
+      </div>
+      <div className="flex justify-between">
+        <span className="text-muted-foreground">Unrealized P&L</span>
+        <span className={cn("font-mono", pnlColor(p.unrealizedPnlSol ?? 0))}>
+          {p.unrealizedPnlSol != null
+            ? fmtUnitPnl(p.unrealizedPnlSol, unit, solUsd)
+            : "—"}
+        </span>
+      </div>
+      <div className="flex justify-between">
+        <span className="text-muted-foreground">ROI</span>
+        <span className={cn("font-mono", pnlColor(p.roiOnMargin ?? 0))}>
+          {p.roiOnMargin != null ? fmtPercent(p.roiOnMargin * 100) : "—"}
+        </span>
+      </div>
+      <div className="flex justify-between">
+        <span className="text-muted-foreground">Liquidation MC</span>
+        <span className="font-mono text-red-400">
+          {fmtMarketCap(p.liq_market_cap)}
+        </span>
+      </div>
+      <div className="flex justify-between">
+        <span className="text-muted-foreground">Distance to Liq</span>
+        <span
+          className={cn(
+            "font-mono",
+            dist != null && dist < 10 ? "text-red-400" : "text-foreground",
+          )}
+        >
+          {dist != null ? `${dist.toFixed(1)}%` : "—"}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function TradePanel({
   info,
   appliedAmount,
@@ -934,6 +1018,16 @@ function TradePanel({
   const position = isGuest
     ? guestValued.positions.find((p) => p.token_mint === info.mint)
     : posData?.positions.find((p) => p.token_mint === info.mint);
+
+  // Leverage position for this token (signed-in only). Read-only here — the
+  // token-page Leverage box owns liquidation/TP/SL toasts, so don't announce.
+  const { data: levData } = useQuery({
+    queryKey: ["leverage-positions", wallet],
+    queryFn: () => api.leverage.positions(wallet!),
+    enabled: !!wallet && !isGuest && flags.leverage,
+    refetchInterval: 15_000,
+  });
+  const levPosition = levData?.positions.find((p) => p.token_mint === info.mint);
 
   const cashBalance = isGuest ? guestState.balance : account?.paper_balance;
 
@@ -1733,21 +1827,33 @@ function TradePanel({
           )}
         </div>
 
-        {position && (
-          <div className="pt-3 border-t border-border text-xs space-y-1.5">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Position value</span>
-              <span className="font-mono">
-                {fmtUnitValue(position.currentValueSol, unit, solUsd)}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Unrealized P&L</span>
-              <span className={cn("font-mono", pnlColor(position.unrealizedPnlSol))}>
-                {fmtUnitPnl(position.unrealizedPnlSol, unit, solUsd)} (
-                {fmtPercent(position.unrealizedPnlPercent)})
-              </span>
-            </div>
+        {(position || levPosition) && (
+          <div className="pt-3 border-t border-border text-xs space-y-3">
+            {position && (
+              <div className="space-y-1.5" data-testid="summary-spot">
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                  Spot Position
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Position value</span>
+                  <span className="font-mono">
+                    {fmtUnitValue(position.currentValueSol, unit, solUsd)}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Unrealized P&L</span>
+                  <span
+                    className={cn("font-mono", pnlColor(position.unrealizedPnlSol))}
+                  >
+                    {fmtUnitPnl(position.unrealizedPnlSol, unit, solUsd)} (
+                    {fmtPercent(position.unrealizedPnlPercent)})
+                  </span>
+                </div>
+              </div>
+            )}
+            {levPosition && (
+              <LeverageSummary p={levPosition} unit={unit} solUsd={solUsd} />
+            )}
             {unit === "USD" && (solUsd == null || solUsd <= 0) && (
               <p className="text-[11px] text-muted-foreground">
                 USD display requires SOL price.
@@ -1905,6 +2011,7 @@ function useNavigate() {
 export default function TradingDesk() {
   const mint = useTokenParam();
   const { wallet, isGuest } = useAccount();
+  const flags = useFeatureFlags();
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -2157,6 +2264,14 @@ export default function TradingDesk() {
       <AllOrders onNavigate={(m) => navigate(`/?token=${m}`)} />
 
       <ActivityTabs />
+
+      {wallet && !isGuest && flags.leverage && (
+        <TokenLeverageActivity
+          wallet={wallet}
+          mint={mint}
+          onNavigate={(m) => navigate(`/?token=${m}`)}
+        />
+      )}
     </div>
     </TooltipProvider>
   );
