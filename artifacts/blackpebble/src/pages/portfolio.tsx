@@ -22,8 +22,10 @@ import { AllOrders } from "@/components/position-orders";
 import { Watchlist } from "@/components/watchlist";
 import { TradeList } from "@/components/trade-list";
 import { TierBadge } from "@/components/tier-badge";
-import { fmtSol, fmtUsd, fmtPercent, pnlColor } from "@/lib/format";
+import { fmtSol, fmtPercent, pnlColor } from "@/lib/format";
 import { PnlAmount } from "@/components/pnl-amount";
+import { CurrencyAmount } from "@/components/currency-amount";
+import { useSolUsd } from "@/hooks/use-sol-usd";
 import { RecoveryDiscoveryCard } from "@/components/recovery-discovery-card";
 import { cn } from "@/lib/utils";
 import {
@@ -145,6 +147,7 @@ export default function Portfolio() {
     return leaderboard?.entries.find((e) => e.wallet === wallet)?.rank ?? null;
   }, [leaderboard, wallet, isGuest]);
 
+  const fallbackSolUsd = useSolUsd();
   const guestState = useGuestStore();
   const guestValued = useGuestValuedPositions();
   const guestStats = useMemo(
@@ -196,7 +199,12 @@ export default function Portfolio() {
   }
 
   const positions = isGuest ? guestValued.positions : portfolio?.positions ?? [];
-  const positionsSolUsd = isGuest ? guestValued.solUsd : portfolio?.solUsd ?? 0;
+  const derivedSolUsd = isGuest ? guestValued.solUsd : portfolio?.solUsd ?? 0;
+  // A position-derived rate only exists once the trader holds something. Fall
+  // back to the shared SOL/USD rate so USD (the default currency) still renders
+  // on an empty/guest portfolio.
+  const positionsSolUsd =
+    derivedSolUsd > 0 ? derivedSolUsd : fallbackSolUsd;
 
   return (
     <div className="w-full max-w-6xl mx-auto px-4 md:px-6 py-6">
@@ -235,9 +243,16 @@ export default function Portfolio() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
             <Stat
               label="Equity"
-              value={`${fmtSol(stats?.equitySol)} SOL`}
+              value={
+                <CurrencyAmount sol={stats?.equitySol} solUsd={positionsSolUsd} />
+              }
             />
-            <Stat label="Cash Balance" value={`${fmtSol(stats?.balance)} SOL`} />
+            <Stat
+              label="Cash Balance"
+              value={
+                <CurrencyAmount sol={stats?.balance} solUsd={positionsSolUsd} />
+              }
+            />
             <Stat
               label="Total P&L"
               value={

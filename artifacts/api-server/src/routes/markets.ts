@@ -5,6 +5,7 @@ import {
   forceRefreshTrending,
   getMarketStatus,
   getTokenStatsBatch,
+  getSolPriceUsd,
   type MarketToken,
 } from "../lib/prices.js";
 import { pumpportal } from "../lib/pumpportal.js";
@@ -158,6 +159,18 @@ router.get(
   "/markets/status",
   asyncHandler((_req, res) => {
     return res.json(getMarketStatus());
+  }),
+);
+
+/**
+ * The current SOL/USD rate (cached 30s upstream). Lets any page render USD
+ * values even when it has no positions/trades to derive a rate from — needed
+ * because USD is the default display currency app-wide.
+ */
+router.get(
+  "/markets/sol-price",
+  asyncHandler(async (_req, res) => {
+    return res.json({ solUsd: await getSolPriceUsd() });
   }),
 );
 

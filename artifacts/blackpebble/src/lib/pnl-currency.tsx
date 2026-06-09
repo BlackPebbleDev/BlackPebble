@@ -19,11 +19,13 @@ interface PnlCurrencyContextValue {
 const PnlCurrencyContext = createContext<PnlCurrencyContextValue | null>(null);
 
 function readInitialMode(): PnlMode {
-  if (typeof window === "undefined") return "SOL";
+  if (typeof window === "undefined") return "USD";
   try {
-    return window.sessionStorage.getItem(STORAGE_KEY) === "USD" ? "USD" : "SOL";
+    // USD is the default display currency. Only an explicit, previously-chosen
+    // "SOL" survives; anything else (including no stored value) starts as USD.
+    return window.sessionStorage.getItem(STORAGE_KEY) === "SOL" ? "SOL" : "USD";
   } catch {
-    return "SOL";
+    return "USD";
   }
 }
 

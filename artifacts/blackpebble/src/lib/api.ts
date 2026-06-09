@@ -674,6 +674,9 @@ export const api = {
       cacheAge: number | null;
     }>(`/markets/status`),
 
+  // Current SOL/USD rate — lets any page render USD even with no positions.
+  solPrice: () => request<{ solUsd: number }>(`/markets/sol-price`),
+
   portfolio: (wallet: string) => request<Portfolio>(`/portfolio/${wallet}`),
   portfolioChart: (wallet: string) =>
     request<{ points: ChartPoint[]; solUsd: number }>(

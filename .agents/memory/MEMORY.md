@@ -5,4 +5,6 @@
 - [Zero-cost cache observers](zero-cost-cache-observer.md) — global hooks observe an existing polled query (enabled:false) to avoid new fetches; public-wallet GETs vs owner-only pending-intent.
 - [Architect git-diff false scope flags](architect-gitdiff-scope.md) — review's diff can include prior-merged committed work; confirm actual scope with `git status --short` before trusting "out of scope" flags.
 - [blackpebble vite build slow/OOM](blackpebble-vite-build.md) — full build OOMs + outlasts tool timeout; use raised heap backgrounded, or rely on tsc + dev preview.
+- [USD-default needs a position-independent rate](usd-default-needs-rate.md) — empty/guest portfolios have solUsd=0; use /markets/sol-price + useSolUsd() so USD renders without positions.
+- [$25 PUFFY block is correct](puffy-25-block-audit.md) — not a calc bug; many same-name tokens, illiquid duplicates rightly blocked. Don't lower threshold. Sell dedup matches identical token_amount.
 - [Leverage P&L isolation](leverage-pnl-isolation.md) — leverage open/close only mutate paper_balance; never spot stat columns (realized_pnl/total_trades/etc).
