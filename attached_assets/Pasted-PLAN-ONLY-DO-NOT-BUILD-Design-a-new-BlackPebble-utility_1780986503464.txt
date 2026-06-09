@@ -1,0 +1,327 @@
+PLAN ONLY — DO NOT BUILD
+
+Design a new BlackPebble utility called:
+
+Community Boost Pool
+
+Goal:
+Allow memecoin communities to pool SOL together for a DexScreener Boost campaign in a transparent and trust-minimized way.
+
+This is a planning exercise only.
+
+Do NOT write production code.
+
+Return architecture, UX, security recommendations, database design, and implementation options.
+
+====================================================
+PRODUCT CONCEPT
+
+A community wants a DexScreener Boost.
+
+Example:
+
+DexScreener Boost Campaign
+
+Goal:
+18 SOL
+
+Raised:
+12.4 SOL
+
+Contributors:
+43
+
+Deadline:
+72 hours
+
+Status:
+Funding
+
+Community members contribute SOL toward the goal.
+
+If goal is reached:
+Campaign proceeds.
+
+If goal is not reached:
+Refund process becomes available.
+
+====================================================
+USER FLOW
+
+User lands on:
+
+Community Boost Pools
+
+Shows:
+
+Active Campaigns
+Completed Campaigns
+Failed Campaigns
+
+User clicks campaign.
+
+Campaign page displays:
+
+* Token Name
+* Token Symbol
+* Token Address
+* Campaign Goal
+* Amount Raised
+* Progress Bar
+* Time Remaining
+* Contributor Count
+* Campaign Status
+* Deposit Address
+* Contribution History
+
+====================================================
+MVP REQUIREMENTS
+
+For MVP:
+
+One campaign type only:
+
+DexScreener Boost
+
+No CoinGecko
+No CMC
+No Launchpad
+No Marketing Treasury
+
+Only DexScreener Boosts.
+
+Keep scope small.
+
+====================================================
+CAMPAIGN CREATION
+
+Campaign creator enters:
+
+* Token Name
+* Token Symbol
+* Token Address
+* Goal Amount (SOL)
+* Deadline
+* Campaign Description
+
+System creates:
+
+* Campaign ID
+* Campaign Page
+* Unique Deposit Address
+* Funding Tracker
+
+Each campaign must be isolated.
+
+No shared funding wallets.
+
+====================================================
+MULTIPLE CAMPAIGNS
+
+The platform must support:
+
+Campaign A
+Campaign B
+Campaign C
+
+all running simultaneously.
+
+Funds must never mix.
+
+Each campaign must have:
+
+* Unique address
+* Unique tracking
+* Unique balance
+* Unique contributor history
+
+====================================================
+CONTRIBUTIONS
+
+Users contribute SOL.
+
+System tracks:
+
+Wallet
+Amount
+Timestamp
+
+Campaign updates automatically.
+
+Display:
+
+Top Contributors
+
+Recent Contributions
+
+Total Raised
+
+====================================================
+CAMPAIGN STATES
+
+Draft
+
+Funding
+
+Goal Reached
+
+Ready For Execution
+
+Executed
+
+Failed
+
+Refundable
+
+Refunded
+
+Canceled
+
+====================================================
+REFUNDS
+
+Research and propose:
+
+Option A:
+Manual refunds
+
+Option B:
+Claimable refunds
+
+Option C:
+Automatic refunds
+
+Compare:
+
+* security
+* trust
+* complexity
+
+Recommend MVP approach.
+
+====================================================
+DEX BOOST EXECUTION
+
+Research:
+
+Can DexScreener boosts be automated?
+
+If not:
+
+Plan manual execution flow.
+
+Example:
+
+Goal Reached
+↓
+Admin Executes Boost
+↓
+Proof Uploaded
+↓
+Campaign Marked Completed
+
+Campaign page should display:
+
+* Execution Date
+* Receipt
+* Transaction Links
+* Proof Images
+
+====================================================
+ANTI-SCAM FEATURES
+
+Recommend protections:
+
+* token validation
+* duplicate campaign detection
+* admin approval queue
+* scam reporting
+* project verification
+* campaign reputation system
+
+====================================================
+DATABASE DESIGN
+
+Propose tables.
+
+Likely:
+
+boost_campaigns
+
+boost_contributions
+
+boost_refunds
+
+boost_execution_proofs
+
+boost_status_events
+
+Include important fields.
+
+====================================================
+ADMIN DASHBOARD
+
+Plan admin tools:
+
+* approve campaign
+* reject campaign
+* cancel campaign
+* mark executed
+* upload proof
+* view contributions
+* view balances
+* view campaign status
+
+Admin access should be tied to my X account user ID.
+
+====================================================
+UI MOCKUP
+
+Describe:
+
+Community Boost Pool Landing Page
+
+Campaign Detail Page
+
+Contribution Modal
+
+Refund Page
+
+Admin Page
+
+Explain what each screen should contain.
+
+====================================================
+TELEGRAM BOT FUTURE
+
+Plan future commands:
+
+/boostpool
+
+/createboost
+
+/contribute
+
+/status
+
+/refund
+
+/campaigns
+
+Explain how the same backend could later power a Telegram bot.
+
+====================================================
+RETURN
+
+Return:
+
+1. Recommended architecture
+2. Safest MVP
+3. Security risks
+4. Refund options
+5. Database schema
+6. UI structure
+7. Admin dashboard plan
+8. Telegram bot future
+9. What should NOT be built first
+10. Recommended Phase 1 implementation
