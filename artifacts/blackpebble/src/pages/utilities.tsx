@@ -1,5 +1,6 @@
 import { Sparkles, ChevronRight, Target } from "lucide-react";
 import { Link } from "wouter";
+import { useFeatureFlags } from "@/hooks/use-feature-flags";
 
 const COMING_SOON = [
   "Copy Trading Simulation — Paper trade alongside top-performing users and leaderboard traders.",
@@ -13,6 +14,7 @@ const COMING_SOON = [
 ];
 
 export default function Utilities() {
+  const flags = useFeatureFlags();
   return (
     <div className="flex flex-col gap-8 px-4 py-6 sm:py-10 max-w-5xl mx-auto">
       <div className="space-y-2">
@@ -41,23 +43,25 @@ export default function Utilities() {
         <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-accent transition-colors flex-shrink-0" />
       </Link>
 
-      <Link
-        href="/utilities/trade-planner"
-        className="group border border-border bg-card hover:border-accent transition-colors p-5 flex items-center gap-4"
-        data-testid="link-trade-planner"
-      >
-        <div className="w-11 h-11 border border-accent/40 flex items-center justify-center flex-shrink-0">
-          <Target className="w-5 h-5 text-accent" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="font-semibold">Trade Planner</div>
-          <p className="text-sm text-muted-foreground">
-            Plan entries, targets, stops, position size, risk, and profit
-            scenarios before taking a trade.
-          </p>
-        </div>
-        <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-accent transition-colors flex-shrink-0" />
-      </Link>
+      {flags.experimental_utilities && (
+        <Link
+          href="/utilities/trade-planner"
+          className="group border border-border bg-card hover:border-accent transition-colors p-5 flex items-center gap-4"
+          data-testid="link-trade-planner"
+        >
+          <div className="w-11 h-11 border border-accent/40 flex items-center justify-center flex-shrink-0">
+            <Target className="w-5 h-5 text-accent" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="font-semibold">Trade Planner</div>
+            <p className="text-sm text-muted-foreground">
+              Plan entries, targets, stops, position size, risk, and profit
+              scenarios before taking a trade.
+            </p>
+          </div>
+          <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-accent transition-colors flex-shrink-0" />
+        </Link>
+      )}
 
       <div className="space-y-3">
         <div className="text-[11px] uppercase tracking-wider text-muted-foreground">

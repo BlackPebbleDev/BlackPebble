@@ -28,6 +28,7 @@ import Leaderboard from "@/pages/leaderboard";
 import Utilities from "@/pages/utilities";
 import WalletCleaner from "@/pages/wallet-cleaner";
 import TradePlanner from "@/pages/trade-planner";
+import AdminPage from "@/pages/admin";
 
 const queryClient = new QueryClient();
 
@@ -44,6 +45,7 @@ function Router() {
         <Route path="/utilities/wallet-cleaner" component={WalletCleaner} />
         <Route path="/utilities/trade-planner" component={TradePlanner} />
         <Route path="/utilities" component={Utilities} />
+        <Route path="/admin" component={AdminPage} />
         <Route component={NotFound} />
       </Switch>
     </AppShell>

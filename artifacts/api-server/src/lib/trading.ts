@@ -72,6 +72,7 @@ export interface AccountRow {
   created_at: number;
   last_active: number;
   last_reset_at: number | null;
+  season: number;
 }
 
 export interface PositionRow {
@@ -1005,6 +1006,64 @@ export async function resetAccount(wallet: string): Promise<ExecuteResult> {
     );
   });
   return { ok: true, balance: STARTING_BALANCE };
+}
+
+export interface NewSeasonResult {
+  ok: boolean;
+  error?: string;
+  balance?: number;
+  season?: number;
+}
+
+/**
+ * Self-service "start a new season" reset for a depleted paper account.
+ *
+ * Mirrors the admin single-user reset but is user-initiated and gated on the
+ * account being effectively wiped out (total equity — cash + open positions —
+ * below RESET_THRESHOLD). It cancels pending orders, clears open positions and
+ * resets cash to STARTING_BALANCE, bumping `last_reset_at` (which windows the
+ * leaderboard / closed-trade stats so the previous season's P&L and trade
+ * history drop out) and incrementing the `season` counter. Identity, wallet/X
+ * links and the watchlist are never touched.
+ *
+ * NOTE (future full-season history): trade rows are intentionally preserved and
+ * simply windowed by last_reset_at. A full archive would add a
+ * `seasons(wallet, season, started_at, ended_at, final_pnl …)` table and stamp
+ * each trade/snapshot with its season; out of scope here.
+ */
+export async function startNewSeason(wallet: string): Promise<NewSeasonResult> {
+  const portfolio = await getPortfolio(wallet);
+  if (portfolio.equitySol >= RESET_THRESHOLD) {
+    return {
+      ok: false,
+      error: `A new season is only available once your total equity falls below ${RESET_THRESHOLD} SOL.`,
+    };
+  }
+  const now = Math.floor(Date.now() / 1000);
+  const result = await withTx(async (c) => {
+    // Cancel any still-pending/active orders so they don't fire post-reset.
+    await dbRun(
+      `UPDATE paper_orders
+         SET status = 'canceled', updated_at = $2, fill_reason = 'season_reset'
+       WHERE wallet = $1 AND status IN ('pending', 'filling')`,
+      [wallet, now],
+      c,
+    );
+    await dbRun("DELETE FROM positions WHERE wallet = $1", [wallet], c);
+    const row = await dbGet<{ season: number }>(
+      `UPDATE accounts
+         SET paper_balance = $1,
+             last_reset_at = $2,
+             current_streak = 0,
+             season = COALESCE(season, 1) + 1
+       WHERE wallet = $3
+       RETURNING season`,
+      [STARTING_BALANCE, now, wallet],
+      c,
+    );
+    return row;
+  });
+  return { ok: true, balance: STARTING_BALANCE, season: result?.season ?? 1 };
 }
 
 export async function getHistory(wallet: string, limit = 100) {

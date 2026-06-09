@@ -5,6 +5,7 @@ import {
   serial,
   integer,
   doublePrecision,
+  boolean,
   bigint,
   index,
   uniqueIndex,
@@ -31,7 +32,11 @@ export const accounts = pgTable("accounts", {
   graduation_tier: text("graduation_tier").default("none"),
   created_at: bigint("created_at", { mode: "number" }).default(epoch),
   last_active: bigint("last_active", { mode: "number" }).default(epoch),
+  // Season boundary: a reset bumps last_reset_at and current-season stats
+  // (leaderboard / closed-trade stats) are windowed by it. `season` is a simple
+  // display counter incremented on each new-season reset (starts at 1).
   last_reset_at: bigint("last_reset_at", { mode: "number" }),
+  season: integer("season").default(1),
 });
 
 export const positions = pgTable(
@@ -297,3 +302,13 @@ export const userIdentities = pgTable(
     index("idx_user_identities_user").on(t.user_id),
   ],
 );
+
+// ── Feature flags ───────────────────────────────────────────────────────────
+// Simple persisted on/off switches read by the trading UI and toggled from the
+// admin dashboard. Absent rows fall back to a hardcoded default (all enabled),
+// so the table only ever stores explicit admin overrides.
+export const featureFlags = pgTable("feature_flags", {
+  key: text("key").primaryKey(),
+  enabled: boolean("enabled").notNull().default(true),
+  updated_at: bigint("updated_at", { mode: "number" }).default(epoch),
+});

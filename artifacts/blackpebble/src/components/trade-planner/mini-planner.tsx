@@ -24,6 +24,7 @@ import {
 import { SegmentedToggle, PlannerField, Stat } from "./primitives";
 import { fmtUnitAmt, fmtPct, fmtMult, fmtRatioOneTo } from "./util";
 import { fmtMarketCap, fmtSol } from "@/lib/format";
+import { useFeatureFlags } from "@/hooks/use-feature-flags";
 
 export interface PlannedTrade {
   targetMc: number | null;
@@ -93,6 +94,7 @@ export function MiniPlanner({
   unit?: Unit;
   onUnitChange?: (unit: Unit) => void;
 }) {
+  const flags = useFeatureFlags();
   // Default collapsed; restore expand state for the rest of the session.
   const [open, setOpen] = useState(() => readSession(OPEN_KEY) === "1");
   const [unitInternal, setUnitInternal] = useState<Unit>(() =>
@@ -252,17 +254,17 @@ export function MiniPlanner({
       },
       attachments: {
         tp: {
-          enabled: attachTp && canAttachTp,
+          enabled: attachTp && canAttachTp && flags.tp_sl,
           triggerMc: parsed.target,
           percent: tpPercent,
         },
         sl: {
-          enabled: attachSl && canAttachSl,
+          enabled: attachSl && canAttachSl && flags.tp_sl,
           triggerMc: parsed.stop,
           percent: slPercent,
         },
         buyLimit: {
-          enabled: attachBl && canAttachBl,
+          enabled: attachBl && canAttachBl && flags.buy_limits,
           triggerMc: parsed.entry,
           solAmount: amountSol,
         },
@@ -437,6 +439,7 @@ export function MiniPlanner({
           </div>
 
           {/* Buy Limit order (phase 2): auto-buy when MC dips to Entry MC. */}
+          {flags.buy_limits && (
           <div className="space-y-2 border-t border-border pt-4">
             <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
               Buy Limit (optional)
@@ -488,8 +491,10 @@ export function MiniPlanner({
               Capped at 5 active orders per account.
             </p>
           </div>
+          )}
 
           {/* Optional exit orders (TP/SL) attached after the next buy. */}
+          {flags.tp_sl && (
           <div className="space-y-2 border-t border-border pt-4">
             <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
               Attach Exit Orders (optional)
@@ -536,6 +541,7 @@ export function MiniPlanner({
               automatically against the live market cap.
             </p>
           </div>
+          )}
 
           {usdRateMissing && (
             <p className="text-[11px] text-red-400">

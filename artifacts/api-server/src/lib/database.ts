@@ -97,3 +97,8 @@ export function isCacheFresh(key: string, maxAgeMs = 5 * 60 * 1000): boolean {
   if (!row) return false;
   return Date.now() - row.updatedAt < maxAgeMs;
 }
+
+/** Drop a cached value so the next read refetches it (used by admin force-refresh). */
+export function deleteCacheValue(key: string): void {
+  cacheStore.delete(key);
+}

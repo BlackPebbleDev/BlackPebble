@@ -41,6 +41,7 @@ import {
 } from "@/components/trade-planner/mini-planner";
 import { useAccount } from "@/hooks/use-account";
 import { useToast } from "@/hooks/use-toast";
+import { useFeatureFlags } from "@/hooks/use-feature-flags";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import {
   useGuestStore,
@@ -618,11 +619,14 @@ function TpLadder({
   rungs,
   onToggle,
   onChange,
+  allowMultiTarget = true,
 }: {
   enabled: boolean;
   rungs: TpRung[];
   onToggle: (v: boolean) => void;
   onChange: (rungs: TpRung[]) => void;
+  /** When false, the multi-target ladder is disabled (single target only). */
+  allowMultiTarget?: boolean;
 }) {
   const patchRung = (i: number, patch: Partial<TpRung>) =>
     onChange(rungs.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
@@ -707,7 +711,7 @@ function TpLadder({
               )}
             </div>
           ))}
-          {rungs.length < MAX_TP_RUNGS && (
+          {allowMultiTarget && rungs.length < MAX_TP_RUNGS && (
             <button
               type="button"
               onClick={addRung}
@@ -833,6 +837,7 @@ function TradePanel({
   const { wallet, account, isGuest } = useAccount();
   const { toast } = useToast();
   const qc = useQueryClient();
+  const flags = useFeatureFlags();
   const { setVisible: setWalletModalVisible } = useWalletModal();
   const [side, setSide] = useState<"buy" | "sell">("buy");
   const [solAmount, setSolAmount] = useState("");
@@ -897,6 +902,7 @@ function TradePanel({
     const mc = parseAbbreviatedNumber(quickBl.mcValue);
     const spend = toSol(solAmount);
     if (
+      !flags.buy_limits ||
       !onCreateBuyLimit ||
       mc == null ||
       mc <= 0 ||
@@ -1032,15 +1038,16 @@ function TradePanel({
       triggerValue: number;
       percent: number;
     }[] = [];
-    if (tpEnabled) {
-      for (const r of tpRungs) {
+    if (tpEnabled && flags.tp_sl) {
+      const rungs = flags.multi_target_tp ? tpRungs : tpRungs.slice(0, 1);
+      for (const r of rungs) {
         const mc = parseAbbreviatedNumber(r.mcValue);
         if (mc != null && mc > 0 && r.percent > 0) {
           specs.push({ orderType: "take_profit", triggerValue: mc, percent: r.percent });
         }
       }
     }
-    if (quickSl.enabled) {
+    if (quickSl.enabled && flags.tp_sl) {
       const mc = parseAbbreviatedNumber(quickSl.mcValue);
       if (mc != null && mc > 0) {
         specs.push({ orderType: "stop_loss", triggerValue: mc, percent: 100 });
@@ -1148,14 +1155,15 @@ function TradePanel({
           percent: number;
         }[] = [];
 
-        if (attachments?.tp.enabled && attachments.tp.triggerMc != null) {
+        if (flags.tp_sl && attachments?.tp.enabled && attachments.tp.triggerMc != null) {
           specs.push({
             orderType: "take_profit",
             triggerValue: attachments.tp.triggerMc,
             percent: attachments.tp.percent,
           });
-        } else if (tpEnabled) {
-          for (const r of tpRungs) {
+        } else if (flags.tp_sl && tpEnabled) {
+          const rungs = flags.multi_target_tp ? tpRungs : tpRungs.slice(0, 1);
+          for (const r of rungs) {
             const mc = parseAbbreviatedNumber(r.mcValue);
             if (mc != null && mc > 0 && r.percent > 0) {
               specs.push({
@@ -1167,13 +1175,13 @@ function TradePanel({
           }
         }
 
-        if (attachments?.sl.enabled && attachments.sl.triggerMc != null) {
+        if (flags.tp_sl && attachments?.sl.enabled && attachments.sl.triggerMc != null) {
           specs.push({
             orderType: "stop_loss",
             triggerValue: attachments.sl.triggerMc,
             percent: attachments.sl.percent,
           });
-        } else if (quickSl.enabled) {
+        } else if (flags.tp_sl && quickSl.enabled) {
           const mc = parseAbbreviatedNumber(quickSl.mcValue);
           if (mc != null && mc > 0) {
             specs.push({
@@ -1431,7 +1439,7 @@ function TradePanel({
                 gains, and{" "}
                 <span className="text-red-400">Stop Loss</span> limits losses.
               </p>
-              {side === "buy" && (
+              {side === "buy" && flags.buy_limits && (
                 <BuyLimitRow
                   enabled={quickBl.enabled}
                   mcValue={quickBl.mcValue}
@@ -1441,20 +1449,25 @@ function TradePanel({
                   onCreate={handleSetBuyLimit}
                 />
               )}
-              <TpLadder
-                enabled={tpEnabled}
-                rungs={tpRungs}
-                onToggle={setTpEnabled}
-                onChange={setTpRungs}
-              />
-              <QuickOrderToggle
-                label="Stop Loss"
-                tone="loss"
-                helpText="Sells your whole position when the market cap falls to or below your level, capping losses."
-                enabled={quickSl.enabled}
-                mcValue={quickSl.mcValue}
-                onChange={setQuickSl}
-              />
+              {flags.tp_sl && (
+                <>
+                  <TpLadder
+                    enabled={tpEnabled}
+                    rungs={tpRungs}
+                    onToggle={setTpEnabled}
+                    onChange={setTpRungs}
+                    allowMultiTarget={flags.multi_target_tp}
+                  />
+                  <QuickOrderToggle
+                    label="Stop Loss"
+                    tone="loss"
+                    helpText="Sells your whole position when the market cap falls to or below your level, capping losses."
+                    enabled={quickSl.enabled}
+                    mcValue={quickSl.mcValue}
+                    onChange={setQuickSl}
+                  />
+                </>
+              )}
               {side === "buy" ? (
                 <p className="text-[11px] text-muted-foreground leading-relaxed">
                   Take Profit / Stop Loss are created automatically after your
@@ -1491,15 +1504,15 @@ function TradePanel({
         />
 
         {side === "buy" && toSol(solAmount) > 0 && (() => {
-          const tpTargets = tpEnabled
-            ? tpRungs
+          const tpTargets = tpEnabled && flags.tp_sl
+            ? (flags.multi_target_tp ? tpRungs : tpRungs.slice(0, 1))
                 .map((r) => ({
                   mc: parseAbbreviatedNumber(r.mcValue),
                   percent: r.percent,
                 }))
                 .filter((t) => t.mc != null && t.mc > 0 && t.percent > 0)
             : [];
-          const slMc = quickSl.enabled
+          const slMc = quickSl.enabled && flags.tp_sl
             ? parseAbbreviatedNumber(quickSl.mcValue)
             : null;
           return (

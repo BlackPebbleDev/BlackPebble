@@ -1,5 +1,10 @@
 import axios from "axios";
-import { getCacheValue, setCacheValue, isCacheFresh } from "./database.js";
+import {
+  getCacheValue,
+  setCacheValue,
+  isCacheFresh,
+  deleteCacheValue,
+} from "./database.js";
 import { pumpportal } from "./pumpportal.js";
 import { logger } from "./logger.js";
 
@@ -388,6 +393,15 @@ export async function getTokenStatsBatch(
 // ── Market status tracking ────────────────────────────────────────────────
 let lastTrendingUpdate: number | null = null;
 let trendingTokenCount = 0;
+
+/**
+ * Force a fresh trending fetch by dropping the 60 s cache then refetching.
+ * Used by the admin "force refresh market cache" action. Returns the new list.
+ */
+export async function forceRefreshTrending(): Promise<MarketToken[]> {
+  deleteCacheValue("market_trending");
+  return getTrendingTokens();
+}
 
 export function getMarketStatus(): {
   lastUpdated: number | null;

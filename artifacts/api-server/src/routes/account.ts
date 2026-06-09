@@ -5,6 +5,7 @@ import {
   ensureAccount,
   getAccount,
   resetAccount,
+  startNewSeason,
   getClosedTradeStats,
 } from "../lib/trading.js";
 
@@ -55,6 +56,21 @@ router.post(
     const result = await resetAccount(wallet);
     if (!result.ok) return res.status(400).json(result);
     return res.json({ ...result, account: await getAccount(wallet) });
+  }),
+);
+
+// Self-service "start a new season" for a depleted account. Gated on equity
+// being below the reset threshold (enforced inside startNewSeason) and on the
+// caller owning the wallet.
+router.post(
+  "/account/new-season",
+  requireOwnership((req) => String(req.body?.wallet || "").trim()),
+  asyncHandler(async (req, res) => {
+    const wallet = String(req.body?.wallet || "").trim();
+    if (!wallet) return res.status(400).json({ error: "wallet is required" });
+    const result = await startNewSeason(wallet);
+    if (!result.ok) return res.status(400).json(result);
+    return res.json({ ...result, account: await shape(wallet) });
   }),
 );
 

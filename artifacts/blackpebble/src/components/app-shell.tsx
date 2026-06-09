@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Link, useLocation } from "wouter";
 import {
   LineChart,
@@ -6,6 +6,7 @@ import {
   Wallet,
   Trophy,
   Wrench,
+  Shield,
 } from "lucide-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import logoFlat from "@assets/bp-wordmark.png";
@@ -13,7 +14,9 @@ import { TokenSearch } from "@/components/token-search";
 import { XLoginButton } from "@/components/x-login-button";
 import { GuestMigrationPrompt } from "@/components/guest-migration-prompt";
 import { RecoveryNotification } from "@/components/recovery-notification";
+import { SeasonResetPrompt } from "@/components/season-reset-prompt";
 import { useAccount } from "@/hooks/use-account";
+import { useAdmin } from "@/hooks/use-admin";
 import { useOrderFillToasts } from "@/hooks/use-order-fills";
 import { cn } from "@/lib/utils";
 import { SupportSection } from "@/components/support-section";
@@ -59,8 +62,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [location, navigate] = useLocation();
   const [expanded, setExpanded] = useState(false);
   const { wallet, isGuest } = useAccount();
+  const { isAdmin } = useAdmin();
   // Drive automatic TP/SL fill toasts for both signed-in and guest sessions.
   useOrderFillToasts();
+
+  // Admins get an extra nav entry to the dashboard; everyone else sees the
+  // standard set unchanged.
+  const items = useMemo(
+    () =>
+      isAdmin
+        ? [...navItems, { href: "/admin", label: "Admin", icon: Shield }]
+        : navItems,
+    [isAdmin],
+  );
 
   function handleSearchSelect(mint: string) {
     navigate(`/?token=${mint}`);
@@ -113,7 +127,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         )}
       >
         <nav className="flex flex-col gap-1 p-2 pt-4">
-          {navItems.map((item) => {
+          {items.map((item) => {
             const active = isActive(location, item.href);
             const Icon = item.icon;
             return (
@@ -152,7 +166,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* Mobile bottom tabs */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 h-16 bg-card border-t border-border flex items-center justify-around">
-        {navItems.map((item) => {
+        {items.map((item) => {
           const active = isActive(location, item.href);
           const Icon = item.icon;
           return (
@@ -176,6 +190,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       <GuestMigrationPrompt />
       <RecoveryNotification />
+      <SeasonResetPrompt />
     </div>
   );
 }

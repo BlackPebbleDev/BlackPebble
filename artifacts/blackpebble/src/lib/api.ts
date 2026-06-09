@@ -40,6 +40,67 @@ export interface Account {
   last_active: number;
   last_reset_at: number | null;
   win_rate: number;
+  season?: number;
+}
+
+// ---- Admin / feature flags ----
+export type FeatureFlagKey =
+  | "buy_limits"
+  | "tp_sl"
+  | "multi_target_tp"
+  | "experimental_utilities";
+
+export type FeatureFlags = Record<FeatureFlagKey, boolean>;
+
+export interface AdminMe {
+  admin: boolean;
+  x_username: string | null;
+}
+
+export interface AdminStats {
+  accounts: number;
+  dau: number;
+  users: number;
+  wallet_links: number;
+  x_links: number;
+  trades: number;
+  buys: number;
+  sells: number;
+  volume_sol: number;
+  positions: number;
+  traders_with_positions: number;
+  active_orders: number;
+  leaderboard_users: number;
+}
+
+export interface AdminHealth {
+  api: { ok: boolean; uptimeSeconds: number; node: string };
+  db: { ok: boolean; latencyMs: number | null };
+  market: {
+    lastUpdated: number | null;
+    tokenCount: number;
+    pumpportalConnected: boolean;
+    cacheAge: number | null;
+  };
+  memory: { rssMb: number; heapUsedMb: number };
+}
+
+export interface ResetOptions {
+  resetBalance?: boolean;
+  clearPositions?: boolean;
+  clearOrders?: boolean;
+  clearTrades?: boolean;
+  resetLeaderboard?: boolean;
+  clearWatchlist?: boolean;
+}
+
+export interface ResetResult {
+  ok: boolean;
+  scope: "user" | "all";
+  wallet?: string;
+  applied: string[];
+  deleted: Record<string, number>;
+  accountsReset: number;
 }
 
 export interface TokenInfo {
@@ -426,4 +487,53 @@ export const api = {
 
   leaderboard: (period: LeaderboardPeriod) =>
     request<LeaderboardResponse>(`/leaderboard?period=${period}`),
+
+  // Self-service "start a new season" for a depleted account.
+  newSeason: (wallet: string) =>
+    request<{ ok: boolean; error?: string; balance?: number; season?: number; account?: Account }>(
+      "/account/new-season",
+      { method: "POST", body: JSON.stringify({ wallet }) },
+    ),
+
+  // Public feature flags (read-only) consumed by the trading UI.
+  featureFlags: () => request<{ flags: FeatureFlags }>("/feature-flags"),
+
+  admin: {
+    me: () => request<AdminMe>("/admin/me"),
+    stats: () => request<{ stats: AdminStats; generatedAt: number }>("/admin/stats"),
+    health: () => request<AdminHealth>("/admin/health"),
+    orders: (filters?: { token?: string; user?: string; status?: string }) => {
+      const qs = new URLSearchParams();
+      if (filters?.token) qs.set("token", filters.token);
+      if (filters?.user) qs.set("user", filters.user);
+      if (filters?.status) qs.set("status", filters.status);
+      const q = qs.toString();
+      return request<{ orders: PaperOrder[] }>(`/admin/orders${q ? `?${q}` : ""}`);
+    },
+    cancelOrder: (id: number) =>
+      request<{ ok: boolean; error?: string }>("/admin/orders/cancel", {
+        method: "POST",
+        body: JSON.stringify({ id }),
+      }),
+    refreshMarket: () =>
+      request<{ ok: boolean; tokenCount: number }>("/admin/market/refresh", {
+        method: "POST",
+      }),
+    featureFlags: () => request<{ flags: FeatureFlags }>("/admin/feature-flags"),
+    setFeatureFlag: (key: FeatureFlagKey, enabled: boolean) =>
+      request<{ ok: boolean; error?: string; flags?: FeatureFlags }>(
+        "/admin/feature-flags",
+        { method: "POST", body: JSON.stringify({ key, enabled }) },
+      ),
+    resetUser: (wallet: string, options: ResetOptions) =>
+      request<ResetResult>("/admin/reset-user", {
+        method: "POST",
+        body: JSON.stringify({ wallet, options }),
+      }),
+    resetAll: (options: ResetOptions) =>
+      request<ResetResult>("/admin/reset-all", {
+        method: "POST",
+        body: JSON.stringify({ options }),
+      }),
+  },
 };
