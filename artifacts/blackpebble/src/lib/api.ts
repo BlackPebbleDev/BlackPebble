@@ -92,7 +92,14 @@ export type AnalyticsEventType =
   | "guest_first_trade"
   | "guest_converted"
   | "portfolio_view"
-  | "leaderboard_view";
+  | "leaderboard_view"
+  // Social layer (Phase 1).
+  | "feed_view"
+  | "profile_view"
+  | "follow_created"
+  | "follow_removed"
+  | "feed_tab_changed"
+  | "x_profile_link_clicked";
 
 export interface AdminHealth {
   api: { ok: boolean; uptimeSeconds: number; node: string };
@@ -393,6 +400,62 @@ export interface LeaderboardResponse {
   minTrades: number;
   entries: LeaderboardEntry[];
   solUsd: number;
+}
+
+// ---- Social: profiles, follows, feed (Phase 1) ----
+export interface ProfileStats {
+  roiPercent: number;
+  totalPnlSol: number;
+  realizedPnlSol: number;
+  winRate: number;
+  totalExecutions: number;
+  closedTrades: number;
+  bestTrade: number | null;
+  graduationTier: string;
+}
+
+export interface ProfileResponse {
+  user_id: number;
+  x_id: string;
+  x_username: string;
+  x_display_name: string | null;
+  x_avatar_url: string | null;
+  rank: number | null;
+  graduationTier: string;
+  followers: number;
+  following: number;
+  isFollowing: boolean;
+  isSelf: boolean;
+  stats: ProfileStats;
+}
+
+export interface FollowUser {
+  user_id: number;
+  x_username: string;
+  x_display_name: string | null;
+  x_avatar_url: string | null;
+}
+
+export interface FeedActivityItem {
+  id: string;
+  kind: "spot" | "leverage";
+  action: string;
+  token: {
+    mint: string;
+    symbol: string | null;
+    name: string | null;
+    logo: string | null;
+  };
+  leverage: number | null;
+  direction: string | null;
+  pnlSol: number | null;
+  timestamp: number;
+  user: {
+    user_id: number;
+    x_username: string;
+    x_display_name: string | null;
+    x_avatar_url: string | null;
+  };
 }
 
 // ---- SOL Recovery analytics ----
@@ -757,6 +820,37 @@ export const api = {
         method: "POST",
         body: JSON.stringify(body),
       }),
+  },
+
+  // Social: profiles + follow graph (X-authenticated only). `id` is a numeric
+  // user id or an X handle.
+  profiles: {
+    get: (id: string | number) =>
+      request<ProfileResponse>(`/profiles/${encodeURIComponent(String(id))}`),
+    follow: (id: string | number) =>
+      request<{ ok: boolean; error?: string }>(
+        `/profiles/${encodeURIComponent(String(id))}/follow`,
+        { method: "POST" },
+      ),
+    unfollow: (id: string | number) =>
+      request<{ ok: boolean; error?: string }>(
+        `/profiles/${encodeURIComponent(String(id))}/follow`,
+        { method: "DELETE" },
+      ),
+    followers: (id: string | number) =>
+      request<{ users: FollowUser[] }>(
+        `/profiles/${encodeURIComponent(String(id))}/followers`,
+      ),
+    following: (id: string | number) =>
+      request<{ users: FollowUser[] }>(
+        `/profiles/${encodeURIComponent(String(id))}/following`,
+      ),
+  },
+
+  // Social: read-only activity feed.
+  feed: {
+    global: () => request<{ items: FeedActivityItem[] }>(`/feed/global`),
+    following: () => request<{ items: FeedActivityItem[] }>(`/feed/following`),
   },
 
   // Lightweight funnel / activity beacons (public, fire-and-forget).

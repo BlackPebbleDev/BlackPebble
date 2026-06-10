@@ -13,6 +13,8 @@ import recoveryRouter from "./recovery.js";
 import settingsRouter from "./settings.js";
 import leverageRouter from "./leverage.js";
 import analyticsRouter from "./analytics.js";
+import profilesRouter from "./profiles.js";
+import feedRouter from "./feed.js";
 
 const router: IRouter = Router();
 
@@ -30,5 +32,7 @@ router.use(recoveryRouter);
 router.use(settingsRouter);
 router.use(leverageRouter);
 router.use(analyticsRouter);
+router.use(profilesRouter);
+router.use(feedRouter);
 
 export default router;

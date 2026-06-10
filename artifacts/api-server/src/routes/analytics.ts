@@ -19,6 +19,13 @@ const ALLOWED_EVENTS = new Set([
   "guest_converted",
   "portfolio_view",
   "leaderboard_view",
+  // Social layer (Phase 1) — server-side beacons, no PII.
+  "feed_view",
+  "profile_view",
+  "follow_created",
+  "follow_removed",
+  "feed_tab_changed",
+  "x_profile_link_clicked",
 ]);
 
 let ensured = false;

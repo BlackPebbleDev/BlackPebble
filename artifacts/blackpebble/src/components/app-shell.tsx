@@ -7,6 +7,7 @@ import {
   Trophy,
   Wrench,
   Shield,
+  Rss,
 } from "lucide-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import logoFlat from "@assets/bp-wordmark.png";
@@ -26,6 +27,7 @@ const navItems = [
   { href: "/", label: "Trading Desk", icon: LineChart },
   { href: "/markets", label: "Markets", icon: TrendingUp },
   { href: "/portfolio", label: "Portfolio", icon: Wallet },
+  { href: "/feed", label: "Feed", icon: Rss },
   { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
   { href: "/utilities", label: "Utilities", icon: Wrench },
 ];

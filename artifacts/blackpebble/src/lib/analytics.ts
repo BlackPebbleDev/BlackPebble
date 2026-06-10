@@ -63,3 +63,35 @@ export function trackPortfolioView(): void {
 export function trackLeaderboardView(): void {
   if (oncePerSession("leaderboard_view")) fire("leaderboard_view");
 }
+
+// ── Social layer (Phase 1) ──────────────────────────────────────────────────
+
+/** Feed page viewed (once per session). */
+export function trackFeedView(): void {
+  if (oncePerSession("feed_view")) fire("feed_view");
+}
+
+/** Profile page viewed (every view). */
+export function trackProfileView(): void {
+  fire("profile_view");
+}
+
+/** A follow relationship was created. */
+export function trackFollowCreated(): void {
+  fire("follow_created");
+}
+
+/** A follow relationship was removed. */
+export function trackFollowRemoved(): void {
+  fire("follow_removed");
+}
+
+/** The user switched the active feed tab. */
+export function trackFeedTabChanged(): void {
+  fire("feed_tab_changed");
+}
+
+/** An outbound link to an X profile was clicked. */
+export function trackXProfileLinkClicked(): void {
+  fire("x_profile_link_clicked");
+}

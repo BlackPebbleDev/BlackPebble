@@ -22,14 +22,11 @@ function pnlClass(v: number): string {
   return "text-muted-foreground";
 }
 
-// Derive a public, non-sensitive id for the trader profile route. Prefer the
-// public X handle; fall back to a real wallet address. Synthetic internal keys
-// ("x:<id>") must never surface in a URL, so those rows aren't linkable yet.
+// Only X-authenticated traders have public profiles, so the profile route is
+// keyed on the X handle. Wallet-only rows aren't linkable (no social profile).
 function profileId(entry: LeaderboardEntry): string | null {
   const handle = entry.x_username?.trim().replace(/^@+/, "");
-  if (handle) return handle;
-  if (!entry.wallet.startsWith("x:")) return entry.wallet;
-  return null;
+  return handle || null;
 }
 
 function Trader({ entry }: { entry: LeaderboardEntry }) {
@@ -113,7 +110,7 @@ export default function Leaderboard() {
   }, []);
 
   function goToProfile(pid: string) {
-    navigate(`/trader/${encodeURIComponent(pid)}`);
+    navigate(`/u/${encodeURIComponent(pid)}`);
   }
   function onRowKeyDown(e: React.KeyboardEvent, pid: string) {
     if (e.key === "Enter" || e.key === " ") {

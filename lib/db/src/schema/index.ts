@@ -454,3 +454,30 @@ export const analyticsEvents = pgTable(
     index("idx_analytics_events_created").on(t.created_at),
   ],
 );
+
+// ── Social: follow graph (X-authenticated only) ─────────────────────────────
+// Directed follower → following relationship between internal user ids. Only
+// X-authenticated users participate (enforced in the API layer). Created
+// idempotently at runtime (CREATE TABLE IF NOT EXISTS), so this definition is
+// mirror-only for type-safety, matching the analytics_events pattern above.
+export const userFollows = pgTable(
+  "user_follows",
+  {
+    id: serial("id").primaryKey(),
+    follower_user_id: integer("follower_user_id")
+      .notNull()
+      .references(() => users.id),
+    following_user_id: integer("following_user_id")
+      .notNull()
+      .references(() => users.id),
+    created_at: bigint("created_at", { mode: "number" }).default(epoch),
+  },
+  (t) => [
+    uniqueIndex("user_follows_unique").on(
+      t.follower_user_id,
+      t.following_user_id,
+    ),
+    index("idx_user_follows_following").on(t.following_user_id),
+    index("idx_user_follows_follower").on(t.follower_user_id),
+  ],
+);
