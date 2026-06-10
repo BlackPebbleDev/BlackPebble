@@ -10,6 +10,7 @@ import { getMarketStatus, forceRefreshTrending } from "../lib/prices.js";
 import { pumpportal } from "../lib/pumpportal.js";
 import { getFeatureFlags, setFeatureFlag } from "../lib/featureFlags.js";
 import { adminReset, type ResetOptions } from "../lib/adminActions.js";
+import { ensureAnalyticsTable } from "./analytics.js";
 
 const router: IRouter = Router();
 
@@ -78,6 +79,9 @@ router.get(
   asyncHandler(async (_req, res) => {
     const now = Math.floor(Date.now() / 1000);
     const dayAgo = now - 86400;
+    // Funnel/activity beacons live in analytics_events (created lazily); make
+    // sure it exists so a fresh deploy returns zeros rather than erroring.
+    await ensureAnalyticsTable();
     const row = await dbGet<Record<string, number>>(
       `SELECT
          (SELECT count(*)::int FROM accounts) AS accounts,
@@ -92,10 +96,29 @@ router.get(
          (SELECT count(*)::int FROM positions) AS positions,
          (SELECT count(DISTINCT wallet)::int FROM positions) AS traders_with_positions,
          (SELECT count(*)::int FROM paper_orders WHERE status IN ('pending','filling')) AS active_orders,
-         (SELECT count(DISTINCT wallet)::int FROM trades WHERE side='sell') AS leaderboard_users`,
+         (SELECT count(DISTINCT wallet)::int FROM trades WHERE side='sell') AS leaderboard_users,
+         (SELECT count(*)::int FROM trades) AS spot_trades,
+         (SELECT count(*)::int FROM paper_leverage_trades WHERE action='open') AS leverage_trades,
+         (SELECT count(*)::int FROM analytics_events WHERE event_type='guest_created') AS guest_created,
+         (SELECT count(*)::int FROM analytics_events WHERE event_type='guest_first_trade') AS guest_traded,
+         (SELECT count(*)::int FROM analytics_events WHERE event_type='guest_converted') AS guest_converted,
+         (SELECT count(*)::int FROM analytics_events WHERE event_type='portfolio_view') AS portfolio_views,
+         (SELECT count(*)::int FROM analytics_events WHERE event_type='leaderboard_view') AS leaderboard_views`,
       [dayAgo],
     );
-    return res.json({ stats: row ?? {}, generatedAt: now });
+    // Most-traded tokens (spot), by trade count.
+    const topTokens = await dbAll<{
+      token_symbol: string | null;
+      token_mint: string;
+      trades: number;
+    }>(
+      `SELECT token_symbol, token_mint, count(*)::int AS trades
+       FROM trades
+       GROUP BY token_symbol, token_mint
+       ORDER BY trades DESC
+       LIMIT 8`,
+    );
+    return res.json({ stats: row ?? {}, topTokens, generatedAt: now });
   }),
 );
 

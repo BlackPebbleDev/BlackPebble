@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Trophy, Loader2, ExternalLink } from "lucide-react";
@@ -6,6 +6,7 @@ import { useAccount } from "@/hooks/use-account";
 import { api, type LeaderboardPeriod, type LeaderboardEntry } from "@/lib/api";
 import { fmtPercent, shortAddr, xProfileUrl } from "@/lib/format";
 import { PnlAmount } from "@/components/pnl-amount";
+import { trackLeaderboardView } from "@/lib/analytics";
 import { TierBadge } from "@/components/tier-badge";
 import { cn } from "@/lib/utils";
 
@@ -106,6 +107,10 @@ export default function Leaderboard() {
   const { wallet, isGuest } = useAccount();
   const [, navigate] = useLocation();
   const [period, setPeriod] = useState<LeaderboardPeriod>("all");
+
+  useEffect(() => {
+    trackLeaderboardView();
+  }, []);
 
   function goToProfile(pid: string) {
     navigate(`/trader/${encodeURIComponent(pid)}`);

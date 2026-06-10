@@ -1,0 +1,245 @@
+Implement the following BlackPebble quality-of-life improvements.
+
+These are polish, onboarding, analytics, and usability improvements.
+
+Do NOT add major new systems.
+Do NOT modify trading logic.
+Do NOT modify portfolio accounting.
+Do NOT modify leverage calculations.
+Do NOT modify leaderboard calculations.
+
+Goal:
+Improve first-time user experience, analytics visibility, and platform consistency before future major feature additions.
+
+====================================================
+1. UPDATE ONBOARDING CARD
+====================================================
+
+Replace the current paper trading information card with the following:
+
+Title:
+
+What is BlackPebble Paper Trading?
+
+Body:
+
+Practice trading Solana tokens using live market data and simulated funds. Test strategies, learn leverage, and improve your trading skills without risking real money.
+
+1. Search a token or browse Markets.
+2. Trade Spot or Leverage positions.
+3. Set Take Profit, Stop Loss, or advanced orders.
+4. Track performance, rankings, and portfolio growth.
+
+Requirements:
+
+- Keep existing styling.
+- Keep current theme.
+- Maintain responsive layout.
+- Mobile and desktop friendly.
+- Do not increase page clutter.
+
+====================================================
+2. COMPLETE USD DEFAULT EXPERIENCE
+====================================================
+
+Current issue:
+
+Some trading forms still default to SOL.
+
+Goal:
+
+Make USD the default display/input mode everywhere a user enters trade size.
+
+Apply to:
+
+- Spot Buy
+- Spot Sell (if applicable)
+- Leverage Trading
+- Any reusable trade amount components
+
+On first load:
+
+Default:
+
+Amount (USD)
+
+Preset buttons:
+
+$25
+$50
+$100
+$500
+
+Users can still manually switch to SOL.
+
+When switched to SOL:
+
+Show:
+
+0.5
+1
+5
+10
+
+Requirements:
+
+- Preserve existing USD/SOL toggle.
+- Preserve current calculations.
+- Preserve internal SOL-native accounting.
+- Do not create separate USD balances.
+- Do not affect trade execution logic.
+
+====================================================
+3. GUEST ACCOUNT COUNTDOWN SYSTEM
+====================================================
+
+Add Guest Account tracking and countdown.
+
+Rule:
+
+Guest accounts reset 24 hours after FIRST TRADE.
+
+Not:
+
+- account creation
+- first visit
+
+Only:
+
+- first completed trade
+
+Store:
+
+guest_first_trade_at
+
+Behavior:
+
+When guest user has completed first trade:
+
+Show somewhere appropriate:
+
+Guest Account
+
+Portfolio resets in:
+
+23h 14m
+
+Create a free account to save:
+
+- Portfolio
+- Trade History
+- Rankings
+- Statistics
+
+Requirements:
+
+- Countdown updates automatically.
+- Mobile friendly.
+- Non-intrusive.
+- Encourages registration.
+
+If guest has never traded:
+
+Do not show countdown.
+
+====================================================
+4. ADMIN ANALYTICS EXPANSION
+====================================================
+
+Expand Admin Dashboard visibility.
+
+Add high-level analytics cards:
+
+Users
+
+- Registered Users
+- Guest Users
+
+Trading
+
+- Total Trades
+- Spot Trades
+- Leverage Trades
+
+Markets
+
+- Most Traded Tokens
+
+Activity
+
+- Portfolio Views (if available)
+- Leaderboard Views (if available)
+
+Guest Funnel
+
+- Guest Accounts Created
+- Guests Who Traded
+- Guest Conversion Count (if available)
+
+Requirements:
+
+Keep dashboard simple.
+
+Do NOT build advanced analytics yet.
+
+Goal is visibility.
+
+Admin should be able to quickly understand:
+
+- Are people using the site?
+- What are they trading?
+- Are guests converting?
+
+====================================================
+5. ADMIN DASHBOARD UX
+====================================================
+
+Improve admin usability.
+
+Add clear sections:
+
+Users
+Trading
+Activity
+Utilities
+
+Keep styling consistent with existing admin panel.
+
+Avoid clutter.
+
+Prioritize readability.
+
+====================================================
+6. REGRESSION TESTING
+====================================================
+
+Verify nothing broke:
+
+Spot Trading
+Leverage Trading
+Portfolio
+Leaderboard
+Guest Accounts
+Admin Reset
+Markets Page
+Utilities Page
+
+====================================================
+7. BUILD VERIFICATION
+====================================================
+
+Run:
+
+- typecheck
+- frontend build
+- backend build
+
+Return:
+
+1. Files changed
+2. Onboarding card updated
+3. USD default completed
+4. Guest countdown implemented
+5. Admin analytics added
+6. Any remaining concerns
+7. Confirmation safe to publish

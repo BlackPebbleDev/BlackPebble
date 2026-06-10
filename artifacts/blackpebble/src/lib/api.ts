@@ -72,7 +72,27 @@ export interface AdminStats {
   traders_with_positions: number;
   active_orders: number;
   leaderboard_users: number;
+  spot_trades: number;
+  leverage_trades: number;
+  guest_created: number;
+  guest_traded: number;
+  guest_converted: number;
+  portfolio_views: number;
+  leaderboard_views: number;
 }
+
+export interface AdminTopToken {
+  token_symbol: string | null;
+  token_mint: string;
+  trades: number;
+}
+
+export type AnalyticsEventType =
+  | "guest_created"
+  | "guest_first_trade"
+  | "guest_converted"
+  | "portfolio_view"
+  | "leaderboard_view";
 
 export interface AdminHealth {
   api: { ok: boolean; uptimeSeconds: number; node: string };
@@ -739,9 +759,23 @@ export const api = {
       }),
   },
 
+  // Lightweight funnel / activity beacons (public, fire-and-forget).
+  analytics: {
+    track: (type: AnalyticsEventType, anonId?: string | null) =>
+      request<{ ok: boolean }>("/analytics/event", {
+        method: "POST",
+        body: JSON.stringify({ type, anonId: anonId ?? null }),
+      }),
+  },
+
   admin: {
     me: () => request<AdminMe>("/admin/me"),
-    stats: () => request<{ stats: AdminStats; generatedAt: number }>("/admin/stats"),
+    stats: () =>
+      request<{
+        stats: AdminStats;
+        topTokens: AdminTopToken[];
+        generatedAt: number;
+      }>("/admin/stats"),
     health: () => request<AdminHealth>("/admin/health"),
     orders: (filters?: { token?: string; user?: string; status?: string }) => {
       const qs = new URLSearchParams();

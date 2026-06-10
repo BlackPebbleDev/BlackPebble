@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Line } from "react-chartjs-2";
@@ -21,7 +21,9 @@ import { useFeatureFlags } from "@/hooks/use-feature-flags";
 import { AllOrders } from "@/components/position-orders";
 import { Watchlist } from "@/components/watchlist";
 import { TradeList } from "@/components/trade-list";
+import { GuestCountdown } from "@/components/guest-countdown";
 import { TierBadge } from "@/components/tier-badge";
+import { trackPortfolioView } from "@/lib/analytics";
 import { fmtSol, fmtPercent, pnlColor } from "@/lib/format";
 import { PnlAmount } from "@/components/pnl-amount";
 import { CurrencyAmount } from "@/components/currency-amount";
@@ -104,6 +106,10 @@ export default function Portfolio() {
   const flags = useFeatureFlags();
   const [, navigate] = useLocation();
   const [historyExpanded, setHistoryExpanded] = useState(false);
+
+  useEffect(() => {
+    trackPortfolioView();
+  }, []);
 
   const { data: serverStats, isLoading: serverStatsLoading } = useQuery({
     queryKey: ["pf-stats", wallet],
@@ -233,6 +239,8 @@ export default function Portfolio() {
           </p>
         </div>
       )}
+
+      {isGuest && <GuestCountdown />}
 
       {statsLoading ? (
         <div className="flex items-center justify-center py-20">

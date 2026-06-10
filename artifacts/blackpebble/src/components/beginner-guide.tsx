@@ -18,13 +18,13 @@ function readDismissed(): boolean {
 }
 
 const DESCRIPTION =
-  "Practice trading with simulated money using live Solana market data. Learn, experiment, and improve without risking real funds.";
+  "Practice trading Solana tokens using live market data and simulated funds. Test strategies, learn leverage, and improve your trading skills without risking real money.";
 
 const STEPS = [
-  "Search or browse Markets to find a token.",
-  "Set your buy amount and hit Buy.",
-  "Add Take Profit or Stop Loss orders.",
-  "Track your P&L on the Portfolio page.",
+  "Search a token or browse Markets.",
+  "Trade Spot or Leverage positions.",
+  "Set Take Profit, Stop Loss, or advanced orders.",
+  "Track performance, rankings, and portfolio growth.",
 ];
 
 export function BeginnerGuide() {
@@ -56,7 +56,9 @@ export function BeginnerGuide() {
       </button>
       <div className="flex items-center gap-2 mb-2">
         <GraduationCap className="w-4 h-4 text-accent" />
-        <h3 className="text-sm font-semibold">What is Paper Trading?</h3>
+        <h3 className="text-sm font-semibold">
+          What is BlackPebble Paper Trading?
+        </h3>
       </div>
       <p className="text-xs text-muted-foreground mb-2.5">{DESCRIPTION}</p>
       <ol className="grid gap-1.5 sm:grid-cols-2 text-xs text-muted-foreground">

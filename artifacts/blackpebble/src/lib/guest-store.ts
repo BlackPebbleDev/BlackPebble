@@ -34,6 +34,23 @@ export const GUEST_MIN_TRADE_SOL = 0.1;
 export const GUEST_MAX_POSITIONS = 20;
 // Mirror of the server's MAX_SUPPLY_PCT (anti-whale cap) for guest-local buys.
 export const GUEST_MAX_SUPPLY_PCT = 0.04;
+// A guest portfolio is wiped this long after the guest's FIRST trade (not first
+// visit / account creation) to nudge sign-up. Until the first trade there is no
+// countdown and no expiry.
+export const GUEST_RESET_HOURS = 24;
+const GUEST_RESET_SECONDS = GUEST_RESET_HOURS * 3600;
+
+/** Anonymous per-device id used only for funnel analytics (never identifying). */
+function genAnonId(): string {
+  try {
+    if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+      return crypto.randomUUID();
+    }
+  } catch {
+    /* fall through */
+  }
+  return `g_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+}
 
 const STORAGE_KEY = "bp_guest_state_v1";
 const DISMISS_KEY = "bp_guest_migration_dismissed_v1";
@@ -96,6 +113,11 @@ export interface GuestState {
   lastSolUsd: number;
   nextId: number;
   created_at: number;
+  // Unix seconds of the guest's FIRST completed trade; null until they trade.
+  // Drives the 24h reset countdown.
+  first_trade_at: number | null;
+  // Anonymous per-device id for funnel analytics only.
+  anon_id: string;
 }
 
 function freshState(): GuestState {
@@ -108,7 +130,21 @@ function freshState(): GuestState {
     lastSolUsd: 0,
     nextId: 1,
     created_at: Math.floor(Date.now() / 1000),
+    first_trade_at: null,
+    anon_id: genAnonId(),
   };
+}
+
+/** Unix seconds at which a traded guest portfolio expires, or null if untraded. */
+export function guestExpiresAt(state: GuestState = current): number | null {
+  return state.first_trade_at != null
+    ? state.first_trade_at + GUEST_RESET_SECONDS
+    : null;
+}
+
+function isExpired(state: GuestState): boolean {
+  const exp = guestExpiresAt(state);
+  return exp != null && Math.floor(Date.now() / 1000) >= exp;
 }
 
 function isBrowser(): boolean {
@@ -121,9 +157,12 @@ function load(): GuestState {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return freshState();
     const parsed = JSON.parse(raw) as Partial<GuestState>;
-    return {
+    const merged: GuestState = {
       ...freshState(),
       ...parsed,
+      // Preserve a legacy anon_id when present; otherwise freshState's wins.
+      anon_id: parsed.anon_id ?? genAnonId(),
+      first_trade_at: parsed.first_trade_at ?? null,
       // Backfill the slippage-free cost basis on legacy guest states that
       // predate the column, so the P&L split (#8) never reads undefined.
       positions: (parsed.positions ?? []).map((p) => ({
@@ -135,6 +174,12 @@ function load(): GuestState {
       watchlist: parsed.watchlist ?? [],
       orders: parsed.orders ?? [],
     };
+    // A traded guest portfolio older than the reset window starts over (keeping
+    // the same anon_id so funnel analytics still dedupe to one device).
+    if (isExpired(merged)) {
+      return { ...freshState(), anon_id: merged.anon_id };
+    }
+    return merged;
   } catch {
     return freshState();
   }
@@ -201,6 +246,15 @@ export function hasGuestActivity(state: GuestState = current): boolean {
 
 export function resetGuest() {
   setState(freshState());
+}
+
+/**
+ * Reset a guest portfolio after its post-first-trade window elapses, preserving
+ * the anon_id so funnel analytics keep deduping to one device — mirroring the
+ * expiry path in load(). Use this (not resetGuest) for countdown expiry.
+ */
+export function resetExpiredGuest() {
+  setState({ ...freshState(), anon_id: current.anon_id });
 }
 
 export function clearGuest() {
@@ -423,6 +477,7 @@ export function guestBuy(params: {
     trades: [...current.trades, trade],
     lastSolUsd: solUsd,
     nextId,
+    first_trade_at: current.first_trade_at ?? now,
   });
 
   return {
@@ -528,6 +583,7 @@ export function guestSell(params: {
     trades: [...current.trades, trade],
     lastSolUsd: solUsd,
     nextId,
+    first_trade_at: current.first_trade_at ?? now,
   });
 
   return {

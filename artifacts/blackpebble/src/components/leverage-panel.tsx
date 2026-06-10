@@ -44,7 +44,23 @@ export function LeveragePanel({ info }: { info: TokenInfo }) {
   const qc = useQueryClient();
   const { setVisible: setWalletModalVisible } = useWalletModal();
 
-  const [unit, setUnit] = useState<Unit>("SOL");
+  // USD is the default trade-size unit app-wide; only an explicit prior SOL
+  // choice (this session) overrides it. Shares the spot panel's session key so
+  // the two stay in sync.
+  const [unit, setUnit] = useState<Unit>(() => {
+    try {
+      return sessionStorage.getItem("bp:trade-unit") === "SOL" ? "SOL" : "USD";
+    } catch {
+      return "USD";
+    }
+  });
+  useEffect(() => {
+    try {
+      sessionStorage.setItem("bp:trade-unit", unit);
+    } catch {
+      /* ignore (private mode / disabled storage) */
+    }
+  }, [unit]);
   const [margin, setMargin] = useState("");
   const [leverage, setLeverage] = useState<number>(2);
   const [exitOpen, setExitOpen] = useState(false);

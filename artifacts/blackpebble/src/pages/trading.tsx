@@ -56,7 +56,9 @@ import {
   guestWatchAdd,
   guestWatchRemove,
   guestHistory,
+  getGuestState,
 } from "@/lib/guest-store";
+import { trackGuestFirstTrade } from "@/lib/analytics";
 import {
   fmtSol,
   fmtUsd,
@@ -1180,6 +1182,11 @@ function TradePanel({
         return { ok: false, error: "Enter a valid amount." };
       }
       if (isGuest) {
+        // Whether this is the guest's first-ever trade, captured before the
+        // bookkeeping call sets first_trade_at, so we can fire the funnel beacon.
+        const before = getGuestState();
+        const wasFirstTrade = before.first_trade_at == null;
+        const anonId = before.anon_id;
         // Re-quote fresh at execution time (mirrors the server recomputing the
         // fill at execute), then apply local bookkeeping.
         if (side === "buy") {
@@ -1188,7 +1195,7 @@ function TradePanel({
             side: "buy",
             solAmount: execSol,
           });
-          return guestBuy({
+          const result = guestBuy({
             mint: info.mint,
             name: info.name,
             symbol: info.symbol,
@@ -1197,6 +1204,8 @@ function TradePanel({
             quote: q,
             marketCapUsd: info.marketCapUsd,
           });
+          if (result.ok && wasFirstTrade) trackGuestFirstTrade(anonId);
+          return result;
         }
         const pos = guestValued.positions.find(
           (p) => p.token_mint === info.mint,
@@ -1208,7 +1217,9 @@ function TradePanel({
           side: "sell",
           tokenAmount,
         });
-        return guestSell({ mint: info.mint, tokenAmount, quote: q });
+        const result = guestSell({ mint: info.mint, tokenAmount, quote: q });
+        if (result.ok && wasFirstTrade) trackGuestFirstTrade(anonId);
+        return result;
       }
       return api.execute(
         side === "buy"
@@ -2087,10 +2098,12 @@ export default function TradingDesk() {
   // Shared SOL/USD unit between the Buy/Sell panel and the Mini Planner so the
   // two stay in sync. Persisted for the session.
   const [unit, setUnit] = useState<Unit>(() => {
+    // USD is the default trade-size unit app-wide; only an explicit prior SOL
+    // choice (this session) overrides it.
     try {
-      return sessionStorage.getItem("bp:trade-unit") === "USD" ? "USD" : "SOL";
+      return sessionStorage.getItem("bp:trade-unit") === "SOL" ? "SOL" : "USD";
     } catch {
-      return "SOL";
+      return "USD";
     }
   });
   useEffect(() => {

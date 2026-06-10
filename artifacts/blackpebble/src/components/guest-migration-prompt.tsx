@@ -11,7 +11,9 @@ import {
   dismissMigration,
   clearGuest,
   removeGuestPositions,
+  getGuestState,
 } from "@/lib/guest-store";
+import { trackGuestConverted } from "@/lib/analytics";
 
 /**
  * Shown once when a wallet connects while local guest activity exists.
@@ -71,6 +73,14 @@ export function GuestMigrationPrompt() {
         } catch {
           /* non-fatal: a watchlist row failing shouldn't block migration */
         }
+      }
+
+      // Funnel beacon: count a conversion only when the guest actually carried
+      // positions over to their wallet (full or partial success). A run where
+      // nothing migrated is not a conversion. Captured before clearGuest() wipes
+      // the anon_id.
+      if (migratedMints.length > 0) {
+        trackGuestConverted(getGuestState().anon_id);
       }
 
       if (failed === 0) {

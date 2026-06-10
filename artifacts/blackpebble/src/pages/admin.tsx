@@ -11,6 +11,11 @@ import {
   AlertTriangle,
   Loader2,
   Sparkles,
+  Users,
+  TrendingUp,
+  Eye,
+  UserPlus,
+  Wrench,
 } from "lucide-react";
 import { useAdmin } from "@/hooks/use-admin";
 import { useToast } from "@/hooks/use-toast";
@@ -104,21 +109,78 @@ function StatsSection() {
     refetchInterval: 30_000,
   });
   const s = data?.stats;
+  const topTokens = data?.topTokens ?? [];
+  const registered = s?.users ?? 0;
+  const guests = s?.guest_created ?? 0;
+  const totalTrades = (s?.spot_trades ?? 0) + (s?.leverage_trades ?? 0);
   return (
-    <Card title="Platform stats" icon={Activity}>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-        <Stat label="Accounts" value={fmt(s?.accounts)} />
-        <Stat label="Active (24h)" value={fmt(s?.dau)} />
-        <Stat label="Wallet links" value={fmt(s?.wallet_links)} />
-        <Stat label="X links" value={fmt(s?.x_links)} />
-        <Stat label="Total trades" value={fmt(s?.trades)} />
-        <Stat label="Buys / Sells" value={`${fmt(s?.buys)} / ${fmt(s?.sells)}`} />
-        <Stat label="Paper volume" value={`${fmt(s?.volume_sol, 1)} SOL`} />
-        <Stat label="Open positions" value={fmt(s?.positions)} />
-        <Stat label="Active orders" value={fmt(s?.active_orders)} />
-        <Stat label="Leaderboard users" value={fmt(s?.leaderboard_users)} />
-      </div>
-    </Card>
+    <div className="space-y-6">
+      <Card title="Users" icon={Users}>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          <Stat label="Registered users" value={fmt(registered)} />
+          <Stat label="Guest users" value={fmt(guests)} />
+          <Stat label="Accounts" value={fmt(s?.accounts)} />
+          <Stat label="Active (24h)" value={fmt(s?.dau)} />
+          <Stat label="Wallet links" value={fmt(s?.wallet_links)} />
+          <Stat label="X links" value={fmt(s?.x_links)} />
+        </div>
+      </Card>
+
+      <Card title="Trading" icon={TrendingUp}>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          <Stat label="Total trades" value={fmt(totalTrades)} />
+          <Stat label="Spot trades" value={fmt(s?.spot_trades)} />
+          <Stat label="Leverage trades" value={fmt(s?.leverage_trades)} />
+          <Stat label="Buys / Sells" value={`${fmt(s?.buys)} / ${fmt(s?.sells)}`} />
+          <Stat label="Paper volume" value={`${fmt(s?.volume_sol, 1)} SOL`} />
+          <Stat label="Open positions" value={fmt(s?.positions)} />
+          <Stat label="Active orders" value={fmt(s?.active_orders)} />
+          <Stat label="Leaderboard users" value={fmt(s?.leaderboard_users)} />
+        </div>
+        <div className="mt-4">
+          <div className="mb-2 text-[11px] uppercase tracking-wider text-muted-foreground">
+            Most-traded tokens
+          </div>
+          {topTokens.length === 0 ? (
+            <div className="text-sm text-muted-foreground">No trades yet.</div>
+          ) : (
+            <div className="space-y-1">
+              {topTokens.map((t) => (
+                <div
+                  key={t.token_mint}
+                  className="flex items-center justify-between border-b border-border/60 py-1.5 text-sm last:border-0"
+                >
+                  <span className="font-medium text-foreground">
+                    {t.token_symbol || `${t.token_mint.slice(0, 4)}…`}
+                  </span>
+                  <span className="font-mono text-muted-foreground">
+                    {fmt(t.trades)} trades
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </Card>
+
+      <Card title="Activity" icon={Eye}>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Stat label="Portfolio views" value={fmt(s?.portfolio_views)} />
+          <Stat label="Leaderboard views" value={fmt(s?.leaderboard_views)} />
+        </div>
+        <div className="mt-4">
+          <div className="mb-2 flex items-center gap-2 text-[11px] uppercase tracking-wider text-muted-foreground">
+            <UserPlus className="h-3.5 w-3.5 text-accent" />
+            Guest funnel
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <Stat label="Created" value={fmt(s?.guest_created)} />
+            <Stat label="Traded" value={fmt(s?.guest_traded)} />
+            <Stat label="Converted" value={fmt(s?.guest_converted)} />
+          </div>
+        </div>
+      </Card>
+    </div>
   );
 }
 
@@ -809,6 +871,11 @@ export default function AdminPage() {
 
       <div className="space-y-6">
         <StatsSection />
+
+        <div className="flex items-center gap-2 pt-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          <Wrench className="h-4 w-4 text-accent" />
+          Utilities
+        </div>
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <HealthSection />
           <MarketSection />

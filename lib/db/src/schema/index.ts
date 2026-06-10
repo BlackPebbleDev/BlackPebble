@@ -431,3 +431,26 @@ export const featureFlags = pgTable("feature_flags", {
   enabled: boolean("enabled").notNull().default(true),
   updated_at: bigint("updated_at", { mode: "number" }).default(epoch),
 });
+
+// ── Lightweight funnel / activity analytics ─────────────────────────────────
+// Append-only event log used purely for admin visibility (guest funnel + page
+// views). Guests live entirely client-side, so these beacons are the only way
+// to count "guests created / traded / converted". No PII — anon_id is a random
+// per-device id. Created idempotently at runtime (CREATE TABLE IF NOT EXISTS),
+// so this definition is mirror-only for type-safety.
+export const analyticsEvents = pgTable(
+  "analytics_events",
+  {
+    id: serial("id").primaryKey(),
+    // e.g. guest_created | guest_first_trade | guest_converted |
+    // portfolio_view | leaderboard_view
+    event_type: text("event_type").notNull(),
+    // Anonymous per-device id (random); null for non-guest server-side events.
+    anon_id: text("anon_id"),
+    created_at: bigint("created_at", { mode: "number" }).default(epoch),
+  },
+  (t) => [
+    index("idx_analytics_events_type").on(t.event_type),
+    index("idx_analytics_events_created").on(t.created_at),
+  ],
+);

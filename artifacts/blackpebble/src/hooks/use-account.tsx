@@ -9,6 +9,8 @@ import {
 import { useWallet } from "@solana/wallet-adapter-react";
 import { api, type Account } from "@/lib/api";
 import { useXAuth } from "@/hooks/use-x-auth";
+import { getGuestState } from "@/lib/guest-store";
+import { trackGuestCreated } from "@/lib/analytics";
 
 interface AccountContextValue {
   wallet: string | null;
@@ -77,6 +79,12 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       cancelled = true;
     };
   }, [accountKey, user, solanaWallet]);
+
+  // Funnel beacon: a device with no identity is a guest. Deduped per device by
+  // the analytics helper, so this only counts once.
+  useEffect(() => {
+    if (!accountKey) trackGuestCreated(getGuestState().anon_id);
+  }, [accountKey]);
 
   return (
     <AccountContext.Provider
