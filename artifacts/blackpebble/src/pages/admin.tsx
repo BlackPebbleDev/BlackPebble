@@ -16,6 +16,9 @@ import {
   Eye,
   UserPlus,
   Wrench,
+  BarChart3,
+  ShoppingCart,
+  Tag,
 } from "lucide-react";
 import { useAdmin } from "@/hooks/use-admin";
 import { useToast } from "@/hooks/use-toast";
@@ -25,6 +28,7 @@ import {
   type ResetOptions,
   type RecoveryWindowStats,
   type AdminStatsWindow,
+  type AdminTopToken,
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -108,7 +112,7 @@ const STATS_WINDOWS: { key: AdminStatsWindow; label: string }[] = [
   { key: "24h", label: "24h" },
   { key: "7d", label: "7d" },
   { key: "30d", label: "30d" },
-  { key: "all", label: "All Time" },
+  { key: "all", label: "Lifetime" },
 ];
 
 function WindowSelector({
@@ -140,6 +144,40 @@ function WindowSelector({
   );
 }
 
+function TokenList({
+  title,
+  icon,
+  tokens,
+  metric,
+}: {
+  title: string;
+  icon: typeof Sparkles;
+  tokens: AdminTopToken[];
+  metric: (t: AdminTopToken) => string;
+}) {
+  return (
+    <Card title={title} icon={icon}>
+      {tokens.length === 0 ? (
+        <div className="text-sm text-muted-foreground">No trades in this window.</div>
+      ) : (
+        <div className="space-y-1">
+          {tokens.map((t) => (
+            <div
+              key={t.token_mint}
+              className="flex items-center justify-between border-b border-border/60 py-1.5 text-sm last:border-0"
+            >
+              <span className="font-medium text-foreground">
+                {t.token_symbol || `${t.token_mint.slice(0, 4)}…`}
+              </span>
+              <span className="font-mono text-muted-foreground">{metric(t)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
 function StatsSection() {
   const [window, setWindow] = useState<AdminStatsWindow>("24h");
   const { data, isFetching } = useQuery({
@@ -152,6 +190,9 @@ function StatsSection() {
   const feed = data?.feed;
   const totals = data?.totals;
   const topTokens = data?.tokens ?? [];
+  const tokensByVolume = data?.tokens_by_volume ?? [];
+  const tokensByBuys = data?.tokens_by_buys ?? [];
+  const tokensBySells = data?.tokens_by_sells ?? [];
 
   const selector = (
     <div className="flex items-center gap-2">
@@ -177,33 +218,41 @@ function StatsSection() {
           <Stat label="Total trades" value={fmt(trading?.trades)} />
           <Stat label="Spot trades" value={fmt(trading?.spot_trades)} />
           <Stat label="Leverage trades" value={fmt(trading?.leverage_trades)} />
-          <Stat label="Buys / Sells" value={`${fmt(trading?.buys)} / ${fmt(trading?.sells)}`} />
-          <Stat label="Paper volume" value={`${fmt(trading?.volume_sol, 1)} SOL`} />
+          <Stat label="Buy count" value={fmt(trading?.buys)} />
+          <Stat label="Sell count" value={fmt(trading?.sells)} />
+          <Stat label="Unique traders" value={fmt(trading?.unique_traders)} />
+          <Stat label="Total volume" value={`${fmt(trading?.volume_sol, 1)} SOL`} />
           <Stat label="Avg trade size" value={`${fmt(trading?.avg_trade_size, 2)} SOL`} />
+          <Stat label="Largest trade" value={`${fmt(trading?.largest_trade, 2)} SOL`} />
         </div>
       </Card>
 
-      <Card title="Top Tokens" icon={Sparkles}>
-        {topTokens.length === 0 ? (
-          <div className="text-sm text-muted-foreground">No trades in this window.</div>
-        ) : (
-          <div className="space-y-1">
-            {topTokens.map((t) => (
-              <div
-                key={t.token_mint}
-                className="flex items-center justify-between border-b border-border/60 py-1.5 text-sm last:border-0"
-              >
-                <span className="font-medium text-foreground">
-                  {t.token_symbol || `${t.token_mint.slice(0, 4)}…`}
-                </span>
-                <span className="font-mono text-muted-foreground">
-                  {fmt(t.trades)} trades · {fmt(t.volume_sol, 1)} SOL
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </Card>
+      <div className="grid gap-6 lg:grid-cols-2">
+        <TokenList
+          title="Most Traded Tokens"
+          icon={Sparkles}
+          tokens={topTokens}
+          metric={(t) => `${fmt(t.trades)} trades · ${fmt(t.volume_sol, 1)} SOL`}
+        />
+        <TokenList
+          title="Highest Volume Tokens"
+          icon={BarChart3}
+          tokens={tokensByVolume}
+          metric={(t) => `${fmt(t.volume_sol, 1)} SOL · ${fmt(t.trades)} trades`}
+        />
+        <TokenList
+          title="Most Bought Tokens"
+          icon={ShoppingCart}
+          tokens={tokensByBuys}
+          metric={(t) => `${fmt(t.trades)} buys · ${fmt(t.volume_sol, 1)} SOL`}
+        />
+        <TokenList
+          title="Most Sold Tokens"
+          icon={Tag}
+          tokens={tokensBySells}
+          metric={(t) => `${fmt(t.trades)} sells · ${fmt(t.volume_sol, 1)} SOL`}
+        />
+      </div>
 
       <Card title="Feed & Social" icon={Eye}>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">

@@ -107,7 +107,16 @@ router.get(
     // window without string-building.
     const p = [since];
 
-    const [userRow, tradingRow, feedRow, tokens, totalsRow] = await Promise.all([
+    const [
+      userRow,
+      tradingRow,
+      feedRow,
+      tokens,
+      tokensByVolume,
+      tokensByBuys,
+      tokensBySells,
+      totalsRow,
+    ] = await Promise.all([
       dbGet<Record<string, number>>(
         `SELECT
            (SELECT count(*)::int FROM users WHERE ($1::bigint IS NULL OR created_at > $1)) AS new_users,
@@ -123,7 +132,13 @@ router.get(
            (SELECT count(*)::int FROM paper_leverage_trades WHERE action='open' AND ($1::bigint IS NULL OR executed_at > $1)) AS leverage_trades,
            (SELECT COALESCE(SUM(sol_amount),0)::float8 FROM trades WHERE ($1::bigint IS NULL OR executed_at > $1)) AS volume_sol,
            (SELECT count(*)::int FROM trades WHERE side='buy' AND ($1::bigint IS NULL OR executed_at > $1)) AS buys,
-           (SELECT count(*)::int FROM trades WHERE side='sell' AND ($1::bigint IS NULL OR executed_at > $1)) AS sells`,
+           (SELECT count(*)::int FROM trades WHERE side='sell' AND ($1::bigint IS NULL OR executed_at > $1)) AS sells,
+           (SELECT COALESCE(MAX(sol_amount),0)::float8 FROM trades WHERE ($1::bigint IS NULL OR executed_at > $1)) AS largest_trade,
+           (SELECT count(*)::int FROM (
+              SELECT wallet FROM trades WHERE ($1::bigint IS NULL OR executed_at > $1)
+              UNION
+              SELECT wallet FROM paper_leverage_trades WHERE action='open' AND ($1::bigint IS NULL OR executed_at > $1)
+            ) u) AS unique_traders`,
         p,
       ),
       dbGet<Record<string, number>>(
@@ -145,6 +160,57 @@ router.get(
                 COALESCE(SUM(sol_amount),0)::float8 AS volume_sol
          FROM trades
          WHERE ($1::bigint IS NULL OR executed_at > $1)
+         GROUP BY token_symbol, token_mint
+         ORDER BY trades DESC
+         LIMIT 8`,
+        p,
+      ),
+      // Highest-volume tokens (spot) for the window, by SOL volume.
+      dbAll<{
+        token_symbol: string | null;
+        token_mint: string;
+        trades: number;
+        volume_sol: number;
+      }>(
+        `SELECT token_symbol, token_mint,
+                count(*)::int AS trades,
+                COALESCE(SUM(sol_amount),0)::float8 AS volume_sol
+         FROM trades
+         WHERE ($1::bigint IS NULL OR executed_at > $1)
+         GROUP BY token_symbol, token_mint
+         ORDER BY volume_sol DESC
+         LIMIT 8`,
+        p,
+      ),
+      // Most-bought tokens (spot buys) for the window, by buy count.
+      dbAll<{
+        token_symbol: string | null;
+        token_mint: string;
+        trades: number;
+        volume_sol: number;
+      }>(
+        `SELECT token_symbol, token_mint,
+                count(*)::int AS trades,
+                COALESCE(SUM(sol_amount),0)::float8 AS volume_sol
+         FROM trades
+         WHERE side='buy' AND ($1::bigint IS NULL OR executed_at > $1)
+         GROUP BY token_symbol, token_mint
+         ORDER BY trades DESC
+         LIMIT 8`,
+        p,
+      ),
+      // Most-sold tokens (spot sells) for the window, by sell count.
+      dbAll<{
+        token_symbol: string | null;
+        token_mint: string;
+        trades: number;
+        volume_sol: number;
+      }>(
+        `SELECT token_symbol, token_mint,
+                count(*)::int AS trades,
+                COALESCE(SUM(sol_amount),0)::float8 AS volume_sol
+         FROM trades
+         WHERE side='sell' AND ($1::bigint IS NULL OR executed_at > $1)
          GROUP BY token_symbol, token_mint
          ORDER BY trades DESC
          LIMIT 8`,
@@ -192,8 +258,13 @@ router.get(
         avg_trade_size: avgTradeSize,
         buys: tradingRow?.buys ?? 0,
         sells: tradingRow?.sells ?? 0,
+        unique_traders: tradingRow?.unique_traders ?? 0,
+        largest_trade: Number(tradingRow?.largest_trade ?? 0),
       },
       tokens,
+      tokens_by_volume: tokensByVolume,
+      tokens_by_buys: tokensByBuys,
+      tokens_by_sells: tokensBySells,
       feed: {
         feed_views: feedRow?.feed_views ?? 0,
         profile_views: feedRow?.profile_views ?? 0,

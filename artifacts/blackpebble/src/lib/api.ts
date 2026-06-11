@@ -76,6 +76,8 @@ export interface AdminTradingStats {
   avg_trade_size: number;
   buys: number;
   sells: number;
+  unique_traders: number;
+  largest_trade: number;
 }
 
 export interface AdminFeedStats {
@@ -113,6 +115,9 @@ export interface AdminStatsResponse {
   users: AdminUserStats;
   trading: AdminTradingStats;
   tokens: AdminTopToken[];
+  tokens_by_volume: AdminTopToken[];
+  tokens_by_buys: AdminTopToken[];
+  tokens_by_sells: AdminTopToken[];
   feed: AdminFeedStats;
   totals: AdminTotals;
 }
