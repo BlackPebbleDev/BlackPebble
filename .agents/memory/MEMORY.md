@@ -6,6 +6,7 @@
 - [Architect git-diff false scope flags](architect-gitdiff-scope.md) — review's diff can include prior-merged committed work; confirm actual scope with `git status --short` before trusting "out of scope" flags.
 - [blackpebble vite build slow/OOM](blackpebble-vite-build.md) — full build OOMs + outlasts tool timeout; use raised heap backgrounded, or rely on tsc + dev preview.
 - [api-server dev has no watch](api-server-no-watch.md) — dev runs build+start, no reload; restart the api-server workflow after any backend edit or new routes 404.
+- [Guest funnel event semantics](guest-funnel-semantics.md) — funnel stage beacons must be oncePerDevice AND guest-scoped, else conversion% goes >100%; counts are independent per event_type, no identity joins.
 - [Profile/social reads must stay read-only](profile-stats-readonly.md) — getProfileStats must not call ensureAccount/getPortfolio for never-traded users (they INSERT accounts); fetch read-only, default if absent.
 - [USD-default needs a position-independent rate](usd-default-needs-rate.md) — empty/guest portfolios have solUsd=0; use /markets/sol-price + useSolUsd() so USD renders without positions.
 - [$25 PUFFY block is correct](puffy-25-block-audit.md) — not a calc bug; many same-name tokens, illiquid duplicates rightly blocked. Don't lower threshold. Sell dedup matches identical token_amount.

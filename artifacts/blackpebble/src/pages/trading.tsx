@@ -58,7 +58,11 @@ import {
   guestHistory,
   getGuestState,
 } from "@/lib/guest-store";
-import { trackGuestFirstTrade } from "@/lib/analytics";
+import {
+  trackGuestFirstTrade,
+  trackGuestSecondTrade,
+  trackTokenView,
+} from "@/lib/analytics";
 import {
   fmtSol,
   fmtUsd,
@@ -947,6 +951,13 @@ function TradePanel({
   const [side, setSide] = useState<"buy" | "sell">("buy");
   const [solAmount, setSolAmount] = useState("");
 
+  // Funnel: a guest viewing a token's trading panel is the discovery → intent
+  // step. First-touch per device (the beacon dedupes). Guest-scoped so the
+  // funnel measures the guest journey, not registered-user activity.
+  useEffect(() => {
+    if (isGuest && info?.mint) trackTokenView(getGuestState().anon_id);
+  }, [isGuest, info?.mint]);
+
   // SOL/USD rate for this token (derived from the quote — no extra fetch).
   // The Amount field holds a raw value interpreted in `unit`; everything that
   // talks to the trade API is converted to SOL via `toSol` so the existing
@@ -1221,7 +1232,10 @@ function TradePanel({
             quote: q,
             marketCapUsd: info.marketCapUsd,
           });
-          if (result.ok && wasFirstTrade) trackGuestFirstTrade(anonId);
+          if (result.ok) {
+            if (wasFirstTrade) trackGuestFirstTrade(anonId);
+            else trackGuestSecondTrade(anonId);
+          }
           return result;
         }
         const pos = guestValued.positions.find(
@@ -1235,7 +1249,10 @@ function TradePanel({
           tokenAmount,
         });
         const result = guestSell({ mint: info.mint, tokenAmount, quote: q });
-        if (result.ok && wasFirstTrade) trackGuestFirstTrade(anonId);
+        if (result.ok) {
+          if (wasFirstTrade) trackGuestFirstTrade(anonId);
+          else trackGuestSecondTrade(anonId);
+        }
         return result;
       }
       return api.execute(

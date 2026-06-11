@@ -8,6 +8,8 @@ import {
 } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import type { WalletContextState } from "@solana/wallet-adapter-react";
+import { trackXConnect } from "@/lib/analytics";
+import { getGuestState } from "@/lib/guest-store";
 
 export interface XUser {
   id: string;
@@ -83,6 +85,9 @@ export function XAuthProvider({ children }: { children: ReactNode }) {
       url.searchParams.delete("x_error");
       window.history.replaceState({}, "", url.toString());
       refresh();
+      if (xLogin === "success") {
+        trackXConnect(getGuestState().anon_id);
+      }
       if (xError) {
         console.warn("X login error:", xError);
       }

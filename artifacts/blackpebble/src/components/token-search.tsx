@@ -2,6 +2,9 @@ import { useState, useEffect, useRef } from "react";
 import { Search, Loader2 } from "lucide-react";
 import { api, type SearchResult } from "@/lib/api";
 import { fmtMarketCap } from "@/lib/format";
+import { trackWalletSearch } from "@/lib/analytics";
+import { getGuestState } from "@/lib/guest-store";
+import { useAccount } from "@/hooks/use-account";
 import { cn } from "@/lib/utils";
 
 interface TokenSearchProps {
@@ -17,6 +20,7 @@ export function TokenSearch({
   className,
   placeholder = "Search token by name, symbol, or address",
 }: TokenSearchProps) {
+  const { isGuest } = useAccount();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -34,6 +38,7 @@ export function TokenSearch({
       try {
         const { results } = await api.search(query.trim(), wallet ?? undefined);
         if (active) {
+          if (isGuest) trackWalletSearch(getGuestState().anon_id);
           setResults(results);
           setOpen(true);
         }

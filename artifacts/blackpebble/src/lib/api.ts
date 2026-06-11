@@ -86,6 +86,20 @@ export interface AdminFeedStats {
   follows: number;
 }
 
+/**
+ * Windowed guest funnel — full journey, each stage a first-touch-per-device
+ * beacon so counts are monotonic and conversion/dropoff are well-defined.
+ */
+export interface AdminFunnel {
+  guest_sessions: number;
+  wallet_searches: number;
+  token_views: number;
+  first_trade: number;
+  second_trade: number;
+  x_connect: number;
+  registration: number;
+}
+
 /** Lifetime structural counts + guest funnel (not windowed). */
 export interface AdminTotals {
   accounts: number;
@@ -119,6 +133,7 @@ export interface AdminStatsResponse {
   tokens_by_buys: AdminTopToken[];
   tokens_by_sells: AdminTopToken[];
   feed: AdminFeedStats;
+  funnel: AdminFunnel;
   totals: AdminTotals;
 }
 
@@ -128,6 +143,11 @@ export type AnalyticsEventType =
   | "guest_converted"
   | "portfolio_view"
   | "leaderboard_view"
+  // Guest funnel expansion.
+  | "wallet_search"
+  | "token_view"
+  | "guest_second_trade"
+  | "x_connect"
   // Social layer (Phase 1).
   | "feed_view"
   | "profile_view"

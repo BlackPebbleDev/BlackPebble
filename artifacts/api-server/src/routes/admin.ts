@@ -115,6 +115,7 @@ router.get(
       tokensByVolume,
       tokensByBuys,
       tokensBySells,
+      funnelRow,
       totalsRow,
     ] = await Promise.all([
       dbGet<Record<string, number>>(
@@ -216,6 +217,20 @@ router.get(
          LIMIT 8`,
         p,
       ),
+      // Windowed guest funnel: each stage is a first-touch-per-device beacon,
+      // so counts are monotonic and conversion/dropoff are well-defined. Same
+      // `$1` cutoff as everything else ("all" → null → lifetime).
+      dbGet<Record<string, number>>(
+        `SELECT
+           (SELECT count(*)::int FROM analytics_events WHERE event_type='guest_created' AND ($1::bigint IS NULL OR created_at > $1)) AS guest_sessions,
+           (SELECT count(*)::int FROM analytics_events WHERE event_type='wallet_search' AND ($1::bigint IS NULL OR created_at > $1)) AS wallet_searches,
+           (SELECT count(*)::int FROM analytics_events WHERE event_type='token_view' AND ($1::bigint IS NULL OR created_at > $1)) AS token_views,
+           (SELECT count(*)::int FROM analytics_events WHERE event_type='guest_first_trade' AND ($1::bigint IS NULL OR created_at > $1)) AS first_trade,
+           (SELECT count(*)::int FROM analytics_events WHERE event_type='guest_second_trade' AND ($1::bigint IS NULL OR created_at > $1)) AS second_trade,
+           (SELECT count(*)::int FROM analytics_events WHERE event_type='x_connect' AND ($1::bigint IS NULL OR created_at > $1)) AS x_connect,
+           (SELECT count(*)::int FROM analytics_events WHERE event_type='guest_converted' AND ($1::bigint IS NULL OR created_at > $1)) AS registration`,
+        p,
+      ),
       // Lifetime snapshot (not windowed) for structural counts + the guest funnel.
       dbGet<Record<string, number>>(
         `SELECT
@@ -269,6 +284,15 @@ router.get(
         feed_views: feedRow?.feed_views ?? 0,
         profile_views: feedRow?.profile_views ?? 0,
         follows: feedRow?.follows ?? 0,
+      },
+      funnel: {
+        guest_sessions: funnelRow?.guest_sessions ?? 0,
+        wallet_searches: funnelRow?.wallet_searches ?? 0,
+        token_views: funnelRow?.token_views ?? 0,
+        first_trade: funnelRow?.first_trade ?? 0,
+        second_trade: funnelRow?.second_trade ?? 0,
+        x_connect: funnelRow?.x_connect ?? 0,
+        registration: funnelRow?.registration ?? 0,
       },
       totals: totalsRow ?? {},
     });

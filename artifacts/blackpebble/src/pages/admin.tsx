@@ -29,6 +29,7 @@ import {
   type RecoveryWindowStats,
   type AdminStatsWindow,
   type AdminTopToken,
+  type AdminFunnel,
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -178,6 +179,94 @@ function TokenList({
   );
 }
 
+const FUNNEL_STAGES: { key: keyof AdminFunnel; label: string }[] = [
+  { key: "guest_sessions", label: "Guest Sessions" },
+  { key: "wallet_searches", label: "Wallet Searches" },
+  { key: "token_views", label: "Token Views" },
+  { key: "first_trade", label: "First Trade" },
+  { key: "second_trade", label: "Second Trade" },
+  { key: "x_connect", label: "X Connect" },
+  { key: "registration", label: "Registration" },
+];
+
+function pct(n: number, d: number): number {
+  if (d <= 0) return 0;
+  return (n / d) * 100;
+}
+
+/**
+ * Guest funnel visualization — full journey with per-stage counts, conversion %
+ * (vs the previous stage), and dropoff %. Windowed via the parent's selector.
+ */
+function GuestFunnel({ funnel }: { funnel?: AdminFunnel }) {
+  const rows = FUNNEL_STAGES.map((s, i) => {
+    const count = funnel?.[s.key] ?? 0;
+    const prev = i === 0 ? count : (funnel?.[FUNNEL_STAGES[i - 1].key] ?? 0);
+    const conversion = i === 0 ? 100 : pct(count, prev);
+    const dropoff = i === 0 ? 0 : 100 - conversion;
+    return { ...s, count, conversion, dropoff };
+  });
+  const top = rows[0]?.count ?? 0;
+  const final = rows[rows.length - 1]?.count ?? 0;
+  const overall = pct(final, top);
+
+  // Biggest dropoff stage (skip the first stage, which has no previous).
+  const worst = rows
+    .slice(1)
+    .reduce<(typeof rows)[number] | null>(
+      (acc, r) => (acc == null || r.dropoff > acc.dropoff ? r : acc),
+      null,
+    );
+
+  return (
+    <Card title="Guest Funnel" icon={UserPlus}>
+      {/* Analytics summary */}
+      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <Stat label="Top of funnel" value={fmt(top)} />
+        <Stat label="Overall conversion" value={`${fmt(overall, 1)}%`} />
+        <Stat
+          label="Biggest dropoff"
+          value={
+            worst && top > 0 ? `${worst.label} · ${fmt(worst.dropoff, 1)}%` : "—"
+          }
+        />
+      </div>
+
+      <div className="space-y-2.5">
+        {rows.map((r, i) => (
+          <div key={r.key} data-testid={`funnel-stage-${r.key}`}>
+            <div className="mb-1 flex items-end justify-between gap-2">
+              <span className="text-xs font-medium text-foreground">
+                <span className="text-muted-foreground">{i + 1}.</span>{" "}
+                {r.label}
+              </span>
+              <span className="font-mono text-sm text-foreground">
+                {fmt(r.count)}
+              </span>
+            </div>
+            <div className="relative h-7 overflow-hidden border border-border bg-background/40">
+              <div
+                className="absolute inset-y-0 left-0 bg-accent/25"
+                style={{ width: `${Math.min(pct(r.count, top), 100)}%` }}
+              />
+              <div className="relative flex h-full items-center justify-between px-2 text-[11px]">
+                <span className="text-muted-foreground">
+                  {i === 0 ? "entry" : `${fmt(r.conversion, 1)}% of prev`}
+                </span>
+                {i > 0 && r.dropoff > 0 && (
+                  <span className="font-mono text-destructive">
+                    −{fmt(r.dropoff, 1)}%
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
 function StatsSection() {
   const [window, setWindow] = useState<AdminStatsWindow>("24h");
   const { data, isFetching } = useQuery({
@@ -254,6 +343,8 @@ function StatsSection() {
         />
       </div>
 
+      <GuestFunnel funnel={data?.funnel} />
+
       <Card title="Feed & Social" icon={Eye}>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           <Stat label="Feed views" value={fmt(feed?.feed_views)} />
@@ -273,17 +364,6 @@ function StatsSection() {
           <Stat label="Leaderboard users" value={fmt(totals?.leaderboard_users)} />
           <Stat label="Portfolio views" value={fmt(totals?.portfolio_views)} />
           <Stat label="Leaderboard views" value={fmt(totals?.leaderboard_views)} />
-        </div>
-        <div className="mt-4">
-          <div className="mb-2 flex items-center gap-2 text-[11px] uppercase tracking-wider text-muted-foreground">
-            <UserPlus className="h-3.5 w-3.5 text-accent" />
-            Guest funnel (lifetime)
-          </div>
-          <div className="grid grid-cols-3 gap-3">
-            <Stat label="Created" value={fmt(totals?.guest_created)} />
-            <Stat label="Traded" value={fmt(totals?.guest_traded)} />
-            <Stat label="Converted" value={fmt(totals?.guest_converted)} />
-          </div>
         </div>
       </Card>
     </div>

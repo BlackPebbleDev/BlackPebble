@@ -19,6 +19,12 @@ const ALLOWED_EVENTS = new Set([
   "guest_converted",
   "portfolio_view",
   "leaderboard_view",
+  // Guest funnel expansion — first-touch-per-device beacons for the full
+  // journey: session → search → token view → first/second trade → X → convert.
+  "wallet_search",
+  "token_view",
+  "guest_second_trade",
+  "x_connect",
   // Social layer (Phase 1) — server-side beacons, no PII.
   "feed_view",
   "profile_view",

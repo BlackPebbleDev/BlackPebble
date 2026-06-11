@@ -49,9 +49,29 @@ export function trackGuestFirstTrade(anonId: string): void {
   if (oncePerDevice("guest_first_trade")) fire("guest_first_trade", anonId);
 }
 
+/** A guest placed their second-ever trade. Deduped per device. */
+export function trackGuestSecondTrade(anonId: string): void {
+  if (oncePerDevice("guest_second_trade")) fire("guest_second_trade", anonId);
+}
+
 /** A guest converted to a registered wallet (migration succeeded). */
 export function trackGuestConverted(anonId: string): void {
   fire("guest_converted", anonId);
+}
+
+/** First time a guest searches on this device (funnel: discovery). */
+export function trackWalletSearch(anonId?: string | null): void {
+  if (oncePerDevice("wallet_search")) fire("wallet_search", anonId);
+}
+
+/** First time a guest opens a token's detail/trading view on this device. */
+export function trackTokenView(anonId?: string | null): void {
+  if (oncePerDevice("token_view")) fire("token_view", anonId);
+}
+
+/** A guest connected an X account (login redirect succeeded). First-touch. */
+export function trackXConnect(anonId?: string | null): void {
+  if (oncePerDevice("x_connect")) fire("x_connect", anonId);
 }
 
 /** Portfolio page viewed (once per session). */
