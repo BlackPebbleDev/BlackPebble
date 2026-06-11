@@ -193,24 +193,46 @@ export default function FeedPage() {
         Live trading activity from the BlackPebble community.
       </p>
 
-      {/* Content-type filter bar (future-proof; only "All" is wired up) */}
-      <div className="flex items-center gap-1 mb-5 border-b border-border overflow-x-auto">
-        {filterTabs.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => selectFilter(t.id)}
-            data-testid={`filter-${t.id}`}
-            className={cn(
-              "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap",
-              filter === t.id
-                ? "border-accent text-foreground"
-                : "border-transparent text-muted-foreground hover:text-foreground",
-            )}
-          >
-            {t.label}
-          </button>
-        ))}
+      {/* Content-type filter bar — two-row grid (3 + 2), no horizontal scroll */}
+      <div className="mb-5 border-b border-border">
+        {/* Row 1: All · Trades · Callouts */}
+        <div className="flex">
+          {filterTabs.slice(0, 3).map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => selectFilter(t.id)}
+              data-testid={`filter-${t.id}`}
+              className={cn(
+                "flex-1 py-2 text-sm font-medium text-center border-b-2 -mb-px transition-colors",
+                filter === t.id
+                  ? "border-accent text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        {/* Row 2: Theses · Achievements — centred under the row above */}
+        <div className="flex justify-center">
+          {filterTabs.slice(3).map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => selectFilter(t.id)}
+              data-testid={`filter-${t.id}`}
+              className={cn(
+                "w-1/3 py-2 text-sm font-medium text-center border-b-2 -mb-px transition-colors",
+                filter === t.id
+                  ? "border-accent text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {filter === "all" && <ActivityFeed />}
