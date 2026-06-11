@@ -249,13 +249,16 @@ export function PlaceholderCard({
   kind,
   title,
   body,
+  icon,
 }: {
   kind: "callout" | "thesis" | "achievement";
   title: string;
   body: string;
+  icon?: React.ComponentType<{ className?: string }>;
 }) {
   const Icon =
-    kind === "callout" ? Megaphone : kind === "thesis" ? ScrollText : Trophy;
+    icon ??
+    (kind === "callout" ? Megaphone : kind === "thesis" ? ScrollText : Trophy);
   return (
     <div
       data-testid={`placeholder-${kind}`}

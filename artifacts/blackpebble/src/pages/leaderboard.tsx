@@ -16,6 +16,59 @@ const tabs: { id: LeaderboardPeriod; label: string }[] = [
   { id: "all", label: "All Time" },
 ];
 
+// Leaderboard categories. Only "top_traders" has real ranking logic today; the
+// rest are forward-looking placeholders until their engines exist.
+type LbCategory =
+  | "top_traders"
+  | "top_callers"
+  | "most_followed"
+  | "highest_trust";
+
+const categoryTabs: { id: LbCategory; label: string }[] = [
+  { id: "top_traders", label: "Top Traders" },
+  { id: "top_callers", label: "Top Callers" },
+  { id: "most_followed", label: "Most Followed" },
+  { id: "highest_trust", label: "Highest Trust Score" },
+];
+
+const comingSoonCopy: Record<
+  Exclude<LbCategory, "top_traders">,
+  { title: string; body: string }
+> = {
+  top_callers: {
+    title: "Top Callers coming soon",
+    body: "Once on-the-record callouts launch, traders will be ranked here by call accuracy and realized multiples.",
+  },
+  most_followed: {
+    title: "Most Followed coming soon",
+    body: "A ranking of the community's most-followed traders will appear here as the social graph grows.",
+  },
+  highest_trust: {
+    title: "Highest Trust Score coming soon",
+    body: "Traders will be ranked by a reputation score blending call accuracy, trading performance, and X reputation.",
+  },
+};
+
+function LeaderboardComingSoon({
+  category,
+}: {
+  category: Exclude<LbCategory, "top_traders">;
+}) {
+  const copy = comingSoonCopy[category];
+  return (
+    <div
+      data-testid={`leaderboard-coming-soon-${category}`}
+      className="border border-dashed border-border bg-card/40 text-center py-16 px-6"
+    >
+      <Trophy className="w-10 h-10 text-muted-foreground/40 mx-auto mb-4" />
+      <p className="text-foreground font-medium mb-1">{copy.title}</p>
+      <p className="text-muted-foreground text-sm max-w-sm mx-auto">
+        {copy.body}
+      </p>
+    </div>
+  );
+}
+
 function pnlClass(v: number): string {
   if (v > 0) return "text-emerald-400";
   if (v < 0) return "text-red-400";
@@ -103,6 +156,7 @@ function RankBadge({ rank }: { rank: number }) {
 export default function Leaderboard() {
   const { wallet, isGuest } = useAccount();
   const [, navigate] = useLocation();
+  const [category, setCategory] = useState<LbCategory>("top_traders");
   const [period, setPeriod] = useState<LeaderboardPeriod>("all");
 
   useEffect(() => {
@@ -136,40 +190,68 @@ export default function Leaderboard() {
         <h1 className="text-2xl font-semibold">Leaderboard</h1>
       </div>
       <p className="text-sm text-muted-foreground mb-6">
-        Ranked by realized P&L from closed trades only. A minimum of {minTrades}{" "}
-        closed trades is required to appear.
+        How the BlackPebble community stacks up across trading and reputation.
       </p>
 
-      {isGuest && (
-        <div
-          data-testid="banner-leaderboard-guest"
-          className="border border-accent/40 bg-accent/10 px-4 py-3 mb-6 text-sm text-foreground"
-        >
-          Connect a wallet or X to appear on the leaderboard. Guest trades stay
-          on this device and aren't ranked.
-        </div>
-      )}
-
-      <div className="flex items-center gap-1 mb-5 border-b border-border">
-        {tabs.map((t) => (
+      {/* Category tabs (only Top Traders is ranked today) */}
+      <div className="flex items-center gap-1 mb-5 border-b border-border overflow-x-auto">
+        {categoryTabs.map((c) => (
           <button
-            key={t.id}
+            key={c.id}
             type="button"
-            onClick={() => setPeriod(t.id)}
-            data-testid={`tab-${t.id}`}
+            onClick={() => setCategory(c.id)}
+            data-testid={`category-${c.id}`}
             className={cn(
-              "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
-              period === t.id
+              "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap",
+              category === c.id
                 ? "border-accent text-foreground"
                 : "border-transparent text-muted-foreground hover:text-foreground",
             )}
           >
-            {t.label}
+            {c.label}
           </button>
         ))}
       </div>
 
-      {isLoading ? (
+      {category !== "top_traders" ? (
+        <LeaderboardComingSoon category={category} />
+      ) : (
+        <>
+          <p className="text-sm text-muted-foreground mb-6">
+            Ranked by realized P&L from closed trades only. A minimum of{" "}
+            {minTrades} closed trades is required to appear.
+          </p>
+
+          {isGuest && (
+            <div
+              data-testid="banner-leaderboard-guest"
+              className="border border-accent/40 bg-accent/10 px-4 py-3 mb-6 text-sm text-foreground"
+            >
+              Connect a wallet or X to appear on the leaderboard. Guest trades
+              stay on this device and aren't ranked.
+            </div>
+          )}
+
+          <div className="flex items-center gap-1 mb-5 border-b border-border">
+            {tabs.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setPeriod(t.id)}
+                data-testid={`tab-${t.id}`}
+                className={cn(
+                  "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
+                  period === t.id
+                    ? "border-accent text-foreground"
+                    : "border-transparent text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          {isLoading ? (
         <div className="flex items-center justify-center py-20">
           <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
         </div>
@@ -356,6 +438,8 @@ export default function Leaderboard() {
             </tbody>
           </table>
           </div>
+        </>
+          )}
         </>
       )}
     </div>

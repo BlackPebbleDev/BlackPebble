@@ -1,6 +1,13 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, Rss } from "lucide-react";
+import {
+  ArrowUpRight,
+  Award,
+  Loader2,
+  Megaphone,
+  Rss,
+  ScrollText,
+} from "lucide-react";
 import { api } from "@/lib/api";
 import { useXAuth } from "@/hooks/use-x-auth";
 import { useSolUsd } from "@/hooks/use-sol-usd";
@@ -8,12 +15,17 @@ import { TradeActivityCard, PlaceholderCard } from "@/components/feed-card";
 import { trackFeedView, trackFeedTabChanged } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
 
-type FeedTab = "following" | "global" | "callouts";
+// Content-type filter bar. Only "all" is wired to the live activity feed; the
+// rest are forward-looking placeholders until their engines exist.
+type FeedFilter = "all" | "trades" | "callouts" | "theses" | "achievements";
+type FeedSource = "following" | "global";
 
-const tabs: { id: FeedTab; label: string }[] = [
-  { id: "following", label: "Following" },
-  { id: "global", label: "Global" },
+const filterTabs: { id: FeedFilter; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "trades", label: "Trades" },
   { id: "callouts", label: "Callouts" },
+  { id: "theses", label: "Theses" },
+  { id: "achievements", label: "Achievements" },
 ];
 
 function EmptyState({
@@ -55,7 +67,7 @@ function GlobalFeed() {
     return (
       <EmptyState
         title="No public activity yet"
-        body="When traders signed in with X start trading, their moves show up here."
+        body="Public activity will appear here as the BlackPebble community grows."
       />
     );
   }
@@ -107,8 +119,8 @@ function FollowingFeed() {
   if (items.length === 0) {
     return (
       <EmptyState
-        title="Nothing here yet"
-        body="Follow traders to see their activity, or no followed trader has traded recently."
+        title="Your feed is empty"
+        body="Follow traders to build your personalized feed."
       />
     );
   }
@@ -121,28 +133,52 @@ function FollowingFeed() {
   );
 }
 
-function CalloutsFeed() {
+/** The live activity feed (filter = "all"), with a Following / Global source. */
+function ActivityFeed() {
+  const [source, setSource] = useState<FeedSource>("global");
+
+  function selectSource(id: FeedSource) {
+    if (id !== source) {
+      setSource(id);
+      trackFeedTabChanged();
+    }
+  }
+
   return (
-    <div className="space-y-2">
-      <PlaceholderCard
-        kind="callout"
-        title="Callouts are coming soon"
-        body="Soon traders will be able to call their entries on-chain — bullish or bearish — and you'll see them tracked here with live performance."
-      />
+    <div>
+      <div className="inline-flex items-center gap-1 mb-4 border border-border bg-card p-1">
+        {(["following", "global"] as FeedSource[]).map((id) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => selectSource(id)}
+            data-testid={`source-${id}`}
+            className={cn(
+              "px-3 py-1.5 text-xs font-medium uppercase tracking-wider transition-colors",
+              source === id
+                ? "bg-accent text-accent-foreground"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {id === "following" ? "Following" : "Global"}
+          </button>
+        ))}
+      </div>
+      {source === "following" ? <FollowingFeed /> : <GlobalFeed />}
     </div>
   );
 }
 
 export default function FeedPage() {
-  const [tab, setTab] = useState<FeedTab>("global");
+  const [filter, setFilter] = useState<FeedFilter>("all");
 
   useEffect(() => {
     trackFeedView();
   }, []);
 
-  function selectTab(id: FeedTab) {
-    if (id !== tab) {
-      setTab(id);
+  function selectFilter(id: FeedFilter) {
+    if (id !== filter) {
+      setFilter(id);
       trackFeedTabChanged();
     }
   }
@@ -157,16 +193,17 @@ export default function FeedPage() {
         Live trading activity from the BlackPebble community.
       </p>
 
-      <div className="flex items-center gap-1 mb-5 border-b border-border">
-        {tabs.map((t) => (
+      {/* Content-type filter bar (future-proof; only "All" is wired up) */}
+      <div className="flex items-center gap-1 mb-5 border-b border-border overflow-x-auto">
+        {filterTabs.map((t) => (
           <button
             key={t.id}
             type="button"
-            onClick={() => selectTab(t.id)}
-            data-testid={`tab-${t.id}`}
+            onClick={() => selectFilter(t.id)}
+            data-testid={`filter-${t.id}`}
             className={cn(
-              "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
-              tab === t.id
+              "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap",
+              filter === t.id
                 ? "border-accent text-foreground"
                 : "border-transparent text-muted-foreground hover:text-foreground",
             )}
@@ -176,9 +213,39 @@ export default function FeedPage() {
         ))}
       </div>
 
-      {tab === "following" && <FollowingFeed />}
-      {tab === "global" && <GlobalFeed />}
-      {tab === "callouts" && <CalloutsFeed />}
+      {filter === "all" && <ActivityFeed />}
+      {filter === "trades" && (
+        <PlaceholderCard
+          kind="achievement"
+          icon={ArrowUpRight}
+          title="Trade-only filtering is coming soon"
+          body="Soon you'll be able to narrow the feed to spot and leverage trades. For now, see everything under the All tab."
+        />
+      )}
+      {filter === "callouts" && (
+        <PlaceholderCard
+          kind="callout"
+          icon={Megaphone}
+          title="Token callouts are coming soon."
+          body="Soon traders will be able to call their entries on the record — bullish or bearish — and you'll see them tracked here with live performance."
+        />
+      )}
+      {filter === "theses" && (
+        <PlaceholderCard
+          kind="thesis"
+          icon={ScrollText}
+          title="Token theses are coming soon"
+          body="Traders' published conviction theses on tokens will appear here once the thesis engine launches."
+        />
+      )}
+      {filter === "achievements" && (
+        <PlaceholderCard
+          kind="achievement"
+          icon={Award}
+          title="Achievements are coming soon"
+          body="Milestone and reputation badges earned by the community will surface in the feed here."
+        />
+      )}
     </div>
   );
 }

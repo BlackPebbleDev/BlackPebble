@@ -2,20 +2,17 @@ import { useEffect, useState } from "react";
 import { useParams } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  Award,
   BadgeCheck,
   ExternalLink,
   History,
   Loader2,
-  Megaphone,
   Pencil,
   Pin,
-  ScrollText,
   ShieldCheck,
-  Star,
   Trophy,
   UserPlus,
   UserCheck,
-  Users,
   X as CloseIcon,
 } from "lucide-react";
 import { api, BIO_MAX_LENGTH, type ProfileResponse } from "@/lib/api";
@@ -70,18 +67,6 @@ function StatTile({
       <div className={cn("mt-1 font-mono text-base text-foreground", cls)}>
         {value}
       </div>
-    </div>
-  );
-}
-
-/** Placeholder stat tile: shows the future metric label with a muted dash. */
-function ComingSoonTile({ label }: { label: string }) {
-  return (
-    <div className="border border-dashed border-border bg-card/40 p-3">
-      <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
-        {label}
-      </div>
-      <div className="mt-1 font-mono text-base text-muted-foreground/50">—</div>
     </div>
   );
 }
@@ -218,76 +203,119 @@ function BioSection({ profile }: { profile: ProfileResponse }) {
     );
   }
 
-  if (profile.isSelf) {
-    return (
-      <button
-        type="button"
-        onClick={() => {
-          setDraft("");
-          setEditing(true);
-        }}
-        data-testid="button-bio-add"
-        className="mt-3 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-accent transition-colors"
+  // Empty state: show "No bio yet." for everyone; owners also get an inline
+  // affordance to add one.
+  return (
+    <div className="mt-3 flex items-center gap-2">
+      <p
+        data-testid="text-profile-bio-empty"
+        className="text-sm italic text-muted-foreground/70"
       >
-        <Pencil className="w-3.5 h-3.5" />
-        Add a bio
-      </button>
-    );
-  }
+        No bio yet.
+      </p>
+      {profile.isSelf && (
+        <button
+          type="button"
+          onClick={() => {
+            setDraft("");
+            setEditing(true);
+          }}
+          data-testid="button-bio-add"
+          className="inline-flex items-center gap-1 text-xs text-accent hover:text-accent/80 transition-colors"
+        >
+          <Pencil className="w-3 h-3" />
+          Add a bio
+        </button>
+      )}
+    </div>
+  );
+}
 
-  return null;
+/** Compact label/value row used inside the X Reputation card (no border). */
+function RepField({
+  label,
+  value,
+}: {
+  label: string;
+  value: React.ReactNode;
+}) {
+  return (
+    <div>
+      <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
+        {label}
+      </div>
+      <div className="mt-1 font-mono text-base text-foreground">{value}</div>
+    </div>
+  );
 }
 
 function XReputationSection({ profile }: { profile: ProfileResponse }) {
   const rep = profile.xReputation;
+  const hasRep =
+    rep.accountCreatedAt != null ||
+    rep.verified != null ||
+    rep.followers != null ||
+    rep.following != null;
   return (
     <>
       <SectionHeader icon={BadgeCheck} title="X Reputation" />
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-        <StatTile
-          label="X Account Age"
-          value={
-            rep.accountCreatedAt != null ? (
-              formatAccountAge(rep.accountCreatedAt)
-            ) : (
-              <span className="text-muted-foreground/50">—</span>
-            )
-          }
-        />
-        <StatTile
-          label="Verified"
-          value={
-            rep.verified == null ? (
-              <span className="text-muted-foreground/50">—</span>
-            ) : rep.verified ? (
-              <span className="inline-flex items-center gap-1 text-accent">
-                <BadgeCheck className="w-4 h-4" /> Yes
-              </span>
-            ) : (
-              "No"
-            )
-          }
-        />
-        <StatTile
-          label="Followers"
-          value={
-            rep.followers != null ? (
-              fmtNum(rep.followers)
-            ) : (
-              <span className="text-muted-foreground/50">—</span>
-            )
-          }
-        />
-        <StatTile
-          label="Following"
-          value={
-            rep.following != null ? (
-              fmtNum(rep.following)
-            ) : (
-              <span className="text-muted-foreground/50">—</span>
-            )
-          }
-        />
+      <div className="border border-border bg-card p-4">
+        {hasRep ? (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <RepField
+              label="Account Age"
+              value={
+                rep.accountCreatedAt != null ? (
+                  formatAccountAge(rep.accountCreatedAt)
+                ) : (
+                  <span className="text-muted-foreground/50">—</span>
+                )
+              }
+            />
+            <RepField
+              label="Verified"
+              value={
+                rep.verified == null ? (
+                  <span className="text-muted-foreground/50">—</span>
+                ) : rep.verified ? (
+                  <span className="inline-flex items-center gap-1 text-accent">
+                    <BadgeCheck className="w-4 h-4" /> Yes
+                  </span>
+                ) : (
+                  "No"
+                )
+              }
+            />
+            <RepField
+              label="Followers"
+              value={
+                rep.followers != null ? (
+                  fmtNum(rep.followers)
+                ) : (
+                  <span className="text-muted-foreground/50">—</span>
+                )
+              }
+            />
+            <RepField
+              label="Following"
+              value={
+                rep.following != null ? (
+                  fmtNum(rep.following)
+                ) : (
+                  <span className="text-muted-foreground/50">—</span>
+                )
+              }
+            />
+          </div>
+        ) : (
+          <div
+            data-testid="x-reputation-empty"
+            className="flex items-center gap-2 text-sm text-muted-foreground"
+          >
+            <BadgeCheck className="w-4 h-4 text-muted-foreground/50" />
+            Data coming soon
+          </div>
+        )}
       </div>
     </>
   );
@@ -364,6 +392,50 @@ function FollowButton({ profile }: { profile: ProfileResponse }) {
   );
 }
 
+/** Example badges shown in the Achievements placeholder (UI only). */
+const EXAMPLE_BADGES = [
+  "First Trade",
+  "Diamond Hands",
+  "10x Caller",
+  "Top 100",
+  "Season Veteran",
+  "Sharpshooter",
+];
+
+/** Coming-soon card for achievements, with an example badge list. */
+function AchievementsPlaceholder() {
+  return (
+    <div
+      data-testid="placeholder-achievements"
+      className="border border-dashed border-border bg-card/40 p-4"
+    >
+      <div className="flex items-start gap-3">
+        <Award className="w-5 h-5 text-muted-foreground/50 flex-shrink-0 mt-0.5" />
+        <div>
+          <p className="text-sm text-foreground font-medium">
+            Achievements &amp; badges coming soon
+          </p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Earn badges for trading milestones, accurate calls, and community
+            standing. Example badges you'll be able to unlock:
+          </p>
+        </div>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {EXAMPLE_BADGES.map((b) => (
+          <span
+            key={b}
+            className="inline-flex items-center gap-1 border border-dashed border-border bg-secondary/30 px-2 py-1 text-[11px] text-muted-foreground/70"
+          >
+            <Award className="w-3 h-3" />
+            {b}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function ProfilePage() {
   const { handle } = useParams<{ handle: string }>();
   const solUsd = useSolUsd();
@@ -413,6 +485,7 @@ export default function ProfilePage() {
         <div className="flex items-start gap-4">
           <Avatar url={profile.x_avatar_url} name={displayName} />
           <div className="min-w-0 flex-1">
+            {/* Identity: display name → @handle → bio */}
             <div className="flex items-center gap-2 flex-wrap">
               <h1
                 data-testid="text-profile-name"
@@ -440,7 +513,12 @@ export default function ProfilePage() {
                 <span className="font-mono">Rank #{profile.rank}</span>
               )}
             </div>
-            <div className="flex items-center gap-4 mt-2 text-sm">
+
+            {/* Bio: directly under avatar/name/handle (owner can edit inline) */}
+            <BioSection profile={profile} />
+
+            {/* Social: followers / following */}
+            <div className="flex items-center gap-4 mt-3 text-sm">
               <span data-testid="text-following-count">
                 <span className="font-semibold text-foreground">
                   {profile.following}
@@ -454,14 +532,15 @@ export default function ProfilePage() {
                 <span className="text-muted-foreground">Followers</span>
               </span>
             </div>
-          </div>
-          <div className="flex-shrink-0">
-            <FollowButton profile={profile} />
+
+            {/* Social action: follow button (hidden for self) */}
+            {!profile.isSelf && (
+              <div className="mt-3">
+                <FollowButton profile={profile} />
+              </div>
+            )}
           </div>
         </div>
-
-        {/* Bio (functional: owner can edit inline) */}
-        <BioSection profile={profile} />
       </div>
 
       {/* Trader stats (real) */}
@@ -498,63 +577,36 @@ export default function ProfilePage() {
       {/* X reputation (real, with placeholders for missing fields) */}
       <XReputationSection profile={profile} />
 
-      {/* Top-Caller metrics (placeholder) */}
-      <SectionHeader icon={Megaphone} title="Top-Caller Metrics" />
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-        <ComingSoonTile label="Calls Made" />
-        <ComingSoonTile label="Hit Rate" />
-        <ComingSoonTile label="Average Multiple" />
-        <ComingSoonTile label="Best Call" />
-        <ComingSoonTile label="Largest Winner" />
-      </div>
-
-      {/* Trust score (placeholder) */}
-      <SectionHeader icon={ShieldCheck} title="Trust Score" />
+      {/* BlackPebble Trust Score (placeholder) */}
+      <SectionHeader icon={ShieldCheck} title="BlackPebble Trust Score" />
       <PlaceholderCard
         kind="achievement"
+        icon={ShieldCheck}
         title="Trust Score coming soon"
-        body="A reputation score blending call accuracy, trading performance, and X reputation will be shown here."
+        body="A single reputation score blending call accuracy, trading performance, and X reputation will be shown here."
       />
 
-      {/* Pinned thesis (placeholder) */}
+      {/* Pinned Thesis (placeholder) */}
       <SectionHeader icon={Pin} title="Pinned Thesis" />
       <PlaceholderCard
         kind="thesis"
+        icon={Pin}
         title="No pinned thesis yet"
-        body="Traders will be able to pin their highest-conviction thesis to the top of their profile."
+        body="Traders will be able to pin their highest-conviction token thesis to the top of their profile."
       />
 
-      {/* Call history (placeholder) */}
+      {/* Call History (placeholder) */}
       <SectionHeader icon={History} title="Call History" />
       <PlaceholderCard
         kind="callout"
+        icon={History}
         title="Call history coming soon"
-        body="Every on-the-record callout this trader has made — permanent and immutable — will be listed here."
+        body="Every on-the-record callout this trader makes will be listed here — permanent and immutable, with no edits or deletes."
       />
 
-      {/* Best calls (placeholder) */}
-      <SectionHeader icon={Star} title="Best Calls" />
-      <PlaceholderCard
-        kind="callout"
-        title="Best calls coming soon"
-        body="This trader's highest-returning calls, ranked by realized multiple, will be highlighted here."
-      />
-
-      {/* Recent calls (placeholder) */}
-      <SectionHeader icon={Megaphone} title="Recent Calls" />
-      <PlaceholderCard
-        kind="callout"
-        title="Recent calls coming soon"
-        body="The trader's latest calls and their follow-up updates will appear here once callouts launch."
-      />
-
-      {/* Token theses (placeholder) */}
-      <SectionHeader icon={ScrollText} title="Token Theses" />
-      <PlaceholderCard
-        kind="thesis"
-        title="No theses yet"
-        body="Traders will be able to publish their conviction theses on tokens. They'll appear here."
-      />
+      {/* Achievements & Badges (placeholder) */}
+      <SectionHeader icon={Award} title="Achievements & Badges" />
+      <AchievementsPlaceholder />
     </div>
   );
 }
