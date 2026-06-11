@@ -40,6 +40,19 @@ export interface ProfileStats {
   graduationTier: string;
 }
 
+/**
+ * X reputation snapshot surfaced on a profile. Every field is nullable: it's
+ * null when X didn't return the field, or when the user last authenticated
+ * before we started capturing these. The UI renders placeholders for nulls.
+ */
+export interface XReputation {
+  /** Unix-second timestamp the X account was created, or null. */
+  accountCreatedAt: number | null;
+  verified: boolean | null;
+  followers: number | null;
+  following: number | null;
+}
+
 export interface ProfileResponse extends ResolvedUser {
   /** All-time leaderboard rank, or null when unranked (below min trades). */
   rank: number | null;
@@ -50,6 +63,10 @@ export interface ProfileResponse extends ResolvedUser {
   isFollowing: boolean;
   /** True when the requesting user is viewing their own profile. */
   isSelf: boolean;
+  /** Owner-editable plain-text bio (≤250 chars), or null when unset. */
+  bio: string | null;
+  /** X account reputation (account age, verified, follower/following counts). */
+  xReputation: XReputation;
   stats: ProfileStats;
 }
 
@@ -84,6 +101,78 @@ export async function ensureFollowsTable(): Promise<void> {
        ON user_follows (follower_user_id)`,
   );
   ensured = true;
+}
+
+let profileSchemaEnsured = false;
+/**
+ * Idempotently add the profile bio + X-reputation columns to `users` and create
+ * the append-only callout tables. Mirrors the runtime-DDL pattern used for
+ * user_follows / analytics_events (drizzle-kit push needs an unavailable TTY).
+ * Memoized, so the ALTER/CREATE statements run at most once per process.
+ *
+ * NOTE: the callouts tables are created here as architecture-only groundwork —
+ * there is intentionally NO update/delete code path for `callouts` anywhere in
+ * the codebase (immutability is a hard design rule); follow-ups append to
+ * `callout_updates` only. See lib/db schema for the full rationale.
+ */
+export async function ensureProfileSchema(): Promise<void> {
+  if (profileSchemaEnsured) return;
+  await dbRun(`ALTER TABLE users ADD COLUMN IF NOT EXISTS bio TEXT`);
+  await dbRun(
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS x_followers_count INTEGER`,
+  );
+  await dbRun(
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS x_following_count INTEGER`,
+  );
+  await dbRun(`ALTER TABLE users ADD COLUMN IF NOT EXISTS x_verified BOOLEAN`);
+  await dbRun(
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS x_account_created_at BIGINT`,
+  );
+  await dbRun(
+    `CREATE TABLE IF NOT EXISTS callouts (
+       id SERIAL PRIMARY KEY,
+       user_id INTEGER NOT NULL REFERENCES users(id),
+       token_mint TEXT NOT NULL,
+       token_symbol TEXT,
+       token_name TEXT,
+       token_logo TEXT,
+       call_price_sol DOUBLE PRECISION,
+       call_price_usd DOUBLE PRECISION,
+       call_market_cap DOUBLE PRECISION,
+       liquidity_usd DOUBLE PRECISION,
+       holder_count INTEGER,
+       thesis TEXT,
+       conviction TEXT,
+       created_at BIGINT DEFAULT EXTRACT(EPOCH FROM NOW())::bigint
+     )`,
+  );
+  await dbRun(
+    `CREATE INDEX IF NOT EXISTS idx_callouts_user ON callouts (user_id)`,
+  );
+  await dbRun(
+    `CREATE INDEX IF NOT EXISTS idx_callouts_mint ON callouts (token_mint)`,
+  );
+  await dbRun(
+    `CREATE INDEX IF NOT EXISTS idx_callouts_created ON callouts (created_at)`,
+  );
+  await dbRun(
+    `CREATE TABLE IF NOT EXISTS callout_updates (
+       id SERIAL PRIMARY KEY,
+       callout_id INTEGER NOT NULL REFERENCES callouts(id),
+       user_id INTEGER NOT NULL REFERENCES users(id),
+       content TEXT NOT NULL,
+       created_at BIGINT DEFAULT EXTRACT(EPOCH FROM NOW())::bigint
+     )`,
+  );
+  await dbRun(
+    `CREATE INDEX IF NOT EXISTS idx_callout_updates_callout
+       ON callout_updates (callout_id)`,
+  );
+  await dbRun(
+    `CREATE INDEX IF NOT EXISTS idx_callout_updates_user
+       ON callout_updates (user_id)`,
+  );
+  profileSchemaEnsured = true;
 }
 
 /**
@@ -191,12 +280,12 @@ export async function getProfile(
   idOrHandle: string,
   viewerUserId?: number | null,
 ): Promise<ProfileResponse | null> {
+  await Promise.all([ensureFollowsTable(), ensureProfileSchema()]);
   const u = await resolveUser(idOrHandle);
   if (!u) return null;
-  await ensureFollowsTable();
 
   const accountKey = `x:${u.x_id}`;
-  const [stats, board, counts, follows] = await Promise.all([
+  const [stats, board, counts, follows, extras] = await Promise.all([
     getProfileStats(accountKey),
     getLeaderboard("all"),
     dbGet<{ followers: number; following: number }>(
@@ -212,6 +301,18 @@ export async function getProfile(
           [viewerUserId, u.user_id],
         )
       : Promise.resolve(null),
+    dbGet<{
+      bio: string | null;
+      x_followers_count: number | null;
+      x_following_count: number | null;
+      x_verified: boolean | null;
+      x_account_created_at: number | null;
+    }>(
+      `SELECT bio, x_followers_count, x_following_count, x_verified,
+              x_account_created_at
+         FROM users WHERE id = $1`,
+      [u.user_id],
+    ),
   ]);
 
   const entry = board.find((e) => e.wallet === accountKey);
@@ -224,8 +325,78 @@ export async function getProfile(
     following: counts?.following ?? 0,
     isFollowing: !!follows,
     isSelf: viewerUserId != null && viewerUserId === u.user_id,
+    bio: extras?.bio ?? null,
+    xReputation: {
+      accountCreatedAt: extras?.x_account_created_at ?? null,
+      verified: extras?.x_verified ?? null,
+      followers: extras?.x_followers_count ?? null,
+      following: extras?.x_following_count ?? null,
+    },
     stats,
   };
+}
+
+// ── Bio (owner-editable, plain text only) ───────────────────────────────────
+export const BIO_MAX_LENGTH = 250;
+
+export type BioValidation =
+  | { ok: true; value: string }
+  | { ok: false; error: string };
+
+/**
+ * Validate + normalize a user-supplied bio. Plain text only: we reject anything
+ * that looks like HTML or markdown rather than silently stripping it, so the
+ * stored value is always exactly what the user sees. Empty/whitespace clears it.
+ */
+export function validateBio(raw: unknown): BioValidation {
+  if (typeof raw !== "string") {
+    return { ok: false, error: "Bio must be text" };
+  }
+  // Normalize line endings and collapse 3+ blank lines; trim outer whitespace.
+  const value = raw.replace(/\r\n?/g, "\n").trim();
+  if (value.length > BIO_MAX_LENGTH) {
+    return {
+      ok: false,
+      error: `Bio must be ${BIO_MAX_LENGTH} characters or fewer`,
+    };
+  }
+  // Reject HTML: any angle-bracket tag-like construct or entities.
+  if (/[<>]/.test(value)) {
+    return { ok: false, error: "Bio cannot contain HTML" };
+  }
+  // Reject the most identifiable markdown so the bio stays plain text.
+  const markdownPatterns: RegExp[] = [
+    /\[[^\]]*\]\([^)]*\)/, // [text](url) links
+    /!\[/, // ![ image
+    /`/, // backticks / code
+    /\*\*|__|~~/, // bold / strikethrough emphasis
+    /^\s{0,3}#{1,6}\s/m, // # headers
+    /^\s{0,3}>\s/m, // > blockquotes
+  ];
+  if (markdownPatterns.some((re) => re.test(value))) {
+    return { ok: false, error: "Bio cannot contain markdown formatting" };
+  }
+  return { ok: true, value };
+}
+
+export type SetBioResult =
+  | { ok: true; bio: string | null }
+  | { ok: false; status: number; error: string };
+
+/**
+ * Set (or clear) the bio for the authenticated owner. `viewerUserId` is the
+ * session's internal user id; there is no path to edit another user's bio.
+ */
+export async function setBio(
+  viewerUserId: number,
+  raw: unknown,
+): Promise<SetBioResult> {
+  const v = validateBio(raw);
+  if (!v.ok) return { ok: false, status: 400, error: v.error };
+  await ensureProfileSchema();
+  const bio = v.value.length > 0 ? v.value : null;
+  await dbRun(`UPDATE users SET bio = $1 WHERE id = $2`, [bio, viewerUserId]);
+  return { ok: true, bio };
 }
 
 export type FollowResult =
@@ -322,4 +493,118 @@ export async function getFollowedUserIds(
     [viewerUserId],
   );
   return rows.map((r) => r.following_user_id);
+}
+
+// ── Callouts (append-only data layer; no posting UI is wired up yet) ─────────
+// These helpers are the ONLY way callout data is written, and by design they are
+// append-only:
+//   - createCallout INSERTs a new immutable call.
+//   - addCalloutUpdate INSERTs a follow-up note onto an existing call.
+// There is deliberately NO updateCallout / deleteCallout / hideCallout — once a
+// call is on the record it is permanent. Do not add a mutation/delete path here:
+// the immutability of a caller's track record is a core product guarantee.
+
+export type Conviction = "low" | "medium" | "high";
+
+export interface CalloutInput {
+  userId: number;
+  tokenMint: string;
+  tokenSymbol?: string | null;
+  tokenName?: string | null;
+  tokenLogo?: string | null;
+  callPriceSol?: number | null;
+  callPriceUsd?: number | null;
+  callMarketCap?: number | null;
+  liquidityUsd?: number | null;
+  holderCount?: number | null;
+  thesis?: string | null;
+  conviction?: Conviction | null;
+}
+
+export interface Callout {
+  id: number;
+  user_id: number;
+  token_mint: string;
+  token_symbol: string | null;
+  token_name: string | null;
+  token_logo: string | null;
+  call_price_sol: number | null;
+  call_price_usd: number | null;
+  call_market_cap: number | null;
+  liquidity_usd: number | null;
+  holder_count: number | null;
+  thesis: string | null;
+  conviction: string | null;
+  created_at: number;
+}
+
+export interface CalloutUpdate {
+  id: number;
+  callout_id: number;
+  user_id: number;
+  content: string;
+  created_at: number;
+}
+
+/** Append a new, immutable callout. */
+export async function createCallout(input: CalloutInput): Promise<Callout> {
+  await ensureProfileSchema();
+  const row = await dbGet<Callout>(
+    `INSERT INTO callouts (
+       user_id, token_mint, token_symbol, token_name, token_logo,
+       call_price_sol, call_price_usd, call_market_cap, liquidity_usd,
+       holder_count, thesis, conviction
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+     RETURNING *`,
+    [
+      input.userId,
+      input.tokenMint,
+      input.tokenSymbol ?? null,
+      input.tokenName ?? null,
+      input.tokenLogo ?? null,
+      input.callPriceSol ?? null,
+      input.callPriceUsd ?? null,
+      input.callMarketCap ?? null,
+      input.liquidityUsd ?? null,
+      input.holderCount ?? null,
+      input.thesis ?? null,
+      input.conviction ?? null,
+    ],
+  );
+  return row!;
+}
+
+/** Append a follow-up note to an existing callout (never mutates the callout). */
+export async function addCalloutUpdate(
+  calloutId: number,
+  userId: number,
+  content: string,
+): Promise<CalloutUpdate> {
+  await ensureProfileSchema();
+  const row = await dbGet<CalloutUpdate>(
+    `INSERT INTO callout_updates (callout_id, user_id, content)
+     VALUES ($1, $2, $3) RETURNING *`,
+    [calloutId, userId, content],
+  );
+  return row!;
+}
+
+/** Read a user's callouts, newest first (read-only). */
+export async function getUserCallouts(userId: number): Promise<Callout[]> {
+  await ensureProfileSchema();
+  return dbAll<Callout>(
+    `SELECT * FROM callouts WHERE user_id = $1 ORDER BY created_at DESC`,
+    [userId],
+  );
+}
+
+/** Read the append-only update trail for a callout, oldest first (read-only). */
+export async function getCalloutUpdates(
+  calloutId: number,
+): Promise<CalloutUpdate[]> {
+  await ensureProfileSchema();
+  return dbAll<CalloutUpdate>(
+    `SELECT * FROM callout_updates WHERE callout_id = $1 ORDER BY created_at ASC`,
+    [calloutId],
+  );
 }

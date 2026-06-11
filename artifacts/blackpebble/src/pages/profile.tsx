@@ -1,23 +1,27 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  BadgeCheck,
   ExternalLink,
+  History,
   Loader2,
+  Megaphone,
+  Pencil,
+  Pin,
   ScrollText,
+  ShieldCheck,
+  Star,
   Trophy,
   UserPlus,
   UserCheck,
-  Megaphone,
+  Users,
+  X as CloseIcon,
 } from "lucide-react";
-import { api, type ProfileResponse } from "@/lib/api";
+import { api, BIO_MAX_LENGTH, type ProfileResponse } from "@/lib/api";
 import { useXAuth } from "@/hooks/use-x-auth";
 import { useSolUsd } from "@/hooks/use-sol-usd";
-import {
-  fmtPercent,
-  pnlColor,
-  xProfileUrl,
-} from "@/lib/format";
+import { fmtNum, fmtPercent, pnlColor, xProfileUrl } from "@/lib/format";
 import { PnlAmount } from "@/components/pnl-amount";
 import { TierBadge } from "@/components/tier-badge";
 import { PlaceholderCard } from "@/components/feed-card";
@@ -70,6 +74,18 @@ function StatTile({
   );
 }
 
+/** Placeholder stat tile: shows the future metric label with a muted dash. */
+function ComingSoonTile({ label }: { label: string }) {
+  return (
+    <div className="border border-dashed border-border bg-card/40 p-3">
+      <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
+        {label}
+      </div>
+      <div className="mt-1 font-mono text-base text-muted-foreground/50">—</div>
+    </div>
+  );
+}
+
 function SectionHeader({
   icon: Icon,
   title,
@@ -84,6 +100,196 @@ function SectionHeader({
         {title}
       </h2>
     </div>
+  );
+}
+
+/** "Apr 2011 · 14 yr" style label for an X account-creation epoch. */
+function formatAccountAge(tsSeconds: number): string {
+  const d = new Date(tsSeconds * 1000);
+  const month = d.toLocaleString("en-US", { month: "short" });
+  const year = d.getFullYear();
+  const years = Math.floor((Date.now() / 1000 - tsSeconds) / (365.25 * 86400));
+  const age = years >= 1 ? `${years} yr` : "< 1 yr";
+  return `${month} ${year} · ${age}`;
+}
+
+function BioSection({ profile }: { profile: ProfileResponse }) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(profile.bio ?? "");
+
+  const mutation = useMutation({
+    mutationFn: (bio: string) => api.profiles.setBio(bio),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["profile"] });
+      setEditing(false);
+    },
+    onError: (err: unknown) => {
+      toast({
+        title: "Couldn't save bio",
+        description:
+          err instanceof Error ? err.message : "Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  if (editing) {
+    const remaining = BIO_MAX_LENGTH - draft.length;
+    return (
+      <div className="mt-3">
+        <textarea
+          value={draft}
+          onChange={(e) => setDraft(e.target.value.slice(0, BIO_MAX_LENGTH))}
+          maxLength={BIO_MAX_LENGTH}
+          rows={3}
+          autoFocus
+          data-testid="textarea-bio"
+          placeholder="Add a short bio (plain text only)"
+          className="w-full resize-none bg-secondary/40 border border-border p-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-accent/60"
+        />
+        <div className="flex items-center justify-between mt-1.5">
+          <span
+            className={cn(
+              "text-[11px] font-mono",
+              remaining < 0 ? "text-red-400" : "text-muted-foreground",
+            )}
+          >
+            {remaining} left
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setDraft(profile.bio ?? "");
+                setEditing(false);
+              }}
+              data-testid="button-bio-cancel"
+              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs border border-border text-foreground hover:border-accent/60 transition-colors"
+            >
+              <CloseIcon className="w-3 h-3" />
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => mutation.mutate(draft.trim())}
+              disabled={mutation.isPending}
+              data-testid="button-bio-save"
+              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs bg-accent text-accent-foreground hover:bg-accent/90 transition-colors disabled:opacity-60"
+            >
+              {mutation.isPending ? (
+                <Loader2 className="w-3 h-3 animate-spin" />
+              ) : (
+                <Pencil className="w-3 h-3" />
+              )}
+              Save
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (profile.bio) {
+    return (
+      <div className="mt-3 flex items-start gap-2">
+        <p
+          data-testid="text-profile-bio"
+          className="text-sm text-foreground/90 whitespace-pre-wrap break-words flex-1"
+        >
+          {profile.bio}
+        </p>
+        {profile.isSelf && (
+          <button
+            type="button"
+            onClick={() => {
+              setDraft(profile.bio ?? "");
+              setEditing(true);
+            }}
+            data-testid="button-bio-edit"
+            className="flex-shrink-0 text-muted-foreground hover:text-accent transition-colors"
+            aria-label="Edit bio"
+          >
+            <Pencil className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  if (profile.isSelf) {
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          setDraft("");
+          setEditing(true);
+        }}
+        data-testid="button-bio-add"
+        className="mt-3 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-accent transition-colors"
+      >
+        <Pencil className="w-3.5 h-3.5" />
+        Add a bio
+      </button>
+    );
+  }
+
+  return null;
+}
+
+function XReputationSection({ profile }: { profile: ProfileResponse }) {
+  const rep = profile.xReputation;
+  return (
+    <>
+      <SectionHeader icon={BadgeCheck} title="X Reputation" />
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        <StatTile
+          label="X Account Age"
+          value={
+            rep.accountCreatedAt != null ? (
+              formatAccountAge(rep.accountCreatedAt)
+            ) : (
+              <span className="text-muted-foreground/50">—</span>
+            )
+          }
+        />
+        <StatTile
+          label="Verified"
+          value={
+            rep.verified == null ? (
+              <span className="text-muted-foreground/50">—</span>
+            ) : rep.verified ? (
+              <span className="inline-flex items-center gap-1 text-accent">
+                <BadgeCheck className="w-4 h-4" /> Yes
+              </span>
+            ) : (
+              "No"
+            )
+          }
+        />
+        <StatTile
+          label="Followers"
+          value={
+            rep.followers != null ? (
+              fmtNum(rep.followers)
+            ) : (
+              <span className="text-muted-foreground/50">—</span>
+            )
+          }
+        />
+        <StatTile
+          label="Following"
+          value={
+            rep.following != null ? (
+              fmtNum(rep.following)
+            ) : (
+              <span className="text-muted-foreground/50">—</span>
+            )
+          }
+        />
+      </div>
+    </>
   );
 }
 
@@ -253,6 +459,9 @@ export default function ProfilePage() {
             <FollowButton profile={profile} />
           </div>
         </div>
+
+        {/* Bio (functional: owner can edit inline) */}
+        <BioSection profile={profile} />
       </div>
 
       {/* Trader stats (real) */}
@@ -286,12 +495,57 @@ export default function ProfilePage() {
         <StatTile label="Tier" value={stats.graduationTier} />
       </div>
 
-      {/* Caller stats (placeholder) */}
-      <SectionHeader icon={Megaphone} title="Caller Stats" />
+      {/* X reputation (real, with placeholders for missing fields) */}
+      <XReputationSection profile={profile} />
+
+      {/* Top-Caller metrics (placeholder) */}
+      <SectionHeader icon={Megaphone} title="Top-Caller Metrics" />
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+        <ComingSoonTile label="Calls Made" />
+        <ComingSoonTile label="Hit Rate" />
+        <ComingSoonTile label="Average Multiple" />
+        <ComingSoonTile label="Best Call" />
+        <ComingSoonTile label="Largest Winner" />
+      </div>
+
+      {/* Trust score (placeholder) */}
+      <SectionHeader icon={ShieldCheck} title="Trust Score" />
+      <PlaceholderCard
+        kind="achievement"
+        title="Trust Score coming soon"
+        body="A reputation score blending call accuracy, trading performance, and X reputation will be shown here."
+      />
+
+      {/* Pinned thesis (placeholder) */}
+      <SectionHeader icon={Pin} title="Pinned Thesis" />
+      <PlaceholderCard
+        kind="thesis"
+        title="No pinned thesis yet"
+        body="Traders will be able to pin their highest-conviction thesis to the top of their profile."
+      />
+
+      {/* Call history (placeholder) */}
+      <SectionHeader icon={History} title="Call History" />
       <PlaceholderCard
         kind="callout"
-        title="Caller stats coming soon"
-        body="Once callouts launch, this trader's call accuracy, hit rate, and average return will be tracked here."
+        title="Call history coming soon"
+        body="Every on-the-record callout this trader has made — permanent and immutable — will be listed here."
+      />
+
+      {/* Best calls (placeholder) */}
+      <SectionHeader icon={Star} title="Best Calls" />
+      <PlaceholderCard
+        kind="callout"
+        title="Best calls coming soon"
+        body="This trader's highest-returning calls, ranked by realized multiple, will be highlighted here."
+      />
+
+      {/* Recent calls (placeholder) */}
+      <SectionHeader icon={Megaphone} title="Recent Calls" />
+      <PlaceholderCard
+        kind="callout"
+        title="Recent calls coming soon"
+        body="The trader's latest calls and their follow-up updates will appear here once callouts launch."
       />
 
       {/* Token theses (placeholder) */}
@@ -300,22 +554,6 @@ export default function ProfilePage() {
         kind="thesis"
         title="No theses yet"
         body="Traders will be able to publish their conviction theses on tokens. They'll appear here."
-      />
-
-      {/* Achievements (placeholder) */}
-      <SectionHeader icon={Trophy} title="Achievements" />
-      <PlaceholderCard
-        kind="achievement"
-        title="Achievements coming soon"
-        body="Milestones and badges this trader has earned will be showcased here."
-      />
-
-      {/* Recent activity (placeholder) */}
-      <SectionHeader icon={ScrollText} title="Recent Activity" />
-      <PlaceholderCard
-        kind="thesis"
-        title="Activity feed coming soon"
-        body="This trader's recent public trades will appear here. For now, see the global Feed."
       />
     </div>
   );

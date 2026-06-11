@@ -392,10 +392,24 @@ export const walletChallenges = pgTable(
 );
 
 // ── Identity scaffold (future) ──────────────────────────────────────────────
+// `bio` and the `x_*` reputation columns are added idempotently at runtime
+// (ALTER TABLE ... ADD COLUMN IF NOT EXISTS in ensureProfileSchema), mirroring
+// the analytics_events / user_follows pattern — drizzle-kit push needs a TTY
+// that isn't available here. They are mirror-only below for type-safety.
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   display_name: text("display_name"),
   avatar_url: text("avatar_url"),
+  // Owner-editable plain-text bio (≤250 chars, no HTML/markdown; validated and
+  // sanitized server-side before write).
+  bio: text("bio"),
+  // X reputation snapshot captured at login from the X API (public_metrics +
+  // created_at + verified). Null when X didn't return the field or the user
+  // last authenticated before these were captured — the UI shows placeholders.
+  x_followers_count: integer("x_followers_count"),
+  x_following_count: integer("x_following_count"),
+  x_verified: boolean("x_verified"),
+  x_account_created_at: bigint("x_account_created_at", { mode: "number" }),
   created_at: bigint("created_at", { mode: "number" }).default(epoch),
   last_active: bigint("last_active", { mode: "number" }).default(epoch),
 });
@@ -479,5 +493,73 @@ export const userFollows = pgTable(
     ),
     index("idx_user_follows_following").on(t.following_user_id),
     index("idx_user_follows_follower").on(t.follower_user_id),
+  ],
+);
+
+// ── Callouts (architecture-only groundwork; no posting UI yet) ───────────────
+// A "callout" is a trader's permanent, public on-the-record call on a token. It
+// captures everything needed to evaluate the call's performance LATER (entry
+// price, market cap, liquidity, holder count at call time) plus the trader's
+// thesis text and conviction.
+//
+// IMMUTABILITY IS A HARD DESIGN RULE: a callout row, once written, is NEVER
+// edited, deleted, or hidden. There is intentionally no UPDATE/DELETE code path
+// anywhere for this table — the original call is preserved forever so a caller's
+// track record cannot be revised after the fact. Follow-ups ("added more / took
+// profits / still holding / exited") live ONLY in the append-only
+// `callout_updates` table below; they annotate a call, they never mutate it.
+//
+// Created idempotently at runtime (CREATE TABLE IF NOT EXISTS in
+// ensureProfileSchema), so this definition is mirror-only for type-safety,
+// matching the analytics_events / user_follows pattern above.
+export const callouts = pgTable(
+  "callouts",
+  {
+    id: serial("id").primaryKey(),
+    user_id: integer("user_id")
+      .notNull()
+      .references(() => users.id),
+    token_mint: text("token_mint").notNull(),
+    token_symbol: text("token_symbol"),
+    token_name: text("token_name"),
+    token_logo: text("token_logo"),
+    // Snapshot of the token at call time, used to grade the call later.
+    call_price_sol: doublePrecision("call_price_sol"),
+    call_price_usd: doublePrecision("call_price_usd"),
+    call_market_cap: doublePrecision("call_market_cap"),
+    liquidity_usd: doublePrecision("liquidity_usd"),
+    holder_count: integer("holder_count"),
+    // The trader's reasoning and how strongly they believe it
+    // ('low' | 'medium' | 'high'). Captured on the call, immutable thereafter.
+    thesis: text("thesis"),
+    conviction: text("conviction"),
+    created_at: bigint("created_at", { mode: "number" }).default(epoch),
+  },
+  (t) => [
+    index("idx_callouts_user").on(t.user_id),
+    index("idx_callouts_mint").on(t.token_mint),
+    index("idx_callouts_created").on(t.created_at),
+  ],
+);
+
+// Append-only follow-ups on a callout (e.g. "took profits", "still holding",
+// "exited"). New rows only — there is deliberately no edit/delete path so the
+// running commentary on a call is as permanent as the call itself.
+export const calloutUpdates = pgTable(
+  "callout_updates",
+  {
+    id: serial("id").primaryKey(),
+    callout_id: integer("callout_id")
+      .notNull()
+      .references(() => callouts.id),
+    user_id: integer("user_id")
+      .notNull()
+      .references(() => users.id),
+    content: text("content").notNull(),
+    created_at: bigint("created_at", { mode: "number" }).default(epoch),
+  },
+  (t) => [
+    index("idx_callout_updates_callout").on(t.callout_id),
+    index("idx_callout_updates_user").on(t.user_id),
   ],
 );

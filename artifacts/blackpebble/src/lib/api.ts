@@ -444,6 +444,14 @@ export interface ProfileStats {
   graduationTier: string;
 }
 
+export interface XReputation {
+  /** Unix-second timestamp the X account was created, or null. */
+  accountCreatedAt: number | null;
+  verified: boolean | null;
+  followers: number | null;
+  following: number | null;
+}
+
 export interface ProfileResponse {
   user_id: number;
   x_id: string;
@@ -456,8 +464,14 @@ export interface ProfileResponse {
   following: number;
   isFollowing: boolean;
   isSelf: boolean;
+  /** Owner-editable plain-text bio (≤250 chars), or null when unset. */
+  bio: string | null;
+  xReputation: XReputation;
   stats: ProfileStats;
 }
+
+/** Max bio length, kept in sync with the server-side BIO_MAX_LENGTH. */
+export const BIO_MAX_LENGTH = 250;
 
 export interface FollowUser {
   user_id: number;
@@ -874,6 +888,12 @@ export const api = {
     following: (id: string | number) =>
       request<{ users: FollowUser[] }>(
         `/profiles/${encodeURIComponent(String(id))}/following`,
+      ),
+    // Owner-only bio update (session-scoped). Pass "" to clear.
+    setBio: (bio: string) =>
+      request<{ ok: boolean; bio: string | null; error?: string }>(
+        `/profiles/me/bio`,
+        { method: "PUT", body: JSON.stringify({ bio }) },
       ),
   },
 

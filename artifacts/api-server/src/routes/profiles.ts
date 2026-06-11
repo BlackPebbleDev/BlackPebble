@@ -6,12 +6,34 @@ import {
   getProfile,
   listFollowers,
   listFollowing,
+  setBio,
   unfollowUser,
 } from "../lib/profiles.js";
 
 const router: IRouter = Router();
 
 const X_REQUIRED = "Connect X to unlock BlackPebble social features";
+
+/**
+ * Owner-only bio update. The bio is keyed to the authenticated user's internal
+ * id (session.sub); there is no path to edit another user's bio. Validation
+ * (≤250 chars, plain text — no HTML/markdown) lives in setBio.
+ *
+ * Declared before the polymorphic `/profiles/:id` routes so "me" is never
+ * interpreted as a profile handle.
+ */
+router.put(
+  "/profiles/me/bio",
+  asyncHandler(async (req, res) => {
+    const session = await sessionFromRequest(req);
+    if (!session?.x_id) return res.status(401).json({ error: X_REQUIRED });
+    const result = await setBio(Number(session.sub), req.body?.bio);
+    if (!result.ok) {
+      return res.status(result.status).json({ error: result.error });
+    }
+    return res.json({ ok: true, bio: result.bio });
+  }),
+);
 
 /**
  * Public profile (X-authenticated users only). `:id` is polymorphic: a numeric

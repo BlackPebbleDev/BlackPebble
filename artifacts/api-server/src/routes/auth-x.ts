@@ -4,6 +4,7 @@ import { SignJWT, jwtVerify } from "jose";
 import { PublicKey } from "@solana/web3.js";
 import { asyncHandler } from "../lib/asyncHandler.js";
 import { dbGet, dbRun, withTx } from "../lib/database.js";
+import { ensureProfileSchema } from "../lib/profiles.js";
 import { logger } from "../lib/logger.js";
 
 const CLIENT_ID = process.env["X_CLIENT_ID"];
@@ -14,7 +15,8 @@ const FRONTEND_URL = process.env["FRONTEND_URL"] || "/";
 
 const TOKEN_URL = "https://api.x.com/2/oauth2/token";
 const AUTHORIZE_URL = "https://x.com/i/oauth2/authorize";
-const USER_URL = "https://api.x.com/2/users/me?user.fields=profile_image_url,public_metrics";
+const USER_URL =
+  "https://api.x.com/2/users/me?user.fields=profile_image_url,public_metrics,created_at,verified";
 
 // X OAuth 2.0 scopes needed for basic profile + username
 const SCOPES = ["users.read", "tweet.read"].join(" ");
@@ -30,6 +32,15 @@ interface XUser {
   username: string;
   name?: string;
   profile_image_url?: string;
+  // Reputation fields (when X returns them). created_at is an ISO timestamp.
+  created_at?: string;
+  verified?: boolean;
+  public_metrics?: {
+    followers_count?: number;
+    following_count?: number;
+    tweet_count?: number;
+    listed_count?: number;
+  };
 }
 
 interface XSessionPayload {
@@ -201,6 +212,19 @@ async function exchangeCode(
 async function upsertXUser(user: XUser): Promise<XSessionPayload> {
   const now = Math.floor(Date.now() / 1000);
 
+  // X reputation snapshot (null when X didn't return the field).
+  const followers = user.public_metrics?.followers_count ?? null;
+  const following = user.public_metrics?.following_count ?? null;
+  const verified = typeof user.verified === "boolean" ? user.verified : null;
+  const xCreatedAt = user.created_at
+    ? Math.floor(new Date(user.created_at).getTime() / 1000)
+    : null;
+  const xCreatedAtValid =
+    xCreatedAt != null && Number.isFinite(xCreatedAt) ? xCreatedAt : null;
+
+  // Make sure the bio + x_* reputation columns exist before we write to them.
+  await ensureProfileSchema();
+
   return await withTx(async (c) => {
     // Check if this X user already exists
     const existing = await dbGet<{ user_id: number; wallet_address: string | null }>(
@@ -217,10 +241,28 @@ async function upsertXUser(user: XUser): Promise<XSessionPayload> {
     if (existing) {
       userId = existing.user_id;
       wallet = existing.wallet_address;
-      // Update user profile
+      // Update user profile + refresh the X reputation snapshot. COALESCE keeps
+      // any previously-captured value when X omits a field on a later login.
       await dbRun(
-        `UPDATE users SET display_name = $1, avatar_url = $2, last_active = $3 WHERE id = $4`,
-        [user.name || user.username, user.profile_image_url || null, now, userId],
+        `UPDATE users SET
+           display_name = $1,
+           avatar_url = $2,
+           last_active = $3,
+           x_followers_count = COALESCE($5, x_followers_count),
+           x_following_count = COALESCE($6, x_following_count),
+           x_verified = COALESCE($7, x_verified),
+           x_account_created_at = COALESCE($8, x_account_created_at)
+         WHERE id = $4`,
+        [
+          user.name || user.username,
+          user.profile_image_url || null,
+          now,
+          userId,
+          followers,
+          following,
+          verified,
+          xCreatedAtValid,
+        ],
         c,
       );
       // Update identity username
@@ -232,10 +274,21 @@ async function upsertXUser(user: XUser): Promise<XSessionPayload> {
     } else {
       // Create new user
       const newUser = await dbGet<{ id: number }>(
-        `INSERT INTO users (display_name, avatar_url, created_at, last_active)
-         VALUES ($1, $2, $3, $3)
+        `INSERT INTO users (
+           display_name, avatar_url, created_at, last_active,
+           x_followers_count, x_following_count, x_verified, x_account_created_at
+         )
+         VALUES ($1, $2, $3, $3, $4, $5, $6, $7)
          RETURNING id`,
-        [user.name || user.username, user.profile_image_url || null, now],
+        [
+          user.name || user.username,
+          user.profile_image_url || null,
+          now,
+          followers,
+          following,
+          verified,
+          xCreatedAtValid,
+        ],
         c,
       );
       userId = newUser!.id;
