@@ -279,7 +279,7 @@ function PositionCard({
         aria-label={open ? "Collapse position" : "Expand position"}
         className="w-full text-left px-4 pb-3"
       >
-        <div className="grid grid-cols-3 border border-border/60 bg-background/40 divide-x divide-border/60">
+        <div className="grid grid-cols-3 rounded-xl bg-surface-1 overflow-hidden divide-x divide-border/60">
           <McCell label="Entry MC" value={fmtMarketCap(p.entry_market_cap)} />
           <McCell
             label="Current MC"

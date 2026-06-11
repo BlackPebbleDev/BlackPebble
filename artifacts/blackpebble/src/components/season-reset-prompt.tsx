@@ -86,7 +86,7 @@ export function SeasonResetPrompt() {
             <span className="font-mono text-foreground">100 SOL</span> and trade again.
           </DialogDescription>
         </DialogHeader>
-        <div className="rounded-sm border border-border bg-background/40 p-3 text-sm text-muted-foreground">
+        <div className="rounded-xl border border-border bg-background/40 p-3 text-sm text-muted-foreground">
           This clears your open positions, pending orders and current-season P&amp;L
           history. Your account, wallet / X links and watchlist are kept.
         </div>

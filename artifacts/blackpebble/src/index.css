@@ -44,12 +44,12 @@
   --font-serif: var(--app-font-serif);
   --font-mono: var(--app-font-mono);
 
-  /* Premium rounded scale: inputs/buttons 12px, cards 16px, search/large 20px. */
-  --radius-sm: 0.5rem;   /* 8px  */
-  --radius-md: 0.75rem;  /* 12px — buttons, inputs */
-  --radius-lg: 0.875rem; /* 14px */
-  --radius-xl: 1rem;     /* 16px — cards */
-  --radius-2xl: 1.25rem; /* 20px — search, hero surfaces */
+  /* Premium rounded scale: buttons/inputs/dropdowns 14px, cards/panels/alerts 16px, search/modals 18px. */
+  --radius-sm: 0.5rem;    /* 8px  */
+  --radius-md: 0.875rem;  /* 14px — buttons, inputs, dropdowns */
+  --radius-lg: 0.875rem;  /* 14px */
+  --radius-xl: 1rem;      /* 16px — cards, panels, alerts */
+  --radius-2xl: 1.125rem; /* 18px — search, modals, hero surfaces */
 }
 
 :root, .dark {
@@ -188,7 +188,7 @@
   font-weight: 600 !important;
   line-height: 40px !important;
   border: 1px solid hsl(var(--border)) !important;
-  border-radius: 12px !important;
+  border-radius: 14px !important;
 }
 .wallet-adapter-button-trigger:not([disabled]):hover {
   background: hsl(var(--accent)) !important;

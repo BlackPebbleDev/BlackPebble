@@ -43,31 +43,34 @@ export function BeginnerGuide() {
   return (
     <div
       data-testid="beginner-guide"
-      className="relative border border-accent/30 bg-accent/5 p-4 mb-4"
+      className="relative overflow-hidden rounded-2xl bg-card shadow-card p-5 sm:p-6 mb-4"
     >
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/40 to-transparent" />
       <button
         type="button"
         onClick={dismiss}
         data-testid="button-dismiss-beginner-guide"
         aria-label="Dismiss beginner guide"
-        className="absolute right-2 top-2 text-muted-foreground hover:text-foreground transition-colors"
+        className="absolute right-3 top-3 flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-secondary/60 transition-colors"
       >
         <X className="w-4 h-4" />
       </button>
-      <div className="flex items-center gap-2 mb-2">
-        <GraduationCap className="w-4 h-4 text-accent" />
-        <h3 className="text-sm font-semibold">
+      <div className="flex items-center gap-3 mb-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/12 text-accent">
+          <GraduationCap className="w-5 h-5" />
+        </span>
+        <h3 className="text-lg font-bold tracking-tight">
           What is BlackPebble Paper Trading?
         </h3>
       </div>
-      <p className="text-xs text-muted-foreground mb-2.5">{DESCRIPTION}</p>
-      <ol className="grid gap-1.5 sm:grid-cols-2 text-xs text-muted-foreground">
+      <p className="text-sm text-muted-foreground mb-4 max-w-2xl leading-relaxed">{DESCRIPTION}</p>
+      <ol className="grid gap-2.5 sm:grid-cols-2 text-sm text-muted-foreground">
         {STEPS.map((s, i) => (
-          <li key={i} className="flex items-start gap-2">
-            <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-accent/20 text-[10px] font-medium text-accent">
+          <li key={i} className="flex items-start gap-2.5">
+            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent/15 text-[11px] font-semibold text-accent">
               {i + 1}
             </span>
-            <span>{s}</span>
+            <span className="pt-px">{s}</span>
           </li>
         ))}
       </ol>

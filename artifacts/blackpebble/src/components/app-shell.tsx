@@ -133,9 +133,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             {isGuest && (
               <span
                 data-testid="badge-guest-mode"
-                className="hidden sm:inline-flex items-center text-[11px] font-semibold uppercase tracking-wider text-amber-400 border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 rounded-full"
+                className="hidden sm:inline-flex items-center text-[11px] font-semibold uppercase tracking-wider text-accent border border-accent/30 bg-accent/10 px-3 py-1.5 rounded-full"
               >
-                Guest Mode
+                Connect X to rank
               </span>
             )}
             <XLoginButton />

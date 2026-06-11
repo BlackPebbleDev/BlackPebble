@@ -53,8 +53,8 @@ export function XLoginButton({ className }: { className?: string }) {
       aria-label="Sign in with X"
       data-testid="button-login-x"
       className={cn(
-        "inline-flex items-center gap-2 h-9 px-3 text-xs font-medium border border-border bg-secondary text-muted-foreground transition-colors",
-        "hover:text-accent hover:border-accent",
+        "inline-flex items-center gap-2 h-9 px-4 rounded-full text-xs font-medium border border-border bg-secondary text-muted-foreground transition-all",
+        "hover:text-accent hover:border-accent hover:bg-secondary/80",
         className,
       )}
     >

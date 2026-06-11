@@ -23,6 +23,8 @@ import {
   Info,
   RefreshCw,
   ChevronDown,
+  Copy,
+  Check,
 } from "lucide-react";
 import {
   api,
@@ -1363,15 +1365,15 @@ function TradePanel({
       {isGuest && (
         <div
           data-testid="banner-guest-trade"
-          className="border-b border-amber-500/30 bg-amber-500/10 px-4 py-3"
+          className="border-b border-accent/30 bg-accent/10 px-4 py-3"
         >
-          <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-amber-400">
-            <AlertTriangle className="w-3.5 h-3.5" />
-            Guest Mode
+          <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-accent">
+            <Info className="w-3.5 h-3.5" />
+            Connect X
           </div>
           <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-            Guest trades are temporary. Sign in to save your portfolio and join
-            leaderboards.
+            Connect X to save your trades, build a public track record, and
+            compete on the leaderboards.
           </p>
         </div>
       )}
@@ -1434,31 +1436,33 @@ function TradePanel({
         <LeveragePanel info={info} />
       ) : (
         <>
-      <div className="grid grid-cols-2">
-        <button
-          onClick={() => setSide("buy")}
-          data-testid="button-side-buy"
-          className={cn(
-            "py-3 text-sm font-medium transition-colors",
-            side === "buy"
-              ? "bg-emerald-500/15 text-emerald-400 border-b-2 border-emerald-400"
-              : "text-muted-foreground border-b-2 border-transparent hover:text-foreground",
-          )}
-        >
-          Buy
-        </button>
-        <button
-          onClick={() => setSide("sell")}
-          data-testid="button-side-sell"
-          className={cn(
-            "py-3 text-sm font-medium transition-colors",
-            side === "sell"
-              ? "bg-red-500/15 text-red-400 border-b-2 border-red-400"
-              : "text-muted-foreground border-b-2 border-transparent hover:text-foreground",
-          )}
-        >
-          Sell
-        </button>
+      <div className="px-4 pt-4">
+        <div className="grid grid-cols-2 gap-1 rounded-xl bg-surface-2 p-1">
+          <button
+            onClick={() => setSide("buy")}
+            data-testid="button-side-buy"
+            className={cn(
+              "rounded-lg py-2.5 text-sm font-semibold transition-all",
+              side === "buy"
+                ? "bg-emerald-500/15 text-emerald-400 shadow-sm"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            Buy
+          </button>
+          <button
+            onClick={() => setSide("sell")}
+            data-testid="button-side-sell"
+            className={cn(
+              "rounded-lg py-2.5 text-sm font-semibold transition-all",
+              side === "sell"
+                ? "bg-red-500/15 text-red-400 shadow-sm"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            Sell
+          </button>
+        </div>
       </div>
 
       <div className="p-4 space-y-4">
@@ -1499,7 +1503,7 @@ function TradePanel({
                       onClick={() => onUnitChange(u)}
                       data-testid={`toggle-amount-${u}`}
                       className={cn(
-                        "px-2 py-0.5 text-[11px] font-medium rounded-[4px] transition-colors",
+                        "px-2 py-0.5 text-[11px] font-medium rounded-md transition-colors",
                         unit === u
                           ? "bg-accent/15 text-accent"
                           : "text-muted-foreground hover:text-foreground",
@@ -1817,10 +1821,10 @@ function TradePanel({
             }
             data-testid="button-execute-trade"
             className={cn(
-              "w-full h-11 text-sm font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed",
+              "w-full h-12 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-card disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none",
               side === "buy"
-                ? "bg-emerald-500 text-black hover:bg-emerald-400"
-                : "bg-red-500 text-white hover:bg-red-400",
+                ? "bg-emerald-500 text-black hover:bg-emerald-400 active:scale-[.99]"
+                : "bg-red-500 text-white hover:bg-red-400 active:scale-[.99]",
             )}
           >
             {mutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -1960,14 +1964,48 @@ function WatchButton({ info }: { info: TokenInfo }) {
       onClick={toggle}
       data-testid="button-watchlist-toggle"
       className={cn(
-        "flex items-center gap-2 px-3 h-9 border text-xs transition-colors",
+        "flex items-center gap-2 px-4 h-10 rounded-full text-xs font-medium transition-all",
         watched
-          ? "border-accent text-accent"
-          : "border-border text-muted-foreground hover:text-foreground hover:border-accent/50",
+          ? "bg-accent/15 text-accent"
+          : "bg-secondary/60 text-muted-foreground hover:text-foreground hover:bg-secondary",
       )}
     >
       <Star className={cn("w-4 h-4", watched && "fill-accent")} />
       {watched ? "Watching" : "Watch"}
+    </button>
+  );
+}
+
+/**
+ * Copy-to-clipboard chip for the token contract address. Gives the address an
+ * intentional, premium presentation in the action row (UX polish) — purely a
+ * convenience control, no trading behaviour.
+ */
+function CopyContract({ mint }: { mint: string }) {
+  const [copied, setCopied] = useState(false);
+  function copy() {
+    try {
+      void navigator.clipboard?.writeText(mint);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* clipboard unavailable */
+    }
+  }
+  return (
+    <button
+      type="button"
+      onClick={copy}
+      data-testid="button-copy-contract"
+      title="Copy contract address"
+      className="flex items-center gap-2 px-4 h-10 rounded-full bg-secondary/60 text-xs font-mono text-muted-foreground hover:text-foreground hover:bg-secondary transition-all"
+    >
+      {copied ? (
+        <Check className="w-3.5 h-3.5 text-accent" />
+      ) : (
+        <Copy className="w-3.5 h-3.5" />
+      )}
+      {copied ? "Copied" : shortAddr(mint, 4)}
     </button>
   );
 }
@@ -2233,14 +2271,14 @@ export default function TradingDesk() {
           href={`https://dexscreener.com/solana/${info.pairAddress ?? info.mint}`}
           target="_blank"
           rel="noreferrer"
-          className="flex items-center gap-2 px-3 h-9 border border-border text-xs text-muted-foreground hover:text-foreground hover:border-accent/50 transition-colors"
+          className="flex items-center gap-2 px-4 h-10 rounded-full bg-secondary/60 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-all"
         >
           <ExternalLink className="w-3.5 h-3.5" />
           DexScreener
         </a>
-        <span className="text-xs text-muted-foreground font-mono ml-auto">
-          {shortAddr(info.mint, 6)}
-        </span>
+        <div className="ml-auto">
+          <CopyContract mint={info.mint} />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

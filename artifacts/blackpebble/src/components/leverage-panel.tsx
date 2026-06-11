@@ -245,7 +245,7 @@ export function LeveragePanel({ info }: { info: TokenInfo }) {
                 onClick={() => setUnit(u)}
                 data-testid={`toggle-leverage-margin-${u}`}
                 className={cn(
-                  "px-2 py-0.5 text-[11px] font-medium rounded-[4px] transition-colors",
+                  "px-2 py-0.5 text-[11px] font-medium rounded-md transition-colors",
                   unit === u
                     ? "bg-accent/15 text-accent"
                     : "text-muted-foreground hover:text-foreground",

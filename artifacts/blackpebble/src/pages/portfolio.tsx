@@ -12,7 +12,7 @@ import {
   Filler,
   TimeScale,
 } from "chart.js";
-import { Wallet, Loader2, AlertTriangle } from "lucide-react";
+import { Wallet, Loader2, Sparkles } from "lucide-react";
 import { useAccount } from "@/hooks/use-account";
 import { api, type PortfolioStats } from "@/lib/api";
 import { OpenPositions } from "@/components/open-positions";
@@ -218,9 +218,9 @@ export default function Portfolio() {
         {isGuest && (
           <span
             data-testid="badge-portfolio-guest"
-            className="text-[11px] font-semibold uppercase tracking-wider text-amber-400 border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 rounded-full"
+            className="text-[11px] font-semibold uppercase tracking-wider text-accent border border-accent/30 bg-accent/10 px-3 py-1.5 rounded-full"
           >
-            Guest Mode
+            Connect X to rank
           </span>
         )}
       </div>
@@ -228,12 +228,13 @@ export default function Portfolio() {
       {isGuest && (
         <div
           data-testid="banner-portfolio-guest"
-          className="flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 mb-6"
+          className="flex items-start gap-2 rounded-xl border border-accent/30 bg-accent/10 px-4 py-3 mb-6"
         >
-          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
+          <Sparkles className="w-4 h-4 shrink-0 mt-0.5 text-accent" />
           <p className="text-xs leading-relaxed text-foreground/90">
-            Guest trades are temporary. Sign in to save your portfolio and join
-            leaderboards.
+            Connect X to build your reputation, climb the leaderboards, and keep
+            your trade history. Trades you make now stay on this device until you
+            connect.
           </p>
         </div>
       )}

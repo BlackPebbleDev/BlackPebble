@@ -227,8 +227,9 @@ export default function Leaderboard() {
               data-testid="banner-leaderboard-guest"
               className="rounded-xl border border-accent/40 bg-accent/10 px-4 py-3 mb-6 text-sm text-foreground"
             >
-              Connect a wallet or X to appear on the leaderboard. Guest trades
-              stay on this device and aren't ranked.
+              Connect X to claim your rank, build a public track record, and
+              follow other traders. Trades made before you connect stay on this
+              device and aren't ranked.
             </div>
           )}
 

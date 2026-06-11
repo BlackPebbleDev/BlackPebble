@@ -103,7 +103,7 @@ export function GuestMigrationPrompt() {
         title: failed > 0 ? "Guest portfolio partially saved" : "Guest portfolio saved",
         description:
           failed > 0
-            ? `${migratedMints.length} position${migratedMints.length === 1 ? "" : "s"} saved. ${failed} couldn't fit your balance and stayed in guest mode.`
+            ? `${migratedMints.length} position${migratedMints.length === 1 ? "" : "s"} saved. ${failed} couldn't fit your balance and stayed on this device.`
             : `${migratedMints.length} position${migratedMints.length === 1 ? "" : "s"} migrated to your wallet.`,
         variant: failed > 0 ? "destructive" : undefined,
       });
@@ -148,7 +148,7 @@ export function GuestMigrationPrompt() {
       >
         <div className="flex items-center gap-3 mb-3">
           <Wallet className="w-6 h-6 text-accent" />
-          <h2 className="text-lg font-semibold">Save guest portfolio?</h2>
+          <h2 className="text-lg font-semibold">Save your portfolio?</h2>
         </div>
         <p className="text-sm text-muted-foreground leading-relaxed mb-5">
           You have {guest.positions.length} open position
@@ -158,8 +158,9 @@ export function GuestMigrationPrompt() {
                 guest.watchlist.length === 1 ? "" : "s"
               }`
             : ""}{" "}
-          from guest mode. Save them to this wallet to keep trading and become
-          leaderboard-eligible. Guest trade history isn't carried over.
+          on this device. Save them to your account to keep trading, build your
+          reputation, and become leaderboard-eligible. Earlier trade history
+          isn't carried over.
         </p>
         <div className="flex gap-2">
           <button
@@ -167,7 +168,7 @@ export function GuestMigrationPrompt() {
             data-testid="button-migration-save"
             disabled={busy}
             onClick={handleSave}
-            className="flex-1 h-10 bg-accent text-accent-foreground text-sm font-medium hover:bg-accent/90 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+            className="flex-1 h-11 rounded-xl bg-accent text-accent-foreground text-sm font-semibold shadow-card hover:bg-accent/90 active:scale-[.99] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:shadow-none"
           >
             {busy && <Loader2 className="w-4 h-4 animate-spin" />}
             Save
@@ -177,7 +178,7 @@ export function GuestMigrationPrompt() {
             data-testid="button-migration-start-fresh"
             disabled={busy}
             onClick={handleStartFresh}
-            className="flex-1 h-10 border border-border text-sm text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+            className="flex-1 h-11 rounded-xl border border-border text-sm text-muted-foreground hover:text-foreground hover:bg-secondary/40 transition-colors disabled:opacity-50"
           >
             Start Fresh
           </button>

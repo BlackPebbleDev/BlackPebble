@@ -554,7 +554,7 @@ export function MiniPlanner({
             onClick={handleApply}
             disabled={!canApply}
             data-testid="button-mini-apply"
-            className="h-10 w-full bg-accent text-sm font-medium text-accent-foreground transition-colors hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-40"
+            className="h-11 w-full rounded-xl bg-accent text-sm font-semibold text-accent-foreground shadow-card transition-all hover:bg-accent/90 active:scale-[.99] disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
           >
             {applied ? "Applied ✓" : "Apply To Trade"}
           </button>
