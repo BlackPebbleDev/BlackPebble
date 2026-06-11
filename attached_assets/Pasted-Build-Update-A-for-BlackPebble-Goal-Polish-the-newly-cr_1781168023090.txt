@@ -1,0 +1,294 @@
+Build Update A for BlackPebble.
+
+Goal:
+
+Polish the newly created Profiles + Feed system so it feels production-ready before public adoption increases.
+
+Update A should focus entirely on:
+
+* Profile polish
+* Feed polish
+* Social UX
+* Mobile UX
+* Future-proof placeholders
+
+Do NOT modify:
+
+* Trading logic
+* Leverage logic
+* Portfolio accounting
+* Analytics systems (Update B)
+* Callout infrastructure (Update C)
+
+====================================================
+
+1. PROFILE BIO
+    ====================================================
+
+Add editable profile bio.
+
+Requirements:
+
+* X-authenticated users only.
+* Maximum 250 characters.
+* Plain text only.
+* No markdown.
+* No links.
+* No HTML.
+
+Display directly below:
+
+* X avatar
+* X display name
+* @handle
+
+Empty state:
+
+“No bio yet.”
+
+====================================================
+2. PROFILE HEADER POLISH
+
+Improve profile header spacing.
+
+Layout should clearly separate:
+
+Identity
+Reputation
+Social
+
+Recommended order:
+
+Avatar
+Display Name
+@Handle
+Bio
+
+Then:
+
+Followers
+Following
+
+Then:
+
+Follow Button
+
+====================================================
+3. X REPUTATION BLOCK
+
+Create dedicated profile card.
+
+Title:
+
+X Reputation
+
+Display:
+
+* Account Age
+* Verified Status
+* Followers
+* Following
+
+If unavailable:
+
+Display:
+
+“Data coming soon”
+
+Do not break layout.
+
+====================================================
+4. TRUST SCORE PLACEHOLDER
+
+Add profile card.
+
+Title:
+
+BlackPebble Trust Score
+
+Display:
+
+Coming Soon
+
+Description:
+
+Trust Score will eventually combine account age, transparency, callout history, reputation, and platform behavior.
+
+No calculation yet.
+
+UI only.
+
+====================================================
+5. PINNED THESIS PLACEHOLDER
+
+Add profile section.
+
+Title:
+
+Pinned Thesis
+
+Display:
+
+Coming Soon
+
+Description:
+
+Users will eventually be able to pin one thesis explaining their investing philosophy and strategy.
+
+No editing functionality.
+
+Placeholder only.
+
+====================================================
+6. CALL HISTORY PLACEHOLDER
+
+Add profile section.
+
+Title:
+
+Call History
+
+Display:
+
+Coming Soon
+
+Description:
+
+Future callouts will be permanently recorded and displayed here.
+
+Callouts will not be deletable once published.
+
+====================================================
+7. PROFILE BADGES PLACEHOLDER
+
+Add section.
+
+Title:
+
+Achievements & Badges
+
+Display:
+
+Coming Soon
+
+Future examples:
+
+🏆 Top Trader
+
+📣 Top Caller
+
+⚡ Early Adopter
+
+👑 BlackPebble OG
+
+UI only.
+
+====================================================
+8. FEED FILTER FOUNDATION
+
+Prepare feed navigation for future growth.
+
+Add filter bar.
+
+Tabs:
+
+All
+Trades
+Callouts
+Theses
+Achievements
+
+Only “All” needs functionality today.
+
+Others may display:
+
+Coming Soon
+
+Goal:
+
+Prevent future feed congestion.
+
+====================================================
+9. FEED EMPTY STATES
+
+Improve feed empty states.
+
+Following:
+
+Follow traders to build your personalized feed.
+
+Global:
+
+Public activity will appear here as the BlackPebble community grows.
+
+Callouts:
+
+Token callouts are coming soon.
+
+====================================================
+10. LEADERBOARD EXPANSION PLACEHOLDERS
+
+Add future leaderboard tabs.
+
+Current:
+
+Top Traders
+
+Add placeholders:
+
+Top Callers
+Most Followed
+Highest Trust Score
+
+Display:
+
+Coming Soon
+
+Do not implement ranking logic.
+
+====================================================
+11. MOBILE POLISH
+
+Verify:
+
+* Feed cards fit mobile.
+* Profile header fits mobile.
+* Bio wraps correctly.
+* Followers/following do not overflow.
+* Placeholder sections remain readable.
+
+No horizontal scrolling.
+
+====================================================
+12. DESKTOP POLISH
+
+Verify:
+
+* Proper spacing
+* Consistent card widths
+* Consistent section hierarchy
+
+====================================================
+13. TESTING
+
+Verify:
+
+* Feed still works
+* Profiles still work
+* Following still works
+* Trading still works
+* Leaderboard still works
+
+No regressions.
+
+====================================================
+14. REPORT BACK
+
+Return:
+
+* Files changed
+* Components changed
+* New profile sections added
+* New feed sections added
+* Placeholder sections added
+* Any concerns before publishing
