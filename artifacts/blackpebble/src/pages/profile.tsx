@@ -7,20 +7,42 @@ import {
   ExternalLink,
   History,
   Loader2,
+  Lock,
   Pencil,
   Pin,
+  Plus,
+  Send,
   ShieldCheck,
   Trophy,
   UserPlus,
   UserCheck,
   X as CloseIcon,
 } from "lucide-react";
-import { api, BIO_MAX_LENGTH, type ProfileResponse } from "@/lib/api";
+import {
+  api,
+  BIO_MAX_LENGTH,
+  CALLOUT_THESIS_MAX,
+  CALLOUT_UPDATE_MAX,
+  type CalloutResult,
+  type CalloutWithDetail,
+  type Conviction,
+  type ProfileResponse,
+} from "@/lib/api";
 import { useXAuth } from "@/hooks/use-x-auth";
 import { useSolUsd } from "@/hooks/use-sol-usd";
-import { fmtNum, fmtPercent, pnlColor, xProfileUrl } from "@/lib/format";
+import {
+  fmtMarketCap,
+  fmtNum,
+  fmtPercent,
+  fmtPrice,
+  pnlColor,
+  shortAddr,
+  timeAgo,
+  xProfileUrl,
+} from "@/lib/format";
 import { PnlAmount } from "@/components/pnl-amount";
 import { TierBadge } from "@/components/tier-badge";
+import { TokenSearch } from "@/components/token-search";
 import { PlaceholderCard } from "@/components/feed-card";
 import {
   trackProfileView,
@@ -465,6 +487,384 @@ function AchievementsPlaceholder() {
   );
 }
 
+const CONVICTION_LABELS: Record<string, string> = {
+  low: "Low conviction",
+  medium: "Medium conviction",
+  high: "High conviction",
+};
+
+function ConvictionBadge({ conviction }: { conviction: string | null }) {
+  if (!conviction || !CONVICTION_LABELS[conviction]) return null;
+  const cls =
+    conviction === "high"
+      ? "border-accent/60 text-accent"
+      : conviction === "medium"
+        ? "border-border text-foreground"
+        : "border-border text-muted-foreground";
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center px-1.5 py-0.5 text-[10px] uppercase tracking-wider border whitespace-nowrap",
+        cls,
+      )}
+    >
+      {CONVICTION_LABELS[conviction]}
+    </span>
+  );
+}
+
+/** Live % move since the call, or a muted em-dash when no fresh price. */
+function CalloutResultValue({ result }: { result: CalloutResult | null }) {
+  if (!result || result.pnlPercent == null) {
+    return <span className="font-mono text-sm text-muted-foreground">—</span>;
+  }
+  const v = result.pnlPercent;
+  return (
+    <span className={cn("font-mono text-sm font-semibold", pnlColor(v))}>
+      {v >= 0 ? "+" : ""}
+      {v.toFixed(1)}%
+    </span>
+  );
+}
+
+/** Owner-only: append an immutable follow-up note to one of their own calls. */
+function AddUpdateForm({
+  calloutId,
+  profileKey,
+}: {
+  calloutId: number;
+  profileKey: string;
+}) {
+  const [content, setContent] = useState("");
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const mutation = useMutation({
+    mutationFn: () => api.callouts.addUpdate(calloutId, content.trim()),
+    onSuccess: () => {
+      setContent("");
+      queryClient.invalidateQueries({ queryKey: ["callouts", profileKey] });
+    },
+    onError: (e) =>
+      toast({
+        title: "Couldn't add update",
+        description: (e as Error).message,
+        variant: "destructive",
+      }),
+  });
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (content.trim()) mutation.mutate();
+      }}
+      className="mt-3 flex items-center gap-2"
+    >
+      <input
+        value={content}
+        onChange={(e) => setContent(e.target.value)}
+        maxLength={CALLOUT_UPDATE_MAX}
+        placeholder="Add an update…"
+        data-testid={`input-callout-update-${calloutId}`}
+        className="flex-1 h-9 bg-secondary/40 border border-border px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-accent transition-colors"
+      />
+      <button
+        type="submit"
+        disabled={!content.trim() || mutation.isPending}
+        data-testid={`button-callout-update-${calloutId}`}
+        className="inline-flex items-center justify-center h-9 w-9 bg-accent text-accent-foreground hover:bg-accent/90 transition-colors disabled:opacity-50 flex-shrink-0"
+      >
+        {mutation.isPending ? (
+          <Loader2 className="w-4 h-4 animate-spin" />
+        ) : (
+          <Send className="w-4 h-4" />
+        )}
+      </button>
+    </form>
+  );
+}
+
+/** A single immutable callout card with its update trail and live result. */
+function CalloutCard({
+  callout,
+  isOwner,
+  profileKey,
+}: {
+  callout: CalloutWithDetail;
+  isOwner: boolean;
+  profileKey: string;
+}) {
+  return (
+    <div
+      data-testid={`card-callout-${callout.id}`}
+      className="border border-border bg-card p-4"
+    >
+      {/* Header: token identity + timestamp */}
+      <div className="flex items-start gap-3">
+        {callout.token_logo ? (
+          <img
+            src={callout.token_logo}
+            alt=""
+            className="w-9 h-9 object-cover flex-shrink-0"
+            onError={(e) => (e.currentTarget.style.visibility = "hidden")}
+          />
+        ) : (
+          <div className="w-9 h-9 bg-secondary flex items-center justify-center text-[10px] text-muted-foreground flex-shrink-0">
+            {callout.token_symbol?.slice(0, 2) ?? "?"}
+          </div>
+        )}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-semibold text-foreground truncate">
+              {callout.token_symbol || shortAddr(callout.token_mint)}
+            </span>
+            {callout.token_name && (
+              <span className="text-xs text-muted-foreground truncate">
+                {callout.token_name}
+              </span>
+            )}
+            <ConvictionBadge conviction={callout.conviction} />
+          </div>
+          <div className="text-[11px] text-muted-foreground mt-0.5 font-mono">
+            {timeAgo(callout.created_at)}
+          </div>
+        </div>
+      </div>
+
+      {/* Original thesis */}
+      {callout.thesis && (
+        <p className="mt-3 text-sm text-foreground whitespace-pre-wrap break-words">
+          {callout.thesis}
+        </p>
+      )}
+
+      {/* Entry snapshot + current result */}
+      <div className="mt-3 grid grid-cols-3 gap-2">
+        <div className="border border-border bg-secondary/30 p-2">
+          <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+            Entry Price
+          </div>
+          <div className="mt-0.5 font-mono text-sm text-foreground">
+            {callout.call_price_usd != null
+              ? fmtPrice(callout.call_price_usd)
+              : "—"}
+          </div>
+        </div>
+        <div className="border border-border bg-secondary/30 p-2">
+          <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+            Entry MC
+          </div>
+          <div className="mt-0.5 font-mono text-sm text-foreground">
+            {callout.call_market_cap != null
+              ? fmtMarketCap(callout.call_market_cap)
+              : "—"}
+          </div>
+        </div>
+        <div className="border border-border bg-secondary/30 p-2">
+          <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+            Result
+          </div>
+          <div className="mt-0.5">
+            <CalloutResultValue result={callout.result} />
+          </div>
+        </div>
+      </div>
+
+      {/* Append-only update trail */}
+      {callout.updates.length > 0 && (
+        <div className="mt-3 border-l-2 border-border pl-3 space-y-2">
+          {callout.updates.map((u) => (
+            <div key={u.id} data-testid={`callout-update-${u.id}`}>
+              <div className="text-[11px] text-muted-foreground font-mono">
+                {timeAgo(u.created_at)}
+              </div>
+              <p className="text-sm text-foreground whitespace-pre-wrap break-words">
+                {u.content}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {isOwner && (
+        <AddUpdateForm calloutId={callout.id} profileKey={profileKey} />
+      )}
+    </div>
+  );
+}
+
+/** Owner-only: collapsible composer to make a new, immutable call. */
+function NewCallForm({ profileKey }: { profileKey: string }) {
+  const [open, setOpen] = useState(false);
+  const [mint, setMint] = useState<string | null>(null);
+  const [thesis, setThesis] = useState("");
+  const [conviction, setConviction] = useState<Conviction | "">("");
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      api.callouts.create({
+        tokenMint: mint!,
+        thesis: thesis.trim(),
+        conviction: conviction || null,
+      }),
+    onSuccess: () => {
+      setMint(null);
+      setThesis("");
+      setConviction("");
+      setOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["callouts", profileKey] });
+      toast({ title: "Call recorded", description: "It's now on the record — permanent and immutable." });
+    },
+    onError: (e) =>
+      toast({
+        title: "Couldn't record call",
+        description: (e as Error).message,
+        variant: "destructive",
+      }),
+  });
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        data-testid="button-new-call"
+        className="mb-3 inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-accent text-accent-foreground hover:bg-accent/90 transition-colors"
+      >
+        <Plus className="w-4 h-4" />
+        New call
+      </button>
+    );
+  }
+
+  const canSubmit = !!mint && !!thesis.trim() && !mutation.isPending;
+
+  return (
+    <div className="mb-3 border border-border bg-card p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-semibold text-foreground">New call</span>
+        <button
+          type="button"
+          onClick={() => setOpen(false)}
+          data-testid="button-cancel-call"
+          className="text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <CloseIcon className="w-4 h-4" />
+        </button>
+      </div>
+
+      {mint ? (
+        <div className="flex items-center justify-between gap-2 border border-border bg-secondary/30 px-3 h-10">
+          <span className="font-mono text-sm text-foreground truncate">
+            {shortAddr(mint, 6)}
+          </span>
+          <button
+            type="button"
+            onClick={() => setMint(null)}
+            data-testid="button-change-token"
+            className="text-xs text-muted-foreground hover:text-accent transition-colors flex-shrink-0"
+          >
+            Change
+          </button>
+        </div>
+      ) : (
+        <TokenSearch onSelect={(m) => setMint(m)} placeholder="Search a token to call" />
+      )}
+
+      <textarea
+        value={thesis}
+        onChange={(e) => setThesis(e.target.value)}
+        maxLength={CALLOUT_THESIS_MAX}
+        rows={3}
+        placeholder="Your thesis — why this call?"
+        data-testid="input-call-thesis"
+        className="w-full bg-secondary/40 border border-border px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-accent transition-colors resize-none"
+      />
+      <div className="flex items-center justify-between gap-2">
+        <select
+          value={conviction}
+          onChange={(e) => setConviction(e.target.value as Conviction | "")}
+          data-testid="select-conviction"
+          className="h-9 bg-secondary/40 border border-border px-2 text-sm text-foreground focus:outline-none focus:border-accent"
+        >
+          <option value="">Conviction…</option>
+          <option value="low">Low</option>
+          <option value="medium">Medium</option>
+          <option value="high">High</option>
+        </select>
+        <span className="text-[11px] text-muted-foreground font-mono">
+          {thesis.length}/{CALLOUT_THESIS_MAX}
+        </span>
+      </div>
+
+      <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+        <Lock className="w-3 h-3 flex-shrink-0" />
+        Calls are permanent — no edits or deletes once recorded.
+      </div>
+
+      <button
+        type="button"
+        onClick={() => mutation.mutate()}
+        disabled={!canSubmit}
+        data-testid="button-submit-call"
+        className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium bg-accent text-accent-foreground hover:bg-accent/90 transition-colors disabled:opacity-50"
+      >
+        {mutation.isPending ? (
+          <Loader2 className="w-4 h-4 animate-spin" />
+        ) : (
+          <Plus className="w-4 h-4" />
+        )}
+        Record call
+      </button>
+    </div>
+  );
+}
+
+/** Real, immutable call history — newest first, with owner controls. */
+function CallHistorySection({ profile }: { profile: ProfileResponse }) {
+  const key = profile.x_username || String(profile.user_id);
+  const { data, isLoading } = useQuery({
+    queryKey: ["callouts", key],
+    queryFn: () => api.callouts.list(profile.x_username || profile.user_id),
+    enabled: !!profile,
+    retry: false,
+  });
+  const callouts = data?.callouts ?? [];
+
+  return (
+    <>
+      <SectionHeader icon={History} title="Call History" />
+      {profile.isSelf && <NewCallForm profileKey={key} />}
+      {isLoading ? (
+        <div className="flex items-center justify-center py-10">
+          <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+        </div>
+      ) : callouts.length === 0 ? (
+        <PlaceholderCard
+          kind="callout"
+          icon={History}
+          title={
+            profile.isSelf ? "Make your first call" : "No calls yet"
+          }
+          body="Every on-the-record callout is listed here — permanent and immutable, with no edits or deletes."
+        />
+      ) : (
+        <div className="space-y-3" data-testid="list-callouts">
+          {callouts.map((c) => (
+            <CalloutCard
+              key={c.id}
+              callout={c}
+              isOwner={profile.isSelf}
+              profileKey={key}
+            />
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
 export default function ProfilePage() {
   const { handle } = useParams<{ handle: string }>();
   const solUsd = useSolUsd();
@@ -615,14 +1015,8 @@ export default function ProfilePage() {
         body="Traders will be able to pin their highest-conviction token thesis to the top of their profile."
       />
 
-      {/* Call History (placeholder) */}
-      <SectionHeader icon={History} title="Call History" />
-      <PlaceholderCard
-        kind="callout"
-        icon={History}
-        title="Call history coming soon"
-        body="Every on-the-record callout this trader makes will be listed here — permanent and immutable, with no edits or deletes."
-      />
+      {/* Call History (real, immutable) */}
+      <CallHistorySection profile={profile} />
 
       {/* Achievements & Badges (placeholder) */}
       <SectionHeader icon={Award} title="Achievements & Badges" />

@@ -608,3 +608,10 @@ export async function getCalloutUpdates(
     [calloutId],
   );
 }
+
+/** Fetch a single callout by id (read-only), or null. Used for ownership checks. */
+export async function getCalloutById(id: number): Promise<Callout | null> {
+  await ensureProfileSchema();
+  const row = await dbGet<Callout>(`SELECT * FROM callouts WHERE id = $1`, [id]);
+  return row ?? null;
+}

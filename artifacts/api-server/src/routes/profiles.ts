@@ -2,17 +2,53 @@ import { Router, type IRouter } from "express";
 import { asyncHandler } from "../lib/asyncHandler.js";
 import { sessionFromRequest } from "../lib/auth.js";
 import {
+  addCalloutUpdate,
+  createCallout,
   followUser,
+  getCalloutById,
+  getCalloutUpdates,
   getProfile,
+  getUserCallouts,
   listFollowers,
   listFollowing,
+  resolveUser,
   setBio,
   unfollowUser,
+  type Callout,
+  type Conviction,
 } from "../lib/profiles.js";
+import { getExecutionPrice, getTokenInfo } from "../lib/prices.js";
 
 const router: IRouter = Router();
 
 const X_REQUIRED = "Connect X to unlock BlackPebble social features";
+const THESIS_MAX = 500;
+const UPDATE_MAX = 500;
+const CONVICTIONS: Conviction[] = ["low", "medium", "high"];
+
+/**
+ * Live result for a callout: current price/MC and the % move since the call.
+ * Null when no fresh price is available right now (graceful degradation).
+ */
+async function calloutResult(
+  c: Callout,
+): Promise<{
+  currentPriceUsd: number;
+  currentMarketCapUsd: number | null;
+  pnlPercent: number | null;
+} | null> {
+  const px = await getExecutionPrice(c.token_mint);
+  if (!px) return null;
+  const pnlPercent =
+    c.call_price_usd != null && c.call_price_usd > 0
+      ? ((px.priceUsd - c.call_price_usd) / c.call_price_usd) * 100
+      : null;
+  return {
+    currentPriceUsd: px.priceUsd,
+    currentMarketCapUsd: px.marketCapUsd,
+    pnlPercent,
+  };
+}
 
 /**
  * Owner-only bio update. The bio is keyed to the authenticated user's internal
@@ -100,6 +136,138 @@ router.get(
       return res.status(404).json({ error: "Profile not found" });
     }
     return res.json({ users });
+  }),
+);
+
+/**
+ * Public, read-only call history for a profile, newest first. Each callout is an
+ * immutable on-the-record entry; we attach its append-only update trail and a
+ * live result (current price/MC + % move since the call). `:id` is a numeric
+ * user id or an X handle.
+ *
+ * Declared before nothing order-sensitive (the path is distinct from
+ * `/profiles/:id`), but ordered with the other reads for readability.
+ */
+router.get(
+  "/profiles/:id/callouts",
+  asyncHandler(async (req, res) => {
+    const target = await resolveUser(String(req.params.id));
+    if (!target) return res.status(404).json({ error: "Profile not found" });
+    const callouts = await getUserCallouts(target.user_id);
+    const enriched = await Promise.all(
+      callouts.map(async (c) => ({
+        ...c,
+        updates: await getCalloutUpdates(c.id),
+        result: await calloutResult(c),
+      })),
+    );
+    return res.json({ callouts: enriched });
+  }),
+);
+
+/**
+ * Owner-only: create an immutable callout. The caller supplies the token + a
+ * thesis; the server snapshots authoritative entry price / market cap /
+ * liquidity from the live price source so the on-the-record entry can never be
+ * back-dated or spoofed. There is intentionally NO edit or delete path.
+ *
+ * Declared before `/profiles/:id/*` matchers so "me" is never read as a handle.
+ */
+router.post(
+  "/profiles/me/callouts",
+  asyncHandler(async (req, res) => {
+    const session = await sessionFromRequest(req);
+    if (!session?.x_id) return res.status(401).json({ error: X_REQUIRED });
+
+    const tokenMint = String(req.body?.tokenMint ?? "").trim();
+    if (!tokenMint) {
+      return res.status(400).json({ error: "A token is required" });
+    }
+    const thesis = String(req.body?.thesis ?? "").trim();
+    if (!thesis) {
+      return res.status(400).json({ error: "A thesis is required" });
+    }
+    if (thesis.length > THESIS_MAX) {
+      return res
+        .status(400)
+        .json({ error: `Thesis must be ${THESIS_MAX} characters or fewer` });
+    }
+    const convictionRaw = req.body?.conviction;
+    let conviction: Conviction | null = null;
+    if (convictionRaw != null && convictionRaw !== "") {
+      if (!CONVICTIONS.includes(convictionRaw as Conviction)) {
+        return res.status(400).json({ error: "Invalid conviction" });
+      }
+      conviction = convictionRaw as Conviction;
+    }
+
+    // Snapshot authoritative metadata + entry price server-side (never trust the
+    // client for the on-the-record numbers).
+    const [info, px] = await Promise.all([
+      getTokenInfo(tokenMint),
+      getExecutionPrice(tokenMint),
+    ]);
+    if (!info || !px) {
+      return res.status(400).json({
+        error: "Couldn't fetch a live price for this token. Try again shortly.",
+      });
+    }
+
+    const callout = await createCallout({
+      userId: Number(session.sub),
+      tokenMint,
+      tokenSymbol: info.symbol,
+      tokenName: info.name,
+      tokenLogo: info.logo,
+      callPriceSol: px.priceSol,
+      callPriceUsd: px.priceUsd,
+      callMarketCap: px.marketCapUsd,
+      liquidityUsd: px.liquidityUsd,
+      thesis,
+      conviction,
+    });
+    return res.status(201).json({ callout });
+  }),
+);
+
+/**
+ * Owner-only: append a follow-up note to one of the caller's own callouts. This
+ * never mutates the original callout — updates are a separate append-only trail.
+ */
+router.post(
+  "/callouts/:id/updates",
+  asyncHandler(async (req, res) => {
+    const session = await sessionFromRequest(req);
+    if (!session?.x_id) return res.status(401).json({ error: X_REQUIRED });
+
+    const calloutId = Number(req.params.id);
+    if (!Number.isInteger(calloutId) || calloutId <= 0) {
+      return res.status(400).json({ error: "Invalid callout" });
+    }
+    const callout = await getCalloutById(calloutId);
+    if (!callout) return res.status(404).json({ error: "Callout not found" });
+    if (callout.user_id !== Number(session.sub)) {
+      return res
+        .status(403)
+        .json({ error: "You can only update your own calls" });
+    }
+
+    const content = String(req.body?.content ?? "").trim();
+    if (!content) {
+      return res.status(400).json({ error: "An update is required" });
+    }
+    if (content.length > UPDATE_MAX) {
+      return res
+        .status(400)
+        .json({ error: `Update must be ${UPDATE_MAX} characters or fewer` });
+    }
+
+    const update = await addCalloutUpdate(
+      calloutId,
+      Number(session.sub),
+      content,
+    );
+    return res.status(201).json({ update });
   }),
 );
 

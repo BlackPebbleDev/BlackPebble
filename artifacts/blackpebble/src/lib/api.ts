@@ -478,6 +478,52 @@ export interface ProfileResponse {
 /** Max bio length, kept in sync with the server-side BIO_MAX_LENGTH. */
 export const BIO_MAX_LENGTH = 250;
 
+export type Conviction = "low" | "medium" | "high";
+
+/** Max length for a callout thesis / update, in sync with the server. */
+export const CALLOUT_THESIS_MAX = 500;
+export const CALLOUT_UPDATE_MAX = 500;
+
+/** An immutable on-the-record callout (no edits, no deletes). */
+export interface Callout {
+  id: number;
+  user_id: number;
+  token_mint: string;
+  token_symbol: string | null;
+  token_name: string | null;
+  token_logo: string | null;
+  call_price_sol: number | null;
+  call_price_usd: number | null;
+  call_market_cap: number | null;
+  liquidity_usd: number | null;
+  holder_count: number | null;
+  thesis: string | null;
+  conviction: string | null;
+  created_at: number;
+}
+
+/** An append-only follow-up note attached to a callout. */
+export interface CalloutUpdate {
+  id: number;
+  callout_id: number;
+  user_id: number;
+  content: string;
+  created_at: number;
+}
+
+/** Live result for a callout, or null when no fresh price is available. */
+export interface CalloutResult {
+  currentPriceUsd: number;
+  currentMarketCapUsd: number | null;
+  pnlPercent: number | null;
+}
+
+/** A callout enriched with its update trail and current live result. */
+export interface CalloutWithDetail extends Callout {
+  updates: CalloutUpdate[];
+  result: CalloutResult | null;
+}
+
 export interface FollowUser {
   user_id: number;
   x_username: string;
@@ -899,6 +945,29 @@ export const api = {
       request<{ ok: boolean; bio: string | null; error?: string }>(
         `/profiles/me/bio`,
         { method: "PUT", body: JSON.stringify({ bio }) },
+      ),
+  },
+
+  // Immutable call history. Reads are public; create/update are owner-only and
+  // session-scoped. There is no edit/delete path by design.
+  callouts: {
+    list: (id: string | number) =>
+      request<{ callouts: CalloutWithDetail[] }>(
+        `/profiles/${encodeURIComponent(String(id))}/callouts`,
+      ),
+    create: (input: {
+      tokenMint: string;
+      thesis: string;
+      conviction?: Conviction | null;
+    }) =>
+      request<{ callout: Callout }>(`/profiles/me/callouts`, {
+        method: "POST",
+        body: JSON.stringify(input),
+      }),
+    addUpdate: (calloutId: number, content: string) =>
+      request<{ update: CalloutUpdate }>(
+        `/callouts/${calloutId}/updates`,
+        { method: "POST", body: JSON.stringify({ content }) },
       ),
   },
 
