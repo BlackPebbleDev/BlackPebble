@@ -73,6 +73,11 @@ import {
 import { fmtUnitAmt } from "@/components/trade-planner/util";
 import { parseAbbreviatedNumber } from "@/lib/trade-planner";
 import type { Unit } from "@/lib/trade-planner";
+import { impactColor as liquidityImpactColor, fmtImpact } from "@/lib/liquidity";
+import {
+  TradeWarningCard,
+  getTradeWarnings,
+} from "@/components/trade-warning-card";
 import { cn } from "@/lib/utils";
 import { AllOrders } from "@/components/position-orders";
 import { BeginnerGuide } from "@/components/beginner-guide";
@@ -390,12 +395,15 @@ function TradeEstimate({
     );
   }
 
-  const impactColor =
+  // Slippage keeps the server's warning-level coloring; liquidity impact uses
+  // the shared green/yellow/orange/red bands.
+  const slippageColor =
     quote.warningLevel === "extreme"
       ? "text-red-400"
       : quote.warningLevel === "high"
         ? "text-amber-400"
         : "text-foreground";
+  const warnings = getTradeWarnings(quote);
 
   return (
     <div
@@ -414,75 +422,84 @@ function TradeEstimate({
         </div>
       )}
 
-      {/* Headline always visible; the breakdown collapses by default. */}
-      <button
-        type="button"
-        onClick={() => setDetailsOpen((o) => !o)}
-        data-testid="button-trade-details-toggle"
-        className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left transition-colors hover:bg-secondary/40"
-      >
-        <span className="flex items-center gap-2">
+      {/* Key execution-cost fields are always visible (no expand required). */}
+      <div className="space-y-1.5 px-3 py-2.5">
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">Execution price</span>
+          <span className="font-mono">{fmtPrice(quote.effectivePriceUsd)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="flex items-center gap-1 text-muted-foreground">
+            Estimated slippage
+            <HelpTip
+              label="Slippage"
+              text="The gap between the listed price and your actual fill price. Bigger orders move the price more, so they slip further."
+            />
+          </span>
+          <span className={cn("font-mono", slippageColor)}>
+            {quote.slippagePercent.toFixed(2)}%
+          </span>
+        </div>
+        <div className="flex justify-between">
+          <span className="flex items-center gap-1 text-muted-foreground">
+            Liquidity impact
+            <HelpTip
+              label="Liquidity Impact"
+              text="What share of the token's available liquidity this order consumes. Large shares lead to worse fills."
+            />
+          </span>
+          <span
+            className={cn("font-mono", liquidityImpactColor(quote.tradeImpactPercent))}
+            data-testid="estimate-liquidity-impact"
+          >
+            {fmtImpact(quote.tradeImpactPercent)}
+          </span>
+        </div>
+        <div className="flex justify-between pt-1.5 border-t border-border/60">
           <span className="text-muted-foreground">
-            {side === "buy" ? "You receive" : "You get"}
+            {side === "buy" ? "Receive" : "Estimated proceeds"}
           </span>
           <span className="font-mono text-foreground">
             {side === "buy"
               ? `${fmtTokenAmount(quote.estimatedTokens)} ${symbol ?? ""}`.trim()
               : `${fmtSol(quote.estimatedSol)} SOL`}
           </span>
-        </span>
-        <span className="flex items-center gap-1.5 text-muted-foreground">
-          Trade Details
-          <ChevronDown
-            className={cn(
-              "h-3.5 w-3.5 transition-transform",
-              detailsOpen && "rotate-180",
-            )}
-          />
-        </span>
+        </div>
+      </div>
+
+      {warnings.length > 0 && (
+        <div className="space-y-1.5 border-t border-border/60 px-3 py-2.5">
+          {warnings.map((w) => (
+            <TradeWarningCard key={w.id} warning={w} />
+          ))}
+        </div>
+      )}
+
+      {/* Secondary detail stays collapsed to keep the panel compact. */}
+      <button
+        type="button"
+        onClick={() => setDetailsOpen((o) => !o)}
+        data-testid="button-trade-details-toggle"
+        className="flex w-full items-center justify-between gap-2 border-t border-border/60 px-3 py-2 text-left text-muted-foreground transition-colors hover:bg-secondary/40"
+      >
+        <span>Trade Details</span>
+        <ChevronDown
+          className={cn(
+            "h-3.5 w-3.5 transition-transform",
+            detailsOpen && "rotate-180",
+          )}
+        />
       </button>
 
       {detailsOpen && (
         <div className="space-y-1.5 border-t border-border/60 px-3 py-2.5">
           <div className="flex justify-between">
-            <span className="text-muted-foreground">Execution price</span>
-            <span className="font-mono">{fmtPrice(quote.effectivePriceUsd)}</span>
+            <span className="text-muted-foreground">Listed price</span>
+            <span className="font-mono">{fmtPrice(quote.rawPriceUsd)}</span>
           </div>
           <div className="flex justify-between">
-            <span className="flex items-center gap-1 text-muted-foreground">
-              Estimated slippage
-              <HelpTip
-                label="Slippage"
-                text="The gap between the listed price and your actual fill price. Bigger orders move the price more, so they slip further."
-              />
-            </span>
-            <span className={cn("font-mono", impactColor)}>
-              {quote.slippagePercent.toFixed(2)}%
-            </span>
-          </div>
-          <div className="flex justify-between">
-            <span className="flex items-center gap-1 text-muted-foreground">
-              Trade impact (of liquidity)
-              <HelpTip
-                label="Trade Impact"
-                text="What share of the token's available liquidity this order consumes. Large shares lead to worse fills."
-              />
-            </span>
-            <span className={cn("font-mono", impactColor)}>
-              {quote.tradeImpactPercent < 0.01
-                ? "<0.01%"
-                : `${quote.tradeImpactPercent.toFixed(2)}%`}
-            </span>
-          </div>
-          <div className="flex justify-between pt-1.5 border-t border-border/60">
-            <span className="text-muted-foreground">
-              {side === "buy" ? "Estimated receive" : "Estimated proceeds"}
-            </span>
-            <span className="font-mono text-foreground">
-              {side === "buy"
-                ? `${fmtTokenAmount(quote.estimatedTokens)} ${symbol ?? ""}`.trim()
-                : `${fmtSol(quote.estimatedSol)} SOL`}
-            </span>
+            <span className="text-muted-foreground">Trade value</span>
+            <span className="font-mono">{fmtUsd(quote.tradeUsdValue)}</span>
           </div>
         </div>
       )}

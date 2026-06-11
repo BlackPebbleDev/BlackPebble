@@ -24,7 +24,9 @@ import {
   type FeatureFlagKey,
   type ResetOptions,
   type RecoveryWindowStats,
+  type AdminStatsWindow,
 } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -102,81 +104,136 @@ const FLAG_LABELS: Record<FeatureFlagKey, string> = {
   leverage: "Leverage trading (longs)",
 };
 
+const STATS_WINDOWS: { key: AdminStatsWindow; label: string }[] = [
+  { key: "24h", label: "24h" },
+  { key: "7d", label: "7d" },
+  { key: "30d", label: "30d" },
+  { key: "all", label: "All Time" },
+];
+
+function WindowSelector({
+  value,
+  onChange,
+}: {
+  value: AdminStatsWindow;
+  onChange: (w: AdminStatsWindow) => void;
+}) {
+  return (
+    <div className="flex items-center gap-1" data-testid="stats-window-selector">
+      {STATS_WINDOWS.map((w) => (
+        <button
+          key={w.key}
+          type="button"
+          onClick={() => onChange(w.key)}
+          data-testid={`stats-window-${w.key}`}
+          className={cn(
+            "px-2.5 py-1 text-xs font-medium transition-colors",
+            value === w.key
+              ? "bg-accent text-accent-foreground"
+              : "bg-background/40 text-muted-foreground hover:text-foreground",
+          )}
+        >
+          {w.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function StatsSection() {
-  const { data } = useQuery({
-    queryKey: ["admin-stats"],
-    queryFn: () => api.admin.stats(),
+  const [window, setWindow] = useState<AdminStatsWindow>("24h");
+  const { data, isFetching } = useQuery({
+    queryKey: ["admin-stats", window],
+    queryFn: () => api.admin.stats(window),
     refetchInterval: 30_000,
   });
-  const s = data?.stats;
-  const topTokens = data?.topTokens ?? [];
-  const registered = s?.users ?? 0;
-  const guests = s?.guest_created ?? 0;
-  const totalTrades = (s?.spot_trades ?? 0) + (s?.leverage_trades ?? 0);
+  const users = data?.users;
+  const trading = data?.trading;
+  const feed = data?.feed;
+  const totals = data?.totals;
+  const topTokens = data?.tokens ?? [];
+
+  const selector = (
+    <div className="flex items-center gap-2">
+      {isFetching && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+      <WindowSelector value={window} onChange={setWindow} />
+    </div>
+  );
+
   return (
     <div className="space-y-6">
-      <Card title="Users" icon={Users}>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-          <Stat label="Registered users" value={fmt(registered)} />
-          <Stat label="Guest users" value={fmt(guests)} />
-          <Stat label="Accounts" value={fmt(s?.accounts)} />
-          <Stat label="Active (24h)" value={fmt(s?.dau)} />
-          <Stat label="Wallet links" value={fmt(s?.wallet_links)} />
-          <Stat label="X links" value={fmt(s?.x_links)} />
+      <Card title="Users" icon={Users} action={selector}>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          <Stat label="New users" value={fmt(users?.new_users)} />
+          <Stat label="Guest users" value={fmt(users?.guest_users)} />
+          <Stat label="X sign-ups" value={fmt(users?.x_users)} />
+          <Stat label="Returning users" value={fmt(users?.returning_users)} />
+          <Stat label="Active users" value={fmt(users?.active_users)} />
         </div>
       </Card>
 
       <Card title="Trading" icon={TrendingUp}>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-          <Stat label="Total trades" value={fmt(totalTrades)} />
-          <Stat label="Spot trades" value={fmt(s?.spot_trades)} />
-          <Stat label="Leverage trades" value={fmt(s?.leverage_trades)} />
-          <Stat label="Buys / Sells" value={`${fmt(s?.buys)} / ${fmt(s?.sells)}`} />
-          <Stat label="Paper volume" value={`${fmt(s?.volume_sol, 1)} SOL`} />
-          <Stat label="Open positions" value={fmt(s?.positions)} />
-          <Stat label="Active orders" value={fmt(s?.active_orders)} />
-          <Stat label="Leaderboard users" value={fmt(s?.leaderboard_users)} />
-        </div>
-        <div className="mt-4">
-          <div className="mb-2 text-[11px] uppercase tracking-wider text-muted-foreground">
-            Most-traded tokens
-          </div>
-          {topTokens.length === 0 ? (
-            <div className="text-sm text-muted-foreground">No trades yet.</div>
-          ) : (
-            <div className="space-y-1">
-              {topTokens.map((t) => (
-                <div
-                  key={t.token_mint}
-                  className="flex items-center justify-between border-b border-border/60 py-1.5 text-sm last:border-0"
-                >
-                  <span className="font-medium text-foreground">
-                    {t.token_symbol || `${t.token_mint.slice(0, 4)}…`}
-                  </span>
-                  <span className="font-mono text-muted-foreground">
-                    {fmt(t.trades)} trades
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
+          <Stat label="Total trades" value={fmt(trading?.trades)} />
+          <Stat label="Spot trades" value={fmt(trading?.spot_trades)} />
+          <Stat label="Leverage trades" value={fmt(trading?.leverage_trades)} />
+          <Stat label="Buys / Sells" value={`${fmt(trading?.buys)} / ${fmt(trading?.sells)}`} />
+          <Stat label="Paper volume" value={`${fmt(trading?.volume_sol, 1)} SOL`} />
+          <Stat label="Avg trade size" value={`${fmt(trading?.avg_trade_size, 2)} SOL`} />
         </div>
       </Card>
 
-      <Card title="Activity" icon={Eye}>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Stat label="Portfolio views" value={fmt(s?.portfolio_views)} />
-          <Stat label="Leaderboard views" value={fmt(s?.leaderboard_views)} />
+      <Card title="Top Tokens" icon={Sparkles}>
+        {topTokens.length === 0 ? (
+          <div className="text-sm text-muted-foreground">No trades in this window.</div>
+        ) : (
+          <div className="space-y-1">
+            {topTokens.map((t) => (
+              <div
+                key={t.token_mint}
+                className="flex items-center justify-between border-b border-border/60 py-1.5 text-sm last:border-0"
+              >
+                <span className="font-medium text-foreground">
+                  {t.token_symbol || `${t.token_mint.slice(0, 4)}…`}
+                </span>
+                <span className="font-mono text-muted-foreground">
+                  {fmt(t.trades)} trades · {fmt(t.volume_sol, 1)} SOL
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      <Card title="Feed & Social" icon={Eye}>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <Stat label="Feed views" value={fmt(feed?.feed_views)} />
+          <Stat label="Profile views" value={fmt(feed?.profile_views)} />
+          <Stat label="New follows" value={fmt(feed?.follows)} />
+        </div>
+      </Card>
+
+      <Card title="Lifetime Totals" icon={Database}>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          <Stat label="Registered users" value={fmt(totals?.users)} />
+          <Stat label="Accounts" value={fmt(totals?.accounts)} />
+          <Stat label="Wallet links" value={fmt(totals?.wallet_links)} />
+          <Stat label="X links" value={fmt(totals?.x_links)} />
+          <Stat label="Open positions" value={fmt(totals?.positions)} />
+          <Stat label="Active orders" value={fmt(totals?.active_orders)} />
+          <Stat label="Leaderboard users" value={fmt(totals?.leaderboard_users)} />
+          <Stat label="Portfolio views" value={fmt(totals?.portfolio_views)} />
+          <Stat label="Leaderboard views" value={fmt(totals?.leaderboard_views)} />
         </div>
         <div className="mt-4">
           <div className="mb-2 flex items-center gap-2 text-[11px] uppercase tracking-wider text-muted-foreground">
             <UserPlus className="h-3.5 w-3.5 text-accent" />
-            Guest funnel
+            Guest funnel (lifetime)
           </div>
           <div className="grid grid-cols-3 gap-3">
-            <Stat label="Created" value={fmt(s?.guest_created)} />
-            <Stat label="Traded" value={fmt(s?.guest_traded)} />
-            <Stat label="Converted" value={fmt(s?.guest_converted)} />
+            <Stat label="Created" value={fmt(totals?.guest_created)} />
+            <Stat label="Traded" value={fmt(totals?.guest_traded)} />
+            <Stat label="Converted" value={fmt(totals?.guest_converted)} />
           </div>
         </div>
       </Card>

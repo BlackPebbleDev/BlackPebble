@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, ChevronDown, Loader2 } from "lucide-react";
 import { api, type TokenInfo } from "@/lib/api";
 import { useAccount } from "@/hooks/use-account";
 import { useToast } from "@/hooks/use-toast";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
-import { fmtSol, fmtMarketCap, fmtPercent } from "@/lib/format";
+import { fmtSol, fmtMarketCap, fmtPercent, fmtPrice } from "@/lib/format";
 import { fmtUnitAmt } from "@/components/trade-planner/util";
 import { parseAbbreviatedNumber, type Unit } from "@/lib/trade-planner";
+import { impactColor as liquidityImpactColor, fmtImpact } from "@/lib/liquidity";
 import { cn } from "@/lib/utils";
 
 const LEVERAGE_OPTIONS = [2, 5, 10, 20] as const;
@@ -85,6 +86,24 @@ export function LeveragePanel({ info }: { info: TokenInfo }) {
   const notionalSol = marginValid ? marginSol * leverage : 0;
   const insufficient = marginValid && marginSol > cashBalance;
 
+  // Debounced position size so we don't re-quote on every keystroke. The quote
+  // is read-only — it only surfaces the slippage / liquidity impact the opening
+  // fill would incur; it never changes how the position is priced server-side.
+  const [debouncedNotional, setDebouncedNotional] = useState(0);
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedNotional(notionalSol), 350);
+    return () => clearTimeout(id);
+  }, [notionalSol]);
+  const quoteEnabled = debouncedNotional > 0;
+  const { data: quote, isFetching: quoteFetching } = useQuery({
+    queryKey: ["leverage-quote", info.mint, debouncedNotional],
+    queryFn: () =>
+      api.quote({ mint: info.mint, side: "buy", solAmount: debouncedNotional }),
+    enabled: quoteEnabled,
+    staleTime: 10_000,
+  });
+  const quoteReady = quoteEnabled && quote?.ok === true;
+
   // Reset the form whenever the token changes.
   useEffect(() => {
     setMargin("");
@@ -103,6 +122,11 @@ export function LeveragePanel({ info }: { info: TokenInfo }) {
     if (entryMc == null || entryMc <= 0) return null;
     return entryMc * (1 - liqDropPercent);
   }, [entryMc, liqDropPercent]);
+  // Liquidation price in USD: entry price scaled by the same liquidation drop.
+  const liqPriceUsd = useMemo(() => {
+    if (info.priceUsd == null || info.priceUsd <= 0) return null;
+    return info.priceUsd * (1 - liqDropPercent);
+  }, [info.priceUsd, liqDropPercent]);
 
   // TP/SL validation against entry & liquidation market caps. Triggers need a
   // known entry market cap to be meaningful, so they're disabled without one.
@@ -383,11 +407,32 @@ export function LeveragePanel({ info }: { info: TokenInfo }) {
           <PreviewRow label="Margin used" value={marginValid ? unitAmt(marginSol, unit, solUsd) : "—"} />
           <PreviewRow label="Position size" value={marginValid ? unitAmt(notionalSol, unit, solUsd) : "—"} />
           <PreviewRow
+            label="Est. slippage"
+            value={
+              quoteReady
+                ? `${quote!.slippagePercent.toFixed(2)}%`
+                : quoteFetching
+                  ? "…"
+                  : "—"
+            }
+          />
+          <PreviewRow
+            label="Liquidity impact"
+            value={quoteReady ? fmtImpact(quote!.tradeImpactPercent) : quoteFetching ? "…" : "—"}
+            valueClass={quoteReady ? liquidityImpactColor(quote!.tradeImpactPercent) : undefined}
+            testId="leverage-liquidity-impact"
+          />
+          <PreviewRow
             label="Max loss"
             value={marginValid ? unitAmt(marginSol, unit, solUsd) : "—"}
             valueClass="text-red-400"
           />
           <PreviewRow label="Entry MC" value={fmtMarketCap(entryMc)} />
+          <PreviewRow
+            label="Liq. price"
+            value={liqPriceUsd != null ? fmtPrice(liqPriceUsd) : "—"}
+            valueClass="text-red-400"
+          />
           <PreviewRow
             label="Est. liq. MC"
             value={liqMarketCap != null ? fmtMarketCap(liqMarketCap) : "—"}
@@ -461,15 +506,22 @@ function PreviewRow({
   label,
   value,
   valueClass,
+  testId,
 }: {
   label: string;
   value: string;
   valueClass?: string;
+  testId?: string;
 }) {
   return (
     <div className="flex items-center justify-between gap-2">
       <span className="text-muted-foreground">{label}</span>
-      <span className={cn("font-mono text-foreground", valueClass)}>{value}</span>
+      <span
+        className={cn("font-mono text-foreground", valueClass)}
+        data-testid={testId}
+      >
+        {value}
+      </span>
     </div>
   );
 }

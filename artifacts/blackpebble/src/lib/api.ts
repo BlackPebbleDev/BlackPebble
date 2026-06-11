@@ -58,22 +58,41 @@ export interface AdminMe {
   x_username: string | null;
 }
 
-export interface AdminStats {
+export type AdminStatsWindow = "24h" | "7d" | "30d" | "all";
+
+export interface AdminUserStats {
+  new_users: number;
+  guest_users: number;
+  x_users: number;
+  returning_users: number;
+  active_users: number;
+}
+
+export interface AdminTradingStats {
+  trades: number;
+  spot_trades: number;
+  leverage_trades: number;
+  volume_sol: number;
+  avg_trade_size: number;
+  buys: number;
+  sells: number;
+}
+
+export interface AdminFeedStats {
+  feed_views: number;
+  profile_views: number;
+  follows: number;
+}
+
+/** Lifetime structural counts + guest funnel (not windowed). */
+export interface AdminTotals {
   accounts: number;
-  dau: number;
   users: number;
   wallet_links: number;
   x_links: number;
-  trades: number;
-  buys: number;
-  sells: number;
-  volume_sol: number;
   positions: number;
-  traders_with_positions: number;
   active_orders: number;
   leaderboard_users: number;
-  spot_trades: number;
-  leverage_trades: number;
   guest_created: number;
   guest_traded: number;
   guest_converted: number;
@@ -85,6 +104,17 @@ export interface AdminTopToken {
   token_symbol: string | null;
   token_mint: string;
   trades: number;
+  volume_sol: number;
+}
+
+export interface AdminStatsResponse {
+  window: AdminStatsWindow;
+  generatedAt: number;
+  users: AdminUserStats;
+  trading: AdminTradingStats;
+  tokens: AdminTopToken[];
+  feed: AdminFeedStats;
+  totals: AdminTotals;
 }
 
 export type AnalyticsEventType =
@@ -864,12 +894,8 @@ export const api = {
 
   admin: {
     me: () => request<AdminMe>("/admin/me"),
-    stats: () =>
-      request<{
-        stats: AdminStats;
-        topTokens: AdminTopToken[];
-        generatedAt: number;
-      }>("/admin/stats"),
+    stats: (window: AdminStatsWindow = "24h") =>
+      request<AdminStatsResponse>(`/admin/stats?window=${window}`),
     health: () => request<AdminHealth>("/admin/health"),
     orders: (filters?: { token?: string; user?: string; status?: string }) => {
       const qs = new URLSearchParams();

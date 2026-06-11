@@ -74,51 +74,133 @@ router.get(
   }),
 );
 
+/** Map a window key to a unix-second cutoff, or null for "all time". */
+function windowSince(window: string, now: number): number | null {
+  switch (window) {
+    case "7d":
+      return now - 7 * 86_400;
+    case "30d":
+      return now - 30 * 86_400;
+    case "all":
+      return null;
+    case "24h":
+    default:
+      return now - 86_400;
+  }
+}
+
 router.get(
   "/admin/stats",
-  asyncHandler(async (_req, res) => {
+  asyncHandler(async (req, res) => {
     const now = Math.floor(Date.now() / 1000);
-    const dayAgo = now - 86400;
+    const requested = String(req.query.window ?? "24h");
+    const window = ["24h", "7d", "30d", "all"].includes(requested)
+      ? requested
+      : "24h";
+    const since = windowSince(window, now);
     // Funnel/activity beacons live in analytics_events (created lazily); make
     // sure it exists so a fresh deploy returns zeros rather than erroring.
     await ensureAnalyticsTable();
-    const row = await dbGet<Record<string, number>>(
-      `SELECT
-         (SELECT count(*)::int FROM accounts) AS accounts,
-         (SELECT count(*)::int FROM accounts WHERE last_active > $1) AS dau,
-         (SELECT count(*)::int FROM users) AS users,
-         (SELECT count(*)::int FROM user_identities WHERE provider='wallet') AS wallet_links,
-         (SELECT count(*)::int FROM user_identities WHERE provider='x') AS x_links,
-         (SELECT count(*)::int FROM trades) AS trades,
-         (SELECT count(*)::int FROM trades WHERE side='buy') AS buys,
-         (SELECT count(*)::int FROM trades WHERE side='sell') AS sells,
-         (SELECT COALESCE(SUM(sol_amount),0) FROM trades) AS volume_sol,
-         (SELECT count(*)::int FROM positions) AS positions,
-         (SELECT count(DISTINCT wallet)::int FROM positions) AS traders_with_positions,
-         (SELECT count(*)::int FROM paper_orders WHERE status IN ('pending','filling')) AS active_orders,
-         (SELECT count(DISTINCT wallet)::int FROM trades WHERE side='sell') AS leaderboard_users,
-         (SELECT count(*)::int FROM trades) AS spot_trades,
-         (SELECT count(*)::int FROM paper_leverage_trades WHERE action='open') AS leverage_trades,
-         (SELECT count(*)::int FROM analytics_events WHERE event_type='guest_created') AS guest_created,
-         (SELECT count(*)::int FROM analytics_events WHERE event_type='guest_first_trade') AS guest_traded,
-         (SELECT count(*)::int FROM analytics_events WHERE event_type='guest_converted') AS guest_converted,
-         (SELECT count(*)::int FROM analytics_events WHERE event_type='portfolio_view') AS portfolio_views,
-         (SELECT count(*)::int FROM analytics_events WHERE event_type='leaderboard_view') AS leaderboard_views`,
-      [dayAgo],
-    );
-    // Most-traded tokens (spot), by trade count.
-    const topTokens = await dbAll<{
-      token_symbol: string | null;
-      token_mint: string;
-      trades: number;
-    }>(
-      `SELECT token_symbol, token_mint, count(*)::int AS trades
-       FROM trades
-       GROUP BY token_symbol, token_mint
-       ORDER BY trades DESC
-       LIMIT 8`,
-    );
-    return res.json({ stats: row ?? {}, topTokens, generatedAt: now });
+
+    // A single `since` param ($1, null for "all time"). Each windowed predicate
+    // is `($1::bigint IS NULL OR col > $1)` so the same query serves every
+    // window without string-building.
+    const p = [since];
+
+    const [userRow, tradingRow, feedRow, tokens, totalsRow] = await Promise.all([
+      dbGet<Record<string, number>>(
+        `SELECT
+           (SELECT count(*)::int FROM users WHERE ($1::bigint IS NULL OR created_at > $1)) AS new_users,
+           (SELECT count(*)::int FROM analytics_events WHERE event_type='guest_created' AND ($1::bigint IS NULL OR created_at > $1)) AS guest_users,
+           (SELECT count(*)::int FROM user_identities WHERE provider='x' AND ($1::bigint IS NULL OR created_at > $1)) AS x_users,
+           (SELECT count(*)::int FROM accounts WHERE ($1::bigint IS NULL OR last_active > $1)) AS active_users,
+           (SELECT count(*)::int FROM accounts WHERE ($1::bigint IS NULL OR last_active > $1) AND ($1::bigint IS NULL OR created_at <= $1)) AS returning_users`,
+        p,
+      ),
+      dbGet<Record<string, number>>(
+        `SELECT
+           (SELECT count(*)::int FROM trades WHERE ($1::bigint IS NULL OR executed_at > $1)) AS spot_trades,
+           (SELECT count(*)::int FROM paper_leverage_trades WHERE action='open' AND ($1::bigint IS NULL OR executed_at > $1)) AS leverage_trades,
+           (SELECT COALESCE(SUM(sol_amount),0)::float8 FROM trades WHERE ($1::bigint IS NULL OR executed_at > $1)) AS volume_sol,
+           (SELECT count(*)::int FROM trades WHERE side='buy' AND ($1::bigint IS NULL OR executed_at > $1)) AS buys,
+           (SELECT count(*)::int FROM trades WHERE side='sell' AND ($1::bigint IS NULL OR executed_at > $1)) AS sells`,
+        p,
+      ),
+      dbGet<Record<string, number>>(
+        `SELECT
+           (SELECT count(*)::int FROM analytics_events WHERE event_type='feed_view' AND ($1::bigint IS NULL OR created_at > $1)) AS feed_views,
+           (SELECT count(*)::int FROM analytics_events WHERE event_type='profile_view' AND ($1::bigint IS NULL OR created_at > $1)) AS profile_views,
+           (SELECT count(*)::int FROM analytics_events WHERE event_type='follow_created' AND ($1::bigint IS NULL OR created_at > $1)) AS follows`,
+        p,
+      ),
+      // Most-traded tokens (spot) for the window, by trade count, with volume.
+      dbAll<{
+        token_symbol: string | null;
+        token_mint: string;
+        trades: number;
+        volume_sol: number;
+      }>(
+        `SELECT token_symbol, token_mint,
+                count(*)::int AS trades,
+                COALESCE(SUM(sol_amount),0)::float8 AS volume_sol
+         FROM trades
+         WHERE ($1::bigint IS NULL OR executed_at > $1)
+         GROUP BY token_symbol, token_mint
+         ORDER BY trades DESC
+         LIMIT 8`,
+        p,
+      ),
+      // Lifetime snapshot (not windowed) for structural counts + the guest funnel.
+      dbGet<Record<string, number>>(
+        `SELECT
+           (SELECT count(*)::int FROM accounts) AS accounts,
+           (SELECT count(*)::int FROM users) AS users,
+           (SELECT count(*)::int FROM user_identities WHERE provider='wallet') AS wallet_links,
+           (SELECT count(*)::int FROM user_identities WHERE provider='x') AS x_links,
+           (SELECT count(*)::int FROM positions) AS positions,
+           (SELECT count(*)::int FROM paper_orders WHERE status IN ('pending','filling')) AS active_orders,
+           (SELECT count(DISTINCT wallet)::int FROM trades WHERE side='sell') AS leaderboard_users,
+           (SELECT count(*)::int FROM analytics_events WHERE event_type='guest_created') AS guest_created,
+           (SELECT count(*)::int FROM analytics_events WHERE event_type='guest_first_trade') AS guest_traded,
+           (SELECT count(*)::int FROM analytics_events WHERE event_type='guest_converted') AS guest_converted,
+           (SELECT count(*)::int FROM analytics_events WHERE event_type='portfolio_view') AS portfolio_views,
+           (SELECT count(*)::int FROM analytics_events WHERE event_type='leaderboard_view') AS leaderboard_views`,
+      ),
+    ]);
+
+    const spotTrades = tradingRow?.spot_trades ?? 0;
+    const leverageTrades = tradingRow?.leverage_trades ?? 0;
+    const volumeSol = Number(tradingRow?.volume_sol ?? 0);
+    const tradesExecuted = spotTrades + leverageTrades;
+    const avgTradeSize = spotTrades > 0 ? volumeSol / spotTrades : 0;
+
+    return res.json({
+      window,
+      generatedAt: now,
+      users: {
+        new_users: userRow?.new_users ?? 0,
+        guest_users: userRow?.guest_users ?? 0,
+        x_users: userRow?.x_users ?? 0,
+        returning_users: userRow?.returning_users ?? 0,
+        active_users: userRow?.active_users ?? 0,
+      },
+      trading: {
+        trades: tradesExecuted,
+        spot_trades: spotTrades,
+        leverage_trades: leverageTrades,
+        volume_sol: volumeSol,
+        avg_trade_size: avgTradeSize,
+        buys: tradingRow?.buys ?? 0,
+        sells: tradingRow?.sells ?? 0,
+      },
+      tokens,
+      feed: {
+        feed_views: feedRow?.feed_views ?? 0,
+        profile_views: feedRow?.profile_views ?? 0,
+        follows: feedRow?.follows ?? 0,
+      },
+      totals: totalsRow ?? {},
+    });
   }),
 );
 
