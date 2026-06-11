@@ -282,7 +282,7 @@ export function MiniPlanner({
   }
 
   return (
-    <div className="border border-border bg-card" data-testid="mini-planner">
+    <div className="rounded-xl bg-card shadow-card overflow-hidden" data-testid="mini-planner">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}

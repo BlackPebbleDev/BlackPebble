@@ -57,11 +57,11 @@ function Stat({
   className?: string;
 }) {
   return (
-    <div className="border border-border bg-card px-4 py-3">
-      <div className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1">
-        {label}
+    <div className="rounded-xl bg-card shadow-card px-4 py-3.5 transition-colors hover:bg-surface-3">
+      <div className="stat-label mb-1.5">{label}</div>
+      <div className={cn("stat-value text-xl md:text-2xl", className)}>
+        {value}
       </div>
-      <div className={cn("text-lg font-mono", className)}>{value}</div>
     </div>
   );
 }
@@ -90,10 +90,8 @@ function BestTradeStat({
   }
   const hasClosed = (stats?.closedTrades ?? 0) > 0;
   return (
-    <div className="border border-border bg-card px-4 py-3">
-      <div className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1">
-        Best Trade
-      </div>
+    <div className="rounded-xl bg-card shadow-card px-4 py-3.5">
+      <div className="stat-label mb-1.5">Best Trade</div>
       <div className="text-sm text-muted-foreground">
         {hasClosed ? "No winning trades yet" : "No closed trades yet"}
       </div>
@@ -215,12 +213,12 @@ export default function Portfolio() {
   return (
     <div className="w-full max-w-6xl mx-auto px-4 md:px-6 py-6">
       <div className="flex items-center gap-3 mb-6">
-        <Wallet className="w-6 h-6 text-accent" />
-        <h1 className="text-2xl font-semibold">Portfolio</h1>
+        <Wallet className="w-7 h-7 text-accent" />
+        <h1 className="text-3xl md:text-4xl font-bold tracking-tight">Portfolio</h1>
         {isGuest && (
           <span
             data-testid="badge-portfolio-guest"
-            className="text-[11px] font-medium uppercase tracking-wider text-amber-400 border border-amber-500/30 bg-amber-500/10 px-2 py-1"
+            className="text-[11px] font-semibold uppercase tracking-wider text-amber-400 border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 rounded-full"
           >
             Guest Mode
           </span>
@@ -230,7 +228,7 @@ export default function Portfolio() {
       {isGuest && (
         <div
           data-testid="banner-portfolio-guest"
-          className="flex items-start gap-2 border border-amber-500/30 bg-amber-500/10 px-4 py-3 mb-6"
+          className="flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 mb-6"
         >
           <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
           <p className="text-xs leading-relaxed text-foreground/90">
@@ -299,10 +297,8 @@ export default function Portfolio() {
               }
               className={rank != null ? "text-accent" : "text-muted-foreground"}
             />
-            <div className="border border-border bg-card px-4 py-3">
-              <div className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1.5">
-                Tier
-              </div>
+            <div className="rounded-xl bg-card shadow-card px-4 py-3.5">
+              <div className="stat-label mb-2">Tier</div>
               <TierBadge tier={stats?.graduationTier} />
             </div>
           </div>
@@ -312,10 +308,8 @@ export default function Portfolio() {
             (serverStats.leverageOpenCount > 0 ||
               serverStats.leverageRealizedPnlSol !== 0 ||
               serverStats.openLeverageEquitySol > 0) && (
-              <div className="border border-border bg-card p-4 mb-3 text-xs" data-testid="pnl-breakdown">
-                <div className="text-[11px] uppercase tracking-wider text-muted-foreground mb-3">
-                  Equity Breakdown
-                </div>
+              <div className="rounded-xl bg-card shadow-card p-5 mb-3 text-xs" data-testid="pnl-breakdown">
+                <div className="stat-label mb-3">Equity Breakdown</div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2">
                   <div>
                     <div className="text-muted-foreground">Cash</div>
@@ -369,10 +363,8 @@ export default function Portfolio() {
           </div>
 
           {!isGuest && (
-            <div className="border border-border bg-card p-4 mb-6">
-              <div className="text-sm text-muted-foreground mb-3">
-                Equity Performance
-              </div>
+            <div className="rounded-xl bg-card shadow-card p-5 mb-6">
+              <div className="stat-label mb-4">Equity Performance</div>
               <div className="h-64">
                 <Line
                   data={chartData}
@@ -430,7 +422,7 @@ export default function Portfolio() {
               })()}
             </span>
           </h2>
-          <div className="border border-border bg-card">
+          <div className="rounded-xl bg-card shadow-card overflow-hidden">
             <TradeList
               trades={history?.trades ?? []}
               empty="No trades yet. Your buys and sells will appear here."

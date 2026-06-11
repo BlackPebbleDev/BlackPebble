@@ -279,7 +279,7 @@ export function AllOrders({
       {totalCount === 0 ? (
         <div
           data-testid="exit-orders-empty"
-          className="border border-border bg-card px-4 py-8 text-center text-sm text-muted-foreground"
+          className="rounded-xl bg-card shadow-card px-4 py-8 text-center text-sm text-muted-foreground"
         >
           No active orders. Add a Take Profit or Stop Loss from an open
           position, or set a Buy Limit from the Trade Planner.
@@ -290,7 +290,7 @@ export function AllOrders({
             <div
               key={g.mint}
               data-testid={`order-group-${g.mint}`}
-              className="border border-border bg-card"
+              className="rounded-xl bg-card shadow-card overflow-hidden"
             >
               <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border/60">
                 {onNavigate ? (
@@ -323,7 +323,7 @@ export function AllOrders({
             <div
               key={`lev-${p.id}`}
               data-testid={`leverage-order-group-${p.id}`}
-              className="border border-border bg-card"
+              className="rounded-xl bg-card shadow-card overflow-hidden"
             >
               <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border/60">
                 {onNavigate ? (

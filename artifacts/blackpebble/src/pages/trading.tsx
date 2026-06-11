@@ -136,17 +136,17 @@ function useTokenParam(): string | null {
 
 function TokenHeader({ info }: { info: TokenInfo }) {
   return (
-    <div className="border border-border bg-card p-4 flex flex-wrap items-center gap-4">
+    <div className="rounded-xl bg-card shadow-card p-4 flex flex-wrap items-center gap-4">
       <div className="flex items-center gap-3">
         {info.logo ? (
           <img
             src={info.logo}
             alt=""
-            className="w-10 h-10 object-cover"
+            className="w-10 h-10 rounded-full object-cover"
             onError={(e) => (e.currentTarget.style.visibility = "hidden")}
           />
         ) : (
-          <div className="w-10 h-10 bg-secondary flex items-center justify-center text-xs text-muted-foreground">
+          <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center text-xs text-muted-foreground">
             {info.symbol?.slice(0, 2) ?? "?"}
           </div>
         )}
@@ -154,7 +154,7 @@ function TokenHeader({ info }: { info: TokenInfo }) {
           <div className="font-semibold flex items-center gap-2">
             {info.symbol ?? "Unknown"}
             {!info.isMigrated && (
-              <span className="text-[10px] uppercase tracking-wider text-accent border border-accent/40 px-1.5 py-0.5">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-accent bg-accent/12 rounded-full px-2 py-0.5">
                 Bonding
               </span>
             )}
@@ -255,7 +255,7 @@ function DexScreenerChart({ pairAddress }: { pairAddress: string }) {
   const src = `https://dexscreener.com/solana/${pairAddress}?embed=1&theme=dark&trades=0&info=0`;
 
   return (
-    <div className="relative border border-border bg-card h-[420px]">
+    <div className="relative rounded-xl bg-card shadow-card overflow-hidden h-[420px]">
       <iframe
         key={`${pairAddress}-${nonce}`}
         ref={iframeRef}
@@ -324,7 +324,7 @@ function PriceChart({ info }: { info: TokenInfo }) {
   };
 
   return (
-    <div className="border border-border bg-card p-4 h-[420px]">
+    <div className="rounded-xl bg-card shadow-card p-4 h-[420px]">
       <div className="text-xs text-muted-foreground mb-2">
         Bonding curve — recent trade prices (live)
       </div>
@@ -1359,7 +1359,7 @@ function TradePanel({
   });
 
   return (
-    <div className="border border-border bg-card">
+    <div className="rounded-xl bg-card shadow-card overflow-hidden">
       {isGuest && (
         <div
           data-testid="banner-guest-trade"
@@ -2002,7 +2002,7 @@ function ActivityTabs() {
   ];
 
   return (
-    <div className="border border-border bg-card">
+    <div className="rounded-xl bg-card shadow-card overflow-hidden">
       <div className="flex border-b border-border">
         {tabs.map((t) => (
           <button
@@ -2172,11 +2172,11 @@ export default function TradingDesk() {
     return (
       <div className="w-full max-w-6xl mx-auto px-4 md:px-6 py-6">
         <div className="flex items-center gap-3 mb-6">
-          <LineChart className="w-6 h-6 text-accent" />
-          <h1 className="text-2xl font-semibold">Trading Desk</h1>
+          <LineChart className="w-7 h-7 text-accent" />
+          <h1 className="text-3xl md:text-4xl font-bold tracking-tight">Trading Desk</h1>
         </div>
         <BeginnerGuide />
-        <div className="border border-border bg-card p-8 text-center">
+        <div className="rounded-2xl bg-card shadow-card p-8 text-center">
           <p className="text-muted-foreground mb-4">
             Search for a token above, or browse Markets to find something to
             paper trade.
@@ -2184,7 +2184,7 @@ export default function TradingDesk() {
           <button
             onClick={() => navigate("/markets")}
             data-testid="button-browse-markets"
-            className="inline-flex items-center gap-1.5 h-10 px-4 text-sm font-medium border border-accent/50 text-accent hover:bg-accent/10 transition-colors"
+            className="inline-flex items-center gap-1.5 h-10 px-4 rounded-lg text-sm font-semibold border border-accent/50 text-accent hover:bg-accent/10 transition-colors"
           >
             Browse Markets
             <ArrowRight className="w-4 h-4" />

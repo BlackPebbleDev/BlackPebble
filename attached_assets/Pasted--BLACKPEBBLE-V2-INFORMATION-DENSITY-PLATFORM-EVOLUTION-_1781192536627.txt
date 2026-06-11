@@ -1,0 +1,256 @@
+⸻
+
+BLACKPEBBLE V2 — INFORMATION DENSITY & PLATFORM EVOLUTION
+
+This section is critical.
+
+The objective is not simply improving aesthetics.
+
+The objective is transforming BlackPebble from a website into a trading platform.
+
+Every page should feel like a professional trading workstation rather than a traditional web dashboard.
+
+⸻
+
+INFORMATION DENSITY
+
+Current BlackPebble pages contain too much empty space and too little immediately useful information.
+
+Reference platforms such as Phantom, Terminal, and Axiom maximize useful information without feeling cluttered.
+
+Requirements:
+
+Reduce unnecessary empty vertical space
+Surface more useful information above the fold
+Increase perceived platform depth
+Ensure every screen immediately provides value
+
+Users should never land on a page that feels empty.
+
+Every page should communicate:
+
+“This platform is active.”
+
+“This platform is alive.”
+
+“This platform contains valuable information.”
+
+⸻
+
+ABOVE-THE-FOLD RULE
+
+The first screen visible on desktop and mobile should always contain meaningful information.
+
+Avoid layouts where users must scroll before discovering platform value.
+
+Every page should immediately display:
+
+data
+statistics
+activity
+rankings
+market information
+portfolio information
+trading opportunities
+
+The first screen should always feel useful.
+
+⸻
+
+BLACKPEBBLE IS SOFTWARE, NOT A WEBSITE
+
+Design every page as if BlackPebble were a professional desktop application.
+
+The experience should resemble:
+
+Bloomberg Terminal
+TradingView
+Phantom Trading
+Axiom
+Terminal
+
+while preserving BlackPebble’s own identity.
+
+The platform should feel installed rather than visited.
+
+⸻
+
+TRADING DESK EVOLUTION
+
+The Trading Desk should become the operational center of BlackPebble.
+
+Requirements:
+
+Display useful modules immediately.
+
+Potential modules:
+
+Trending Tokens
+Watchlist
+Recently Viewed
+Open Trades
+Market Movers
+Community Activity
+Leaderboard Snapshot
+Portfolio Snapshot
+
+Even lightweight versions dramatically increase platform depth.
+
+The Trading Desk should feel alive every time a user opens it.
+
+⸻
+
+MARKETS PAGE EVOLUTION
+
+Expand Markets into a true discovery terminal.
+
+Future categories:
+
+Trending
+New Pairs
+Graduating
+Migrating
+Highest Volume
+Biggest Gainers
+Biggest Losers
+Watchlist
+Community Picks
+
+Users should be able to discover opportunities quickly without leaving BlackPebble.
+
+⸻
+
+SOCIAL LAYER EXPANSION
+
+BlackPebble has an opportunity to become more than a paper trading platform.
+
+Expand trader identity systems.
+
+Future concepts:
+
+Trader Profiles
+Top Callers
+Most Followed
+Reputation Scores
+Verified Traders
+Achievement Badges
+Performance History
+Callout Accuracy
+
+The trader should become as important as the token.
+
+⸻
+
+PROFILE SYSTEM
+
+Every user profile should eventually feel like a professional trader page.
+
+Potential profile information:
+
+Avatar
+X Account
+Followers
+Following
+ROI
+P&L
+Win Rate
+Best Trade
+Rank
+Achievements
+Recent Activity
+
+Profiles should feel prestigious.
+
+Users should want to build a reputation on BlackPebble.
+
+⸻
+
+RANKING & TIER SYSTEM
+
+Leaderboard status should feel meaningful.
+
+Potential progression:
+
+Unranked
+Bronze
+Silver
+Gold
+Platinum
+Diamond
+Elite
+
+Ranks should feel earned and aspirational.
+
+Users should actively pursue advancement.
+
+⸻
+
+ACHIEVEMENT SYSTEM
+
+Introduce meaningful progression.
+
+Examples:
+
+First Trade
+First Win
+10 Trades
+100 Trades
+Positive ROI
+Top 100 Trader
+Top Caller
+Diamond Tier
+
+Achievements should reinforce engagement without feeling gamified or childish.
+
+Maintain a professional trading aesthetic.
+
+⸻
+
+SEARCH AS A PLATFORM FEATURE
+
+Search should become one of BlackPebble’s strongest features.
+
+Future search should support:
+
+Tokens
+Traders
+Wallets
+Callouts
+Leaderboards
+Profiles
+Watchlists
+
+One search bar.
+
+Entire platform searchable.
+
+Search should feel powerful.
+
+⸻
+
+PREMIUM DATA PRESENTATION
+
+Important metrics should dominate visually.
+
+Prioritize:
+
+Equity
+P&L
+ROI
+Rank
+Win Rate
+Best Trade
+
+Large values.
+
+Small labels.
+
+Strong hierarchy.
+
+Premium spacing.
+
+Numbers should become the visual focal point.
+
+⸻
+
+MOBILE-FIRST TERMINAL DESIGN

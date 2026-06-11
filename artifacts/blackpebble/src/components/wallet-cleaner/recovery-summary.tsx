@@ -49,7 +49,7 @@ export function RecoverySummary({
 
   return (
     <div className={className} data-testid="recovery-summary">
-      <div className="border border-border bg-card divide-y divide-border">
+      <div className="rounded-xl bg-card shadow-card overflow-hidden divide-y divide-border">
         {rows.map((row) => (
           <div
             key={row.label}

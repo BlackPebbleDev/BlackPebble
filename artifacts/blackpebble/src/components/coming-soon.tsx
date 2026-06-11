@@ -16,7 +16,7 @@ export function ComingSoon({
   return (
     <div className="flex-1 flex items-center justify-center px-6 py-16">
       <div className="max-w-lg w-full text-center">
-        <div className="w-16 h-16 mx-auto mb-6 border border-accent/40 flex items-center justify-center">
+        <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-accent/12 flex items-center justify-center">
           <Icon className="w-7 h-7 text-accent" />
         </div>
         <div className="text-[11px] uppercase tracking-[0.3em] text-accent mb-3">
@@ -27,7 +27,7 @@ export function ComingSoon({
           {description}
         </p>
         {features && features.length > 0 && (
-          <div className="border border-border bg-card divide-y divide-border text-left">
+          <div className="rounded-xl bg-card shadow-card overflow-hidden divide-y divide-border text-left">
             {features.map((f) => (
               <div
                 key={f}

@@ -155,7 +155,7 @@ export function LeveragePortfolioSection({
       </div>
 
       {positions.length === 0 ? (
-        <div className="border border-border bg-card px-4 py-8 text-center text-sm text-muted-foreground">
+        <div className="rounded-xl bg-card shadow-card px-4 py-8 text-center text-sm text-muted-foreground">
           No open leverage positions.
         </div>
       ) : (
@@ -208,7 +208,7 @@ export function TokenLeverageActivity({
   ];
 
   return (
-    <div className="mt-8 border border-border bg-card" data-testid="leverage-activity">
+    <div className="mt-8 rounded-2xl bg-card shadow-card overflow-hidden" data-testid="leverage-activity">
       <div className="flex border-b border-border">
         {tabs.map((t) => (
           <button
@@ -299,7 +299,7 @@ function LeverageRow({
   const curVal = currentValueSol(p);
   const dist = distanceToLiqPercent(p);
   return (
-    <div className="border border-border bg-card p-3">
+    <div className="rounded-xl bg-card shadow-card p-3.5">
       <div className="flex items-start justify-between gap-3">
         <button
           type="button"
@@ -389,7 +389,7 @@ function LeverageHistoryTable({
   onNavigate: (mint: string) => void;
 }) {
   return (
-    <div className="overflow-auto border border-border bg-card">
+    <div className="overflow-x-auto rounded-2xl bg-card shadow-card">
       <table className="w-full text-sm">
         <thead className="text-left text-[11px] uppercase tracking-wider text-muted-foreground">
           <tr>

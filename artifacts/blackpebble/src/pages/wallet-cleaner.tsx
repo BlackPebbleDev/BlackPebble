@@ -66,7 +66,7 @@ export default function WalletCleaner() {
           Utilities
         </Link>
         <div className="flex items-start gap-3">
-          <div className="w-11 h-11 border border-accent/40 flex items-center justify-center flex-shrink-0">
+          <div className="w-11 h-11 rounded-full bg-accent/12 flex items-center justify-center flex-shrink-0">
             <Sparkles className="w-5 h-5 text-accent" />
           </div>
           <div className="space-y-1.5">
@@ -84,7 +84,7 @@ export default function WalletCleaner() {
       <SafetyBanner />
 
       {!connected ? (
-        <div className="border border-border bg-card p-8 text-center space-y-4">
+        <div className="rounded-2xl bg-card shadow-card p-8 text-center space-y-4">
           <Wallet className="w-8 h-8 text-muted-foreground mx-auto" />
           <div className="space-y-1">
             <div className="font-semibold">Connect your wallet to begin</div>
@@ -99,7 +99,7 @@ export default function WalletCleaner() {
         </div>
       ) : status === "done" ? (
         <div
-          className="border border-border bg-card p-6 sm:p-8 text-center space-y-5"
+          className="rounded-2xl bg-card shadow-card p-6 sm:p-8 text-center space-y-5"
           data-testid="recovery-complete"
         >
           <CheckCircle2 className="w-9 h-9 text-accent mx-auto" />
@@ -180,7 +180,7 @@ export default function WalletCleaner() {
           )}
 
           {status === "scanning" && (
-            <div className="border border-border bg-card p-10 text-center">
+            <div className="rounded-2xl bg-card shadow-card p-10 text-center">
               <Loader2 className="w-6 h-6 text-accent animate-spin mx-auto mb-3" />
               <p className="text-sm text-muted-foreground">
                 Scanning your token accounts…
@@ -207,7 +207,7 @@ export default function WalletCleaner() {
 
           {status === "scanned" && accounts.length === 0 && (
             <div
-              className="border border-border bg-card p-10 text-center space-y-3"
+              className="rounded-2xl bg-card shadow-card p-10 text-center space-y-3"
               data-testid="wallet-clean"
             >
               <CheckCircle2 className="w-8 h-8 text-accent mx-auto" />

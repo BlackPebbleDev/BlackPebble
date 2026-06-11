@@ -40,7 +40,7 @@ export function ScanResults({ cleaner }: { cleaner: UseWalletCleaner }) {
         </Button>
       </div>
 
-      <div className="border border-border bg-card divide-y divide-border">
+      <div className="rounded-xl bg-card shadow-card overflow-hidden divide-y divide-border">
         {accounts.map((account) => (
           <AccountRow
             key={account.pubkey}

@@ -45,7 +45,7 @@ export function OpenPositions({
 
   if (positions.length === 0) {
     return (
-      <div className="border border-border bg-card text-center py-12 text-muted-foreground text-sm">
+      <div className="rounded-xl bg-card shadow-card text-center py-12 text-muted-foreground text-sm">
         {empty}
       </div>
     );
@@ -70,7 +70,7 @@ export function OpenPositions({
       </div>
 
       {/* Desktop: table with expandable detail rows */}
-      <div className="hidden md:block border border-border bg-card">
+      <div className="hidden md:block rounded-2xl bg-card shadow-card overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-muted-foreground border-b border-border">
@@ -226,7 +226,7 @@ function PositionCard({
   const mult = mcMultipleOf(p);
   return (
     <div
-      className="border border-border bg-card"
+      className="rounded-xl bg-card shadow-card overflow-hidden"
       data-testid={`card-position-${p.token_mint}`}
     >
       {/* L1 header: tap anywhere to expand/collapse. Token + Unrealized P&L /

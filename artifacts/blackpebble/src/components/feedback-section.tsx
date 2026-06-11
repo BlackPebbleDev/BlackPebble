@@ -37,13 +37,13 @@ export function FeedbackSection({
   return (
     <div className={cn("space-y-4", className)}>
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 border border-accent/40 flex items-center justify-center flex-shrink-0">
+        <div className="w-10 h-10 rounded-full bg-accent/12 flex items-center justify-center flex-shrink-0">
           <MessageSquare className="w-5 h-5 text-accent" />
         </div>
         <h2 className="text-xl font-semibold text-foreground">Feedback &amp; Support</h2>
       </div>
 
-      <div className="border border-border bg-card p-4 sm:p-6 space-y-4">
+      <div className="rounded-xl bg-card shadow-card p-4 sm:p-6 space-y-4">
         <div className="space-y-1">
           <p className="text-sm text-foreground">Found a bug?</p>
           <p className="text-sm text-foreground">Have a feature idea?</p>

@@ -21,11 +21,11 @@ export function RecoveryDiscoveryCard() {
 
   return (
     <div
-      className="border border-border bg-card p-4 sm:p-5"
+      className="rounded-xl bg-card shadow-card p-4 sm:p-5"
       data-testid="card-sol-recovery"
     >
       <div className="flex items-start gap-3">
-        <div className="w-10 h-10 border border-accent/40 flex items-center justify-center flex-shrink-0">
+        <div className="w-10 h-10 rounded-full bg-accent/12 flex items-center justify-center flex-shrink-0">
           <Sparkles className="w-5 h-5 text-accent" />
         </div>
         <div className="flex-1 min-w-0">

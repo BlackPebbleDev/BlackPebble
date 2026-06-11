@@ -76,7 +76,7 @@ export function ClosePreviewDialog({
           <div className="space-y-4">
             <RecoverySummary cleaner={cleaner} />
 
-            <div className="border border-border bg-card max-h-40 overflow-y-auto divide-y divide-border">
+            <div className="rounded-xl bg-card shadow-card max-h-40 overflow-y-auto divide-y divide-border">
               {selectedAccounts.map((acc) => (
                 <div
                   key={acc.pubkey}

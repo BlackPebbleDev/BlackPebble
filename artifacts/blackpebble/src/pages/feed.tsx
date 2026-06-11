@@ -38,7 +38,7 @@ function EmptyState({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="border border-border bg-card text-center py-16 px-6">
+    <div className="rounded-2xl bg-card shadow-card text-center py-16 px-6">
       <Rss className="w-10 h-10 text-muted-foreground/40 mx-auto mb-4" />
       <p className="text-foreground font-medium mb-1">{title}</p>
       <p className="text-muted-foreground text-sm max-w-sm mx-auto">{body}</p>
@@ -100,7 +100,7 @@ function FollowingFeed() {
             type="button"
             onClick={login}
             data-testid="button-feed-connect-x"
-            className="inline-flex items-center px-4 py-2 text-sm font-medium bg-accent text-accent-foreground hover:bg-accent/90 transition-colors"
+            className="inline-flex items-center rounded-lg px-4 py-2 text-sm font-semibold bg-accent text-accent-foreground hover:bg-accent/90 transition-colors"
           >
             Connect X
           </button>
@@ -146,7 +146,7 @@ function ActivityFeed() {
 
   return (
     <div>
-      <div className="inline-flex items-center gap-1 mb-4 border border-border bg-card p-1">
+      <div className="inline-flex items-center gap-1 mb-4 rounded-full bg-surface-2 p-1 shadow-card">
         {(["following", "global"] as FeedSource[]).map((id) => (
           <button
             key={id}
@@ -154,7 +154,7 @@ function ActivityFeed() {
             onClick={() => selectSource(id)}
             data-testid={`source-${id}`}
             className={cn(
-              "px-3 py-1.5 text-xs font-medium uppercase tracking-wider transition-colors",
+              "rounded-full px-4 py-1.5 text-xs font-semibold uppercase tracking-wider transition-colors",
               source === id
                 ? "bg-accent text-accent-foreground"
                 : "text-muted-foreground hover:text-foreground",
@@ -186,8 +186,8 @@ export default function FeedPage() {
   return (
     <div className="w-full max-w-3xl mx-auto px-4 md:px-6 py-6">
       <div className="flex items-center gap-3 mb-1">
-        <Rss className="w-6 h-6 text-accent" />
-        <h1 className="text-2xl font-semibold">Feed</h1>
+        <Rss className="w-7 h-7 text-accent" />
+        <h1 className="text-3xl md:text-4xl font-bold tracking-tight">Feed</h1>
       </div>
       <p className="text-sm text-muted-foreground mb-6">
         Live trading activity from the BlackPebble community.

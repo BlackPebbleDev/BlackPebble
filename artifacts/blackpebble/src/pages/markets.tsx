@@ -82,7 +82,7 @@ function MarketTable({ tokens, navigate }: { tokens: TokenInfo[]; navigate: (p: 
             type="button"
             onClick={() => navigate(`/?token=${t.mint}`)}
             data-testid={`card-token-${t.mint}`}
-            className="w-full border border-border bg-card p-3 flex items-center gap-3 text-left active:bg-accent/5 transition-colors"
+            className="w-full rounded-xl bg-card shadow-card p-3.5 flex items-center gap-3 text-left transition-colors hover:bg-surface-3 active:bg-accent/5"
           >
             <span className="text-xs text-muted-foreground tabular-nums w-5 text-center flex-shrink-0">
               {idx + 1}
@@ -115,7 +115,7 @@ function MarketTable({ tokens, navigate }: { tokens: TokenInfo[]; navigate: (p: 
       </div>
 
       {/* Desktop: table layout */}
-      <div className="hidden md:block border border-border bg-card overflow-x-auto">
+      <div className="hidden md:block rounded-2xl bg-card shadow-card overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
           <tr className="text-left text-muted-foreground border-b border-border">
@@ -196,7 +196,7 @@ function MigratedTable({
 }) {
   if (tokens.length === 0) {
     return (
-      <div className="border border-border bg-card">
+      <div className="rounded-2xl bg-card shadow-card">
         <div className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
           <Sparkles className="w-8 h-8 opacity-30" />
           <p className="text-sm">No recent migrations yet.</p>
@@ -219,7 +219,7 @@ function MigratedTable({
             type="button"
             onClick={() => navigate(`/?token=${t.mint}`)}
             data-testid={`card-migrated-${t.mint}`}
-            className="w-full border border-border bg-card p-3 flex items-center gap-3 text-left active:bg-accent/5 transition-colors"
+            className="w-full rounded-xl bg-card shadow-card p-3.5 flex items-center gap-3 text-left transition-colors hover:bg-surface-3 active:bg-accent/5"
           >
             <TokenLogo token={t} />
             <div className="min-w-0 flex-1">
@@ -247,7 +247,7 @@ function MigratedTable({
       </div>
 
       {/* Desktop: table layout */}
-      <div className="hidden md:block border border-border bg-card overflow-x-auto">
+      <div className="hidden md:block rounded-2xl bg-card shadow-card overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-muted-foreground border-b border-border">
@@ -407,8 +407,8 @@ export default function Markets() {
   return (
     <div className="w-full max-w-6xl mx-auto px-4 md:px-6 py-6">
       <div className="flex items-center gap-3 mb-2">
-        <TrendingUp className="w-6 h-6 text-accent" />
-        <h1 className="text-2xl font-semibold">Markets</h1>
+        <TrendingUp className="w-7 h-7 text-accent" />
+        <h1 className="text-3xl md:text-4xl font-bold tracking-tight">Markets</h1>
         {isListFeed && dataUpdatedAt > 0 && (
           <LiveIndicator dataUpdatedAt={dataUpdatedAt} />
         )}

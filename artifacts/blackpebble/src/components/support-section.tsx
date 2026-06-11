@@ -152,7 +152,7 @@ export function SupportSection({
         </p>
       </div>
 
-      <div className="border border-border bg-card p-4 sm:p-6 space-y-5">
+      <div className="rounded-xl bg-card shadow-card p-4 sm:p-6 space-y-5">
         <div className="space-y-2">
           <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
             Solana Donation Address

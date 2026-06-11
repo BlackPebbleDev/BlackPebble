@@ -80,12 +80,12 @@ export function WalletStatusCard({ cleaner }: { cleaner: UseWalletCleaner }) {
 
   return (
     <div
-      className="border border-border bg-card p-4 sm:p-5 space-y-4"
+      className="rounded-xl bg-card shadow-card p-4 sm:p-5 space-y-4"
       data-testid="wallet-status-card"
     >
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-9 h-9 border border-accent/40 flex items-center justify-center flex-shrink-0">
+          <div className="w-9 h-9 rounded-full bg-accent/12 flex items-center justify-center flex-shrink-0">
             <Wallet className="w-4 h-4 text-accent" />
           </div>
           <div className="min-w-0">

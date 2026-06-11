@@ -51,7 +51,7 @@ export default function Roadmap() {
           {FOCUS_AREAS.map((area) => (
             <div
               key={area}
-              className="flex items-center gap-3 border border-border bg-card px-4 py-3"
+              className="flex items-center gap-3 rounded-xl bg-card shadow-card px-4 py-3"
             >
               <CheckCircle2 className="w-4 h-4 flex-shrink-0 text-accent" />
               <span className="text-sm text-foreground/90">{area}</span>
@@ -67,7 +67,7 @@ export default function Roadmap() {
         <p className="text-sm text-muted-foreground leading-relaxed">
           BlackPebble is evolving into a Solana trader platform that combines:
         </p>
-        <div className="border border-border bg-card divide-y divide-border">
+        <div className="rounded-xl bg-card shadow-card overflow-hidden divide-y divide-border">
           {DIRECTION_ITEMS.map((item) => (
             <div
               key={item}

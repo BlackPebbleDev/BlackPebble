@@ -82,11 +82,9 @@ function StatTile({
   cls?: string;
 }) {
   return (
-    <div className="border border-border bg-card p-3">
-      <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
-        {label}
-      </div>
-      <div className={cn("mt-1 font-mono text-base text-foreground", cls)}>
+    <div className="rounded-xl bg-card shadow-card p-4">
+      <div className="stat-label">{label}</div>
+      <div className={cn("stat-value mt-1.5 text-lg md:text-xl text-foreground", cls)}>
         {value}
       </div>
     </div>
@@ -309,7 +307,7 @@ function XReputationSection({ profile }: { profile: ProfileResponse }) {
       <SectionHeader icon={ShieldCheck} title="Reputation" />
       <div
         data-testid="reputation-card"
-        className="border border-border bg-card p-4 space-y-6"
+        className="rounded-xl bg-card shadow-card p-5 space-y-6"
       >
         <RepGroup title="Account">
           <RepField
@@ -458,7 +456,7 @@ function AchievementsPlaceholder() {
   return (
     <div
       data-testid="placeholder-achievements"
-      className="border border-dashed border-border bg-card/40 p-4"
+      className="rounded-xl border border-dashed border-border bg-card/40 p-5"
     >
       <div className="flex items-start gap-3">
         <Award className="w-5 h-5 text-muted-foreground/50 flex-shrink-0 mt-0.5" />
@@ -476,7 +474,7 @@ function AchievementsPlaceholder() {
         {EXAMPLE_BADGES.map((b) => (
           <span
             key={b}
-            className="inline-flex items-center gap-1 border border-dashed border-border bg-secondary/30 px-2 py-1 text-[11px] text-muted-foreground/70"
+            className="inline-flex items-center gap-1 rounded-full border border-dashed border-border bg-secondary/30 px-2.5 py-1 text-[11px] text-muted-foreground/70"
           >
             <Award className="w-3 h-3" />
             {b}
@@ -596,7 +594,7 @@ function CalloutCard({
   return (
     <div
       data-testid={`card-callout-${callout.id}`}
-      className="border border-border bg-card p-4"
+      className="rounded-xl bg-card shadow-card p-4"
     >
       {/* Header: token identity + timestamp */}
       <div className="flex items-start gap-3">
@@ -741,7 +739,7 @@ function NewCallForm({ profileKey }: { profileKey: string }) {
   const canSubmit = !!mint && !!thesis.trim() && !mutation.isPending;
 
   return (
-    <div className="mb-3 border border-border bg-card p-4 space-y-3">
+    <div className="mb-3 rounded-xl bg-card shadow-card p-4 space-y-3">
       <div className="flex items-center justify-between">
         <span className="text-sm font-semibold text-foreground">New call</span>
         <button
@@ -891,7 +889,7 @@ export default function ProfilePage() {
   if (isError || !data) {
     return (
       <div className="w-full max-w-3xl mx-auto px-4 md:px-6 py-6">
-        <div className="border border-border bg-card text-center py-16 px-6">
+        <div className="rounded-2xl bg-card shadow-card text-center py-16 px-6">
           <p className="text-foreground font-medium mb-1">Profile not found</p>
           <p className="text-muted-foreground text-sm max-w-sm mx-auto">
             This trader doesn't exist or hasn't signed in with X. Only traders
@@ -910,7 +908,7 @@ export default function ProfilePage() {
   return (
     <div className="w-full max-w-3xl mx-auto px-4 md:px-6 py-6">
       {/* Header */}
-      <div className="border border-border bg-card p-4 md:p-5">
+      <div className="rounded-2xl bg-card shadow-card p-5 md:p-6">
         <div className="flex items-start gap-4">
           <Avatar url={profile.x_avatar_url} name={displayName} />
           <div className="min-w-0 flex-1">

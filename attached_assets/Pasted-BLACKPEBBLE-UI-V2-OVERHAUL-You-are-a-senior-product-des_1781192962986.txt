@@ -1,0 +1,972 @@
+BLACKPEBBLE UI V2 OVERHAUL
+
+
+
+You are a senior product designer specializing in premium fintech, trading terminals, and crypto platforms.
+
+
+
+Your goal is NOT to redesign BlackPebble.
+
+
+
+Your goal is to evolve BlackPebble into a premium, professional, expensive-feeling trading platform while preserving the BlackPebble brand.
+
+
+
+Reference inspiration:
+
+
+
+* Phantom Trading
+* Terminal
+* Axiom
+* Bloomberg Terminal
+* Apple design philosophy
+* Modern fintech SaaS products
+
+
+
+DO NOT copy any competitor directly.
+
+
+
+Instead combine:
+
+
+
+* Phantom’s cleanliness
+* Terminal’s utility
+* Axiom’s depth
+* BlackPebble’s premium gold identity
+
+
+
+⸻
+
+
+
+DESIGN GOALS
+
+
+
+BlackPebble should feel:
+
+
+
+* expensive
+* powerful
+* advanced
+* trustworthy
+* professional
+* fast
+* premium
+
+
+
+It should NOT feel:
+
+
+
+* amateur
+* dashboard-template based
+* cluttered
+* cheap
+* developer-built
+
+
+
+Users should immediately think:
+
+
+
+“Wow, this feels like a serious trading platform.”
+
+
+
+⸻
+
+
+
+TYPOGRAPHY OVERHAUL
+
+
+
+Typography is currently undersized and lacks hierarchy.
+
+
+
+Increase visual hierarchy across the entire platform.
+
+
+
+Requirements:
+
+
+
+* Larger page titles
+* Stronger font weights
+* Cleaner spacing
+* Better readability
+* More breathing room
+
+
+
+Examples:
+
+
+
+Page titles should feel dominant.
+
+
+
+Section labels should feel intentional.
+
+
+
+Numbers should be emphasized.
+
+
+
+Statistics should be immediately readable.
+
+
+
+P&L values should command attention.
+
+
+
+Win rates, rankings, ROI, and balances should feel important.
+
+
+
+Use typography to create hierarchy instead of excessive borders.
+
+
+
+⸻
+
+
+
+BORDER RADIUS SYSTEM
+
+
+
+Implement consistent border radius across the entire platform.
+
+
+
+Current design feels too square.
+
+
+
+Requirements:
+
+
+
+* Cards: 14-16px radius
+* Buttons: 12-14px radius
+* Search bars: 16px radius
+* Inputs: 12-14px radius
+* Tables: softened corners
+* Dropdowns: rounded
+
+
+
+Everything should feel modern and polished.
+
+
+
+⸻
+
+
+
+REMOVE EXCESSIVE BORDERS
+
+
+
+Current UI uses too many borders.
+
+
+
+Remove unnecessary borders throughout the application.
+
+
+
+Use:
+
+
+
+* spacing
+* shadows
+* contrast
+* elevation
+
+
+
+instead of boxes inside boxes.
+
+
+
+Avoid:
+
+
+
+border inside border inside border.
+
+
+
+Create separation using depth rather than outlines.
+
+
+
+⸻
+
+
+
+ICON SYSTEM REDESIGN
+
+
+
+Current icon containers feel outdated.
+
+
+
+Remove unnecessary icon boxes.
+
+
+
+Avoid:
+
+
+
+[card]
+[box]
+[icon]
+
+
+
+Instead:
+
+
+
+* standalone icons
+* subtle circular backgrounds if needed
+* cleaner visual presentation
+
+
+
+Icons should feel elegant and intentional.
+
+
+
+⸻
+
+
+
+SIDEBAR REDESIGN
+
+
+
+Current sidebar feels like an admin dashboard.
+
+
+
+Redesign sidebar to feel premium and modern.
+
+
+
+Requirements:
+
+
+
+* cleaner navigation
+* less visual clutter
+* active state clearly visible
+* subtle glow or gold accent
+* remove unnecessary container styling
+
+
+
+Reference modern trading platforms.
+
+
+
+Navigation should feel powerful but lightweight.
+
+
+
+⸻
+
+
+
+COLOR SYSTEM
+
+
+
+Keep BlackPebble’s gold identity.
+
+
+
+DO NOT replace with blue, purple, or neon colors.
+
+
+
+Use gold sparingly.
+
+
+
+Gold should indicate:
+
+
+
+* active navigation
+* selected tabs
+* achievements
+* rankings
+* premium actions
+* important metrics
+
+
+
+Gold should feel valuable.
+
+
+
+If everything is gold, nothing is gold.
+
+
+
+Most of the interface should remain:
+
+
+
+* black
+* charcoal
+* dark graphite
+* white
+
+
+
+Gold should be strategic.
+
+
+
+⸻
+
+
+
+VISUAL DEPTH
+
+
+
+Current platform feels visually flat.
+
+
+
+Create more depth through layered surfaces.
+
+
+
+Example hierarchy:
+
+
+
+Background
+↓
+Panel
+↓
+Card
+↓
+Interactive element
+↓
+Highlighted action
+
+
+
+Use subtle variations in dark tones.
+
+
+
+Examples:
+
+
+
+* #050505
+* #0D0D0D
+* #121212
+* #171717
+* #1C1C1C
+
+
+
+Create depth without making the interface busy.
+
+
+
+⸻
+
+
+
+SEARCH EXPERIENCE
+
+
+
+Search is a primary feature.
+
+
+
+Upgrade search to feel premium.
+
+
+
+Requirements:
+
+
+
+* larger height
+* more padding
+* better typography
+* cleaner icon treatment
+* stronger focus state
+* smoother appearance
+
+
+
+Search should feel like the centerpiece of the application.
+
+
+
+⸻
+
+
+
+PORTFOLIO REDESIGN
+
+
+
+Portfolio is the most important page.
+
+
+
+Immediately surface:
+
+
+
+* Total Equity
+* Total P&L
+* ROI
+* Win Rate
+* Leaderboard Rank
+* Best Trade
+
+
+
+These metrics should be visually dominant.
+
+
+
+Create a premium trading-performance dashboard experience.
+
+
+
+Users should instantly understand:
+
+
+
+“How am I doing?”
+
+
+
+⸻
+
+
+
+FEED REDESIGN
+
+
+
+Feed should feel alive.
+
+
+
+Create stronger visual distinction between:
+
+
+
+* trades
+* callouts
+* achievements
+* milestones
+* leaderboard movement
+
+
+
+Feed should feel dynamic and active.
+
+
+
+The platform should feel like a living ecosystem.
+
+
+
+⸻
+
+
+
+LEADERBOARD REDESIGN
+
+
+
+Leaderboard should feel prestigious.
+
+
+
+Requirements:
+
+
+
+* stronger ranking visualization
+* premium presentation
+* better card design
+* clearer hierarchy
+
+
+
+Leaderboard should feel competitive and aspirational.
+
+
+
+Users should WANT to appear on it.
+
+
+
+⸻
+
+
+
+UTILITIES REDESIGN
+
+
+
+Current utility cards feel generic.
+
+
+
+Transform utilities into premium product cards.
+
+
+
+Cleaner layout.
+
+
+
+Better spacing.
+
+
+
+Better typography.
+
+
+
+No unnecessary nested containers.
+
+
+
+Each utility should feel like a powerful tool.
+
+
+
+⸻
+
+
+
+TABLE DESIGN
+
+
+
+Modernize all tables.
+
+
+
+Requirements:
+
+
+
+* improved row spacing
+* better hover states
+* cleaner typography
+* improved readability
+* subtle depth
+
+
+
+Tables should feel professional and premium.
+
+
+
+⸻
+
+
+
+MICRO INTERACTIONS
+
+
+
+Add tasteful polish.
+
+
+
+Examples:
+
+
+
+* smooth hover states
+* subtle transitions
+* active tab animations
+* card hover elevation
+* button feedback
+
+
+
+Keep interactions professional.
+
+
+
+Avoid flashy gimmicks.
+
+
+
+⸻
+
+
+
+FINAL DESIGN TEST
+
+
+
+Every page should pass this test:
+
+
+
+If a user sees BlackPebble for the first time, they should believe:
+
+
+
+* this platform is established
+* this platform is premium
+* this platform is trustworthy
+* this platform is powerful
+* this platform is worth using daily
+
+
+
+BlackPebble should feel like the intersection of:
+
+
+
+Phantom’s elegance
+
+
+
+Terminal’s utility
+
+
+
+Axiom’s depth
+
+
+
+and its own premium BlackPebble identity.
+
+
+
+The final result should feel expensive, advanced, and polished without becoming cluttered or overwhelming.
+
+
+
+⸻
+
+BLACKPEBBLE V2 — INFORMATION DENSITY & PLATFORM EVOLUTION
+
+This section is critical.
+
+The objective is not simply improving aesthetics.
+
+The objective is transforming BlackPebble from a website into a trading platform.
+
+Every page should feel like a professional trading workstation rather than a traditional web dashboard.
+
+⸻
+
+INFORMATION DENSITY
+
+Current BlackPebble pages contain too much empty space and too little immediately useful information.
+
+Reference platforms such as Phantom, Terminal, and Axiom maximize useful information without feeling cluttered.
+
+Requirements:
+
+Reduce unnecessary empty vertical space
+Surface more useful information above the fold
+Increase perceived platform depth
+Ensure every screen immediately provides value
+Users should never land on a page that feels empty.
+
+Every page should communicate:
+
+“This platform is active.”
+
+“This platform is alive.”
+
+“This platform contains valuable information.”
+
+⸻
+
+ABOVE-THE-FOLD RULE
+
+The first screen visible on desktop and mobile should always contain meaningful information.
+
+Avoid layouts where users must scroll before discovering platform value.
+
+Every page should immediately display:
+
+data
+statistics
+activity
+rankings
+market information
+portfolio information
+trading opportunities
+The first screen should always feel useful.
+
+⸻
+
+BLACKPEBBLE IS SOFTWARE, NOT A WEBSITE
+
+Design every page as if BlackPebble were a professional desktop application.
+
+The experience should resemble:
+
+Bloomberg Terminal
+TradingView
+Phantom Trading
+Axiom
+Terminal
+while preserving BlackPebble’s own identity.
+
+The platform should feel installed rather than visited.
+
+⸻
+
+TRADING DESK EVOLUTION
+
+The Trading Desk should become the operational center of BlackPebble.
+
+Requirements:
+
+Display useful modules immediately.
+
+Potential modules:
+
+Trending Tokens
+Watchlist
+Recently Viewed
+Open Trades
+Market Movers
+Community Activity
+Leaderboard Snapshot
+Portfolio Snapshot
+Even lightweight versions dramatically increase platform depth.
+
+The Trading Desk should feel alive every time a user opens it.
+
+⸻
+
+MARKETS PAGE EVOLUTION
+
+Expand Markets into a true discovery terminal.
+
+Future categories:
+
+Trending
+New Pairs
+Graduating
+Migrating
+Highest Volume
+Biggest Gainers
+Biggest Losers
+Watchlist
+Community Picks
+Users should be able to discover opportunities quickly without leaving BlackPebble.
+
+⸻
+
+SOCIAL LAYER EXPANSION
+
+BlackPebble has an opportunity to become more than a paper trading platform.
+
+Expand trader identity systems.
+
+Future concepts:
+
+Trader Profiles
+Top Callers
+Most Followed
+Reputation Scores
+Verified Traders
+Achievement Badges
+Performance History
+Callout Accuracy
+The trader should become as important as the token.
+
+⸻
+
+PROFILE SYSTEM
+
+Every user profile should eventually feel like a professional trader page.
+
+Potential profile information:
+
+Avatar
+X Account
+Followers
+Following
+ROI
+P&L
+Win Rate
+Best Trade
+Rank
+Achievements
+Recent Activity
+Profiles should feel prestigious.
+
+Users should want to build a reputation on BlackPebble.
+
+⸻
+
+RANKING & TIER SYSTEM
+
+Leaderboard status should feel meaningful.
+
+Potential progression:
+
+Unranked
+Bronze
+Silver
+Gold
+Platinum
+Diamond
+Elite
+Ranks should feel earned and aspirational.
+
+Users should actively pursue advancement.
+
+⸻
+
+ACHIEVEMENT SYSTEM
+
+Introduce meaningful progression.
+
+Examples:
+
+First Trade
+First Win
+10 Trades
+100 Trades
+Positive ROI
+Top 100 Trader
+Top Caller
+Diamond Tier
+Achievements should reinforce engagement without feeling gamified or childish.
+
+Maintain a professional trading aesthetic.
+
+⸻
+
+SEARCH AS A PLATFORM FEATURE
+
+Search should become one of BlackPebble’s strongest features.
+
+Future search should support:
+
+Tokens
+Traders
+Wallets
+Callouts
+Leaderboards
+Profiles
+Watchlists
+One search bar.
+
+Entire platform searchable.
+
+Search should feel powerful.
+
+⸻
+
+PREMIUM DATA PRESENTATION
+
+Important metrics should dominate visually.
+
+Prioritize:
+
+Equity
+P&L
+ROI
+Rank
+Win Rate
+Best Trade
+Large values.
+
+Small labels.
+
+Strong hierarchy.
+
+Premium spacing.
+
+Numbers should become the visual focal point.
+
+⸻
+
+MOBILE-FIRST TERMINAL DESIGN
+
+BlackPebble should be designed mobile-first.
+
+Most competitors remain desktop-first.
+
+BlackPebble should feel exceptional on mobile.
+
+Requirements:
+
+Native-feeling navigation
+Better thumb reach
+Fast information scanning
+Minimal friction
+The mobile experience should be a competitive advantage.
+
+⸻
+
+BLACKPEBBLE DESIGN PRINCIPLE
+
+DO NOT become a clone of Axiom.
+
+DO NOT become a clone of Terminal.
+
+DO NOT become a clone of Phantom.
+
+Preserve BlackPebble’s greatest strengths:
+
+simplicity
+clarity
+approachability
+professionalism
+Add power without adding clutter.
+
+The final experience should feel like:
+
+“Bloomberg Terminal for everyday crypto traders.”
+
+The platform should feel premium, powerful, trustworthy, and expensive while remaining easy to understand and enjoyable to use daily.
+
+⸻

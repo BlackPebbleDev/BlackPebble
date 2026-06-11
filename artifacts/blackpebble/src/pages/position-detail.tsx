@@ -161,7 +161,7 @@ export default function PositionDetail() {
           <ArrowLeft className="w-4 h-4" />
           Back to Portfolio
         </button>
-        <div className="border border-border bg-card text-center py-16 px-6">
+        <div className="rounded-2xl bg-card shadow-card text-center py-16 px-6">
           <p className="text-foreground font-medium mb-1">Position not found</p>
           <p className="text-muted-foreground text-sm">
             This token isn't in your open positions. It may have been fully
@@ -206,7 +206,7 @@ export default function PositionDetail() {
             onError={(e) => (e.currentTarget.style.visibility = "hidden")}
           />
         ) : (
-          <div className="w-10 h-10 border border-border bg-secondary flex items-center justify-center font-mono text-sm text-muted-foreground">
+          <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center font-mono text-sm text-muted-foreground">
             {sym.slice(0, 2).toUpperCase()}
           </div>
         )}
@@ -364,7 +364,7 @@ export default function PositionDetail() {
         <h2 className="text-[11px] uppercase tracking-wider text-muted-foreground mb-2">
           Trade History ({trades.length})
         </h2>
-        <div className="border border-border bg-card">
+        <div className="rounded-xl bg-card shadow-card overflow-hidden">
           <TradeList
             trades={trades}
             empty="No executions recorded for this token yet."

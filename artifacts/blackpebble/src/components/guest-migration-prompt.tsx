@@ -144,7 +144,7 @@ export function GuestMigrationPrompt() {
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 px-4">
       <div
         data-testid="modal-guest-migration"
-        className="w-full max-w-md border border-border bg-card p-6"
+        className="w-full max-w-md rounded-2xl bg-card shadow-elevated p-6"
       >
         <div className="flex items-center gap-3 mb-3">
           <Wallet className="w-6 h-6 text-accent" />

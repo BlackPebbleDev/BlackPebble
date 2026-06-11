@@ -50,7 +50,7 @@ export function Watchlist({
 
   if (items.length === 0) {
     return (
-      <div className="border border-border bg-card text-center py-10 px-4 text-muted-foreground text-sm">
+      <div className="rounded-xl bg-card shadow-card text-center py-10 px-4 text-muted-foreground text-sm">
         Your watchlist is empty. Tap the star on any token to add it here.
       </div>
     );
@@ -65,7 +65,7 @@ export function Watchlist({
             key={w.mint}
             onClick={() => onNavigate(w.mint)}
             data-testid={`watch-card-${w.mint}`}
-            className="border border-border bg-card p-3 flex items-center gap-3 cursor-pointer active:bg-accent/5 transition-colors"
+            className="rounded-xl bg-card shadow-card p-3.5 flex items-center gap-3 cursor-pointer transition-colors hover:bg-surface-3 active:bg-accent/5"
           >
             <div className="min-w-0 flex-1">
               <div className="font-medium text-foreground truncate">
@@ -110,7 +110,7 @@ export function Watchlist({
       </div>
 
       {/* Desktop: table */}
-      <div className="hidden md:block border border-border bg-card">
+      <div className="hidden md:block rounded-2xl bg-card shadow-card overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-muted-foreground border-b border-border">

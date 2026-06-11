@@ -1,0 +1,283 @@
+BLACKPEBBLE UI V2 OVERHAUL
+
+You are a senior product designer specializing in premium fintech, trading terminals, and crypto platforms.
+
+Your goal is NOT to redesign BlackPebble.
+
+Your goal is to evolve BlackPebble into a premium, professional, expensive-feeling trading platform while preserving the BlackPebble brand.
+
+Reference inspiration:
+
+Phantom Trading
+Terminal
+Axiom
+Bloomberg Terminal
+Apple design philosophy
+Modern fintech SaaS products
+
+DO NOT copy any competitor directly.
+
+Instead combine:
+
+Phantom’s cleanliness
+Terminal’s utility
+Axiom’s depth
+BlackPebble’s premium gold identity
+
+⸻
+
+DESIGN GOALS
+
+BlackPebble should feel:
+
+expensive
+powerful
+advanced
+trustworthy
+professional
+fast
+premium
+
+It should NOT feel:
+
+amateur
+dashboard-template based
+cluttered
+cheap
+developer-built
+
+Users should immediately think:
+
+“Wow, this feels like a serious trading platform.”
+
+⸻
+
+TYPOGRAPHY OVERHAUL
+
+Typography is currently undersized and lacks hierarchy.
+
+Increase visual hierarchy across the entire platform.
+
+Requirements:
+
+Larger page titles
+Stronger font weights
+Cleaner spacing
+Better readability
+More breathing room
+
+Examples:
+
+Page titles should feel dominant.
+
+Section labels should feel intentional.
+
+Numbers should be emphasized.
+
+Statistics should be immediately readable.
+
+P&L values should command attention.
+
+Win rates, rankings, ROI, and balances should feel important.
+
+Use typography to create hierarchy instead of excessive borders.
+
+⸻
+
+BORDER RADIUS SYSTEM
+
+Implement consistent border radius across the entire platform.
+
+Current design feels too square.
+
+Requirements:
+
+Cards: 14-16px radius
+Buttons: 12-14px radius
+Search bars: 16px radius
+Inputs: 12-14px radius
+Tables: softened corners
+Dropdowns: rounded
+
+Everything should feel modern and polished.
+
+⸻
+
+REMOVE EXCESSIVE BORDERS
+
+Current UI uses too many borders.
+
+Remove unnecessary borders throughout the application.
+
+Use:
+
+spacing
+shadows
+contrast
+elevation
+
+instead of boxes inside boxes.
+
+Avoid:
+
+border inside border inside border.
+
+Create separation using depth rather than outlines.
+
+⸻
+
+ICON SYSTEM REDESIGN
+
+Current icon containers feel outdated.
+
+Remove unnecessary icon boxes.
+
+Avoid:
+
+[card]
+[box]
+[icon]
+
+Instead:
+
+standalone icons
+subtle circular backgrounds if needed
+cleaner visual presentation
+
+Icons should feel elegant and intentional.
+
+⸻
+
+SIDEBAR REDESIGN
+
+Current sidebar feels like an admin dashboard.
+
+Redesign sidebar to feel premium and modern.
+
+Requirements:
+
+cleaner navigation
+less visual clutter
+active state clearly visible
+subtle glow or gold accent
+remove unnecessary container styling
+
+Reference modern trading platforms.
+
+Navigation should feel powerful but lightweight.
+
+⸻
+
+COLOR SYSTEM
+
+Keep BlackPebble’s gold identity.
+
+DO NOT replace with blue, purple, or neon colors.
+
+Use gold sparingly.
+
+Gold should indicate:
+
+active navigation
+selected tabs
+achievements
+rankings
+premium actions
+important metrics
+
+Gold should feel valuable.
+
+If everything is gold, nothing is gold.
+
+Most of the interface should remain:
+
+black
+charcoal
+dark graphite
+white
+
+Gold should be strategic.
+
+⸻
+
+VISUAL DEPTH
+
+Current platform feels visually flat.
+
+Create more depth through layered surfaces.
+
+Example hierarchy:
+
+Background
+↓
+Panel
+↓
+Card
+↓
+Interactive element
+↓
+Highlighted action
+
+Use subtle variations in dark tones.
+
+Examples:
+
+#050505
+#0D0D0D
+#121212
+#171717
+#1C1C1C
+
+Create depth without making the interface busy.
+
+⸻
+
+SEARCH EXPERIENCE
+
+Search is a primary feature.
+
+Upgrade search to feel premium.
+
+Requirements:
+
+larger height
+more padding
+better typography
+cleaner icon treatment
+stronger focus state
+smoother appearance
+
+Search should feel like the centerpiece of the application.
+
+⸻
+
+PORTFOLIO REDESIGN
+
+Portfolio is the most important page.
+
+Immediately surface:
+
+Total Equity
+Total P&L
+ROI
+Win Rate
+Leaderboard Rank
+Best Trade
+
+These metrics should be visually dominant.
+
+Create a premium trading-performance dashboard experience.
+
+Users should instantly understand:
+
+“How am I doing?”
+
+⸻
+
+FEED REDESIGN
+
+Feed should feel alive.
+
+Create stronger visual distinction between:
+
+trades

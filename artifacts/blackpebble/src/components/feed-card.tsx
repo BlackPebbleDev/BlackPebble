@@ -160,24 +160,24 @@ export function TradeActivityCard({
   return (
     <div
       data-testid={`feed-card-${item.id}`}
-      className="border border-border bg-card p-3 flex items-start gap-3"
+      className="rounded-xl bg-card shadow-card p-4 flex items-start gap-3 transition-colors hover:bg-surface-3"
     >
       <div
         className={cn(
-          "mt-0.5 flex-shrink-0",
+          "mt-0.5 flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-full",
           tone === "buy"
-            ? "text-emerald-400"
+            ? "bg-emerald-500/12 text-emerald-400"
             : tone === "sell"
-              ? "text-red-400"
-              : "text-muted-foreground",
+              ? "bg-red-500/12 text-red-400"
+              : "bg-secondary text-muted-foreground",
         )}
       >
         {item.kind === "leverage" ? (
-          <Zap className="w-4 h-4" />
+          <Zap className="w-[18px] h-[18px]" />
         ) : tone === "buy" ? (
-          <ArrowUpRight className="w-4 h-4" />
+          <ArrowUpRight className="w-[18px] h-[18px]" />
         ) : (
-          <ArrowDownRight className="w-4 h-4" />
+          <ArrowDownRight className="w-[18px] h-[18px]" />
         )}
       </div>
 
@@ -203,7 +203,14 @@ export function TradeActivityCard({
         </p>
 
         <div className="mt-1.5 flex items-center gap-3 text-xs">
-          <span className="uppercase tracking-wider text-[10px] text-muted-foreground border border-border px-1.5 py-0.5">
+          <span
+            className={cn(
+              "uppercase tracking-wider text-[10px] font-semibold rounded-full px-2 py-0.5",
+              item.kind === "leverage"
+                ? "bg-accent/12 text-accent"
+                : "bg-secondary text-muted-foreground",
+            )}
+          >
             {item.kind === "leverage" ? "Leverage" : "Spot"}
           </span>
           {showPnl && (
@@ -262,7 +269,7 @@ export function PlaceholderCard({
   return (
     <div
       data-testid={`placeholder-${kind}`}
-      className="border border-dashed border-border bg-card/40 p-4 flex items-start gap-3"
+      className="rounded-xl border border-dashed border-border bg-card/40 p-5 flex items-start gap-3"
     >
       <Icon className="w-5 h-5 text-muted-foreground/50 flex-shrink-0 mt-0.5" />
       <div>

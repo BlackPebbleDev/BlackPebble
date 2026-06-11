@@ -77,7 +77,7 @@ function Card({
   action?: React.ReactNode;
 }) {
   return (
-    <section className="border border-border bg-card">
+    <section className="rounded-xl bg-card shadow-card overflow-hidden">
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-foreground">
           <Icon className="h-4 w-4 text-accent" />

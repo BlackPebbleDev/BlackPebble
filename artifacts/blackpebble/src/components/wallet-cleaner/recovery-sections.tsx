@@ -33,7 +33,7 @@ function ExpandableSection({
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="border border-border bg-card" data-testid={testId}>
+    <div className="rounded-xl bg-card shadow-card overflow-hidden" data-testid={testId}>
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -41,7 +41,7 @@ function ExpandableSection({
         aria-expanded={open}
         data-testid={`${testId}-toggle`}
       >
-        <div className="w-9 h-9 border border-accent/40 flex items-center justify-center flex-shrink-0 text-accent">
+        <div className="w-9 h-9 rounded-full bg-accent/12 flex items-center justify-center flex-shrink-0 text-accent">
           {icon}
         </div>
         <div className="flex-1 min-w-0">

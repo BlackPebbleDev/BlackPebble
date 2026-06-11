@@ -58,7 +58,7 @@ function LeaderboardComingSoon({
   return (
     <div
       data-testid={`leaderboard-coming-soon-${category}`}
-      className="border border-dashed border-border bg-card/40 text-center py-16 px-6"
+      className="rounded-2xl border border-dashed border-border bg-card/40 text-center py-16 px-6"
     >
       <Trophy className="w-10 h-10 text-muted-foreground/40 mx-auto mb-4" />
       <p className="text-foreground font-medium mb-1">{copy.title}</p>
@@ -186,8 +186,8 @@ export default function Leaderboard() {
   return (
     <div className="w-full max-w-5xl mx-auto px-4 md:px-6 py-6">
       <div className="flex items-center gap-3 mb-1">
-        <Trophy className="w-6 h-6 text-accent" />
-        <h1 className="text-2xl font-semibold">Leaderboard</h1>
+        <Trophy className="w-7 h-7 text-accent" />
+        <h1 className="text-3xl md:text-4xl font-bold tracking-tight">Leaderboard</h1>
       </div>
       <p className="text-sm text-muted-foreground mb-6">
         How the BlackPebble community stacks up across trading and reputation.
@@ -225,7 +225,7 @@ export default function Leaderboard() {
           {isGuest && (
             <div
               data-testid="banner-leaderboard-guest"
-              className="border border-accent/40 bg-accent/10 px-4 py-3 mb-6 text-sm text-foreground"
+              className="rounded-xl border border-accent/40 bg-accent/10 px-4 py-3 mb-6 text-sm text-foreground"
             >
               Connect a wallet or X to appear on the leaderboard. Guest trades
               stay on this device and aren't ranked.
@@ -256,7 +256,7 @@ export default function Leaderboard() {
           <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
         </div>
       ) : entries.length === 0 ? (
-        <div className="border border-border bg-card text-center py-16 px-6">
+        <div className="rounded-2xl bg-card shadow-card text-center py-16 px-6">
           <Trophy className="w-10 h-10 text-muted-foreground/40 mx-auto mb-4" />
           <p className="text-foreground font-medium mb-1">No ranked traders yet</p>
           <p className="text-muted-foreground text-sm max-w-sm mx-auto">
@@ -280,10 +280,10 @@ export default function Leaderboard() {
                   role={pid ? "link" : undefined}
                   tabIndex={pid ? 0 : undefined}
                   className={cn(
-                    "border bg-card p-3",
-                    isMe ? "border-accent/60 bg-accent/10" : "border-border",
+                    "rounded-xl bg-card shadow-card p-3.5 transition-colors",
+                    isMe && "ring-1 ring-accent/50 bg-accent/10",
                     pid &&
-                      "cursor-pointer hover:border-accent/60 focus:outline-none focus-visible:border-accent",
+                      "cursor-pointer hover:bg-surface-3 focus:outline-none focus-visible:ring-1 focus-visible:ring-accent",
                   )}
                 >
                   <div className="flex items-center gap-3 mb-3">
@@ -341,7 +341,7 @@ export default function Leaderboard() {
           </div>
 
           {/* Desktop: full table */}
-          <div className="hidden md:block border border-border bg-card overflow-x-auto">
+          <div className="hidden md:block rounded-2xl bg-card shadow-card overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-muted-foreground border-b border-border">

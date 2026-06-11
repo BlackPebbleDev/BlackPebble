@@ -29,7 +29,7 @@ export function SectionCard({
 }) {
   return (
     <section
-      className={cn("border border-border bg-card p-4 sm:p-5", className)}
+      className={cn("rounded-xl bg-card shadow-card p-4 sm:p-5", className)}
     >
       <div className="mb-4">
         <h2 className="text-sm font-semibold">{title}</h2>

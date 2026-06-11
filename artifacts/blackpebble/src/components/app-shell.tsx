@@ -133,7 +133,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             {isGuest && (
               <span
                 data-testid="badge-guest-mode"
-                className="hidden sm:inline-flex items-center text-[11px] font-medium uppercase tracking-wider text-amber-400 border border-amber-500/30 bg-amber-500/10 px-2 py-1"
+                className="hidden sm:inline-flex items-center text-[11px] font-semibold uppercase tracking-wider text-amber-400 border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 rounded-full"
               >
                 Guest Mode
               </span>
@@ -154,11 +154,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         onMouseEnter={() => setExpanded(true)}
         onMouseLeave={() => setExpanded(false)}
         className={cn(
-          "hidden md:flex fixed left-0 top-28 bottom-0 z-50 flex-col border-r border-border bg-card transition-all duration-200",
-          expanded ? "w-[200px]" : "w-[60px]",
+          "hidden md:flex fixed left-0 top-28 bottom-0 z-50 flex-col bg-background/60 backdrop-blur-sm transition-all duration-200",
+          expanded ? "w-[208px]" : "w-[64px]",
         )}
       >
-        <nav className="flex flex-col gap-1 p-2 pt-4">
+        <nav className="flex flex-col gap-1.5 p-2.5 pt-5">
           {items.map((item) => {
             const active = isActive(location, item.href);
             const Icon = item.icon;
@@ -168,16 +168,24 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 href={item.href}
                 data-testid={`nav-${item.label.toLowerCase().replace(/\s/g, "-")}`}
                 className={cn(
-                  "flex items-center gap-3 h-11 px-3 transition-colors overflow-hidden whitespace-nowrap",
+                  "group relative flex items-center gap-3 h-11 px-3 rounded-xl transition-all duration-150 overflow-hidden whitespace-nowrap",
                   active
-                    ? "bg-accent/15 text-accent border-l-2 border-accent"
-                    : "text-muted-foreground hover:text-foreground hover:bg-secondary border-l-2 border-transparent",
+                    ? "bg-accent/10 text-accent shadow-[inset_0_0_0_1px_hsl(var(--accent)/0.25)]"
+                    : "text-muted-foreground hover:text-foreground hover:bg-white/[0.04]",
                 )}
               >
-                <Icon className="w-5 h-5 flex-shrink-0" />
+                {active && (
+                  <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-0.5 rounded-full bg-accent" />
+                )}
+                <Icon
+                  className={cn(
+                    "w-5 h-5 flex-shrink-0 transition-transform duration-150",
+                    !active && "group-hover:scale-105",
+                  )}
+                />
                 <span
                   className={cn(
-                    "text-sm tracking-wide transition-opacity duration-200",
+                    "text-sm font-medium tracking-wide transition-opacity duration-200",
                     expanded ? "opacity-100" : "opacity-0",
                   )}
                 >
@@ -197,7 +205,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </main>
 
       {/* Mobile bottom tabs */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 h-16 bg-card border-t border-border flex items-center justify-around">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 h-16 bg-card/95 backdrop-blur-md border-t border-border flex items-center justify-around px-1">
         {items.map((item) => {
           const active = isActive(location, item.href);
           const Icon = item.icon;
@@ -207,12 +215,24 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               href={item.href}
               data-testid={`tab-${item.label.toLowerCase().replace(/\s/g, "-")}`}
               className={cn(
-                "flex flex-col items-center justify-center gap-1 flex-1 h-full",
+                "flex flex-col items-center justify-center gap-1 flex-1 h-full transition-colors",
                 active ? "text-accent" : "text-muted-foreground",
               )}
             >
-              <Icon className="w-5 h-5" />
-              <span className="text-[10px] tracking-wide">
+              <span
+                className={cn(
+                  "flex items-center justify-center h-8 w-12 rounded-full transition-colors",
+                  active && "bg-accent/12",
+                )}
+              >
+                <Icon className="w-5 h-5" />
+              </span>
+              <span
+                className={cn(
+                  "text-[10px] tracking-wide",
+                  active ? "font-semibold" : "font-medium",
+                )}
+              >
                 {item.label.split(" ")[0]}
               </span>
             </Link>
