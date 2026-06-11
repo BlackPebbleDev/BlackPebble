@@ -32,7 +32,6 @@ import AdminPage from "@/pages/admin";
 import About from "@/pages/about";
 import Features from "@/pages/features";
 import Roadmap from "@/pages/roadmap";
-import TraderProfile from "@/pages/trader-profile";
 import FeedPage from "@/pages/feed";
 import ProfilePage from "@/pages/profile";
 
@@ -56,7 +55,6 @@ function Router() {
         <Route path="/about" component={About} />
         <Route path="/features" component={Features} />
         <Route path="/roadmap" component={Roadmap} />
-        <Route path="/trader/:id" component={TraderProfile} />
         <Route path="/admin" component={AdminPage} />
         <Route component={NotFound} />
       </Switch>
