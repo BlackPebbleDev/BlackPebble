@@ -88,14 +88,17 @@ function SectionHeader({
   );
 }
 
-/** "Apr 2011 · 14 yr" style label for an X account-creation epoch. */
-function formatAccountAge(tsSeconds: number): string {
+/** "Mar 2019" — the month/year the X account was created. */
+function formatJoinDate(tsSeconds: number): string {
   const d = new Date(tsSeconds * 1000);
   const month = d.toLocaleString("en-US", { month: "short" });
-  const year = d.getFullYear();
+  return `${month} ${d.getFullYear()}`;
+}
+
+/** "5 yr" / "< 1 yr" — elapsed time since the X account was created. */
+function formatAge(tsSeconds: number): string {
   const years = Math.floor((Date.now() / 1000 - tsSeconds) / (365.25 * 86400));
-  const age = years >= 1 ? `${years} yr` : "< 1 yr";
-  return `${month} ${year} · ${age}`;
+  return years >= 1 ? `${years} yr` : "< 1 yr";
 }
 
 function BioSection({ profile }: { profile: ProfileResponse }) {
@@ -249,73 +252,99 @@ function RepField({
   );
 }
 
+/** Muted em-dash shown when a real X value is missing. */
+const RepDash = () => <span className="text-muted-foreground/50">—</span>;
+
+/** "Coming soon" chip for metrics that aren't computed yet (no calc built). */
+const RepSoon = () => (
+  <span className="inline-flex items-center bg-secondary/50 px-1.5 py-0.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+    Coming soon
+  </span>
+);
+
+/** Labelled group of reputation fields inside the card (Account / Social / etc). */
+function RepGroup({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <div className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+        {title}
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">{children}</div>
+    </div>
+  );
+}
+
 function XReputationSection({ profile }: { profile: ProfileResponse }) {
   const rep = profile.xReputation;
-  const hasRep =
-    rep.accountCreatedAt != null ||
-    rep.verified != null ||
-    rep.followers != null ||
-    rep.following != null;
   return (
     <>
-      <SectionHeader icon={BadgeCheck} title="X Reputation" />
-      <div className="border border-border bg-card p-4">
-        {hasRep ? (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <RepField
-              label="Account Age"
-              value={
-                rep.accountCreatedAt != null ? (
-                  formatAccountAge(rep.accountCreatedAt)
-                ) : (
-                  <span className="text-muted-foreground/50">—</span>
-                )
-              }
-            />
-            <RepField
-              label="Verified"
-              value={
-                rep.verified == null ? (
-                  <span className="text-muted-foreground/50">—</span>
-                ) : rep.verified ? (
-                  <span className="inline-flex items-center gap-1 text-accent">
-                    <BadgeCheck className="w-4 h-4" /> Yes
-                  </span>
-                ) : (
-                  "No"
-                )
-              }
-            />
-            <RepField
-              label="Followers"
-              value={
-                rep.followers != null ? (
-                  fmtNum(rep.followers)
-                ) : (
-                  <span className="text-muted-foreground/50">—</span>
-                )
-              }
-            />
-            <RepField
-              label="Following"
-              value={
-                rep.following != null ? (
-                  fmtNum(rep.following)
-                ) : (
-                  <span className="text-muted-foreground/50">—</span>
-                )
-              }
-            />
-          </div>
-        ) : (
-          <div
-            data-testid="x-reputation-empty"
-            className="flex items-center gap-2 text-sm text-muted-foreground"
-          >
-            <BadgeCheck className="w-4 h-4 text-muted-foreground/50" />
-            Data coming soon
-          </div>
-        )}
+      <SectionHeader icon={ShieldCheck} title="Reputation" />
+      <div
+        data-testid="reputation-card"
+        className="border border-border bg-card p-4 space-y-6"
+      >
+        <RepGroup title="Account">
+          <RepField
+            label="X Verified"
+            value={
+              rep.verified == null ? (
+                <RepDash />
+              ) : rep.verified ? (
+                <span className="inline-flex items-center gap-1 text-accent">
+                  <BadgeCheck className="w-4 h-4" /> Verified
+                </span>
+              ) : (
+                "No"
+              )
+            }
+          />
+          <RepField
+            label="Account Age"
+            value={
+              rep.accountCreatedAt != null ? (
+                formatAge(rep.accountCreatedAt)
+              ) : (
+                <RepDash />
+              )
+            }
+          />
+          <RepField
+            label="Join Date"
+            value={
+              rep.accountCreatedAt != null ? (
+                formatJoinDate(rep.accountCreatedAt)
+              ) : (
+                <RepDash />
+              )
+            }
+          />
+        </RepGroup>
+
+        <RepGroup title="Social">
+          <RepField
+            label="Followers"
+            value={rep.followers != null ? fmtNum(rep.followers) : <RepDash />}
+          />
+          <RepField
+            label="Following"
+            value={rep.following != null ? fmtNum(rep.following) : <RepDash />}
+          />
+        </RepGroup>
+
+        <RepGroup title="BlackPebble">
+          <RepField label="Trust Score" value={<RepSoon />} />
+          <RepField label="Call Accuracy" value={<RepSoon />} />
+          <RepField
+            label="Trading Rank"
+            value={profile.rank != null ? `#${profile.rank}` : <RepSoon />}
+          />
+        </RepGroup>
       </div>
     </>
   );
@@ -574,17 +603,8 @@ export default function ProfilePage() {
         <StatTile label="Tier" value={stats.graduationTier} />
       </div>
 
-      {/* X reputation (real, with placeholders for missing fields) */}
+      {/* Reputation card: real X account data + BlackPebble metric placeholders */}
       <XReputationSection profile={profile} />
-
-      {/* BlackPebble Trust Score (placeholder) */}
-      <SectionHeader icon={ShieldCheck} title="BlackPebble Trust Score" />
-      <PlaceholderCard
-        kind="achievement"
-        icon={ShieldCheck}
-        title="Trust Score coming soon"
-        body="A single reputation score blending call accuracy, trading performance, and X reputation will be shown here."
-      />
 
       {/* Pinned Thesis (placeholder) */}
       <SectionHeader icon={Pin} title="Pinned Thesis" />
