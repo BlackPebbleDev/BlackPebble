@@ -1,6 +1,6 @@
-import { Switch, Route, Router as WouterRouter } from "wouter";
+import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useMemo } from "react";
+import { useMemo, useEffect } from "react";
 import {
   ConnectionProvider,
   WalletProvider,
@@ -37,9 +37,19 @@ import ProfilePage from "@/pages/profile";
 
 const queryClient = new QueryClient();
 
+/** Scrolls to the top of the page on every route change. */
+function ScrollToTop() {
+  const [path] = useLocation();
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [path]);
+  return null;
+}
+
 function Router() {
   return (
     <AppShell>
+      <ScrollToTop />
       <Switch>
         <Route path="/" component={TradingDesk} />
         <Route path="/markets" component={Markets} />
