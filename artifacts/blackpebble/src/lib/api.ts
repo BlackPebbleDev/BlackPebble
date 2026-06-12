@@ -187,6 +187,104 @@ export interface ResetResult {
   accountsReset: number;
 }
 
+/** Result of a social/journal/test-data/full reset (backup + delete counts). */
+export interface SocialResetResult {
+  ok: boolean;
+  kind: "social" | "journal" | "test-data" | "full";
+  backupSchema?: string;
+  deleted?: Record<string, number>;
+}
+
+export interface AdminSocialOverview {
+  callouts_total: number;
+  callouts_test: number;
+  callouts_hidden: number;
+  theses_total: number;
+  theses_test: number;
+  theses_hidden: number;
+  journal_total: number;
+  journal_test: number;
+  follows_total: number;
+}
+
+export type AdminSocialTestFilter = "all" | "test" | "real" | "hidden";
+
+export interface AdminSocialFilters {
+  filter?: AdminSocialTestFilter;
+  token?: string;
+  user?: string;
+  limit?: number;
+}
+
+/** Build the query string for an admin social listing request. */
+function socialQs(f?: AdminSocialFilters): string {
+  const qs = new URLSearchParams();
+  if (f?.filter && f.filter !== "all") qs.set("filter", f.filter);
+  if (f?.token) qs.set("token", f.token);
+  if (f?.user) qs.set("user", f.user);
+  if (f?.limit) qs.set("limit", String(f.limit));
+  const q = qs.toString();
+  return q ? `?${q}` : "";
+}
+
+/** POST `{ id, value }` to a moderation toggle endpoint. */
+function postId(path: string, id: number, value: boolean) {
+  return request<{ ok: boolean; error?: string }>(path, {
+    method: "POST",
+    body: JSON.stringify({ id, value }),
+  });
+}
+
+interface AdminAuthor {
+  x_username: string | null;
+  x_display_name: string | null;
+  x_avatar_url?: string | null;
+}
+
+export interface AdminCallout extends AdminAuthor {
+  id: number;
+  user_id: number;
+  token_mint: string;
+  token_symbol: string | null;
+  token_name: string | null;
+  token_logo: string | null;
+  call_market_cap: number | null;
+  conviction: string | null;
+  thesis: string | null;
+  is_test: boolean;
+  is_hidden_by_admin: boolean;
+  created_at: number;
+}
+
+export interface AdminThesis extends AdminAuthor {
+  id: number;
+  user_id: number;
+  token_mint: string;
+  token_symbol: string | null;
+  token_name: string | null;
+  token_logo: string | null;
+  title: string;
+  content: string;
+  sentiment: string;
+  conviction: string | null;
+  is_test: boolean;
+  is_hidden_by_admin: boolean;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface AdminJournalEntry extends AdminAuthor {
+  id: number;
+  user_id: number;
+  title: string | null;
+  token: string | null;
+  token_mint: string | null;
+  outcome: string | null;
+  is_test: boolean;
+  is_hidden_by_admin: boolean;
+  created_at: number;
+}
+
 export interface TokenInfo {
   mint: string;
   name: string | null;
@@ -249,9 +347,12 @@ export interface RecentThesis {
   x_username: string | null;
   x_display_name: string | null;
   x_avatar_url: string | null;
-  thesis: string;
+  title: string;
+  content: string;
+  sentiment: string;
   conviction: string | null;
   created_at: number;
+  updated_at: number;
 }
 
 export interface TokenIntelligence {
@@ -610,6 +711,50 @@ export interface FollowUser {
   x_avatar_url: string | null;
 }
 
+// ---- Standalone Theses ----
+// A thesis is a piece of token research, distinct from a callout. It is NOT
+// graded as a price prediction and never affects caller ranking, multiples,
+// hit rate, or call history. Unlike callouts, theses ARE owner-editable and
+// owner-deletable.
+export type Sentiment = "bullish" | "bearish" | "neutral";
+
+export const THESIS_TITLE_MAX = 120;
+export const THESIS_CONTENT_MAX = 2000;
+export const SENTIMENTS: Sentiment[] = ["bullish", "bearish", "neutral"];
+
+export interface Thesis {
+  id: number;
+  user_id: number;
+  token_mint: string;
+  token_symbol: string | null;
+  token_name: string | null;
+  token_logo: string | null;
+  title: string;
+  content: string;
+  sentiment: Sentiment;
+  conviction: Conviction | null;
+  is_test?: boolean;
+  is_hidden_by_admin?: boolean;
+  created_at: number;
+  updated_at: number;
+}
+
+/** A thesis joined to its author's X identity (public reads). */
+export interface ThesisWithAuthor extends Thesis {
+  x_username: string;
+  x_display_name: string | null;
+  x_avatar_url: string | null;
+}
+
+/** Editable fields for creating/updating a thesis. */
+export interface ThesisInput {
+  tokenMint?: string;
+  title: string;
+  content: string;
+  sentiment: Sentiment;
+  conviction?: Conviction | null;
+}
+
 // ---- Trading Journal ----
 export type JournalTradeType = "spot" | "leverage";
 export type JournalDirection = "long" | "short";
@@ -675,7 +820,7 @@ export interface JournalStats {
 
 export interface FeedActivityItem {
   id: string;
-  kind: "spot" | "leverage" | "callout";
+  kind: "spot" | "leverage" | "callout" | "thesis";
   action: string;
   token: {
     mint: string;
@@ -689,6 +834,8 @@ export interface FeedActivityItem {
   thesis: string | null;
   conviction: string | null;
   callMarketCapUsd: number | null;
+  thesisTitle?: string | null;
+  sentiment?: string | null;
   timestamp: number;
   user: {
     user_id: number;
@@ -1153,6 +1300,34 @@ export const api = {
       ),
   },
 
+  // Standalone token theses. Public reads; create/update/delete are owner-only
+  // and session-scoped (X-auth). Unlike callouts, theses are editable and
+  // deletable by their author and are never graded as calls.
+  theses: {
+    getByToken: (mint: string) =>
+      request<{ theses: ThesisWithAuthor[] }>(
+        `/markets/${encodeURIComponent(mint)}/theses`,
+      ),
+    getByUser: (id: string | number) =>
+      request<{ theses: ThesisWithAuthor[] }>(
+        `/profiles/${encodeURIComponent(String(id))}/theses`,
+      ),
+    get: (id: number) =>
+      request<{ thesis: ThesisWithAuthor }>(`/theses/${id}`),
+    create: (input: ThesisInput & { tokenMint: string }) =>
+      request<{ thesis: Thesis }>(`/theses`, {
+        method: "POST",
+        body: JSON.stringify(input),
+      }),
+    update: (id: number, input: ThesisInput) =>
+      request<{ thesis: Thesis }>(`/theses/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(input),
+      }),
+    remove: (id: number) =>
+      request<{ ok: boolean }>(`/theses/${id}`, { method: "DELETE" }),
+  },
+
   // Social: read-only activity feed.
   feed: {
     global: () => request<{ items: FeedActivityItem[] }>(`/feed/global`),
@@ -1228,5 +1403,78 @@ export const api = {
     recoveryStats: () =>
       request<RecoveryStatsResponse>("/admin/recovery-stats"),
     leverageStats: () => request<LeverageStats>("/admin/leverage-stats"),
+
+    // ── Social Control Center ──
+    social: {
+      overview: () =>
+        request<{ overview: AdminSocialOverview }>("/admin/social/overview"),
+      listCallouts: (f?: AdminSocialFilters) =>
+        request<{ callouts: AdminCallout[] }>(
+          `/admin/social/callouts${socialQs(f)}`,
+        ),
+      listTheses: (f?: AdminSocialFilters) =>
+        request<{ theses: AdminThesis[] }>(
+          `/admin/social/theses${socialQs(f)}`,
+        ),
+      listJournal: (f?: AdminSocialFilters) =>
+        request<{ journal: AdminJournalEntry[] }>(
+          `/admin/social/journal${socialQs(f)}`,
+        ),
+      markCalloutTest: (id: number, value: boolean) =>
+        postId("/admin/social/callouts/test", id, value),
+      hideCallout: (id: number, value: boolean) =>
+        postId("/admin/social/callouts/hide", id, value),
+      deleteCallout: (id: number) =>
+        request<{ ok: boolean }>("/admin/social/callouts/delete", {
+          method: "POST",
+          body: JSON.stringify({ id }),
+        }),
+      markThesisTest: (id: number, value: boolean) =>
+        postId("/admin/social/theses/test", id, value),
+      hideThesis: (id: number, value: boolean) =>
+        postId("/admin/social/theses/hide", id, value),
+      deleteThesis: (id: number) =>
+        request<{ ok: boolean }>("/admin/social/theses/delete", {
+          method: "POST",
+          body: JSON.stringify({ id }),
+        }),
+      markJournalTest: (id: number, value: boolean) =>
+        postId("/admin/social/journal/test", id, value),
+      deleteJournal: (id: number) =>
+        request<{ ok: boolean }>("/admin/social/journal/delete", {
+          method: "POST",
+          body: JSON.stringify({ id }),
+        }),
+      bulkTagTest: (
+        type: "callouts" | "theses" | "journal",
+        value: boolean,
+      ) =>
+        request<{ ok: boolean; tagged: number }>(
+          "/admin/social/bulk-tag-test",
+          { method: "POST", body: JSON.stringify({ type, value }) },
+        ),
+    },
+
+    // ── Reset controls (typed-confirmation gated) ──
+    resetTestData: (confirm: string) =>
+      request<SocialResetResult>("/admin/reset-test-data", {
+        method: "POST",
+        body: JSON.stringify({ confirm }),
+      }),
+    resetSocial: (confirm: string) =>
+      request<SocialResetResult>("/admin/reset-social", {
+        method: "POST",
+        body: JSON.stringify({ confirm }),
+      }),
+    resetJournal: (confirm: string) =>
+      request<SocialResetResult>("/admin/reset-journal", {
+        method: "POST",
+        body: JSON.stringify({ confirm }),
+      }),
+    fullReset: (confirm: string) =>
+      request<{ ok: boolean }>("/admin/full-reset", {
+        method: "POST",
+        body: JSON.stringify({ confirm }),
+      }),
   },
 };

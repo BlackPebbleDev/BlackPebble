@@ -184,6 +184,107 @@ function CalloutActivityCard({ item }: { item: FeedActivityItem }) {
   );
 }
 
+const SENTIMENT_TONE: Record<string, { label: string; cls: string }> = {
+  bullish: { label: "Bullish", cls: "bg-success/15 text-success" },
+  bearish: { label: "Bearish", cls: "bg-destructive/15 text-destructive" },
+  neutral: { label: "Neutral", cls: "bg-secondary text-muted-foreground" },
+};
+
+/** A standalone thesis feed item: published research, not graded as a call. */
+function ThesisActivityCard({ item }: { item: FeedActivityItem }) {
+  const token = tokenLabel(item.token);
+  const handle = item.user.x_username?.trim().replace(/^@+/, "") || null;
+  const profileUrl = xProfileUrl(handle);
+  const conviction = item.conviction?.toLowerCase() || null;
+  const sentiment = item.sentiment?.toLowerCase() || null;
+  const sent = sentiment ? SENTIMENT_TONE[sentiment] : null;
+
+  return (
+    <div
+      data-testid={`feed-card-${item.id}`}
+      className="rounded-xl bg-card shadow-card p-4 flex items-start gap-3 transition-colors hover:bg-surface-3"
+    >
+      <div className="mt-0.5 flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-full bg-accent/12 text-accent">
+        <ScrollText className="w-[18px] h-[18px]" />
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <div className="flex items-start justify-between gap-3">
+          <FeedUserLink user={item.user} />
+          <span className="text-[11px] text-muted-foreground whitespace-nowrap flex-shrink-0">
+            {timeAgo(item.timestamp)}
+          </span>
+        </div>
+
+        <p className="mt-1.5 text-sm text-muted-foreground">
+          published a thesis on{" "}
+          <span className="text-foreground font-medium">{token}</span>
+          {item.token.mint && (
+            <Link
+              href={`/?token=${item.token.mint}`}
+              onClick={(e) => e.stopPropagation()}
+              className="ml-1 text-[11px] text-accent/80 hover:text-accent"
+            >
+              trade
+            </Link>
+          )}
+        </p>
+
+        {item.thesisTitle && (
+          <p className="mt-1.5 text-sm font-semibold text-foreground break-words">
+            {item.thesisTitle}
+          </p>
+        )}
+        {item.thesis && (
+          <p className="mt-1 text-sm text-foreground/90 whitespace-pre-wrap break-words line-clamp-4">
+            {item.thesis}
+          </p>
+        )}
+
+        <div className="mt-1.5 flex items-center gap-3 text-xs flex-wrap">
+          <span className="uppercase tracking-wider text-[10px] font-semibold rounded-full px-2 py-0.5 bg-accent/12 text-accent">
+            Thesis
+          </span>
+          {sent && (
+            <span
+              className={cn(
+                "uppercase tracking-wider text-[10px] font-semibold rounded-full px-2 py-0.5",
+                sent.cls,
+              )}
+            >
+              {sent.label}
+            </span>
+          )}
+          {conviction && CONVICTION_TONE[conviction] && (
+            <span
+              className={cn(
+                "uppercase tracking-wider text-[10px] font-semibold rounded-full px-2 py-0.5",
+                CONVICTION_TONE[conviction],
+              )}
+            >
+              {conviction} conviction
+            </span>
+          )}
+          {profileUrl && (
+            <a
+              href={profileUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => {
+                e.stopPropagation();
+                trackXProfileLinkClicked();
+              }}
+              className="ml-auto flex items-center gap-1 text-[11px] text-muted-foreground hover:text-accent transition-colors"
+            >
+              View on X <ExternalLink className="w-3 h-3" />
+            </a>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function TradeActivityCard({
   item,
   solUsd,
@@ -193,6 +294,9 @@ export function TradeActivityCard({
 }) {
   if (item.kind === "callout") {
     return <CalloutActivityCard item={item} />;
+  }
+  if (item.kind === "thesis") {
+    return <ThesisActivityCard item={item} />;
   }
 
   const token = tokenLabel(item.token);

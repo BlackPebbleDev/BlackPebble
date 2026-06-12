@@ -1,6 +1,7 @@
 import { dbAll, dbGet } from "./database.js";
 import { ensureProfileSchema } from "./profiles.js";
 import { ensureJournalSchema } from "./journal.js";
+import { countTokenTheses, getTokenTheses } from "./theses.js";
 import { getExecutionPrice } from "./prices.js";
 
 /**
@@ -64,9 +65,12 @@ export interface RecentThesis {
   x_username: string | null;
   x_display_name: string | null;
   x_avatar_url: string | null;
-  thesis: string;
+  title: string;
+  content: string;
+  sentiment: string;
   conviction: string | null;
   created_at: number;
+  updated_at: number;
 }
 
 export interface TokenIntelligence {
@@ -108,9 +112,16 @@ export async function getTokenIntelligence(
        JOIN user_identities xi ON xi.user_id = c.user_id AND xi.provider = 'x'
        JOIN users u ON u.id = c.user_id
       WHERE c.token_mint = $1
+        AND c.is_hidden_by_admin = FALSE AND c.is_test = FALSE
       ORDER BY c.created_at DESC`,
     [mint],
   );
+
+  // Standalone theses (separate content type — never graded as calls).
+  const [thesisRows, thesesTotal] = await Promise.all([
+    getTokenTheses(mint, { limit: RECENT_LIMIT }),
+    countTokenTheses(mint),
+  ]);
 
   // One live price lookup, reused to grade every call for this token.
   const px = await getExecutionPrice(mint).catch(() => null);
@@ -118,7 +129,7 @@ export async function getTokenIntelligence(
   const currentMarketCapUsd = px?.marketCapUsd ?? null;
 
   const callerIds = new Set<number>();
-  let theses = 0;
+  const theses = thesesTotal;
   let convictionHigh = 0;
   let convictionMedium = 0;
   let convictionLow = 0;
@@ -127,7 +138,6 @@ export async function getTokenIntelligence(
 
   for (const r of rows) {
     callerIds.add(r.user_id);
-    if (r.thesis && r.thesis.trim()) theses += 1;
     if (r.conviction === "high") convictionHigh += 1;
     else if (r.conviction === "medium") convictionMedium += 1;
     else if (r.conviction === "low") convictionLow += 1;
@@ -177,19 +187,19 @@ export async function getTokenIntelligence(
     };
   });
 
-  const recentTheses: RecentThesis[] = rows
-    .filter((r) => r.thesis && r.thesis.trim())
-    .slice(0, RECENT_LIMIT)
-    .map((r) => ({
-      id: r.id,
-      user_id: r.user_id,
-      x_username: r.x_username,
-      x_display_name: r.x_display_name,
-      x_avatar_url: r.x_avatar_url,
-      thesis: r.thesis as string,
-      conviction: r.conviction,
-      created_at: r.created_at,
-    }));
+  const recentTheses: RecentThesis[] = thesisRows.map((t) => ({
+    id: t.id,
+    user_id: t.user_id,
+    x_username: t.x_username,
+    x_display_name: t.x_display_name,
+    x_avatar_url: t.x_avatar_url,
+    title: t.title,
+    content: t.content,
+    sentiment: t.sentiment,
+    conviction: t.conviction,
+    created_at: t.created_at,
+    updated_at: t.updated_at,
+  }));
 
   // Cheap COUNT roll-ups for the Community Intelligence card.
   const [watchRow, journalRow] = await Promise.all([

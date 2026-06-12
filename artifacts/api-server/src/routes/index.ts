@@ -14,6 +14,7 @@ import settingsRouter from "./settings.js";
 import leverageRouter from "./leverage.js";
 import analyticsRouter from "./analytics.js";
 import profilesRouter from "./profiles.js";
+import thesesRouter from "./theses.js";
 import feedRouter from "./feed.js";
 import journalRouter from "./journal.js";
 
@@ -34,6 +35,7 @@ router.use(settingsRouter);
 router.use(leverageRouter);
 router.use(analyticsRouter);
 router.use(profilesRouter);
+router.use(thesesRouter);
 router.use(feedRouter);
 router.use(journalRouter);
 

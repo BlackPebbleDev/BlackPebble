@@ -10,8 +10,8 @@ import {
   Lock,
   Megaphone,
   Pencil,
-  Pin,
   Plus,
+  ScrollText,
   Send,
   ShieldCheck,
   Trophy,
@@ -28,6 +28,7 @@ import {
   type CalloutWithDetail,
   type Conviction,
   type ProfileResponse,
+  type ThesisWithAuthor,
 } from "@/lib/api";
 import { useXAuth } from "@/hooks/use-x-auth";
 import { useSolUsd } from "@/hooks/use-sol-usd";
@@ -888,6 +889,105 @@ function CallerStatsSection({ profile }: { profile: ProfileResponse }) {
   );
 }
 
+const THESIS_SENTIMENT: Record<string, { label: string; cls: string }> = {
+  bullish: { label: "Bullish", cls: "border-success/40 text-success" },
+  bearish: { label: "Bearish", cls: "border-destructive/40 text-destructive" },
+  neutral: { label: "Neutral", cls: "border-border text-muted-foreground" },
+};
+
+/** A single standalone thesis card — research, not graded as a call. */
+function ThesisCard({ thesis }: { thesis: ThesisWithAuthor }) {
+  const sent = THESIS_SENTIMENT[thesis.sentiment] ?? THESIS_SENTIMENT.neutral;
+  return (
+    <div
+      data-testid={`card-thesis-${thesis.id}`}
+      className="rounded-xl bg-card shadow-card p-4"
+    >
+      <div className="flex items-start gap-3">
+        {thesis.token_logo ? (
+          <img
+            src={thesis.token_logo}
+            alt=""
+            className="w-9 h-9 object-cover flex-shrink-0"
+            onError={(e) => (e.currentTarget.style.visibility = "hidden")}
+          />
+        ) : (
+          <div className="w-9 h-9 bg-secondary flex items-center justify-center text-[10px] text-muted-foreground flex-shrink-0">
+            {thesis.token_symbol?.slice(0, 2) ?? "?"}
+          </div>
+        )}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-semibold text-foreground truncate">
+              {thesis.token_symbol || shortAddr(thesis.token_mint)}
+            </span>
+            <span
+              className={cn(
+                "inline-flex items-center px-1.5 py-0.5 text-[10px] uppercase tracking-wider border whitespace-nowrap",
+                sent.cls,
+              )}
+            >
+              {sent.label}
+            </span>
+            {thesis.conviction && (
+              <ConvictionBadge conviction={thesis.conviction} />
+            )}
+          </div>
+          <div className="text-[11px] text-muted-foreground mt-0.5 font-mono">
+            {timeAgo(thesis.created_at)}
+          </div>
+        </div>
+      </div>
+
+      <p className="mt-3 text-sm font-semibold text-foreground break-words">
+        {thesis.title}
+      </p>
+      <p className="mt-1 text-sm text-foreground/90 whitespace-pre-wrap break-words">
+        {thesis.content}
+      </p>
+    </div>
+  );
+}
+
+/**
+ * Standalone research theses — separate from Call History and NOT graded
+ * against caller reputation.
+ */
+function ThesisHistorySection({ profile }: { profile: ProfileResponse }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ["theses", profile.x_username || String(profile.user_id)],
+    queryFn: () =>
+      api.theses.getByUser(profile.x_username || profile.user_id),
+    enabled: !!profile,
+    retry: false,
+  });
+  const theses = data?.theses ?? [];
+
+  return (
+    <>
+      <SectionHeader icon={ScrollText} title="Thesis History" />
+      {isLoading ? (
+        <div className="flex items-center justify-center py-10">
+          <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+        </div>
+      ) : theses.length === 0 ? (
+        <PlaceholderCard
+          kind="thesis"
+          icon={ScrollText}
+          title={profile.isSelf ? "Publish your first thesis" : "No theses yet"}
+          body="Standalone research theses live here — they're separate from calls and don't affect caller reputation."
+        />
+      ) : (
+        <div className="space-y-3" data-testid="list-theses">
+          {theses.map((t) => (
+            <ThesisCard key={t.id} thesis={t} />
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
 /** Real, immutable call history — newest first, with owner controls. */
 function CallHistorySection({ profile }: { profile: ProfileResponse }) {
   const key = profile.x_username || String(profile.user_id);
@@ -1073,20 +1173,14 @@ export default function ProfilePage() {
       {/* Reputation card: real X account data + BlackPebble metric placeholders */}
       <XReputationSection profile={profile} />
 
-      {/* Pinned Thesis (placeholder) */}
-      <SectionHeader icon={Pin} title="Pinned Thesis" />
-      <PlaceholderCard
-        kind="thesis"
-        icon={Pin}
-        title="No pinned thesis yet"
-        body="Traders will be able to pin their highest-conviction token thesis to the top of their profile."
-      />
-
       {/* Caller Stats (real, derived from callouts) */}
       <CallerStatsSection profile={profile} />
 
       {/* Call History (real, immutable) */}
       <CallHistorySection profile={profile} />
+
+      {/* Thesis History (real, standalone research — not graded as calls) */}
+      <ThesisHistorySection profile={profile} />
 
       {/* Achievements & Badges (placeholder) */}
       <SectionHeader icon={Award} title="Achievements & Badges" />

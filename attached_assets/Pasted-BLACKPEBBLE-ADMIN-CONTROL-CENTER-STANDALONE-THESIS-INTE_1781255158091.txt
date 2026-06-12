@@ -1,0 +1,556 @@
+BLACKPEBBLE ADMIN CONTROL CENTER + STANDALONE THESIS INTEGRATION
+
+Goal:
+Update BlackPebble so admins can safely manage/test the new social features, and separate token theses from token calls.
+
+Current issue:
+A user can write a thesis only while calling a token. That is too limiting.
+
+New model:
+- Call Token = public prediction + optional thesis
+- Thesis = standalone research/analysis post without creating a tracked call
+
+Important:
+Do NOT remove the optional thesis field from Call Token.
+Call Token should still allow an optional thesis.
+
+Do NOT change trading calculations.
+Do NOT change leverage math.
+Do NOT change portfolio accounting.
+Do NOT change leaderboard formulas except where admin reset/cleanup requires recalculation.
+Do NOT change the BlackPebble V2 design language.
+
+====================================================
+PART 1 — TOKEN PAGE ACTION BAR UPDATE
+====================================================
+
+Current mobile token page action layout:
+
+Watch
+Call Token
+DexScreener
+More
+Contract Address
+
+Update the token action layout to:
+
+Top row:
+Watch     Call Token     Thesis
+
+Bottom row:
+More      DexScreener    Contract Address
+
+Requirements:
+- Use BlackPebble V2 premium styling.
+- Rounded pill buttons.
+- Mobile-friendly.
+- Desktop-friendly.
+- No horizontal scrolling.
+- Buttons should feel evenly spaced and intentional.
+- Thesis should be its own visible action, not hidden behind Call Token.
+
+Icons:
+- Watch: star icon
+- Call Token: megaphone icon
+- Thesis: document / pen / note icon
+- DexScreener: external link icon
+- Contract Address: copy icon if applicable
+
+====================================================
+PART 2 — CALL TOKEN FLOW
+====================================================
+
+Call Token remains a public prediction.
+
+Call Token should record:
+- token
+- caller
+- timestamp
+- market cap at call
+- price at call
+- optional thesis
+- current multiple
+- ATH multiple
+
+The optional thesis field must remain inside the Call Token modal.
+
+Important:
+A call is permanent.
+A call cannot be deleted by normal users.
+A call cannot be edited by normal users.
+A call cannot be hidden by normal users.
+Bad calls stay visible.
+
+Only X-authenticated users may call tokens.
+
+If a guest or wallet-only user clicks Call Token, show:
+
+"Connect X to call tokens and build your BlackPebble reputation."
+
+====================================================
+PART 3 — STANDALONE THESIS FLOW
+====================================================
+
+Add a separate Thesis button on token pages.
+
+Purpose:
+Allow users to publish research, thoughts, or analysis about a token without creating a tracked call.
+
+Thesis is NOT a price prediction unless the user also chooses to call the token.
+
+Standalone Thesis should NOT affect:
+- Top Caller ranking
+- Call multiple
+- Call hit rate
+- Call history
+
+Standalone Thesis SHOULD affect:
+- Thesis history
+- Token thesis list
+- Feed activity
+- Profile thesis section
+
+Only X-authenticated users may publish a thesis.
+
+If a guest or wallet-only user clicks Thesis, show:
+
+"Connect X to publish token theses and build your BlackPebble profile."
+
+====================================================
+PART 4 — STANDALONE THESIS FORM
+====================================================
+
+Thesis modal fields:
+
+Token:
+auto-filled
+
+Title:
+required
+max 120 characters
+
+Sentiment:
+required
+options:
+- Bullish
+- Bearish
+- Neutral
+
+Thesis content:
+required
+max 2,000 characters
+
+Optional conviction level:
+- Low
+- Medium
+- High
+
+Button:
+Publish Thesis
+
+Design:
+- Match BlackPebble V2.
+- Rounded modal.
+- Premium spacing.
+- Clean typography.
+- Mobile-friendly.
+
+====================================================
+PART 5 — TOKEN PAGE THESIS PANEL COPY FIX
+====================================================
+
+Current token page thesis empty state says:
+
+"No thesis yet — be the first to call this token"
+
+This is now incorrect because theses and calls are separate.
+
+Replace with:
+
+"No theses yet — be the first to publish token research."
+
+or:
+
+"No theses yet. Share your research, conviction, or analysis on this token."
+
+Do NOT imply that a user must call the token to write a thesis.
+
+====================================================
+PART 6 — TOKEN PAGE THESIS DISPLAY
+====================================================
+
+On token pages, display Recent Theses separately from Recent Calls.
+
+Recent Theses should show:
+- author X handle
+- sentiment
+- title
+- short preview
+- timestamp
+- View Thesis button
+
+Recent Calls should show:
+- caller X handle
+- called market cap
+- current multiple
+- ATH multiple
+- optional thesis preview if attached to call
+- timestamp
+
+Keep calls and theses visually distinct.
+
+====================================================
+PART 7 — FEED INTEGRATION
+====================================================
+
+Feed should support separate event types:
+
+1. Call Published
+2. Thesis Published
+
+Example Call event:
+@username called PUFFY at $27K MC
+
+Example Thesis event:
+@username published a bullish thesis on PUFFY
+
+Feed cards should visually distinguish:
+- call cards
+- thesis cards
+- trade cards
+- achievement cards
+
+Maintain BlackPebble V2 styling.
+
+====================================================
+PART 8 — PROFILE INTEGRATION
+====================================================
+
+Profiles should separate:
+
+Call History
+Thesis History
+
+Call History:
+- tracked predictions
+- called MC
+- current multiple
+- ATH multiple
+
+Thesis History:
+- research/analysis posts
+- sentiment
+- title
+- timestamp
+
+A user may be a strong researcher without making many calls.
+
+Do not mix thesis count into call accuracy.
+
+====================================================
+PART 9 — DATABASE / DATA MODEL
+====================================================
+
+If thesis infrastructure already exists, extend it.
+
+If not, create a token_theses table or equivalent.
+
+Suggested fields:
+- id
+- user_id
+- token_mint
+- token_symbol
+- title
+- content
+- sentiment
+- conviction
+- created_at
+- updated_at
+- is_test
+- is_hidden_by_admin
+
+Normal users:
+- may create thesis
+- may edit their own thesis if product design allows
+- may not delete if we want permanent research history OR may delete if thesis is treated differently from calls
+
+Important distinction:
+Callouts are immutable.
+Theses may be editable if needed, but edits should preserve updated_at.
+If deletion is allowed for theses, admin should still be able to audit/manage.
+
+Use whatever best fits existing architecture, but do NOT make calls deletable.
+
+====================================================
+PART 10 — ADMIN CONTROL CENTER
+====================================================
+
+Update Admin Dashboard so I can safely manage and test:
+
+- Feed events
+- Callouts
+- Token theses
+- Trading journal entries
+- Profiles
+- Follows
+
+Add admin section:
+
+Social Control Center
+
+Use BlackPebble V2 styling:
+- rounded cards
+- soft surfaces
+- no boxy legacy tiles
+- readable metrics
+- premium admin layout
+
+====================================================
+PART 11 — ADMIN TEST DATA SYSTEM
+====================================================
+
+Add test-data tagging.
+
+Any admin-created or test-mode generated social content should be taggable as:
+
+is_test = true
+
+Admin should be able to:
+- view test data
+- hide test data from public feed
+- purge test data
+
+Apply test controls to:
+- feed events
+- callouts
+- token theses
+- journal entries
+- follows if applicable
+
+Add admin toggle/filter:
+- Show Test Data
+- Hide Test Data
+- Only Test Data
+
+====================================================
+PART 12 — ADMIN MANAGEMENT CONTROLS
+====================================================
+
+For Callouts:
+- View all callouts
+- Filter by user/token/date/test
+- Mark as test
+- Hide from public feed
+- Admin delete only if absolutely necessary for testing/spam cleanup
+- Preserve immutable public-user rule
+
+For Theses:
+- View all theses
+- Filter by user/token/sentiment/date/test
+- Mark as test
+- Hide thesis
+- Delete thesis as admin if needed
+- Restore hidden thesis if needed
+
+For Feed Events:
+- View feed events
+- Filter by event type
+- Hide event
+- Delete test events
+- Clear test feed events
+
+For Journal:
+- View journal entry counts
+- Delete test journal data if needed
+- Do not expose private journal content publicly unless explicitly designed
+
+For Profiles/Follows:
+- View X-authenticated profiles
+- View follows count
+- Remove fake/test follows if needed
+- Hide/suspend abusive profiles if needed
+
+====================================================
+PART 13 — FULL RESET CONTROLS
+====================================================
+
+Add a full reset section in Admin.
+
+This should be dangerous and protected.
+
+Admin reset options:
+
+1. Reset Trading Data
+- spot trades
+- leverage trades
+- open positions
+- portfolio balances
+- trade history
+- leaderboard trading stats
+
+2. Reset Social Data
+- feed events
+- callouts
+- token theses
+- follows
+- profile social activity
+- caller leaderboard stats
+
+3. Reset Journal Data
+- trading journal entries
+- journal stats
+
+4. Reset Test Data Only
+- all records where is_test = true
+
+5. Full Platform Reset
+- trading data
+- social data
+- journal data
+- leaderboard stats
+- feed events
+- test data
+
+Do NOT delete core user accounts unless explicitly selected.
+
+Do NOT delete admin account.
+
+Do NOT delete feature flags.
+
+Do NOT delete app configuration.
+
+Use confirmation prompts.
+
+Require typing:
+
+RESET
+
+or
+
+FULL RESET
+
+before destructive actions.
+
+Return clear success/failure messages.
+
+====================================================
+PART 14 — RESET SAFETY
+====================================================
+
+Before destructive reset:
+- show exactly what will be deleted
+- require confirmation
+- protect admin account
+- run in transaction if possible
+- avoid partial deletes
+- log reset action if logging exists
+
+Admin reset should never accidentally delete:
+- admin authorization
+- feature flags
+- app config
+- environment settings
+- OAuth config
+
+====================================================
+PART 15 — ANALYTICS UPDATES
+====================================================
+
+Update analytics to track:
+
+- thesis_published
+- thesis_viewed
+- thesis_hidden_by_admin
+- callout_published
+- callout_hidden_by_admin
+- test_data_purged
+- full_reset_executed
+- social_reset_executed
+- journal_reset_executed
+
+If analytics system exists, wire these in.
+
+If not, leave clean TODO notes.
+
+====================================================
+PART 16 — UX / COPY REQUIREMENTS
+====================================================
+
+Make language clear:
+
+Calls:
+prediction / public call / tracked performance
+
+Theses:
+research / analysis / conviction / token write-up
+
+Do not confuse the two.
+
+Update all copy that implies:
+"write thesis = call token"
+
+Replace with:
+"write thesis = publish analysis"
+
+====================================================
+PART 17 — MOBILE REQUIREMENTS
+====================================================
+
+Token action buttons must fit cleanly on mobile.
+
+Desired layout:
+
+Watch     Call Token     Thesis
+More      DexScreener    Contract Address
+
+No horizontal scroll.
+No cramped text.
+Use icons where helpful.
+Maintain premium BlackPebble V2 styling.
+
+====================================================
+PART 18 — TESTING
+====================================================
+
+Verify:
+
+- Token page action layout works on mobile.
+- Token page action layout works on desktop.
+- Call Token still supports optional thesis.
+- Thesis button opens standalone thesis modal.
+- Standalone thesis does not create a call.
+- Callout creates call history and caller stats.
+- Thesis creates thesis history only.
+- Feed shows call events and thesis events separately.
+- Profile shows call history and thesis history separately.
+- Top Caller leaderboard is not affected by standalone theses.
+- X authentication is required for calls and theses.
+- Wallet-only users cannot call or publish theses.
+- Admin can view/manage callouts.
+- Admin can view/manage theses.
+- Admin can purge test data.
+- Admin full reset works safely.
+- Admin account remains intact after reset.
+- Trading calculations still work.
+- Portfolio accounting still works.
+- Leaderboards still work.
+
+====================================================
+PART 19 — REPORT BACK
+====================================================
+
+Return:
+
+1. Files changed
+2. Tables added/updated
+3. Routes/endpoints added
+4. Token action layout completed
+5. Call Token optional thesis preserved
+6. Standalone thesis implemented
+7. Token thesis empty-state copy fixed
+8. Feed integration completed
+9. Profile integration completed
+10. Admin controls added
+11. Reset options added
+12. Safety protections added
+13. Any remaining concerns before publishing

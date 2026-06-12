@@ -29,6 +29,10 @@ import {
   Lock,
   MoreHorizontal,
   X as CloseIcon,
+  ScrollText,
+  TrendingUp,
+  TrendingDown,
+  Minus,
 } from "lucide-react";
 import {
   api,
@@ -38,7 +42,10 @@ import {
   type TradeQuote,
   type OrderType,
   type Conviction,
+  type Sentiment,
   CALLOUT_THESIS_MAX,
+  THESIS_TITLE_MAX,
+  THESIS_CONTENT_MAX,
 } from "@/lib/api";
 import { TradeList } from "@/components/trade-list";
 import { OpenPositions } from "@/components/open-positions";
@@ -2056,6 +2063,223 @@ function CallTokenButton({ info }: { info: TokenInfo }) {
   );
 }
 
+const SENTIMENT_OPTIONS: {
+  value: Sentiment;
+  label: string;
+  icon: typeof TrendingUp;
+  active: string;
+}[] = [
+  {
+    value: "bullish",
+    label: "Bullish",
+    icon: TrendingUp,
+    active: "bg-success/15 text-success border-success/40",
+  },
+  {
+    value: "bearish",
+    label: "Bearish",
+    icon: TrendingDown,
+    active: "bg-destructive/15 text-destructive border-destructive/40",
+  },
+  {
+    value: "neutral",
+    label: "Neutral",
+    icon: Minus,
+    active: "bg-muted/40 text-foreground border-border",
+  },
+];
+
+/**
+ * "Thesis" action — publishes a standalone piece of token research. A thesis is
+ * NOT a price call: it is never graded and has no effect on caller ranking,
+ * multiples, hit rate, or call history. Unlike calls, theses are editable and
+ * deletable by their author. Requires title, sentiment and content; conviction
+ * is optional. X-auth required (guests are prompted to connect).
+ */
+function ThesisButton({ info }: { info: TokenInfo }) {
+  const { loggedIn, login } = useXAuth();
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
+  const [sentiment, setSentiment] = useState<Sentiment | "">("");
+  const [conviction, setConviction] = useState<Conviction | "">("");
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      api.theses.create({
+        tokenMint: info.mint,
+        title: title.trim(),
+        content: content.trim(),
+        sentiment: sentiment as Sentiment,
+        conviction: conviction || null,
+      }),
+    onSuccess: () => {
+      setOpen(false);
+      setTitle("");
+      setContent("");
+      setSentiment("");
+      setConviction("");
+      qc.invalidateQueries({ queryKey: ["theses"] });
+      qc.invalidateQueries({ queryKey: ["feed"] });
+      qc.invalidateQueries({ queryKey: ["tokenIntel"] });
+      toast({
+        title: "Thesis published",
+        description: "Shared as research — it won't affect your caller stats.",
+      });
+    },
+    onError: (e) =>
+      toast({
+        title: "Couldn't publish thesis",
+        description: (e as Error).message,
+        variant: "destructive",
+      }),
+  });
+
+  const handleClick = () => {
+    if (!loggedIn) {
+      login();
+      return;
+    }
+    setOpen(true);
+  };
+
+  const canSubmit =
+    !!title.trim() && !!content.trim() && !!sentiment && !mutation.isPending;
+
+  return (
+    <>
+      <button
+        onClick={handleClick}
+        data-testid="button-thesis"
+        className="flex items-center gap-2 px-4 h-10 rounded-full text-xs font-medium bg-secondary/60 text-foreground hover:bg-secondary transition-all"
+      >
+        <ScrollText className="w-4 h-4" />
+        Thesis
+      </button>
+
+      {open && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          onClick={() => setOpen(false)}
+          data-testid="modal-thesis"
+        >
+          <div
+            className="w-full max-w-md rounded-2xl bg-card shadow-card p-5 space-y-4 max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <ScrollText className="w-5 h-5 text-accent" />
+                <span className="font-semibold text-foreground">
+                  Thesis on {info.symbol ?? "token"}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                data-testid="button-cancel-thesis"
+                className="text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <CloseIcon className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              A thesis is research, not a price call. It's never graded and won't
+              affect your caller ranking, multiples or hit rate.
+            </p>
+
+            <div className="space-y-1">
+              <input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                maxLength={THESIS_TITLE_MAX}
+                placeholder="Title — the headline of your thesis"
+                data-testid="input-thesis-title"
+                className="w-full bg-secondary/40 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-accent transition-colors"
+              />
+              <div className="text-right text-[11px] text-muted-foreground font-mono">
+                {title.length}/{THESIS_TITLE_MAX}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2">
+              {SENTIMENT_OPTIONS.map((opt) => {
+                const Icon = opt.icon;
+                const isActive = sentiment === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setSentiment(opt.value)}
+                    data-testid={`button-sentiment-${opt.value}`}
+                    className={cn(
+                      "flex items-center justify-center gap-1.5 h-9 rounded-lg border text-xs font-medium transition-all",
+                      isActive
+                        ? opt.active
+                        : "bg-secondary/40 border-border text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    <Icon className="w-3.5 h-3.5" />
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="space-y-1">
+              <textarea
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                maxLength={THESIS_CONTENT_MAX}
+                rows={5}
+                placeholder="Your thesis — the full reasoning, catalysts, risks…"
+                data-testid="input-thesis-content"
+                className="w-full bg-secondary/40 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-accent transition-colors resize-none"
+              />
+              <div className="flex items-center justify-between">
+                <select
+                  value={conviction}
+                  onChange={(e) =>
+                    setConviction(e.target.value as Conviction | "")
+                  }
+                  data-testid="select-thesis-conviction"
+                  className="h-9 bg-secondary/40 border border-border rounded-lg px-2 text-sm text-foreground focus:outline-none focus:border-accent"
+                >
+                  <option value="">Conviction…</option>
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                </select>
+                <span className="text-[11px] text-muted-foreground font-mono">
+                  {content.length}/{THESIS_CONTENT_MAX}
+                </span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => mutation.mutate()}
+              disabled={!canSubmit}
+              data-testid="button-publish-thesis"
+              className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-accent text-accent-foreground hover:bg-accent/90 transition-colors disabled:opacity-50"
+            >
+              {mutation.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <ScrollText className="w-4 h-4" />
+              )}
+              Publish Thesis
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 /**
  * Copy-to-clipboard chip for the token contract address. Gives the address an
  * intentional, premium presentation in the action row (UX polish) — purely a
@@ -2414,21 +2638,28 @@ export default function TradingDesk() {
           <TokenHeader info={info} />
         </div>
       </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <WatchButton info={info} />
-        <CallTokenButton info={info} />
-        <a
-          href={`https://dexscreener.com/solana/${info.pairAddress ?? info.mint}`}
-          target="_blank"
-          rel="noreferrer"
-          className="flex items-center gap-2 px-4 h-10 rounded-full bg-secondary/60 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-all"
-        >
-          <ExternalLink className="w-3.5 h-3.5" />
-          DexScreener
-        </a>
-        <MoreMenu info={info} />
-        <div className="ml-auto">
-          <CopyContract mint={info.mint} />
+      <div className="space-y-2">
+        {/* Row 1 — primary actions */}
+        <div className="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap sm:items-center">
+          <WatchButton info={info} />
+          <CallTokenButton info={info} />
+          <ThesisButton info={info} />
+        </div>
+        {/* Row 2 — secondary / external links */}
+        <div className="flex items-center gap-2">
+          <MoreMenu info={info} />
+          <a
+            href={`https://dexscreener.com/solana/${info.pairAddress ?? info.mint}`}
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center gap-2 px-4 h-10 rounded-full bg-secondary/60 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-all"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+            DexScreener
+          </a>
+          <div className="ml-auto">
+            <CopyContract mint={info.mint} />
+          </div>
         </div>
       </div>
 

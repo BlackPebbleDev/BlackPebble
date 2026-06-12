@@ -9,7 +9,27 @@ import { dbAll, dbGet, pool } from "../lib/database.js";
 import { getMarketStatus, forceRefreshTrending } from "../lib/prices.js";
 import { pumpportal } from "../lib/pumpportal.js";
 import { getFeatureFlags, setFeatureFlag } from "../lib/featureFlags.js";
-import { adminReset, type ResetOptions } from "../lib/adminActions.js";
+import {
+  adminReset,
+  deleteCalloutAdmin,
+  deleteThesisAdmin,
+  fullReset,
+  resetJournal,
+  resetSocial,
+  resetTestData,
+  type ResetOptions,
+} from "../lib/adminActions.js";
+import {
+  bulkTagTest,
+  deleteJournalAdmin,
+  listAdminCallouts,
+  listAdminJournal,
+  listAdminTheses,
+  setHiddenFlag,
+  setTestFlag,
+  socialOverview,
+  type TestFilter,
+} from "../lib/adminSocial.js";
 import { ensureAnalyticsTable } from "./analytics.js";
 
 const router: IRouter = Router();
@@ -444,6 +464,223 @@ router.post(
   asyncHandler(async (req, res) => {
     const result = await adminReset("all", null, parseOptions(req.body?.options));
     return res.json(result);
+  }),
+);
+
+// ── Social Control Center ──────────────────────────────────────────────────
+
+function listOpts(req: { query: Record<string, unknown> }): {
+  filter: TestFilter;
+  token?: string;
+  user?: string;
+  limit?: number;
+} {
+  const f = String(req.query.filter ?? "all");
+  const filter: TestFilter = (
+    ["all", "test", "real", "hidden"].includes(f) ? f : "all"
+  ) as TestFilter;
+  const token = String(req.query.token ?? "").trim() || undefined;
+  const user = String(req.query.user ?? "").trim() || undefined;
+  const limit = parseInt(String(req.query.limit ?? ""), 10);
+  return {
+    filter,
+    token,
+    user,
+    limit: Number.isFinite(limit) ? limit : undefined,
+  };
+}
+
+router.get(
+  "/admin/social/overview",
+  asyncHandler(async (_req, res) => {
+    return res.json({ overview: await socialOverview() });
+  }),
+);
+
+router.get(
+  "/admin/social/callouts",
+  asyncHandler(async (req, res) => {
+    return res.json({ callouts: await listAdminCallouts(listOpts(req)) });
+  }),
+);
+
+router.get(
+  "/admin/social/theses",
+  asyncHandler(async (req, res) => {
+    return res.json({ theses: await listAdminTheses(listOpts(req)) });
+  }),
+);
+
+router.get(
+  "/admin/social/journal",
+  asyncHandler(async (req, res) => {
+    return res.json({ journal: await listAdminJournal(listOpts(req)) });
+  }),
+);
+
+/** Parse `{ id, value }` body for a moderation toggle. */
+function modBody(body: unknown): { id: number; value: boolean } | null {
+  const b = (body ?? {}) as Record<string, unknown>;
+  const id = Number(b.id);
+  if (!Number.isInteger(id) || id <= 0) return null;
+  return { id, value: b.value === true };
+}
+
+router.post(
+  "/admin/social/callouts/test",
+  asyncHandler(async (req, res) => {
+    const m = modBody(req.body);
+    if (!m) return res.status(400).json({ error: "valid id is required" });
+    const ok = await setTestFlag("callouts", m.id, m.value);
+    if (!ok) return res.status(404).json({ error: "Callout not found" });
+    return res.json({ ok: true });
+  }),
+);
+
+router.post(
+  "/admin/social/callouts/hide",
+  asyncHandler(async (req, res) => {
+    const m = modBody(req.body);
+    if (!m) return res.status(400).json({ error: "valid id is required" });
+    const ok = await setHiddenFlag("callouts", m.id, m.value);
+    if (!ok) return res.status(404).json({ error: "Callout not found" });
+    return res.json({ ok: true });
+  }),
+);
+
+router.post(
+  "/admin/social/callouts/delete",
+  asyncHandler(async (req, res) => {
+    const id = Number(req.body?.id);
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({ error: "valid id is required" });
+    }
+    return res.json(await deleteCalloutAdmin(id));
+  }),
+);
+
+router.post(
+  "/admin/social/theses/test",
+  asyncHandler(async (req, res) => {
+    const m = modBody(req.body);
+    if (!m) return res.status(400).json({ error: "valid id is required" });
+    const ok = await setTestFlag("token_theses", m.id, m.value);
+    if (!ok) return res.status(404).json({ error: "Thesis not found" });
+    return res.json({ ok: true });
+  }),
+);
+
+router.post(
+  "/admin/social/theses/hide",
+  asyncHandler(async (req, res) => {
+    const m = modBody(req.body);
+    if (!m) return res.status(400).json({ error: "valid id is required" });
+    const ok = await setHiddenFlag("token_theses", m.id, m.value);
+    if (!ok) return res.status(404).json({ error: "Thesis not found" });
+    return res.json({ ok: true });
+  }),
+);
+
+router.post(
+  "/admin/social/theses/delete",
+  asyncHandler(async (req, res) => {
+    const id = Number(req.body?.id);
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({ error: "valid id is required" });
+    }
+    return res.json(await deleteThesisAdmin(id));
+  }),
+);
+
+router.post(
+  "/admin/social/journal/test",
+  asyncHandler(async (req, res) => {
+    const m = modBody(req.body);
+    if (!m) return res.status(400).json({ error: "valid id is required" });
+    const ok = await setTestFlag("journal_entries", m.id, m.value);
+    if (!ok) return res.status(404).json({ error: "Entry not found" });
+    return res.json({ ok: true });
+  }),
+);
+
+router.post(
+  "/admin/social/journal/delete",
+  asyncHandler(async (req, res) => {
+    const id = Number(req.body?.id);
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({ error: "valid id is required" });
+    }
+    const ok = await deleteJournalAdmin(id);
+    if (!ok) return res.status(404).json({ error: "Entry not found" });
+    return res.json({ ok: true });
+  }),
+);
+
+/** Bulk-tag every row of a content type as test (or untag). */
+router.post(
+  "/admin/social/bulk-tag-test",
+  asyncHandler(async (req, res) => {
+    const type = String(req.body?.type ?? "");
+    const value = req.body?.value === true;
+    const table =
+      type === "callouts"
+        ? "callouts"
+        : type === "theses"
+          ? "token_theses"
+          : type === "journal"
+            ? "journal_entries"
+            : null;
+    if (!table) return res.status(400).json({ error: "invalid type" });
+    const tagged = await bulkTagTest(table, value);
+    return res.json({ ok: true, tagged });
+  }),
+);
+
+// ── Reset controls (typed-confirmation gated) ──────────────────────────────
+
+/** Require an exact typed confirmation phrase before a destructive reset. */
+function confirmed(body: unknown, phrase: string): boolean {
+  const b = (body ?? {}) as Record<string, unknown>;
+  return String(b.confirm ?? "").trim() === phrase;
+}
+
+router.post(
+  "/admin/reset-test-data",
+  asyncHandler(async (req, res) => {
+    if (!confirmed(req.body, "RESET")) {
+      return res.status(400).json({ error: 'Type "RESET" to confirm' });
+    }
+    return res.json(await resetTestData());
+  }),
+);
+
+router.post(
+  "/admin/reset-social",
+  asyncHandler(async (req, res) => {
+    if (!confirmed(req.body, "RESET")) {
+      return res.status(400).json({ error: 'Type "RESET" to confirm' });
+    }
+    return res.json(await resetSocial());
+  }),
+);
+
+router.post(
+  "/admin/reset-journal",
+  asyncHandler(async (req, res) => {
+    if (!confirmed(req.body, "RESET")) {
+      return res.status(400).json({ error: 'Type "RESET" to confirm' });
+    }
+    return res.json(await resetJournal());
+  }),
+);
+
+router.post(
+  "/admin/full-reset",
+  asyncHandler(async (req, res) => {
+    if (!confirmed(req.body, "FULL RESET")) {
+      return res.status(400).json({ error: 'Type "FULL RESET" to confirm' });
+    }
+    return res.json(await fullReset());
   }),
 );
 

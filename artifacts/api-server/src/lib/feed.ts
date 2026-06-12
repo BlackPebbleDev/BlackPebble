@@ -1,13 +1,18 @@
 import { dbAll } from "./database.js";
+import { ensureProfileSchema } from "./profiles.js";
+import { ensureThesesSchema } from "./theses.js";
 
 /**
  * Read-only activity feed (Phase 1).
  *
- * Surfaces recent public trading activity from X-authenticated users only,
- * unioning spot trades and leverage trade events. It re-uses the same
- * wallet → X identity resolution as the leaderboard (a wallet is either a linked
- * `wallet` identity or the synthetic `x:<id>` account key). This is purely a
- * read of existing tables — it does not change any trading accounting.
+ * Surfaces recent public activity from X-authenticated users only, unioning spot
+ * trades, leverage trade events, callouts (on-the-record calls) and standalone
+ * theses (token research). It re-uses the same wallet → X identity resolution as
+ * the leaderboard (a wallet is either a linked `wallet` identity or the synthetic
+ * `x:<id>` account key). This is purely a read of existing tables — it does not
+ * change any trading accounting.
+ *
+ * Admin-hidden and test-tagged callouts/theses are excluded from the feed.
  *
  * - Global feed: all X users' recent activity.
  * - Following feed: activity filtered to the user ids the viewer follows.
@@ -15,8 +20,11 @@ import { dbAll } from "./database.js";
 
 export interface FeedActivityItem {
   id: string;
-  kind: "spot" | "leverage" | "callout";
-  /** spot: 'buy'|'sell'; leverage: 'open'|'close'|'liquidated'; callout: 'call'. */
+  kind: "spot" | "leverage" | "callout" | "thesis";
+  /**
+   * spot: 'buy'|'sell'; leverage: 'open'|'close'|'liquidated'; callout: 'call';
+   * thesis: 'thesis'.
+   */
   action: string;
   token: {
     mint: string;
@@ -30,12 +38,16 @@ export interface FeedActivityItem {
   direction: string | null;
   /** Realized P&L in SOL when applicable (spot sells, leverage closes). */
   pnlSol: number | null;
-  /** Callout thesis, null for trades. */
+  /** Callout thesis text / thesis body, null for trades. */
   thesis: string | null;
-  /** Callout conviction tier, null for trades. */
+  /** Callout/thesis conviction tier, null for trades. */
   conviction: string | null;
-  /** Snapshotted market cap (USD) at the moment of the call, null for trades. */
+  /** Snapshotted market cap (USD) at the moment of the call, null otherwise. */
   callMarketCapUsd: number | null;
+  /** Standalone thesis title, null for everything else. */
+  thesisTitle: string | null;
+  /** Standalone thesis sentiment ('bullish'|'bearish'|'neutral'), else null. */
+  sentiment: string | null;
   timestamp: number;
   user: {
     user_id: number;
@@ -47,7 +59,7 @@ export interface FeedActivityItem {
 
 interface ActivityRow {
   id: string;
-  kind: "spot" | "leverage" | "callout";
+  kind: "spot" | "leverage" | "callout" | "thesis";
   action: string;
   token_mint: string;
   token_symbol: string | null;
@@ -59,6 +71,8 @@ interface ActivityRow {
   thesis: string | null;
   conviction: string | null;
   call_market_cap: number | null;
+  thesis_title: string | null;
+  sentiment: string | null;
   ts: number;
   user_id: number;
   x_username: string;
@@ -76,13 +90,17 @@ export async function getActivity(opts: {
   // An explicit empty follow set means "following nobody" → no activity.
   if (follow && follow.length === 0) return [];
 
+  // Ensure the callout/thesis admin columns exist before the feed reads them,
+  // so a fresh database doesn't 500 on the very first feed request.
+  await Promise.all([ensureProfileSchema(), ensureThesesSchema()]);
+
   const params: unknown[] = [];
   let followClause = "";
-  let followClauseCallout = "";
+  let followClauseUser = "";
   if (follow && follow.length > 0) {
     params.push(follow);
     followClause = `AND i.user_id = ANY($${params.length}::int[])`;
-    followClauseCallout = `AND c.user_id = ANY($${params.length}::int[])`;
+    followClauseUser = `AND user_id = ANY($${params.length}::int[])`;
   }
   params.push(limit);
   const limitIdx = params.length;
@@ -121,6 +139,8 @@ export async function getActivity(opts: {
               NULL::text AS thesis,
               NULL::text AS conviction,
               NULL::double precision AS call_market_cap,
+              NULL::text AS thesis_title,
+              NULL::text AS sentiment,
               t.executed_at AS ts,
               i.user_id, i.x_username, i.x_display_name, i.x_avatar_url
          FROM trades t
@@ -137,6 +157,8 @@ export async function getActivity(opts: {
               NULL::text AS thesis,
               NULL::text AS conviction,
               NULL::double precision AS call_market_cap,
+              NULL::text AS thesis_title,
+              NULL::text AS sentiment,
               lt.executed_at AS ts,
               i.user_id, i.x_username, i.x_display_name, i.x_avatar_url
          FROM paper_leverage_trades lt
@@ -153,6 +175,8 @@ export async function getActivity(opts: {
               c.thesis AS thesis,
               c.conviction AS conviction,
               c.call_market_cap AS call_market_cap,
+              NULL::text AS thesis_title,
+              NULL::text AS sentiment,
               c.created_at AS ts,
               c.user_id AS user_id,
               xi.x_username AS x_username,
@@ -162,7 +186,32 @@ export async function getActivity(opts: {
          JOIN user_identities xi
            ON xi.user_id = c.user_id AND xi.provider = 'x'
          JOIN users u ON u.id = c.user_id
-        WHERE 1 = 1 ${followClauseCallout}
+        WHERE c.is_hidden_by_admin = FALSE AND c.is_test = FALSE
+              ${followClauseUser.replace(/user_id/g, "c.user_id")}
+       UNION ALL
+       SELECT ('thesis-' || th.id) AS id,
+              'thesis' AS kind,
+              'thesis' AS action,
+              th.token_mint, th.token_symbol, th.token_name, th.token_logo,
+              NULL::int AS leverage,
+              NULL::text AS direction,
+              NULL::double precision AS pnl_sol,
+              th.content AS thesis,
+              th.conviction AS conviction,
+              NULL::double precision AS call_market_cap,
+              th.title AS thesis_title,
+              th.sentiment AS sentiment,
+              th.created_at AS ts,
+              th.user_id AS user_id,
+              xi.x_username AS x_username,
+              u.display_name AS x_display_name,
+              u.avatar_url AS x_avatar_url
+         FROM token_theses th
+         JOIN user_identities xi
+           ON xi.user_id = th.user_id AND xi.provider = 'x'
+         JOIN users u ON u.id = th.user_id
+        WHERE th.is_hidden_by_admin = FALSE AND th.is_test = FALSE
+              ${followClauseUser.replace(/user_id/g, "th.user_id")}
      )
      SELECT * FROM activity
       ORDER BY ts DESC
@@ -186,6 +235,8 @@ export async function getActivity(opts: {
     thesis: r.thesis,
     conviction: r.conviction,
     callMarketCapUsd: r.call_market_cap,
+    thesisTitle: r.thesis_title,
+    sentiment: r.sentiment,
     timestamp: r.ts,
     user: {
       user_id: r.user_id,

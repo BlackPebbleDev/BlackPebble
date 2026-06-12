@@ -117,6 +117,15 @@ export async function ensureJournalSchema(): Promise<void> {
        updated_at BIGINT DEFAULT EXTRACT(EPOCH FROM NOW())::bigint
      )`,
   );
+  // Admin-only moderation columns (Social Control Center), mirroring callouts.
+  // Journal entries are private, but these let the admin tag test entries and
+  // purge them; is_hidden_by_admin is reserved for parity with other content.
+  await dbRun(
+    `ALTER TABLE journal_entries ADD COLUMN IF NOT EXISTS is_test BOOLEAN NOT NULL DEFAULT FALSE`,
+  );
+  await dbRun(
+    `ALTER TABLE journal_entries ADD COLUMN IF NOT EXISTS is_hidden_by_admin BOOLEAN NOT NULL DEFAULT FALSE`,
+  );
   await dbRun(
     `CREATE INDEX IF NOT EXISTS idx_journal_user ON journal_entries (user_id)`,
   );

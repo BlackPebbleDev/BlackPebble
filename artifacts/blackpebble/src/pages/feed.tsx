@@ -170,6 +170,42 @@ function CalloutFeed() {
   );
 }
 
+/** Theses-only feed: the global activity feed narrowed to thesis items. */
+function ThesisFeed() {
+  const solUsd = useSolUsd();
+  const { data, isLoading } = useQuery({
+    queryKey: ["feed", "global"],
+    queryFn: () => api.feed.global(),
+    refetchInterval: 30_000,
+  });
+  const items = (data?.items ?? []).filter(
+    (item: FeedActivityItem) => item.kind === "thesis",
+  );
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+  if (items.length === 0) {
+    return (
+      <EmptyState
+        title="No theses yet"
+        body="When traders publish research theses on tokens, they'll show up here — separate from on-the-record calls."
+      />
+    );
+  }
+  return (
+    <div className="space-y-2">
+      {items.map((item) => (
+        <TradeActivityCard key={item.id} item={item} solUsd={solUsd} />
+      ))}
+    </div>
+  );
+}
+
 /** The live activity feed (filter = "all"), with a Following / Global source. */
 function ActivityFeed() {
   const [source, setSource] = useState<FeedSource>("global");
@@ -282,14 +318,7 @@ export default function FeedPage() {
         />
       )}
       {filter === "callouts" && <CalloutFeed />}
-      {filter === "theses" && (
-        <PlaceholderCard
-          kind="thesis"
-          icon={ScrollText}
-          title="Token theses are coming soon"
-          body="Traders' published conviction theses on tokens will appear here once the thesis engine launches."
-        />
-      )}
+      {filter === "theses" && <ThesisFeed />}
       {filter === "achievements" && (
         <PlaceholderCard
           kind="achievement"

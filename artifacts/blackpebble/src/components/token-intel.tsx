@@ -11,6 +11,7 @@ import {
   Eye,
   BookOpen,
   Flame,
+  ScrollText,
 } from "lucide-react";
 import { api, type TokenInfo, type TokenIntelligence } from "@/lib/api";
 import { fmtMarketCap, fmtPercent, timeAgo } from "@/lib/format";
@@ -129,6 +130,23 @@ function convictionTone(c: string | null): string {
   if (c === "medium") return "text-accent";
   if (c === "low") return "text-muted-foreground";
   return "text-muted-foreground";
+}
+
+function sentimentBadge(s: string | null): { label: string; cls: string } {
+  if (s === "bullish")
+    return {
+      label: "Bullish",
+      cls: "bg-success/15 text-success border-success/30",
+    };
+  if (s === "bearish")
+    return {
+      label: "Bearish",
+      cls: "bg-destructive/15 text-destructive border-destructive/30",
+    };
+  return {
+    label: "Neutral",
+    cls: "bg-muted/40 text-muted-foreground border-border",
+  };
 }
 
 /** Volume-trend label derived from the 1h rate vs the 24h hourly average. */
@@ -317,49 +335,68 @@ function RecentThesesCard({
   const theses = intel?.recentTheses ?? [];
   return (
     <div className="rounded-2xl bg-card shadow-card p-4 md:p-5 border border-border/60">
-      <div className="flex items-center gap-2 mb-4">
-        <MessageSquare className="w-4 h-4 text-accent" />
+      <div className="flex items-center gap-2 mb-1">
+        <ScrollText className="w-4 h-4 text-accent" />
         <h2 className="text-base font-semibold text-foreground">
-          Recent Theses
+          Research Theses
         </h2>
       </div>
+      <p className="text-[11px] text-muted-foreground mb-4">
+        Standalone research — not graded as calls.
+      </p>
       {theses.length === 0 ? (
         <p className="text-sm text-muted-foreground py-4 text-center">
-          No theses yet — be the first to call this token.
+          No theses yet — share your research on this token.
         </p>
       ) : (
         <div className="space-y-3">
-          {theses.map((t) => (
-            <div
-              key={t.id}
-              className="flex items-start gap-3 rounded-xl bg-secondary/20 border border-border/60 px-3 py-2.5"
-            >
-              <Avatar url={t.x_avatar_url} name={t.x_display_name} />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-semibold text-foreground truncate">
-                    {callerName(t.x_display_name, t.x_username)}
-                  </span>
-                  <span className="text-[10px] text-muted-foreground flex-shrink-0">
-                    {timeAgo(t.created_at)}
-                  </span>
-                </div>
-                <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
-                  {t.thesis}
-                </p>
-                {t.conviction && (
-                  <span
-                    className={cn(
-                      "text-[10px] uppercase tracking-wider font-medium",
-                      convictionTone(t.conviction),
+          {theses.map((t) => {
+            const sent = sentimentBadge(t.sentiment);
+            return (
+              <div
+                key={t.id}
+                className="flex items-start gap-3 rounded-xl bg-secondary/20 border border-border/60 px-3 py-2.5"
+              >
+                <Avatar url={t.x_avatar_url} name={t.x_display_name} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-semibold text-foreground truncate">
+                      {callerName(t.x_display_name, t.x_username)}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground flex-shrink-0">
+                      {timeAgo(t.created_at)}
+                    </span>
+                  </div>
+                  <p className="text-xs font-semibold text-foreground mt-1 line-clamp-1">
+                    {t.title}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+                    {t.content}
+                  </p>
+                  <div className="flex items-center gap-2 mt-1.5">
+                    <span
+                      className={cn(
+                        "text-[10px] uppercase tracking-wider font-semibold rounded-full px-2 py-0.5 border",
+                        sent.cls,
+                      )}
+                    >
+                      {sent.label}
+                    </span>
+                    {t.conviction && (
+                      <span
+                        className={cn(
+                          "text-[10px] uppercase tracking-wider font-medium",
+                          convictionTone(t.conviction),
+                        )}
+                      >
+                        {t.conviction} conviction
+                      </span>
                     )}
-                  >
-                    {t.conviction} conviction
-                  </span>
-                )}
+                  </div>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

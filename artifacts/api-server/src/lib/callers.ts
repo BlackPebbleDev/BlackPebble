@@ -113,7 +113,8 @@ export async function computeCallers(): Promise<CallerEntry[]> {
             u.avatar_url AS x_avatar_url
        FROM callouts c
        JOIN user_identities xi ON xi.user_id = c.user_id AND xi.provider = 'x'
-       JOIN users u ON u.id = c.user_id`,
+       JOIN users u ON u.id = c.user_id
+      WHERE c.is_hidden_by_admin = FALSE AND c.is_test = FALSE`,
   );
 
   if (rows.length === 0) {

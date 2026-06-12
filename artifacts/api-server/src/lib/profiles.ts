@@ -146,6 +146,16 @@ export async function ensureProfileSchema(): Promise<void> {
        created_at BIGINT DEFAULT EXTRACT(EPOCH FROM NOW())::bigint
      )`,
   );
+  // Admin-only moderation columns (Social Control Center). is_test tags
+  // admin/test content for filtering+purging; is_hidden_by_admin soft-hides a
+  // call from every public read. Neither is writable by normal users, so the
+  // caller-track-record immutability guarantee is preserved for them.
+  await dbRun(
+    `ALTER TABLE callouts ADD COLUMN IF NOT EXISTS is_test BOOLEAN NOT NULL DEFAULT FALSE`,
+  );
+  await dbRun(
+    `ALTER TABLE callouts ADD COLUMN IF NOT EXISTS is_hidden_by_admin BOOLEAN NOT NULL DEFAULT FALSE`,
+  );
   await dbRun(
     `CREATE INDEX IF NOT EXISTS idx_callouts_user ON callouts (user_id)`,
   );
@@ -589,11 +599,14 @@ export async function addCalloutUpdate(
   return row!;
 }
 
-/** Read a user's callouts, newest first (read-only). */
+/** Read a user's callouts, newest first (read-only). Admin-hidden calls are
+ * excluded from this public read. */
 export async function getUserCallouts(userId: number): Promise<Callout[]> {
   await ensureProfileSchema();
   return dbAll<Callout>(
-    `SELECT * FROM callouts WHERE user_id = $1 ORDER BY created_at DESC`,
+    `SELECT * FROM callouts
+      WHERE user_id = $1 AND is_hidden_by_admin = FALSE AND is_test = FALSE
+      ORDER BY created_at DESC`,
     [userId],
   );
 }

@@ -19,6 +19,12 @@ import {
   BarChart3,
   ShoppingCart,
   Tag,
+  MessageSquare,
+  ScrollText,
+  BookOpen,
+  EyeOff,
+  Trash2,
+  Megaphone,
 } from "lucide-react";
 import { useAdmin } from "@/hooks/use-admin";
 import { useToast } from "@/hooks/use-toast";
@@ -30,6 +36,11 @@ import {
   type AdminStatsWindow,
   type AdminTopToken,
   type AdminFunnel,
+  type AdminSocialTestFilter,
+  type AdminSocialFilters,
+  type AdminCallout,
+  type AdminThesis,
+  type AdminJournalEntry,
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -1020,6 +1031,655 @@ function LeverageSection() {
   );
 }
 
+/* ───────────────────────── Social Control Center ───────────────────────── */
+
+function shortMint(m: string | null): string {
+  if (!m) return "—";
+  if (m.length <= 10) return m;
+  return `${m.slice(0, 4)}…${m.slice(-4)}`;
+}
+
+function authorName(a: {
+  x_display_name: string | null;
+  x_username: string | null;
+}): string {
+  return a.x_display_name || (a.x_username ? `@${a.x_username}` : "Anonymous");
+}
+
+const SOCIAL_FILTERS: { key: AdminSocialTestFilter; label: string }[] = [
+  { key: "all", label: "All" },
+  { key: "real", label: "Real only" },
+  { key: "test", label: "Test only" },
+  { key: "hidden", label: "Hidden" },
+];
+
+function FilterPills({
+  value,
+  onChange,
+}: {
+  value: AdminSocialTestFilter;
+  onChange: (f: AdminSocialTestFilter) => void;
+}) {
+  return (
+    <div className="flex items-center gap-1">
+      {SOCIAL_FILTERS.map((f) => (
+        <button
+          key={f.key}
+          type="button"
+          onClick={() => onChange(f.key)}
+          data-testid={`social-filter-${f.key}`}
+          className={cn(
+            "rounded-full px-3 py-1 text-xs font-medium transition-colors",
+            value === f.key
+              ? "bg-accent text-accent-foreground"
+              : "bg-surface-2 text-muted-foreground hover:text-foreground hover:bg-surface-3",
+          )}
+        >
+          {f.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Inline badges marking a row as test / hidden. */
+function RowFlags({ isTest, isHidden }: { isTest: boolean; isHidden: boolean }) {
+  if (!isTest && !isHidden) return null;
+  return (
+    <span className="ml-2 inline-flex items-center gap-1">
+      {isTest && (
+        <span className="rounded-full bg-amber-400/15 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-amber-400">
+          Test
+        </span>
+      )}
+      {isHidden && (
+        <span className="rounded-full bg-red-400/15 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-red-400">
+          Hidden
+        </span>
+      )}
+    </span>
+  );
+}
+
+/** Small icon action button used in moderation rows. */
+function ModButton({
+  icon: Icon,
+  label,
+  onClick,
+  active,
+  danger,
+  disabled,
+  testid,
+}: {
+  icon: React.ElementType;
+  label: string;
+  onClick: () => void;
+  active?: boolean;
+  danger?: boolean;
+  disabled?: boolean;
+  testid?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={label}
+      data-testid={testid}
+      className={cn(
+        "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-medium transition-colors disabled:opacity-50",
+        danger
+          ? "border-red-400/30 text-red-400 hover:bg-red-400/10"
+          : active
+            ? "border-accent/40 bg-accent/10 text-accent"
+            : "border-border text-muted-foreground hover:text-foreground hover:bg-surface-3",
+      )}
+    >
+      <Icon className="h-3.5 w-3.5" />
+      {label}
+    </button>
+  );
+}
+
+function ConfirmDeleteButton({
+  onConfirm,
+  title,
+  description,
+  testid,
+}: {
+  onConfirm: () => void;
+  title: string;
+  description: string;
+  testid?: string;
+}) {
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <button
+          type="button"
+          title="Delete"
+          data-testid={testid}
+          className="inline-flex items-center gap-1 rounded-md border border-red-400/30 px-2 py-1 text-[11px] font-medium text-red-400 transition-colors hover:bg-red-400/10"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+          Delete
+        </button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{title}</AlertDialogTitle>
+          <AlertDialogDescription>{description}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            className="bg-red-500 text-white hover:bg-red-600"
+            onClick={onConfirm}
+          >
+            Delete permanently
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
+type SocialTab = "callouts" | "theses" | "journal";
+
+function CalloutsModTable({ filter }: { filter: AdminSocialTestFilter }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const filters: AdminSocialFilters = { filter, limit: 200 };
+  const { data, isLoading } = useQuery({
+    queryKey: ["admin-social-callouts", filter],
+    queryFn: () => api.admin.social.listCallouts(filters),
+  });
+  const rows = data?.callouts ?? [];
+
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["admin-social-callouts"] });
+    qc.invalidateQueries({ queryKey: ["admin-social-overview"] });
+  };
+  const onErr = (e: Error) =>
+    toast({ title: "Action failed", description: e.message, variant: "destructive" });
+
+  const markTest = useMutation({
+    mutationFn: ({ id, v }: { id: number; v: boolean }) =>
+      api.admin.social.markCalloutTest(id, v),
+    onSuccess: invalidate,
+    onError: onErr,
+  });
+  const hide = useMutation({
+    mutationFn: ({ id, v }: { id: number; v: boolean }) =>
+      api.admin.social.hideCallout(id, v),
+    onSuccess: invalidate,
+    onError: onErr,
+  });
+  const del = useMutation({
+    mutationFn: (id: number) => api.admin.social.deleteCallout(id),
+    onSuccess: () => {
+      toast({ title: "Callout deleted", description: "Backed up before deletion." });
+      invalidate();
+    },
+    onError: onErr,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+  if (rows.length === 0) {
+    return <div className="py-6 text-center text-sm text-muted-foreground">No callouts match this filter.</div>;
+  }
+  return (
+    <div className="space-y-2">
+      {rows.map((c: AdminCallout) => (
+        <div
+          key={c.id}
+          data-testid={`admin-callout-${c.id}`}
+          className="rounded-lg border border-border bg-background/40 p-3"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex items-center text-sm font-medium text-foreground">
+                <span className="truncate">{authorName(c)}</span>
+                <RowFlags isTest={c.is_test} isHidden={c.is_hidden_by_admin} />
+              </div>
+              <div className="mt-0.5 text-xs text-muted-foreground">
+                called{" "}
+                <span className="text-foreground">
+                  {c.token_symbol || shortMint(c.token_mint)}
+                </span>{" "}
+                · {timeAgo(c.created_at)}
+              </div>
+              {c.thesis && (
+                <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{c.thesis}</p>
+              )}
+            </div>
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <ModButton
+              icon={Tag}
+              label={c.is_test ? "Unmark test" : "Mark test"}
+              active={c.is_test}
+              onClick={() => markTest.mutate({ id: c.id, v: !c.is_test })}
+              testid={`callout-test-${c.id}`}
+            />
+            <ModButton
+              icon={c.is_hidden_by_admin ? Eye : EyeOff}
+              label={c.is_hidden_by_admin ? "Unhide" : "Hide"}
+              active={c.is_hidden_by_admin}
+              onClick={() => hide.mutate({ id: c.id, v: !c.is_hidden_by_admin })}
+              testid={`callout-hide-${c.id}`}
+            />
+            <ConfirmDeleteButton
+              onConfirm={() => del.mutate(c.id)}
+              title="Delete this callout?"
+              description="Callouts are immutable to normal users. This admin deletion is permanent (a backup is taken first)."
+              testid={`callout-delete-${c.id}`}
+            />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ThesesModTable({ filter }: { filter: AdminSocialTestFilter }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const { data, isLoading } = useQuery({
+    queryKey: ["admin-social-theses", filter],
+    queryFn: () => api.admin.social.listTheses({ filter, limit: 200 }),
+  });
+  const rows = data?.theses ?? [];
+
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["admin-social-theses"] });
+    qc.invalidateQueries({ queryKey: ["admin-social-overview"] });
+  };
+  const onErr = (e: Error) =>
+    toast({ title: "Action failed", description: e.message, variant: "destructive" });
+
+  const markTest = useMutation({
+    mutationFn: ({ id, v }: { id: number; v: boolean }) =>
+      api.admin.social.markThesisTest(id, v),
+    onSuccess: invalidate,
+    onError: onErr,
+  });
+  const hide = useMutation({
+    mutationFn: ({ id, v }: { id: number; v: boolean }) =>
+      api.admin.social.hideThesis(id, v),
+    onSuccess: invalidate,
+    onError: onErr,
+  });
+  const del = useMutation({
+    mutationFn: (id: number) => api.admin.social.deleteThesis(id),
+    onSuccess: () => {
+      toast({ title: "Thesis deleted", description: "Backed up before deletion." });
+      invalidate();
+    },
+    onError: onErr,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+  if (rows.length === 0) {
+    return <div className="py-6 text-center text-sm text-muted-foreground">No theses match this filter.</div>;
+  }
+  return (
+    <div className="space-y-2">
+      {rows.map((t: AdminThesis) => (
+        <div
+          key={t.id}
+          data-testid={`admin-thesis-${t.id}`}
+          className="rounded-lg border border-border bg-background/40 p-3"
+        >
+          <div className="min-w-0">
+            <div className="flex items-center text-sm font-medium text-foreground">
+              <span className="truncate">{authorName(t)}</span>
+              <RowFlags isTest={t.is_test} isHidden={t.is_hidden_by_admin} />
+            </div>
+            <div className="mt-0.5 text-xs text-muted-foreground">
+              {t.token_symbol || shortMint(t.token_mint)} · {t.sentiment} ·{" "}
+              {timeAgo(t.created_at)}
+            </div>
+            <p className="mt-1 text-xs font-semibold text-foreground">{t.title}</p>
+            <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{t.content}</p>
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <ModButton
+              icon={Tag}
+              label={t.is_test ? "Unmark test" : "Mark test"}
+              active={t.is_test}
+              onClick={() => markTest.mutate({ id: t.id, v: !t.is_test })}
+              testid={`thesis-test-${t.id}`}
+            />
+            <ModButton
+              icon={t.is_hidden_by_admin ? Eye : EyeOff}
+              label={t.is_hidden_by_admin ? "Unhide" : "Hide"}
+              active={t.is_hidden_by_admin}
+              onClick={() => hide.mutate({ id: t.id, v: !t.is_hidden_by_admin })}
+              testid={`thesis-hide-${t.id}`}
+            />
+            <ConfirmDeleteButton
+              onConfirm={() => del.mutate(t.id)}
+              title="Delete this thesis?"
+              description="This permanently removes the thesis (a backup is taken first)."
+              testid={`thesis-delete-${t.id}`}
+            />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function JournalModTable({ filter }: { filter: AdminSocialTestFilter }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const { data, isLoading } = useQuery({
+    queryKey: ["admin-social-journal", filter],
+    queryFn: () => api.admin.social.listJournal({ filter, limit: 200 }),
+  });
+  const rows = data?.journal ?? [];
+
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["admin-social-journal"] });
+    qc.invalidateQueries({ queryKey: ["admin-social-overview"] });
+  };
+  const onErr = (e: Error) =>
+    toast({ title: "Action failed", description: e.message, variant: "destructive" });
+
+  const markTest = useMutation({
+    mutationFn: ({ id, v }: { id: number; v: boolean }) =>
+      api.admin.social.markJournalTest(id, v),
+    onSuccess: invalidate,
+    onError: onErr,
+  });
+  const del = useMutation({
+    mutationFn: (id: number) => api.admin.social.deleteJournal(id),
+    onSuccess: () => {
+      toast({ title: "Journal entry deleted", description: "Backed up before deletion." });
+      invalidate();
+    },
+    onError: onErr,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+  if (rows.length === 0) {
+    return <div className="py-6 text-center text-sm text-muted-foreground">No journal entries match this filter.</div>;
+  }
+  return (
+    <div className="space-y-2">
+      {rows.map((j: AdminJournalEntry) => (
+        <div
+          key={j.id}
+          data-testid={`admin-journal-${j.id}`}
+          className="rounded-lg border border-border bg-background/40 p-3"
+        >
+          <div className="min-w-0">
+            <div className="flex items-center text-sm font-medium text-foreground">
+              <span className="truncate">{authorName(j)}</span>
+              <RowFlags isTest={j.is_test} isHidden={j.is_hidden_by_admin} />
+            </div>
+            <div className="mt-0.5 text-xs text-muted-foreground">
+              {j.title || "Untitled"}
+              {j.token ? ` · ${j.token}` : ""}
+              {j.outcome ? ` · ${j.outcome}` : ""} · {timeAgo(j.created_at)}
+            </div>
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <ModButton
+              icon={Tag}
+              label={j.is_test ? "Unmark test" : "Mark test"}
+              active={j.is_test}
+              onClick={() => markTest.mutate({ id: j.id, v: !j.is_test })}
+              testid={`journal-test-${j.id}`}
+            />
+            <ConfirmDeleteButton
+              onConfirm={() => del.mutate(j.id)}
+              title="Delete this journal entry?"
+              description="This permanently removes the journal entry (a backup is taken first)."
+              testid={`journal-delete-${j.id}`}
+            />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SocialControlSection() {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [tab, setTab] = useState<SocialTab>("callouts");
+  const [filter, setFilter] = useState<AdminSocialTestFilter>("all");
+
+  const { data: ov } = useQuery({
+    queryKey: ["admin-social-overview"],
+    queryFn: () => api.admin.social.overview(),
+    refetchInterval: 60_000,
+  });
+  const o = ov?.overview;
+
+  const bulkTag = useMutation({
+    mutationFn: ({ type, value }: { type: SocialTab; value: boolean }) =>
+      api.admin.social.bulkTagTest(type, value),
+    onSuccess: (r) => {
+      toast({ title: "Bulk tag applied", description: `${r.tagged} rows updated.` });
+      qc.invalidateQueries({ queryKey: [`admin-social-${tab}`] });
+      qc.invalidateQueries({ queryKey: ["admin-social-overview"] });
+    },
+    onError: (e: Error) =>
+      toast({ title: "Bulk tag failed", description: e.message, variant: "destructive" }),
+  });
+
+  const TABS: { key: SocialTab; label: string; icon: React.ElementType }[] = [
+    { key: "callouts", label: "Callouts", icon: Megaphone },
+    { key: "theses", label: "Theses", icon: ScrollText },
+    { key: "journal", label: "Journal", icon: BookOpen },
+  ];
+
+  return (
+    <Card title="Social Control Center" icon={MessageSquare}>
+      {/* Overview counts */}
+      <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-3">
+        <Stat label="Callouts" value={`${fmt(o?.callouts_total)} · ${fmt(o?.callouts_test)}t · ${fmt(o?.callouts_hidden)}h`} />
+        <Stat label="Theses" value={`${fmt(o?.theses_total)} · ${fmt(o?.theses_test)}t · ${fmt(o?.theses_hidden)}h`} />
+        <Stat label="Journal" value={`${fmt(o?.journal_total)} · ${fmt(o?.journal_test)}t`} />
+      </div>
+
+      {/* Tabs */}
+      <div className="mb-3 flex items-center gap-1 border-b border-border">
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            onClick={() => setTab(t.key)}
+            data-testid={`social-tab-${t.key}`}
+            className={cn(
+              "flex items-center gap-1.5 border-b-2 -mb-px px-3 py-2 text-sm font-medium transition-colors",
+              tab === t.key
+                ? "border-accent text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <t.icon className="h-4 w-4" />
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Filter + bulk-tag toolbar */}
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <FilterPills value={filter} onChange={setFilter} />
+        <div className="flex items-center gap-2">
+          <ModButton
+            icon={Tag}
+            label="Tag all as test"
+            onClick={() => bulkTag.mutate({ type: tab, value: true })}
+            disabled={bulkTag.isPending}
+            testid={`bulk-tag-test-${tab}`}
+          />
+          <ModButton
+            icon={Tag}
+            label="Untag all"
+            onClick={() => bulkTag.mutate({ type: tab, value: false })}
+            disabled={bulkTag.isPending}
+            testid={`bulk-untag-test-${tab}`}
+          />
+        </div>
+      </div>
+
+      {tab === "callouts" && <CalloutsModTable filter={filter} />}
+      {tab === "theses" && <ThesesModTable filter={filter} />}
+      {tab === "journal" && <JournalModTable filter={filter} />}
+    </Card>
+  );
+}
+
+/* ─────────────────────── Social / Test-data reset controls ──────────────── */
+
+const SOCIAL_RESETS: {
+  key: "test-data" | "social" | "journal" | "full";
+  label: string;
+  phrase: string;
+  desc: string;
+  deletes: string;
+  danger: boolean;
+}[] = [
+  {
+    key: "test-data",
+    label: "Purge test data",
+    phrase: "RESET",
+    desc: "Removes every row flagged as test across callouts, theses and journal.",
+    deletes: "All is_test callouts, theses & journal entries.",
+    danger: false,
+  },
+  {
+    key: "social",
+    label: "Reset social",
+    phrase: "RESET",
+    desc: "Clears all callouts, callout updates, theses and follows.",
+    deletes: "All callouts, callout_updates, theses, follows.",
+    danger: true,
+  },
+  {
+    key: "journal",
+    label: "Reset journal",
+    phrase: "RESET",
+    desc: "Clears every trading-journal entry for all users.",
+    deletes: "All journal_entries.",
+    danger: true,
+  },
+  {
+    key: "full",
+    label: "Full reset",
+    phrase: "FULL RESET",
+    desc: "Wipes ALL social + journal + paper-trading data platform-wide. Identities, admin account, feature flags and config are preserved.",
+    deletes: "All callouts, theses, journal, follows, positions, orders, trades, leverage & balances.",
+    danger: true,
+  },
+];
+
+function SocialResetCard({
+  spec,
+}: {
+  spec: (typeof SOCIAL_RESETS)[number];
+}) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [confirm, setConfirm] = useState("");
+
+  const mut = useMutation({
+    mutationFn: () => {
+      if (spec.key === "test-data") return api.admin.resetTestData(confirm);
+      if (spec.key === "social") return api.admin.resetSocial(confirm);
+      if (spec.key === "journal") return api.admin.resetJournal(confirm);
+      return api.admin.fullReset(confirm);
+    },
+    onSuccess: () => {
+      toast({ title: `${spec.label} complete`, description: "Affected rows were backed up first." });
+      setConfirm("");
+      qc.invalidateQueries();
+    },
+    onError: (e: Error) =>
+      toast({ title: `${spec.label} failed`, description: e.message, variant: "destructive" }),
+  });
+
+  const ready = confirm.trim() === spec.phrase;
+
+  return (
+    <div
+      className={cn(
+        "space-y-2 border p-3",
+        spec.danger ? "border-red-400/30 bg-red-400/5" : "border-border bg-background/40",
+      )}
+    >
+      <div
+        className={cn(
+          "text-[11px] uppercase tracking-wider",
+          spec.danger ? "text-red-400" : "text-muted-foreground",
+        )}
+      >
+        {spec.label}
+      </div>
+      <p className="text-xs text-muted-foreground">{spec.desc}</p>
+      <p className="text-[11px] text-muted-foreground">
+        <span className="font-semibold text-foreground">Deletes:</span> {spec.deletes}
+      </p>
+      <Input
+        placeholder={`Type ${spec.phrase} to confirm`}
+        value={confirm}
+        onChange={(e) => setConfirm(e.target.value)}
+        data-testid={`input-reset-${spec.key}`}
+      />
+      <Button
+        variant={spec.danger ? "destructive" : "default"}
+        className="w-full"
+        disabled={!ready || mut.isPending}
+        onClick={() => mut.mutate()}
+        data-testid={`button-reset-${spec.key}`}
+      >
+        {mut.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+        {spec.label}
+      </Button>
+    </div>
+  );
+}
+
+function SocialResetSection() {
+  return (
+    <Card title="Social & test-data resets" icon={AlertTriangle}>
+      <p className="mb-3 text-sm text-muted-foreground">
+        Each reset snapshots affected rows into the <code>reset_backups</code> schema first.
+        Identities, the admin account, feature flags and config are always preserved.
+        Type the exact confirmation phrase to enable each action.
+      </p>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {SOCIAL_RESETS.map((s) => (
+          <SocialResetCard key={s.key} spec={s} />
+        ))}
+      </div>
+    </Card>
+  );
+}
+
 export default function AdminPage() {
   const { isAdmin, loading } = useAdmin();
 
@@ -1070,6 +1730,14 @@ export default function AdminPage() {
         <LeverageSection />
         <FlagsSection />
         <OrdersSection />
+
+        <div className="flex items-center gap-2 pt-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          <MessageSquare className="h-4 w-4 text-accent" />
+          Social & moderation
+        </div>
+        <SocialControlSection />
+        <SocialResetSection />
+
         <ResetSection />
       </div>
     </div>

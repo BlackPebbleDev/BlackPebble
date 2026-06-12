@@ -32,6 +32,16 @@ const ALLOWED_EVENTS = new Set([
   "follow_removed",
   "feed_tab_changed",
   "x_profile_link_clicked",
+  // Theses + admin moderation/reset beacons (no PII).
+  "thesis_published",
+  "thesis_viewed",
+  "thesis_hidden_by_admin",
+  "callout_published",
+  "callout_hidden_by_admin",
+  "test_data_purged",
+  "full_reset_executed",
+  "social_reset_executed",
+  "journal_reset_executed",
 ]);
 
 let ensured = false;

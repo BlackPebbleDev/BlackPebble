@@ -202,3 +202,122 @@ export async function adminReset(
     accountsReset,
   };
 }
+
+export interface SocialResetResult {
+  ok: boolean;
+  kind: "social" | "journal" | "test-data" | "full";
+  backupSchema: string;
+  backups: Record<string, { table: string; rows: number }>;
+  deleted: Record<string, number>;
+}
+
+/**
+ * Run a sequence of backup-then-delete steps inside a single transaction with an
+ * advisory lock + audit row. Each step is `[table, where, params]`; the order is
+ * respected so child rows (FKs) can be deleted before their parents.
+ */
+async function runBackupDeletes(
+  kind: SocialResetResult["kind"],
+  tag: string,
+  steps: Array<[string, string, unknown[]]>,
+): Promise<SocialResetResult> {
+  const s = stamp();
+  const backups: Record<string, { table: string; rows: number }> = {};
+  const deleted: Record<string, number> = {};
+  await withTx(async (c) => {
+    await c.query(`SELECT pg_advisory_xact_lock($1)`, [RESET_LOCK_KEY]);
+    await ensureBackupSchema(c);
+    for (const [table, where, params] of steps) {
+      await backupAndDelete(c, table, where, params, s, tag, backups, deleted);
+    }
+    await c.query(`INSERT INTO reset_audit (summary) VALUES ($1)`, [
+      JSON.stringify({ kind, backups, deleted }),
+    ]);
+  });
+  logger.info({ kind, deleted }, "Admin social reset completed");
+  return { ok: true, kind, backupSchema: "reset_backups", backups, deleted };
+}
+
+/**
+ * Wipe ALL social content (callouts + their update trail + standalone theses +
+ * the follow graph). Trading/leverage/portfolio/leaderboard data and identities
+ * are untouched.
+ */
+export function resetSocial(): Promise<SocialResetResult> {
+  return runBackupDeletes("social", "social", [
+    ["callout_updates", "true", []],
+    ["callouts", "true", []],
+    ["token_theses", "true", []],
+    ["user_follows", "true", []],
+  ]);
+}
+
+/** Admin-only hard delete of a single callout (+ its update trail), with
+ * backup. Normal users can never delete a callout; this is an admin override for
+ * spam/test cleanup only. */
+export function deleteCalloutAdmin(id: number): Promise<SocialResetResult> {
+  return runBackupDeletes("social", `callout${id}`, [
+    ["callout_updates", "callout_id = $1", [id]],
+    ["callouts", "id = $1", [id]],
+  ]);
+}
+
+/** Admin-only hard delete of a single thesis, with backup. */
+export function deleteThesisAdmin(id: number): Promise<SocialResetResult> {
+  return runBackupDeletes("social", `thesis${id}`, [
+    ["token_theses", "id = $1", [id]],
+  ]);
+}
+
+/** Wipe ALL journal entries (private trade reflections). */
+export function resetJournal(): Promise<SocialResetResult> {
+  return runBackupDeletes("journal", "journal", [
+    ["journal_entries", "true", []],
+  ]);
+}
+
+/**
+ * Purge only rows tagged is_test across social + journal. callout_updates for a
+ * test callout are removed first to respect the FK.
+ */
+export function resetTestData(): Promise<SocialResetResult> {
+  return runBackupDeletes("test-data", "test", [
+    [
+      "callout_updates",
+      "callout_id IN (SELECT id FROM callouts WHERE is_test = TRUE)",
+      [],
+    ],
+    ["callouts", "is_test = TRUE", []],
+    ["token_theses", "is_test = TRUE", []],
+    ["journal_entries", "is_test = TRUE", []],
+  ]);
+}
+
+/**
+ * Nuclear reset: trading + social + journal + analytics. Identity tables (users,
+ * user_identities), feature flags and other config are deliberately preserved so
+ * the app stays usable and admins keep their access. Each layer is backed up.
+ */
+export async function fullReset(): Promise<{
+  ok: boolean;
+  trading: ResetResult;
+  social: SocialResetResult;
+  journal: SocialResetResult;
+  analytics: SocialResetResult;
+}> {
+  const trading = await adminReset("all", null, {
+    resetBalance: true,
+    clearPositions: true,
+    clearOrders: true,
+    clearTrades: true,
+    resetLeaderboard: true,
+    clearWatchlist: true,
+    clearLeverage: true,
+  });
+  const social = await resetSocial();
+  const journal = await resetJournal();
+  const analytics = await runBackupDeletes("full", "analytics", [
+    ["analytics_events", "true", []],
+  ]);
+  return { ok: true, trading, social, journal, analytics };
+}
