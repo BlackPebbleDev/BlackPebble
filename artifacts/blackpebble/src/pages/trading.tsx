@@ -47,7 +47,7 @@ import {
 import { useAccount } from "@/hooks/use-account";
 import { useToast } from "@/hooks/use-toast";
 import { useFeatureFlags } from "@/hooks/use-feature-flags";
-import { useWalletModal } from "@solana/wallet-adapter-react-ui";
+import { useXAuth } from "@/hooks/use-x-auth";
 import {
   useGuestStore,
   useGuestValuedPositions,
@@ -948,7 +948,7 @@ function TradePanel({
   const { toast } = useToast();
   const qc = useQueryClient();
   const flags = useFeatureFlags();
-  const { setVisible: setWalletModalVisible } = useWalletModal();
+  const { login } = useXAuth();
   const [tradeMode, setTradeMode] = useState<"spot" | "leverage">("spot");
   const [side, setSide] = useState<"buy" | "sell">("buy");
   const [solAmount, setSolAmount] = useState("");
@@ -1384,8 +1384,8 @@ function TradePanel({
           className="border-b border-accent/30 bg-accent/10 px-4 py-3"
         >
           <p className="text-xs text-foreground mb-2.5">
-            Want to save this portfolio? Connect a wallet to keep it and compete
-            on the leaderboard.
+            Want to save this portfolio? Connect X to keep your trades, build
+            your profile, and compete on the leaderboard.
           </p>
           <div className="flex gap-2">
             <button
@@ -1393,17 +1393,17 @@ function TradePanel({
               data-testid="button-prompt-connect"
               onClick={() => {
                 setSavePromptOpen(false);
-                setWalletModalVisible(true);
+                login();
               }}
-              className="flex-1 h-9 bg-accent text-accent-foreground text-xs font-medium hover:bg-accent/90 transition-colors"
+              className="flex-1 h-9 rounded-full bg-accent text-accent-foreground text-xs font-medium hover:bg-accent/90 transition-colors"
             >
-              Connect Wallet
+              Connect X
             </button>
             <button
               type="button"
               data-testid="button-prompt-keep-testing"
               onClick={() => setSavePromptOpen(false)}
-              className="flex-1 h-9 border border-border text-xs text-muted-foreground hover:text-foreground transition-colors"
+              className="flex-1 h-9 rounded-full border border-border text-xs text-muted-foreground hover:text-foreground hover:bg-surface-2 transition-colors"
             >
               Keep Testing
             </button>

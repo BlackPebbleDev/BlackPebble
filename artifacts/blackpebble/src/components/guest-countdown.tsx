@@ -52,22 +52,23 @@ export function GuestCountdown() {
   return (
     <div
       data-testid="banner-guest-countdown"
-      className="flex flex-col gap-2 border border-amber-500/30 bg-amber-500/10 px-4 py-3 mb-6 sm:flex-row sm:items-center sm:justify-between"
+      className="flex flex-col gap-3 rounded-xl border border-amber-500/20 bg-gradient-to-r from-amber-500/[0.12] to-amber-500/[0.04] px-4 py-3.5 mb-6 shadow-card sm:flex-row sm:items-center sm:gap-3"
     >
-      <div className="flex items-start gap-2">
-        <Clock className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
-        <p className="text-xs leading-relaxed text-foreground/90">
-          Your guest portfolio resets in{" "}
-          <span
-            data-testid="text-guest-countdown"
-            className="font-semibold text-amber-300 tabular-nums"
-          >
-            {label}
-          </span>
-          . Sign in to keep your trades — guest data is cleared{" "}
-          {GUEST_RESET_HOURS}h after your first trade.
-        </p>
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-500/15 text-amber-400">
+        <Clock className="h-4 w-4" />
       </div>
+      <p className="text-xs leading-relaxed text-foreground/90">
+        Your guest portfolio resets in{" "}
+        <span
+          data-testid="text-guest-countdown"
+          className="font-semibold text-amber-300 tabular-nums"
+        >
+          {label}
+        </span>
+        . Connect X to save your trades, build your profile, and keep your
+        trading history — guest data is cleared {GUEST_RESET_HOURS}h after your
+        first trade.
+      </p>
     </div>
   );
 }

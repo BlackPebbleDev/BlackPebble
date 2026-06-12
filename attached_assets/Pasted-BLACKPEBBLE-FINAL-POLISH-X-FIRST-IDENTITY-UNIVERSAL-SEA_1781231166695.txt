@@ -1,0 +1,300 @@
+BLACKPEBBLE FINAL POLISH + X-FIRST IDENTITY + UNIVERSAL SEARCH UPDATE
+
+Fix the remaining UI polish issues and identity consistency issues.
+
+This is a focused refinement pass.
+
+Do NOT change trading calculations.
+Do NOT change leverage math.
+Do NOT change portfolio accounting.
+Do NOT change leaderboard formulas.
+Do NOT redesign the whole app again.
+
+====================================================
+1. ROUND REMAINING BOXY COMPONENTS
+====================================================
+
+Audit the full site for remaining boxy elements that did not receive the BlackPebble V2 polish.
+
+Specifically fix:
+
+- Guest portfolio reset warning box
+- Admin dashboard tiles/cards
+- Footer donation address area
+- Footer Copy Address button
+- Footer Follow on X button
+- Footer Join Telegram button
+- Any remaining square buttons, square alerts, square stat cards, square icon containers, or square nested boxes
+
+Use the current BlackPebble V2 design language:
+
+- Rounded cards
+- Rounded alerts
+- Rounded pill buttons
+- Soft surfaces
+- Subtle elevation
+- No hard 90-degree dashboard boxes
+- No box-inside-box visual clutter
+
+====================================================
+2. GUEST RESET WARNING POLISH
+====================================================
+
+Current text:
+
+"Your guest portfolio resets in 6h 6m. Sign in to keep your trades — guest data is cleared 24h after your first trade."
+
+This warning is still visually boxy.
+
+Update the design:
+
+- 16px+ radius
+- premium alert styling
+- softer background
+- subtle gold accent
+- cleaner typography
+- no harsh rectangular shape
+
+Also update the message to focus on X identity.
+
+Suggested copy:
+
+"Your guest portfolio resets in 6h 6m. Connect X to save your trades, build your profile, and keep your trading history."
+
+If countdown value is dynamic, preserve it.
+
+====================================================
+3. X-FIRST LOGIN COPY
+====================================================
+
+BlackPebble identity should focus on X login.
+
+Wallets are for tools/utilities.
+
+X is for:
+
+- saving portfolio
+- trading history
+- leaderboard identity
+- profiles
+- feed
+- follow system
+- callouts
+- thesis posts
+- reputation
+
+Update any outdated copy that tells users to connect a wallet to save progress or unlock social/trading identity.
+
+Replace with X-first messaging.
+
+====================================================
+4. LEVERAGE SIGN-IN MESSAGE FIX
+====================================================
+
+Current leverage message:
+
+"SIGN IN REQUIRED
+Leverage trading needs a connected wallet so positions and margin can be tracked."
+
+This is no longer the desired identity model.
+
+Update to X-first copy.
+
+Suggested replacement:
+
+"SIGN IN REQUIRED
+Connect X to save leverage positions, track margin, and build your BlackPebble trading history."
+
+Primary button:
+
+"Connect X"
+
+Do NOT make wallet connection the primary requirement for leverage identity.
+
+If wallet is technically still required for some utility flow, keep that separate and clearly utility-specific.
+
+====================================================
+5. FOOTER POLISH
+====================================================
+
+The footer still contains boxy legacy UI.
+
+Fix:
+
+- Solana donation address display
+- Copy Address button
+- Follow on X button
+- Join Telegram button
+
+Make them match BlackPebble V2:
+
+- Rounded pill buttons
+- Softer surfaces
+- Better spacing
+- No harsh borders
+- No boxy address container
+- Premium footer layout
+
+Footer should not look like an older version of the site.
+
+====================================================
+6. ADMIN PANEL POLISH
+====================================================
+
+Admin dashboard still contains boxy tiles.
+
+Update admin UI to match BlackPebble V2 styling.
+
+Apply:
+
+- rounded cards
+- softer stat tiles
+- improved spacing
+- cleaner hierarchy
+- reduced hard borders
+- consistent visual depth
+
+Admin should still be highly readable and functional.
+
+Do not remove any admin metrics.
+
+Do not reduce analytics visibility.
+
+====================================================
+7. UNIVERSAL SEARCH BAR
+====================================================
+
+Upgrade the main search bar into a universal platform search.
+
+Current search mainly handles tokens.
+
+Goal:
+
+One search bar should eventually help users find everything across BlackPebble.
+
+Implement Phase 1 universal search.
+
+Search should support:
+
+- Tokens
+- Traders / X profiles
+- Utilities
+- Pages
+
+Searchable destinations should include:
+
+- Trading
+- Markets
+- Portfolio
+- Feed
+- Leaderboard
+- Utilities
+- SOL Recovery
+- Trade Planner
+- Trading Journal if present or coming soon
+- User profiles with X handles
+- Token pages
+
+Search results should be grouped by type:
+
+Tokens
+Users
+Utilities
+Pages
+
+Examples:
+
+Searching "portfolio" should show Portfolio page.
+Searching "leaderboard" should show Leaderboard page.
+Searching "recovery" should show SOL Recovery utility.
+Searching an X handle should show the user profile if available.
+Searching a token name/symbol/address should still work exactly as before.
+
+Do NOT break existing token search.
+
+Token search remains the most important search function.
+
+====================================================
+8. UNIVERSAL SEARCH UX
+====================================================
+
+Search results should feel premium and useful.
+
+Requirements:
+
+- Rounded result dropdown/panel
+- Grouped sections
+- Icons by result type
+- Keyboard friendly if practical
+- Mobile friendly
+- No ugly raw list
+- No overflow issues
+
+Example structure:
+
+Tokens
+- PUFFY
+- BONK
+
+Users
+- @trevorrenaud
+
+Utilities
+- SOL Recovery
+- Trade Planner
+
+Pages
+- Portfolio
+- Leaderboard
+
+====================================================
+9. SEARCH PLACEHOLDER COPY
+====================================================
+
+Update placeholder from token-only language to universal language.
+
+Suggested:
+
+"Search tokens, traders, utilities..."
+
+or
+
+"Search tokens, traders, tools..."
+
+Keep it short.
+
+====================================================
+10. REGRESSION TEST
+====================================================
+
+Verify:
+
+- Token search still works
+- Universal page search works
+- Utility search works
+- Profile search works if profile data exists
+- Mobile search dropdown fits
+- Desktop search dropdown fits
+- Leverage sign-in message now points to X
+- Guest reset warning is rounded and X-focused
+- Footer is rounded and polished
+- Admin tiles are rounded and polished
+- No trading calculations changed
+- No portfolio math changed
+- No leaderboard formulas changed
+
+====================================================
+11. REPORT BACK
+====================================================
+
+Return:
+
+1. Files changed
+2. Boxy components fixed
+3. Login copy updated
+4. Leverage sign-in copy updated
+5. Footer polish completed
+6. Admin polish completed
+7. Universal search implemented
+8. Search result types supported
+9. Any remaining concerns before publishing

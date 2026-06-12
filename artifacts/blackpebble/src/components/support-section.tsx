@@ -18,7 +18,7 @@ function CopyButton({ text, label }: { text: string; label?: string }) {
           toast({ title: "Copy failed", description: "Your browser did not allow clipboard access.", variant: "destructive" });
         }
       }}
-      className="inline-flex items-center gap-2 border border-border text-muted-foreground hover:text-foreground hover:border-accent transition-colors px-3 py-2 text-xs font-medium"
+      className="inline-flex items-center gap-2 rounded-full bg-surface-2 border border-border text-muted-foreground hover:text-foreground hover:border-accent hover:bg-surface-3 transition-colors px-4 py-2 text-xs font-medium"
     >
       <Copy className="w-3.5 h-3.5" />
       {label ?? "Copy Address"}
@@ -53,7 +53,7 @@ function shortenAddress(addr: string): string {
 function AddressDisplay({ address }: { address: string }) {
   return (
     <div className="flex items-center gap-2 flex-wrap">
-      <div className="flex items-center min-w-0 bg-background border border-border px-3 py-2.5">
+      <div className="flex items-center min-w-0 rounded-full bg-surface-2 border border-border px-4 py-2.5">
         <code
           className="font-mono text-sm text-foreground whitespace-nowrap tracking-tight"
           title={address}
@@ -84,7 +84,7 @@ function SocialLink({
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className="inline-flex items-center gap-2 border border-border text-muted-foreground hover:text-foreground hover:border-accent transition-colors px-4 py-2 text-sm font-medium"
+      className="inline-flex items-center gap-2 rounded-full bg-surface-2 border border-border text-muted-foreground hover:text-foreground hover:border-accent hover:bg-surface-3 transition-colors px-4 py-2 text-sm font-medium"
     >
       {icon}
       {label}

@@ -92,7 +92,7 @@ function Card({
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="border border-border bg-background/40 p-3">
+    <div className="rounded-lg bg-surface-2 p-3 shadow-card">
       <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
         {label}
       </div>
@@ -132,10 +132,10 @@ function WindowSelector({
           onClick={() => onChange(w.key)}
           data-testid={`stats-window-${w.key}`}
           className={cn(
-            "px-2.5 py-1 text-xs font-medium transition-colors",
+            "rounded-full px-3 py-1 text-xs font-medium transition-colors",
             value === w.key
               ? "bg-accent text-accent-foreground"
-              : "bg-background/40 text-muted-foreground hover:text-foreground",
+              : "bg-surface-2 text-muted-foreground hover:text-foreground hover:bg-surface-3",
           )}
         >
           {w.label}

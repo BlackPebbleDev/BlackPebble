@@ -35,9 +35,10 @@ export default function About() {
           a sandbox for learning and competition.
         </p>
         <p>
-          Connect a wallet or sign in with X to save your progress and climb the
+          Connect X to save your progress, build your profile, and climb the
           leaderboard, or jump straight in as a guest. Your guest activity stays
-          on your device until you link an account.
+          on your device until you connect X. Wallets are used for utilities and
+          tools.
         </p>
         <p className="text-xs text-muted-foreground/70">
           BlackPebble is for entertainment and education only. Nothing here is

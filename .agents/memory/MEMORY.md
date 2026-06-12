@@ -13,4 +13,5 @@
 - [Leverage P&L isolation](leverage-pnl-isolation.md) — leverage open/close only mutate paper_balance; never spot stat columns (realized_pnl/total_trades/etc).
 - [Guest funnel analytics](guest-funnel-analytics.md) — guests are client-only; funnel via public beacon→analytics_events. guest_converted only when ≥1 position migrated; preserve anon_id across expiry resets.
 - [Callouts are append-only](callouts-immutable.md) — callouts/callout_updates have NO edit/delete/hide path by design; corrections go in callout_updates. Never add a mutation path.
+- [Universal search user lookup](universal-search-user-lookup.md) — search resolves users only for @handle queries; profiles.get is exact-lookup, firing on every word 404-spams.
 - [Rounded table wrappers](rounded-table-overflow.md) — table containers need overflow-x-auto (not overflow-hidden) when rounded, else wide columns clip; corners still clip via overflow-y auto.

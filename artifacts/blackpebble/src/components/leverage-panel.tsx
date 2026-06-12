@@ -4,12 +4,20 @@ import { AlertTriangle, ChevronDown, Loader2 } from "lucide-react";
 import { api, type TokenInfo } from "@/lib/api";
 import { useAccount } from "@/hooks/use-account";
 import { useToast } from "@/hooks/use-toast";
-import { useWalletModal } from "@solana/wallet-adapter-react-ui";
+import { useXAuth } from "@/hooks/use-x-auth";
 import { fmtSol, fmtMarketCap, fmtPercent, fmtPrice } from "@/lib/format";
 import { fmtUnitAmt } from "@/components/trade-planner/util";
 import { parseAbbreviatedNumber, type Unit } from "@/lib/trade-planner";
 import { impactColor as liquidityImpactColor, fmtImpact } from "@/lib/liquidity";
 import { cn } from "@/lib/utils";
+
+function XLogo({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden>
+      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+    </svg>
+  );
+}
 
 const LEVERAGE_OPTIONS = [2, 5, 10, 20] as const;
 const MIN_MARGIN_SOL = 0.1;
@@ -43,7 +51,7 @@ export function LeveragePanel({ info }: { info: TokenInfo }) {
   const { wallet, account, isGuest } = useAccount();
   const { toast } = useToast();
   const qc = useQueryClient();
-  const { setVisible: setWalletModalVisible } = useWalletModal();
+  const { login } = useXAuth();
 
   // USD is the default trade-size unit app-wide; only an explicit prior SOL
   // choice (this session) overrides it. Shares the spot panel's session key so
@@ -189,22 +197,23 @@ export function LeveragePanel({ info }: { info: TokenInfo }) {
   if (isGuest || !wallet) {
     return (
       <div className="p-4">
-        <div className="border border-amber-500/30 bg-amber-500/10 px-4 py-3 rounded-md">
+        <div className="rounded-xl border border-amber-500/20 bg-gradient-to-br from-amber-500/[0.12] to-amber-500/[0.04] px-4 py-4 shadow-card">
           <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-amber-400">
             <AlertTriangle className="w-3.5 h-3.5" />
             Sign in required
           </div>
-          <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-            Leverage trading needs a connected wallet so positions and margin can
-            be tracked.
+          <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
+            Connect X to save leverage positions, track margin, and build your
+            BlackPebble trading history.
           </p>
           <button
             type="button"
-            onClick={() => setWalletModalVisible(true)}
+            onClick={() => login()}
             data-testid="button-leverage-connect"
-            className="mt-2.5 h-9 w-full bg-accent text-accent-foreground text-xs font-medium hover:bg-accent/90 transition-colors rounded-md"
+            className="mt-3 inline-flex h-9 w-full items-center justify-center gap-2 rounded-full bg-accent text-accent-foreground text-xs font-medium hover:bg-accent/90 transition-colors"
           >
-            Connect Wallet
+            <XLogo className="w-3.5 h-3.5" />
+            Connect X
           </button>
         </div>
       </div>
