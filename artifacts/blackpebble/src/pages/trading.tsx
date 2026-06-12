@@ -27,6 +27,7 @@ import {
   Check,
   Megaphone,
   Lock,
+  MoreHorizontal,
   X as CloseIcon,
 } from "lucide-react";
 import {
@@ -91,6 +92,8 @@ import {
 } from "@/components/trade-warning-card";
 import { cn } from "@/lib/utils";
 import { AllOrders } from "@/components/position-orders";
+import { TradingViewChart } from "@/components/tradingview-chart";
+import { TokenIntelligenceSection } from "@/components/token-intel";
 import { BeginnerGuide } from "@/components/beginner-guide";
 import {
   Tooltip as UITooltip,
@@ -218,86 +221,6 @@ function TokenHeader({ info }: { info: TokenInfo }) {
   );
 }
 
-/**
- * DexScreener embed with a hardened mobile lifecycle.
- *
- * Mobile webviews (Safari, Phantom, in-app browsers) accumulate resources when
- * a single <iframe> element has its `src` swapped over and over as the user
- * hops between tokens — eventually new embeds silently fail to load until the
- * browser is restarted. To avoid that we:
- *  - Force a full remount of the iframe element on every pair change (and on a
- *    manual reload) via a changing `key`, so the old embed's document is torn
- *    down by React instead of being reused.
- *  - Blank the iframe (`about:blank`) on unmount so the webview can reclaim it.
- *  - Track load success with `onLoad`, show a spinner until then, and fall back
- *    to a "Reload Chart" affordance if the embed hasn't loaded within a timeout.
- * There is no polling here, so this never spams the network or loops.
- */
-function DexScreenerChart({ pairAddress }: { pairAddress: string }) {
-  const [status, setStatus] = useState<"loading" | "loaded" | "error">(
-    "loading",
-  );
-  const [nonce, setNonce] = useState(0);
-  const iframeRef = useRef<HTMLIFrameElement | null>(null);
-
-  useEffect(() => {
-    setStatus("loading");
-    const iframe = iframeRef.current;
-    const timer = setTimeout(() => {
-      setStatus((s) => (s === "loaded" ? s : "error"));
-    }, 20_000);
-    return () => {
-      clearTimeout(timer);
-      // Release the embed's document so the mobile webview can reclaim memory.
-      if (iframe) {
-        try {
-          iframe.src = "about:blank";
-        } catch {
-          /* cross-origin teardown — safe to ignore */
-        }
-      }
-    };
-  }, [pairAddress, nonce]);
-
-  const src = `https://dexscreener.com/solana/${pairAddress}?embed=1&theme=dark&trades=0&info=0`;
-
-  return (
-    <div className="relative rounded-xl bg-card shadow-card overflow-hidden h-[420px]">
-      <iframe
-        key={`${pairAddress}-${nonce}`}
-        ref={iframeRef}
-        title="chart"
-        src={src}
-        className="w-full h-full"
-        onLoad={() => setStatus("loaded")}
-      />
-      {status === "loading" && (
-        <div className="absolute inset-0 flex items-center justify-center bg-card/80 pointer-events-none">
-          <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-        </div>
-      )}
-      {status === "error" && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-card px-4 text-center">
-          <p className="text-sm text-muted-foreground">
-            The chart took too long to load.
-          </p>
-          <button
-            onClick={() => {
-              setStatus("loading");
-              setNonce((n) => n + 1);
-            }}
-            data-testid="button-reload-chart"
-            className="flex items-center gap-2 px-3 h-9 border border-border text-xs text-foreground hover:border-accent/50 transition-colors"
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-            Reload Chart
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
 function PriceChart({ info }: { info: TokenInfo }) {
   const { data } = useQuery({
     queryKey: ["live-trades", info.mint],
@@ -307,7 +230,7 @@ function PriceChart({ info }: { info: TokenInfo }) {
   });
 
   if (info.isMigrated && info.pairAddress) {
-    return <DexScreenerChart pairAddress={info.pairAddress} />;
+    return <TradingViewChart pairAddress={info.pairAddress} />;
   }
 
   const trades = (data?.trades ?? [])
@@ -2167,6 +2090,75 @@ function CopyContract({ mint }: { mint: string }) {
   );
 }
 
+/**
+ * "More" overflow menu for the token action bar — secondary external links
+ * (Solscan, Jupiter, Birdeye, DEXTools). Purely navigational; no trading
+ * behaviour. Built to host future in-app actions (alerts, share) as well.
+ */
+function MoreMenu({ info }: { info: TokenInfo }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDown(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [open]);
+
+  const pairOrMint = info.pairAddress ?? info.mint;
+  const links: { label: string; href: string }[] = [
+    { label: "Solscan", href: `https://solscan.io/token/${info.mint}` },
+    { label: "Jupiter", href: `https://jup.ag/swap/SOL-${info.mint}` },
+    { label: "Birdeye", href: `https://birdeye.so/token/${info.mint}?chain=solana` },
+    { label: "DEXTools", href: `https://www.dextools.io/app/en/solana/pair-explorer/${pairOrMint}` },
+  ];
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        data-testid="button-token-more"
+        title="More"
+        className={cn(
+          "flex items-center gap-2 px-4 h-10 rounded-full text-xs font-medium transition-all",
+          open
+            ? "bg-secondary text-foreground"
+            : "bg-secondary/60 text-muted-foreground hover:text-foreground hover:bg-secondary",
+        )}
+      >
+        <MoreHorizontal className="w-4 h-4" />
+        More
+      </button>
+      {open && (
+        <div className="absolute right-0 z-40 mt-2 w-44 rounded-xl bg-card border border-border shadow-card py-1.5">
+          {links.map((l) => (
+            <a
+              key={l.label}
+              href={l.href}
+              target="_blank"
+              rel="noreferrer"
+              onClick={() => setOpen(false)}
+              className="flex items-center justify-between gap-2 px-3 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-secondary/60 transition-colors"
+            >
+              {l.label}
+              <ExternalLink className="w-3 h-3" />
+            </a>
+          ))}
+          <div className="mt-1 border-t border-border/60 px-3 py-2 text-[10px] text-muted-foreground/60">
+            More actions coming soon
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ActivityTabs() {
   const { wallet, isGuest } = useAccount();
   const navigate = useNavigate();
@@ -2434,6 +2426,7 @@ export default function TradingDesk() {
           <ExternalLink className="w-3.5 h-3.5" />
           DexScreener
         </a>
+        <MoreMenu info={info} />
         <div className="ml-auto">
           <CopyContract mint={info.mint} />
         </div>
@@ -2503,6 +2496,8 @@ export default function TradingDesk() {
           />
         </div>
       </div>
+
+      <TokenIntelligenceSection info={info} />
 
       <AllOrders onNavigate={(m) => navigate(`/?token=${m}`)} />
 

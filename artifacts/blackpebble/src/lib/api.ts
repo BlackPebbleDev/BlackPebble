@@ -201,6 +201,65 @@ export interface TokenInfo {
   source: string;
   isMigrated: boolean;
   pairAddress: string | null;
+  // ── Token Page V2 detail fields (optional, display-only) ──
+  buys24h?: number | null;
+  sells24h?: number | null;
+  /** Pair creation time (ms epoch) — used to render token age. */
+  pairCreatedAt?: number | null;
+  volume6hUsd?: number | null;
+  volume1hUsd?: number | null;
+}
+
+/** ── Token Page V2 intelligence roll-up (read-only over existing tables) ── */
+export interface TokenSentiment {
+  totalCalls: number;
+  activeCallers: number;
+  gradedCalls: number;
+  successRate: number;
+  theses: number;
+  convictionHigh: number;
+  convictionMedium: number;
+  convictionLow: number;
+}
+
+export interface TokenCommunity {
+  watchers: number;
+  callers: number;
+  journalEntries: number;
+  theses: number;
+}
+
+export interface RecentCallout {
+  id: number;
+  user_id: number;
+  x_username: string | null;
+  x_display_name: string | null;
+  x_avatar_url: string | null;
+  call_market_cap: number | null;
+  call_price_usd: number | null;
+  conviction: string | null;
+  currentMultiple: number | null;
+  currentMarketCapUsd: number | null;
+  created_at: number;
+}
+
+export interface RecentThesis {
+  id: number;
+  user_id: number;
+  x_username: string | null;
+  x_display_name: string | null;
+  x_avatar_url: string | null;
+  thesis: string;
+  conviction: string | null;
+  created_at: number;
+}
+
+export interface TokenIntelligence {
+  mint: string;
+  sentiment: TokenSentiment;
+  community: TokenCommunity;
+  recentCallouts: RecentCallout[];
+  recentTheses: RecentThesis[];
 }
 
 export interface MarketFeedResponse {
@@ -963,6 +1022,12 @@ export const api = {
 
   // Current SOL/USD rate — lets any page render USD even with no positions.
   solPrice: () => request<{ solUsd: number }>(`/markets/sol-price`),
+
+  // Token Page V2 intelligence roll-up (sentiment / community / recent activity).
+  tokenIntelligence: (mint: string) =>
+    request<TokenIntelligence>(
+      `/markets/${encodeURIComponent(mint)}/intelligence`,
+    ),
 
   portfolio: (wallet: string) => request<Portfolio>(`/portfolio/${wallet}`),
   portfolioChart: (wallet: string) =>

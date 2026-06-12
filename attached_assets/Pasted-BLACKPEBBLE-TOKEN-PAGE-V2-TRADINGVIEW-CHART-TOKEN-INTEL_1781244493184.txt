@@ -1,0 +1,249 @@
+BLACKPEBBLE TOKEN PAGE V2 — TRADINGVIEW CHART + TOKEN INTELLIGENCE PANEL
+
+The current token page works, but the embedded DexScreener chart feels cramped and does not fully match the premium BlackPebble trading terminal experience.
+
+The goal is to evolve token pages into a professional trader workstation.
+
+Do NOT remove existing functionality.
+
+Do NOT remove DexScreener integration.
+
+Do NOT break token discovery.
+
+====================================================
+
+1. REPLACE EMBEDDED DEXSCREENER CHART
+    ====================================================
+
+Replace the current embedded DexScreener chart widget with a TradingView chart implementation where technically feasible.
+
+Requirements:
+
+* Dark theme
+* Match BlackPebble V2 styling
+* Responsive desktop/mobile
+* Rounded container
+* Full-width chart
+* Better vertical space utilization
+* Professional appearance
+
+Preserve:
+
+* Token symbol
+* Token address
+* Existing token data
+
+The chart should feel closer to:
+
+* Phantom Trading
+* TradingView
+* Coinbase Advanced
+* Kraken Pro
+
+than a simple embedded widget.
+
+====================================================
+2. KEEP DEXSCREENER ACCESS
+
+Do NOT remove DexScreener.
+
+Keep:
+
+DexScreener button
+
+in token actions.
+
+Users should still be able to jump directly to DexScreener.
+
+====================================================
+3. TOKEN ACTION BAR
+
+Keep:
+
+★ Watch
+
+📣 Call Token
+
+↗ DexScreener
+
+⧉ Copy Contract
+
+If space allows, prepare architecture for future additions:
+
+* DEXTools
+* Jupiter
+* Solscan
+
+Do NOT overcrowd mobile.
+
+If needed:
+
+Use a “More” menu.
+
+====================================================
+4. TOKEN INTELLIGENCE PANEL
+
+Create a premium token intelligence section directly below the chart.
+
+Goal:
+
+Give traders immediate information without leaving BlackPebble.
+
+Use existing token data where available.
+
+Display:
+
+⸻
+
+TOKEN OVERVIEW
+
+* Market Cap
+* Liquidity
+* Volume (24h)
+* Buys
+* Sells
+* Holders
+* Age
+
+⸻
+
+MARKET ACTIVITY
+
+* Buy/Sell Ratio
+* Volume Trend
+* Largest Buy
+* Largest Sell
+* Recent Activity
+
+⸻
+
+TRADER SENTIMENT
+
+* Total Calls
+* Bullish Calls
+* Bearish Calls
+* Call Success Rate
+* Active Theses
+
+Use placeholders if some data is not available yet.
+
+====================================================
+5. COMMUNITY INTELLIGENCE
+
+Add a new card:
+
+Community Intelligence
+
+Show:
+
+* Number of traders watching
+* Number of active callers
+* Number of journal entries linked to token
+* Number of theses written
+
+If unavailable:
+
+Display placeholder counts and “Coming Soon.”
+
+====================================================
+6. TOKEN THESIS PREVIEW
+
+Below intelligence section:
+
+Recent Theses
+
+Show latest public thesis previews.
+
+Example:
+
+@username
+
+“I believe this token has strong community growth and remains undervalued.”
+
+Button:
+
+View All Theses
+
+If none exist:
+
+Be first to publish a thesis.
+
+====================================================
+7. RECENT CALLOUTS PANEL
+
+Display:
+
+Recent Calls
+
+Show:
+
+* User
+* Called MC
+* Current Multiple
+* ATH Multiple
+* Timestamp
+
+Example:
+
+@trevorrenaud
+
+Called:
+$27K MC
+
+Current:
+3.1x
+
+ATH:
+5.4x
+
+====================================================
+8. PREMIUM TERMINAL DESIGN
+
+The token page should feel like a workstation.
+
+Use multiple smaller information modules rather than large empty spaces.
+
+Increase useful information density.
+
+Avoid clutter.
+
+The page should feel alive.
+
+====================================================
+9. MOBILE REQUIREMENTS
+
+Mobile remains a priority.
+
+Requirements:
+
+* Chart remains readable
+* Action buttons remain easy to tap
+* No horizontal scrolling
+* Intelligence cards stack cleanly
+* Maintain fast performance
+
+====================================================
+10. DESIGN CONSISTENCY
+
+Use current BlackPebble V2 design system.
+
+* Same typography
+* Same spacing
+* Same border radius
+* Same dark theme
+* Same gold accents
+
+Do NOT introduce a new design language.
+
+====================================================
+11. REPORT BACK
+
+Return:
+
+1. Chart solution used
+2. Files changed
+3. Intelligence modules added
+4. Community modules added
+5. Mobile adjustments made
+6. Future expansion opportunities
+7. Any concerns before publishing

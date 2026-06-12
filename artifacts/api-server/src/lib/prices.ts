@@ -24,6 +24,15 @@ export interface TokenInfo {
   isMigrated: boolean; // true => tradeable on a DEX (chart via DexScreener), false => bonding curve
   pairAddress: string | null;
   source: string;
+  // ── Token Page V2 detail fields (optional, display-only) ──
+  // Populated from the DexScreener pair when available; null/undefined for
+  // bonding-curve or Jupiter-sourced tokens. None of these feed trade math.
+  buys24h?: number | null;
+  sells24h?: number | null;
+  /** Pair creation time (ms epoch) — used to render token age. */
+  pairCreatedAt?: number | null;
+  volume6hUsd?: number | null;
+  volume1hUsd?: number | null;
 }
 
 interface DexPair {
@@ -33,8 +42,15 @@ interface DexPair {
   priceNative: string;
   priceUsd?: string;
   liquidity?: { usd?: number };
-  volume?: { h24?: number };
+  volume?: { h24?: number; h6?: number; h1?: number; m5?: number };
   priceChange?: { h24?: number };
+  txns?: {
+    m5?: { buys?: number; sells?: number };
+    h1?: { buys?: number; sells?: number };
+    h6?: { buys?: number; sells?: number };
+    h24?: { buys?: number; sells?: number };
+  };
+  pairCreatedAt?: number;
   marketCap?: number;
   fdv?: number;
   info?: { imageUrl?: string };
@@ -137,6 +153,11 @@ export async function getTokenInfo(mint: string): Promise<TokenInfo | null> {
       isMigrated: true,
       pairAddress: dex.pairAddress,
       source: "dexscreener",
+      buys24h: dex.txns?.h24?.buys ?? null,
+      sells24h: dex.txns?.h24?.sells ?? null,
+      pairCreatedAt: dex.pairCreatedAt ?? null,
+      volume6hUsd: dex.volume?.h6 ?? null,
+      volume1hUsd: dex.volume?.h1 ?? null,
     };
   }
 

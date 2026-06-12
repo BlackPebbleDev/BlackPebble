@@ -9,6 +9,7 @@ import {
   type MarketToken,
 } from "../lib/prices.js";
 import { pumpportal } from "../lib/pumpportal.js";
+import { getTokenIntelligence } from "../lib/tokenIntel.js";
 
 const router: IRouter = Router();
 
@@ -152,6 +153,21 @@ router.get(
 
     migratedCache = { at: Date.now(), tokens };
     return res.json({ tokens, connected: pumpportal.isConnected() });
+  }),
+);
+
+/**
+ * Per-token "intelligence" roll-up for the Token Page V2 workstation:
+ * trader sentiment (calls, callers, success rate, conviction split), community
+ * stats (watchers, callers, journal entries, theses) and recent callouts/theses
+ * graded live. Read-only over existing tables — never mutates callouts.
+ */
+router.get(
+  "/markets/:mint/intelligence",
+  asyncHandler(async (req, res) => {
+    const mint = String(req.params.mint || "").trim();
+    if (!mint) return res.status(400).json({ error: "mint is required" });
+    return res.json(await getTokenIntelligence(mint));
   }),
 );
 
