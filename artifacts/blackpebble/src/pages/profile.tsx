@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams } from "wouter";
+import { Link, useParams } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Award,
@@ -38,6 +38,7 @@ import {
   fmtNum,
   fmtPercent,
   fmtPrice,
+  multipleTone,
   pnlColor,
   shortAddr,
   timeAgo,
@@ -528,6 +529,33 @@ function CalloutResultValue({ result }: { result: CalloutResult | null }) {
   );
 }
 
+/** One labelled snapshot/performance cell in a callout card. */
+function StatBox({
+  label,
+  value,
+  valueClass,
+}: {
+  label: string;
+  value: string;
+  valueClass?: string;
+}) {
+  return (
+    <div className="border border-border bg-secondary/30 p-2">
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+        {label}
+      </div>
+      <div
+        className={cn(
+          "mt-0.5 font-mono text-sm truncate",
+          valueClass ?? "text-foreground",
+        )}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
+
 /** Owner-only: append an immutable follow-up note to one of their own calls. */
 function AddUpdateForm({
   calloutId,
@@ -615,9 +643,12 @@ function CalloutCard({
         )}
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm font-semibold text-foreground truncate">
+            <Link
+              href={`/?token=${callout.token_mint}`}
+              className="text-sm font-semibold text-foreground truncate hover:text-accent transition-colors"
+            >
               {callout.token_symbol || shortAddr(callout.token_mint)}
-            </span>
+            </Link>
             {callout.token_name && (
               <span className="text-xs text-muted-foreground truncate">
                 {callout.token_name}
@@ -638,28 +669,20 @@ function CalloutCard({
         </p>
       )}
 
-      {/* Entry snapshot + current result */}
+      {/* Entry snapshot + live performance */}
       <div className="mt-3 grid grid-cols-3 gap-2">
-        <div className="border border-border bg-secondary/30 p-2">
-          <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-            Entry Price
-          </div>
-          <div className="mt-0.5 font-mono text-sm text-foreground">
-            {callout.call_price_usd != null
-              ? fmtPrice(callout.call_price_usd)
-              : "—"}
-          </div>
-        </div>
-        <div className="border border-border bg-secondary/30 p-2">
-          <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-            Entry MC
-          </div>
-          <div className="mt-0.5 font-mono text-sm text-foreground">
-            {callout.call_market_cap != null
+        <StatBox
+          label="Called MC"
+          value={
+            callout.call_market_cap != null
               ? fmtMarketCap(callout.call_market_cap)
-              : "—"}
-          </div>
-        </div>
+              : "—"
+          }
+        />
+        <StatBox
+          label="Current MC"
+          value={fmtMarketCap(callout.result?.currentMarketCapUsd ?? null)}
+        />
         <div className="border border-border bg-secondary/30 p-2">
           <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
             Result
@@ -668,6 +691,24 @@ function CalloutCard({
             <CalloutResultValue result={callout.result} />
           </div>
         </div>
+        <StatBox
+          label="Entry Price"
+          value={
+            callout.call_price_usd != null
+              ? fmtPrice(callout.call_price_usd)
+              : "—"
+          }
+        />
+        <StatBox
+          label="Current X"
+          value={fmtMultiple(callout.result?.currentMultiple ?? null)}
+          valueClass={multipleTone(callout.result?.currentMultiple ?? null)}
+        />
+        <StatBox
+          label="ATH X"
+          value={fmtMultiple(callout.result?.athMultiple ?? null)}
+          valueClass={multipleTone(callout.result?.athMultiple ?? null)}
+        />
       </div>
 
       {/* Append-only update trail */}
@@ -872,17 +913,42 @@ function CallerStatsSection({ profile }: { profile: ProfileResponse }) {
             cls={stats.bestMultiple != null ? "text-emerald-400" : undefined}
           />
           <StatTile label="Graded Calls" value={String(stats.gradedCalls)} />
-          <StatTile
-            label="Best Call"
-            value={
-              stats.bestCall
-                ? `${
-                    stats.bestCall.token_symbol ||
-                    shortAddr(stats.bestCall.token_mint, 4)
-                  } ${fmtMultiple(stats.bestCall.multiple)}`
-                : "—"
-            }
-          />
+          {stats.bestCall ? (
+            <Link
+              href={`/?token=${stats.bestCall.token_mint}`}
+              className="block rounded-lg border border-border bg-secondary/30 p-3 hover:border-accent/60 transition-colors"
+            >
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                Best Call
+              </div>
+              <div className="mt-1 flex items-baseline gap-2 flex-wrap">
+                <span className="font-mono text-sm font-semibold text-foreground truncate">
+                  {stats.bestCall.token_symbol ||
+                    shortAddr(stats.bestCall.token_mint, 4)}
+                </span>
+                <span
+                  className={cn(
+                    "font-mono text-sm font-semibold",
+                    multipleTone(stats.bestCall.multiple),
+                  )}
+                >
+                  {fmtMultiple(stats.bestCall.multiple)}
+                </span>
+                {stats.bestCall.athMultiple != null && (
+                  <span className="font-mono text-[11px] text-muted-foreground">
+                    ATH {fmtMultiple(stats.bestCall.athMultiple)}
+                  </span>
+                )}
+              </div>
+              <div className="mt-1 font-mono text-[11px] text-muted-foreground">
+                {fmtMarketCap(stats.bestCall.calledMarketCapUsd ?? null)}
+                {" → "}
+                {fmtMarketCap(stats.bestCall.currentMarketCapUsd ?? null)}
+              </div>
+            </Link>
+          ) : (
+            <StatTile label="Best Call" value="—" />
+          )}
         </div>
       )}
     </>

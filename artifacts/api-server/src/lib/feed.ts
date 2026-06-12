@@ -1,6 +1,8 @@
 import { dbAll } from "./database.js";
 import { ensureProfileSchema } from "./profiles.js";
 import { ensureThesesSchema } from "./theses.js";
+import { getTokenStatsBatch } from "./prices.js";
+import { getTokenPeaks, recordTokenPeaks, athMultipleFrom } from "./peaks.js";
 
 /**
  * Read-only activity feed (Phase 1).
@@ -44,6 +46,15 @@ export interface FeedActivityItem {
   conviction: string | null;
   /** Snapshotted market cap (USD) at the moment of the call, null otherwise. */
   callMarketCapUsd: number | null;
+  /**
+   * Live callout performance (callouts only; null for trades/theses). Computed
+   * dynamically from the call's snapshotted price — the call row is never
+   * mutated. currentMultiple = livePrice / callPrice; athMultiple uses the
+   * peak-since-tracking high-water mark (always >= currentMultiple).
+   */
+  currentMarketCapUsd: number | null;
+  currentMultiple: number | null;
+  athMultiple: number | null;
   /** Standalone thesis title, null for everything else. */
   thesisTitle: string | null;
   /** Standalone thesis sentiment ('bullish'|'bearish'|'neutral'), else null. */
@@ -71,6 +82,7 @@ interface ActivityRow {
   thesis: string | null;
   conviction: string | null;
   call_market_cap: number | null;
+  call_price_usd: number | null;
   thesis_title: string | null;
   sentiment: string | null;
   ts: number;
@@ -139,6 +151,7 @@ export async function getActivity(opts: {
               NULL::text AS thesis,
               NULL::text AS conviction,
               NULL::double precision AS call_market_cap,
+              NULL::double precision AS call_price_usd,
               NULL::text AS thesis_title,
               NULL::text AS sentiment,
               t.executed_at AS ts,
@@ -157,6 +170,7 @@ export async function getActivity(opts: {
               NULL::text AS thesis,
               NULL::text AS conviction,
               NULL::double precision AS call_market_cap,
+              NULL::double precision AS call_price_usd,
               NULL::text AS thesis_title,
               NULL::text AS sentiment,
               lt.executed_at AS ts,
@@ -175,6 +189,7 @@ export async function getActivity(opts: {
               c.thesis AS thesis,
               c.conviction AS conviction,
               c.call_market_cap AS call_market_cap,
+              c.call_price_usd AS call_price_usd,
               NULL::text AS thesis_title,
               NULL::text AS sentiment,
               c.created_at AS ts,
@@ -199,6 +214,7 @@ export async function getActivity(opts: {
               th.content AS thesis,
               th.conviction AS conviction,
               NULL::double precision AS call_market_cap,
+              NULL::double precision AS call_price_usd,
               th.title AS thesis_title,
               th.sentiment AS sentiment,
               th.created_at AS ts,
@@ -219,7 +235,7 @@ export async function getActivity(opts: {
     params,
   );
 
-  return rows.map((r) => ({
+  const items: FeedActivityItem[] = rows.map((r) => ({
     id: r.id,
     kind: r.kind,
     action: r.action,
@@ -235,6 +251,9 @@ export async function getActivity(opts: {
     thesis: r.thesis,
     conviction: r.conviction,
     callMarketCapUsd: r.call_market_cap,
+    currentMarketCapUsd: null,
+    currentMultiple: null,
+    athMultiple: null,
     thesisTitle: r.thesis_title,
     sentiment: r.sentiment,
     timestamp: r.ts,
@@ -245,4 +264,70 @@ export async function getActivity(opts: {
       x_avatar_url: r.x_avatar_url,
     },
   }));
+
+  await enrichCalloutPerformance(items, rows);
+  return items;
+}
+
+/**
+ * Enrich callout feed items with live performance (Current MC, Current X, ATH X).
+ * Computed dynamically and batched: one DexScreener stats batch + one peaks read
+ * for all unique callout mints in the page, so a 40-item feed costs ~1–2 upstream
+ * calls regardless of how many calls it contains. Best-effort — any failure
+ * leaves the call showing its preserved Called MC with no live numbers, never an
+ * error. Trades and theses are intentionally left untouched (theses are never
+ * graded as calls).
+ */
+async function enrichCalloutPerformance(
+  items: FeedActivityItem[],
+  rows: ActivityRow[],
+): Promise<void> {
+  const callPriceById = new Map<string, number | null>();
+  for (const r of rows) {
+    if (r.kind === "callout") callPriceById.set(r.id, r.call_price_usd);
+  }
+  const callouts = items.filter((i) => i.kind === "callout");
+  if (callouts.length === 0) return;
+
+  const mints = [...new Set(callouts.map((c) => c.token.mint).filter(Boolean))];
+  if (mints.length === 0) return;
+
+  try {
+    const [stats, peaks] = await Promise.all([
+      getTokenStatsBatch(mints),
+      getTokenPeaks(mints),
+    ]);
+
+    // Fold the just-observed live values into the high-water mark so ATH never
+    // lags behind a price we are showing right now.
+    await recordTokenPeaks(
+      [...stats.entries()].map(([mint, s]) => ({
+        mint,
+        priceUsd: s.priceUsd,
+        marketCapUsd: s.marketCapUsd,
+      })),
+    );
+
+    for (const item of callouts) {
+      const s = stats.get(item.token.mint);
+      const callPrice = callPriceById.get(item.id) ?? null;
+      const currentPrice = s?.priceUsd ?? null;
+      item.currentMarketCapUsd = s?.marketCapUsd ?? null;
+      const currentMultiple =
+        callPrice != null &&
+        callPrice > 0 &&
+        currentPrice != null &&
+        currentPrice > 0
+          ? currentPrice / callPrice
+          : null;
+      item.currentMultiple = currentMultiple;
+      item.athMultiple = athMultipleFrom(
+        peaks.get(item.token.mint),
+        callPrice,
+        currentMultiple,
+      );
+    }
+  } catch {
+    // Graceful degradation: keep Called MC, drop live numbers.
+  }
 }

@@ -1,0 +1,226 @@
+FEED TOKEN LINK + LIVE CALLOUT PERFORMANCE UPDATE
+
+Current issue:
+
+Token names in Feed cards are not clickable when users call a token, publish a thesis, or create related token activity.
+
+Additionally, callout posts currently do not display the ongoing performance of the call.
+
+BlackPebble is becoming a reputation platform.
+
+Users should immediately see whether a call is winning or losing directly from the feed.
+
+====================================================
+PART 1 — CLICKABLE TOKEN LINKS
+
+Expected behavior:
+
+Any token name/symbol shown in the Feed should be clickable and navigate directly to that token’s BlackPebble token page.
+
+Apply to feed event types:
+
+* Call Published
+* Thesis Published
+* Trade Opened
+* Trade Closed
+* Leverage Opened
+* Leverage Closed
+* Liquidation
+* Achievement tied to token
+* Journal entry tied to token if shown publicly later
+
+Requirements:
+
+* Token name/symbol visually styled as clickable.
+* Use BlackPebble V2 styling.
+* Preserve existing View Token buttons if present.
+* If token mint/address exists, route directly to token page.
+* If only symbol exists, use existing token lookup logic.
+* Mobile friendly.
+* No layout shift.
+* No broken links.
+
+====================================================
+PART 2 — LIVE CALLOUT PERFORMANCE
+
+Upgrade call feed cards to display real-time performance.
+
+Current feed example:
+
+@username called PUFFY at $27K MC
+
+New desired format:
+
+📣 CALL
+
+@username called PUFFY
+
+Called:
+$27K MC
+
+Current:
+$91K MC
+
+Current:
+3.37x
+
+ATH:
+5.82x
+
+View Token
+
+====================================================
+PART 3 — DYNAMIC PERFORMANCE TRACKING
+
+Current X and ATH X should NOT be static.
+
+Calculate dynamically.
+
+Use:
+
+Current X =
+Current Market Cap / Called Market Cap
+
+ATH X =
+ATH Market Cap / Called Market Cap
+
+Requirements:
+
+* Update automatically as token moves.
+* Do not require user edits.
+* Do not require re-publishing the call.
+* Preserve original called MC forever.
+* Preserve original call timestamp forever.
+
+A call should become more impressive (or more embarrassing) over time.
+
+====================================================
+PART 4 — VISUAL PERFORMANCE STYLING
+
+Use visual hierarchy.
+
+Current X should be highly visible.
+
+Examples:
+
+Positive:
++3.2x
+
+Negative:
+0.74x
+
+Color suggestions:
+
+Green:
+Above 1.0x
+
+Red:
+Below 1.0x
+
+Neutral:
+Near 1.0x
+
+Maintain BlackPebble V2 styling.
+
+No excessive colors.
+
+No casino aesthetics.
+
+Keep premium look.
+
+====================================================
+PART 5 — THESIS POSTS
+
+Do NOT show Current X or ATH X for standalone thesis posts.
+
+Thesis feed cards should show:
+
+* Author
+* Sentiment
+* Token
+* Thesis title
+* Thesis preview
+* Timestamp
+
+Example:
+
+📝 THESIS
+
+@username published a Bullish Thesis
+
+Token:
+PUFFY
+
+Title:
+Community Growth Thesis
+
+Preview:
+Strong holder growth and increasing community engagement…
+
+View Thesis
+
+====================================================
+PART 6 — PROFILE INTEGRATION
+
+Anywhere call history appears:
+
+* Feed
+* Profile Call History
+* Token Call History
+* Top Caller pages
+
+Display:
+
+* Called MC
+* Current MC
+* Current X
+* ATH X
+
+These metrics are the foundation of caller reputation.
+
+====================================================
+PART 7 — FEED VALUE IMPROVEMENT
+
+Goal:
+
+Feed should instantly communicate:
+
+* Was this a good call?
+* Was this a bad call?
+* Is this token worth investigating?
+* Should I click through?
+
+Users should not need to open the token page to understand call performance.
+
+====================================================
+PART 8 — TESTING
+
+Verify:
+
+1. Publish a call.
+2. Feed shows token link.
+3. Token link opens correct token page.
+4. Feed displays called MC.
+5. Feed displays current MC.
+6. Feed displays Current X.
+7. Feed displays ATH X.
+8. Current X updates as token moves.
+9. ATH X updates as token moves.
+10. Thesis posts remain separate from calls.
+11. Thesis posts do not show Current X.
+12. Existing View Token buttons still work.
+13. Mobile layout remains clean.
+14. Desktop layout remains clean.
+
+====================================================
+PART 9 — REPORT BACK
+
+Return:
+
+1. Files changed
+2. Feed components updated
+3. Dynamic Current X implemented
+4. Dynamic ATH X implemented
+5. Clickable token links completed
+6. Mobile adjustments made
+7. Any performance concerns before publishing

@@ -3,6 +3,7 @@ import { ensureProfileSchema } from "./profiles.js";
 import { ensureJournalSchema } from "./journal.js";
 import { countTokenTheses, getTokenTheses } from "./theses.js";
 import { getExecutionPrice } from "./prices.js";
+import { getTokenPeaks, recordTokenPeaks, athMultipleFrom } from "./peaks.js";
 
 /**
  * Per-token "intelligence" aggregation for the Token Page V2 workstation.
@@ -15,9 +16,10 @@ import { getExecutionPrice } from "./prices.js";
  * the Top Callers board, so the page never invents a number it can't back.
  *
  * Data the underlying model does not capture (live holder count, individual
- * largest buy/sell, per-trade recent activity, all-time-high multiple) is
- * intentionally NOT fabricated here — the client renders "Coming Soon" for
- * those. We only return what we can compute honestly.
+ * largest buy/sell, per-trade recent activity) is intentionally NOT fabricated
+ * here — the client renders "Coming Soon" for those. The ATH multiple is the
+ * peak-since-tracking high-water mark (see peaks.ts), never a fabricated
+ * historical high. We only return what we can compute honestly.
  */
 
 /** A call counts as a "hit" once it has at least doubled from the call price. */
@@ -55,6 +57,8 @@ export interface RecentCallout {
   conviction: string | null;
   /** Live multiple (current ÷ call price), or null when no fresh price. */
   currentMultiple: number | null;
+  /** Peak-since-tracking multiple (ATH high-water mark), >= currentMultiple. */
+  athMultiple: number | null;
   currentMarketCapUsd: number | null;
   created_at: number;
 }
@@ -128,6 +132,13 @@ export async function getTokenIntelligence(
   const currentPriceUsd = px?.priceUsd ?? null;
   const currentMarketCapUsd = px?.marketCapUsd ?? null;
 
+  // ATH high-water mark for this token: fold the live observation in, then read
+  // the peak back so the ATH multiple is never below the live one.
+  await recordTokenPeaks([
+    { mint, priceUsd: currentPriceUsd, marketCapUsd: currentMarketCapUsd },
+  ]);
+  const peak = (await getTokenPeaks([mint])).get(mint);
+
   const callerIds = new Set<number>();
   const theses = thesesTotal;
   let convictionHigh = 0;
@@ -182,6 +193,7 @@ export async function getTokenIntelligence(
       call_price_usd: r.call_price_usd,
       conviction: r.conviction,
       currentMultiple: multiple,
+      athMultiple: athMultipleFrom(peak, r.call_price_usd, multiple),
       currentMarketCapUsd,
       created_at: r.created_at,
     };

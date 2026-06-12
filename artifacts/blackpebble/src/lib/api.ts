@@ -337,6 +337,8 @@ export interface RecentCallout {
   call_price_usd: number | null;
   conviction: string | null;
   currentMultiple: number | null;
+  /** Peak-since-tracking multiple (ATH high-water mark), >= currentMultiple. */
+  athMultiple: number | null;
   currentMarketCapUsd: number | null;
   created_at: number;
 }
@@ -696,6 +698,9 @@ export interface CalloutResult {
   currentPriceUsd: number;
   currentMarketCapUsd: number | null;
   pnlPercent: number | null;
+  currentMultiple: number | null;
+  /** Peak-since-tracking multiple (ATH high-water mark), >= currentMultiple. */
+  athMultiple: number | null;
 }
 
 /** A callout enriched with its update trail and current live result. */
@@ -834,6 +839,10 @@ export interface FeedActivityItem {
   thesis: string | null;
   conviction: string | null;
   callMarketCapUsd: number | null;
+  /** Live callout performance (callouts only; null for trades/theses). */
+  currentMarketCapUsd?: number | null;
+  currentMultiple?: number | null;
+  athMultiple?: number | null;
   thesisTitle?: string | null;
   sentiment?: string | null;
   timestamp: number;
@@ -849,7 +858,10 @@ export interface FeedActivityItem {
 export interface CallerBestCall {
   token_symbol: string | null;
   token_mint: string;
+  athMultiple?: number | null;
   multiple: number;
+  calledMarketCapUsd?: number | null;
+  currentMarketCapUsd?: number | null;
 }
 
 /** A caller's aggregated reputation stats + rank on the Top Callers board. */

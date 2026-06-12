@@ -2,6 +2,7 @@ import cron from "node-cron";
 import { dbAll, dbRun } from "./database.js";
 import { getPortfolio } from "./trading.js";
 import { getSolPriceUsd } from "./prices.js";
+import { refreshActiveCallPeaks } from "./peaks.js";
 import { logger } from "./logger.js";
 
 async function snapshotPortfolios(): Promise<void> {
@@ -45,6 +46,16 @@ export function startCron(): void {
   cron.schedule("* * * * *", () => {
     getSolPriceUsd().catch(() => undefined);
   });
+
+  // Ratchet the ATH high-water mark for tokens with recent active calls so
+  // callout performance keeps climbing even when nobody is viewing the token.
+  cron.schedule("*/5 * * * *", () => {
+    refreshActiveCallPeaks().catch(() => undefined);
+  });
+  // Seed peaks shortly after boot so a fresh process has data quickly.
+  setTimeout(() => {
+    refreshActiveCallPeaks().catch(() => undefined);
+  }, 15 * 1000);
 
   logger.info("Cron jobs scheduled");
 }

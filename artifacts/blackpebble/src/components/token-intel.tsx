@@ -14,7 +14,13 @@ import {
   ScrollText,
 } from "lucide-react";
 import { api, type TokenInfo, type TokenIntelligence } from "@/lib/api";
-import { fmtMarketCap, fmtPercent, timeAgo } from "@/lib/format";
+import {
+  fmtMarketCap,
+  fmtMultiple,
+  fmtPercent,
+  multipleTone,
+  timeAgo,
+} from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 /** Token age from the pair-creation timestamp (ms epoch). */
@@ -405,13 +411,6 @@ function RecentThesesCard({
 
 /* ──────────────────────────── Recent Callouts ─────────────────────────── */
 
-function multipleTone(m: number | null): string {
-  if (m == null) return "text-muted-foreground";
-  if (m >= 2) return "text-emerald-400";
-  if (m >= 1) return "text-foreground";
-  return "text-rose-400";
-}
-
 function RecentCalloutsCard({
   intel,
 }: {
@@ -437,6 +436,7 @@ function RecentCalloutsCard({
               <tr className="text-[10px] uppercase tracking-wider text-muted-foreground text-left">
                 <th className="font-medium py-2 pr-2">Caller</th>
                 <th className="font-medium py-2 px-2 text-right">Called MC</th>
+                <th className="font-medium py-2 px-2 text-right">Current MC</th>
                 <th className="font-medium py-2 px-2 text-right">Multiple</th>
                 <th className="font-medium py-2 px-2 text-right">ATH</th>
                 <th className="font-medium py-2 pl-2 text-right">When</th>
@@ -459,18 +459,24 @@ function RecentCalloutsCard({
                   <td className="py-2.5 px-2 text-right font-mono text-muted-foreground">
                     {fmtMarketCap(c.call_market_cap)}
                   </td>
+                  <td className="py-2.5 px-2 text-right font-mono text-muted-foreground">
+                    {fmtMarketCap(c.currentMarketCapUsd)}
+                  </td>
                   <td
                     className={cn(
                       "py-2.5 px-2 text-right font-mono font-semibold",
                       multipleTone(c.currentMultiple),
                     )}
                   >
-                    {c.currentMultiple == null
-                      ? "—"
-                      : `${c.currentMultiple.toFixed(2)}x`}
+                    {fmtMultiple(c.currentMultiple)}
                   </td>
-                  <td className="py-2.5 px-2 text-right font-mono text-muted-foreground/60">
-                    —
+                  <td
+                    className={cn(
+                      "py-2.5 px-2 text-right font-mono font-semibold",
+                      multipleTone(c.athMultiple),
+                    )}
+                  >
+                    {fmtMultiple(c.athMultiple)}
                   </td>
                   <td className="py-2.5 pl-2 text-right text-muted-foreground">
                     {timeAgo(c.created_at)}
@@ -481,7 +487,7 @@ function RecentCalloutsCard({
           </table>
           <p className="mt-3 flex items-center gap-1.5 text-[10px] text-muted-foreground/70">
             <Flame className="w-3 h-3" />
-            ATH multiple tracking is coming soon — multiples shown are live.
+            ATH is the peak multiple observed since we began tracking each call.
           </p>
         </div>
       )}

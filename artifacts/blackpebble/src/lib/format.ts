@@ -53,6 +53,20 @@ export function fmtPercent(value: number | null | undefined, digits = 2): string
 }
 
 /**
+ * Shared premium V2 colour for a performance multiple. Restrained palette —
+ * green for winners, rose for losers, neutral foreground near break-even — so
+ * the feed reads at a glance without a casino look. "Near 1.0x" (0.95–1.05) is
+ * treated as neutral so noise around break-even doesn't flicker red/green.
+ */
+export function multipleTone(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value) || value <= 0)
+    return "text-muted-foreground";
+  if (value >= 1.05) return "text-emerald-400";
+  if (value <= 0.95) return "text-rose-400";
+  return "text-foreground";
+}
+
+/**
  * Token price display — never scientific notation.
  * $0.0000118   $0.25   $1.42   $1,234
  */

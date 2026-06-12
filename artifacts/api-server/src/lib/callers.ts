@@ -1,6 +1,7 @@
 import { dbAll } from "./database.js";
 import { ensureProfileSchema } from "./profiles.js";
 import { getExecutionPrice } from "./prices.js";
+import { getTokenPeaks, recordTokenPeaks, athMultipleFrom } from "./peaks.js";
 
 /**
  * Top Caller reputation aggregation.
@@ -32,6 +33,12 @@ export interface CallerBestCall {
   token_symbol: string | null;
   token_mint: string;
   multiple: number;
+  /** Peak-since-tracking multiple (ATH high-water mark), >= multiple. */
+  athMultiple: number | null;
+  /** Market cap (USD) recorded at call time; preserved, never recomputed. */
+  calledMarketCapUsd: number | null;
+  /** Live market cap (USD) at grade time. */
+  currentMarketCapUsd: number | null;
 }
 
 export interface CallerEntry {
@@ -55,6 +62,7 @@ interface CalloutRow {
   token_mint: string;
   token_symbol: string | null;
   call_price_usd: number | null;
+  call_market_cap: number | null;
   x_username: string | null;
   x_display_name: string | null;
   x_avatar_url: string | null;
@@ -108,6 +116,7 @@ export async function computeCallers(): Promise<CallerEntry[]> {
 
   const rows = await dbAll<CalloutRow>(
     `SELECT c.id, c.user_id, c.token_mint, c.token_symbol, c.call_price_usd,
+            c.call_market_cap,
             xi.x_username AS x_username,
             u.display_name AS x_display_name,
             u.avatar_url AS x_avatar_url
@@ -126,9 +135,29 @@ export async function computeCallers(): Promise<CallerEntry[]> {
   const mints = Array.from(new Set(rows.map((r) => r.token_mint)));
   const priceList = await pMap(mints, PRICE_CONCURRENCY, async (mint) => {
     const px = await getExecutionPrice(mint).catch(() => null);
-    return [mint, px?.priceUsd ?? null] as const;
+    return [
+      mint,
+      {
+        priceUsd: px?.priceUsd ?? null,
+        marketCapUsd: px?.marketCapUsd ?? null,
+      },
+    ] as const;
   });
-  const priceByMint = new Map<string, number | null>(priceList);
+  const priceByMint = new Map<
+    string,
+    { priceUsd: number | null; marketCapUsd: number | null }
+  >(priceList);
+
+  // Fold the live observations into the ATH high-water mark, then read peaks
+  // back so a caller's best call can also surface its peak-since-tracking high.
+  await recordTokenPeaks(
+    mints.map((mint) => ({
+      mint,
+      priceUsd: priceByMint.get(mint)?.priceUsd ?? null,
+      marketCapUsd: priceByMint.get(mint)?.marketCapUsd ?? null,
+    })),
+  );
+  const peaks = await getTokenPeaks(mints);
 
   interface Acc {
     user_id: number;
@@ -156,7 +185,8 @@ export async function computeCallers(): Promise<CallerEntry[]> {
       byUser.set(r.user_id, acc);
     }
     acc.callsMade += 1;
-    const current = priceByMint.get(r.token_mint);
+    const px = priceByMint.get(r.token_mint);
+    const current = px?.priceUsd;
     if (
       current != null &&
       current > 0 &&
@@ -170,6 +200,13 @@ export async function computeCallers(): Promise<CallerEntry[]> {
           token_symbol: r.token_symbol,
           token_mint: r.token_mint,
           multiple,
+          athMultiple: athMultipleFrom(
+            peaks.get(r.token_mint),
+            r.call_price_usd,
+            multiple,
+          ),
+          calledMarketCapUsd: r.call_market_cap,
+          currentMarketCapUsd: px?.marketCapUsd ?? null,
         };
       }
     }

@@ -19,6 +19,12 @@ import {
 } from "../lib/profiles.js";
 import { getExecutionPrice, getTokenInfo } from "../lib/prices.js";
 import { getCallerStats } from "../lib/callers.js";
+import {
+  getTokenPeaks,
+  recordTokenPeaks,
+  athMultipleFrom,
+  type TokenPeak,
+} from "../lib/peaks.js";
 
 const router: IRouter = Router();
 
@@ -33,21 +39,34 @@ const CONVICTIONS: Conviction[] = ["low", "medium", "high"];
  */
 async function calloutResult(
   c: Callout,
+  peak: TokenPeak | undefined,
 ): Promise<{
   currentPriceUsd: number;
   currentMarketCapUsd: number | null;
   pnlPercent: number | null;
+  currentMultiple: number | null;
+  athMultiple: number | null;
 } | null> {
   const px = await getExecutionPrice(c.token_mint);
   if (!px) return null;
-  const pnlPercent =
-    c.call_price_usd != null && c.call_price_usd > 0
-      ? ((px.priceUsd - c.call_price_usd) / c.call_price_usd) * 100
-      : null;
+  const hasCallPrice = c.call_price_usd != null && c.call_price_usd > 0;
+  const pnlPercent = hasCallPrice
+    ? ((px.priceUsd - (c.call_price_usd as number)) /
+        (c.call_price_usd as number)) *
+      100
+    : null;
+  const currentMultiple = hasCallPrice
+    ? px.priceUsd / (c.call_price_usd as number)
+    : null;
+  // ATH is read from a pre-fetched peak snapshot (batched by the caller) and
+  // clamped to >= currentMultiple, so the live observation is always reflected
+  // even before this request's sample is folded back into the high-water mark.
   return {
     currentPriceUsd: px.priceUsd,
     currentMarketCapUsd: px.marketCapUsd,
     pnlPercent,
+    currentMultiple,
+    athMultiple: athMultipleFrom(peak, c.call_price_usd, currentMultiple),
   };
 }
 
@@ -155,12 +174,25 @@ router.get(
     const target = await resolveUser(String(req.params.id));
     if (!target) return res.status(404).json({ error: "Profile not found" });
     const callouts = await getUserCallouts(target.user_id);
+    const mints = Array.from(new Set(callouts.map((c) => c.token_mint)));
+    const peaks = await getTokenPeaks(mints);
     const enriched = await Promise.all(
       callouts.map(async (c) => ({
         ...c,
         updates: await getCalloutUpdates(c.id),
-        result: await calloutResult(c),
+        result: await calloutResult(c, peaks.get(c.token_mint)),
       })),
+    );
+    // Fold this request's live observations back into the high-water mark once,
+    // as a single batched upsert (avoids a per-callout read/write N+1).
+    await recordTokenPeaks(
+      enriched
+        .filter((e) => e.result != null)
+        .map((e) => ({
+          mint: e.token_mint,
+          priceUsd: e.result!.currentPriceUsd,
+          marketCapUsd: e.result!.currentMarketCapUsd,
+        })),
     );
     return res.json({ callouts: enriched });
   }),

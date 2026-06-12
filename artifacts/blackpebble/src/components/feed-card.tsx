@@ -9,7 +9,14 @@ import {
   Zap,
 } from "lucide-react";
 import type { FeedActivityItem } from "@/lib/api";
-import { fmtMarketCap, shortAddr, timeAgo, xProfileUrl } from "@/lib/format";
+import {
+  fmtMarketCap,
+  fmtMultiple,
+  multipleTone,
+  shortAddr,
+  timeAgo,
+  xProfileUrl,
+} from "@/lib/format";
 import { PnlAmount } from "@/components/pnl-amount";
 import { trackXProfileLinkClicked } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
@@ -21,6 +28,87 @@ function tokenLabel(token: FeedActivityItem["token"]): string {
     token.name?.trim() ||
     shortAddr(token.mint, 4) ||
     "token"
+  );
+}
+
+/**
+ * The token name/symbol as an in-app link to its trade view (`/?token=<mint>`).
+ * Used in every feed card so any token reference is clickable. Falls back to
+ * plain text when no mint is available.
+ */
+function TokenLink({ token }: { token: FeedActivityItem["token"] }) {
+  const label = tokenLabel(token);
+  if (!token.mint) {
+    return <span className="text-foreground font-medium">{label}</span>;
+  }
+  return (
+    <Link
+      href={`/?token=${token.mint}`}
+      onClick={(e) => e.stopPropagation()}
+      className="text-foreground font-medium hover:text-accent transition-colors"
+    >
+      {label}
+    </Link>
+  );
+}
+
+/** One labelled stat in a callout performance block. */
+function PerfStat({
+  label,
+  value,
+  valueClass,
+}: {
+  label: string;
+  value: string;
+  valueClass?: string;
+}) {
+  return (
+    <div className="flex flex-col gap-0.5 min-w-0">
+      <span className="text-[10px] uppercase tracking-wider text-muted-foreground/70">
+        {label}
+      </span>
+      <span
+        className={cn(
+          "font-mono text-sm tabular-nums truncate",
+          valueClass ?? "text-foreground",
+        )}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
+
+/**
+ * Live performance block for a callout — Called MC, Current MC, Current X and
+ * ATH X. All values are computed dynamically server-side; the call's original
+ * Called MC and timestamp are preserved untouched. Theses never render this.
+ */
+function CalloutPerformance({ item }: { item: FeedActivityItem }) {
+  const hasAny =
+    item.callMarketCapUsd != null ||
+    item.currentMarketCapUsd != null ||
+    item.currentMultiple != null ||
+    item.athMultiple != null;
+  if (!hasAny) return null;
+  return (
+    <div className="mt-2.5 grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2 rounded-lg bg-secondary/40 px-3 py-2.5">
+      <PerfStat label="Called MC" value={fmtMarketCap(item.callMarketCapUsd)} />
+      <PerfStat
+        label="Current MC"
+        value={fmtMarketCap(item.currentMarketCapUsd)}
+      />
+      <PerfStat
+        label="Current X"
+        value={fmtMultiple(item.currentMultiple)}
+        valueClass={multipleTone(item.currentMultiple)}
+      />
+      <PerfStat
+        label="ATH X"
+        value={fmtMultiple(item.athMultiple)}
+        valueClass={multipleTone(item.athMultiple)}
+      />
+    </div>
   );
 }
 
@@ -104,7 +192,6 @@ const CONVICTION_TONE: Record<string, string> = {
 
 /** A callout feed item: a trader putting a token call on the record. */
 function CalloutActivityCard({ item }: { item: FeedActivityItem }) {
-  const token = tokenLabel(item.token);
   const handle = item.user.x_username?.trim().replace(/^@+/, "") || null;
   const profileUrl = xProfileUrl(handle);
   const conviction = item.conviction?.toLowerCase() || null;
@@ -127,7 +214,7 @@ function CalloutActivityCard({ item }: { item: FeedActivityItem }) {
         </div>
 
         <p className="mt-1.5 text-sm text-muted-foreground">
-          called <span className="text-foreground font-medium">{token}</span>
+          called <TokenLink token={item.token} />
           {item.token.mint && (
             <Link
               href={`/?token=${item.token.mint}`}
@@ -145,6 +232,8 @@ function CalloutActivityCard({ item }: { item: FeedActivityItem }) {
           </p>
         )}
 
+        <CalloutPerformance item={item} />
+
         <div className="mt-1.5 flex items-center gap-3 text-xs flex-wrap">
           <span className="uppercase tracking-wider text-[10px] font-semibold rounded-full px-2 py-0.5 bg-accent/12 text-accent">
             Callout
@@ -157,11 +246,6 @@ function CalloutActivityCard({ item }: { item: FeedActivityItem }) {
               )}
             >
               {conviction} conviction
-            </span>
-          )}
-          {item.callMarketCapUsd != null && (
-            <span className="text-muted-foreground font-mono">
-              Called at {fmtMarketCap(item.callMarketCapUsd)}
             </span>
           )}
           {profileUrl && (
@@ -192,7 +276,6 @@ const SENTIMENT_TONE: Record<string, { label: string; cls: string }> = {
 
 /** A standalone thesis feed item: published research, not graded as a call. */
 function ThesisActivityCard({ item }: { item: FeedActivityItem }) {
-  const token = tokenLabel(item.token);
   const handle = item.user.x_username?.trim().replace(/^@+/, "") || null;
   const profileUrl = xProfileUrl(handle);
   const conviction = item.conviction?.toLowerCase() || null;
@@ -218,7 +301,7 @@ function ThesisActivityCard({ item }: { item: FeedActivityItem }) {
 
         <p className="mt-1.5 text-sm text-muted-foreground">
           published a thesis on{" "}
-          <span className="text-foreground font-medium">{token}</span>
+          <TokenLink token={item.token} />
           {item.token.mint && (
             <Link
               href={`/?token=${item.token.mint}`}
@@ -299,7 +382,6 @@ export function TradeActivityCard({
     return <ThesisActivityCard item={item} />;
   }
 
-  const token = tokenLabel(item.token);
   const handle = item.user.x_username?.trim().replace(/^@+/, "") || null;
   const profileUrl = xProfileUrl(handle);
 
@@ -309,14 +391,14 @@ export function TradeActivityCard({
     if (item.action === "buy") {
       verb = (
         <>
-          bought <span className="text-foreground font-medium">{token}</span>
+          bought <TokenLink token={item.token} />
         </>
       );
       tone = "buy";
     } else {
       verb = (
         <>
-          sold <span className="text-foreground font-medium">{token}</span>
+          sold <TokenLink token={item.token} />
         </>
       );
       tone = "sell";
@@ -328,7 +410,7 @@ export function TradeActivityCard({
       verb = (
         <>
           opened a {lev} {dir} on{" "}
-          <span className="text-foreground font-medium">{token}</span>
+          <TokenLink token={item.token} />
         </>
       );
       tone = "buy";
@@ -336,7 +418,7 @@ export function TradeActivityCard({
       verb = (
         <>
           was liquidated on{" "}
-          <span className="text-foreground font-medium">{token}</span>
+          <TokenLink token={item.token} />
         </>
       );
       tone = "sell";
@@ -344,7 +426,7 @@ export function TradeActivityCard({
       verb = (
         <>
           closed a {lev} {dir} on{" "}
-          <span className="text-foreground font-medium">{token}</span>
+          <TokenLink token={item.token} />
         </>
       );
       tone = "sell";

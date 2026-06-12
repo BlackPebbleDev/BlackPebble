@@ -13,6 +13,7 @@
 - [Leverage P&L isolation](leverage-pnl-isolation.md) — leverage open/close only mutate paper_balance; never spot stat columns (realized_pnl/total_trades/etc).
 - [Guest funnel analytics](guest-funnel-analytics.md) — guests are client-only; funnel via public beacon→analytics_events. guest_converted only when ≥1 position migrated; preserve anon_id across expiry resets.
 - [Callouts are append-only](callouts-immutable.md) — callouts/callout_updates have NO edit/delete/hide path by design; corrections go in callout_updates. Never add a mutation path.
+- [Callout live performance (ATH/X)](callout-ath-multiple.md) — ATH = peak-since-tracking high-water mark (token_price_peaks); athMultipleFrom clamps ATH>=current so read/record order is moot; enrich callouts only, never theses/trades; batch peaks (no N+1).
 - [Moderation-flag public reads](moderation-flag-reads.md) — any public read of callouts/theses/journal must exclude BOTH is_hidden_by_admin AND is_test; feed.getActivity must ensure those schemas before querying them.
 - [GeckoTerminal chart embed](geckoterminal-embed.md) — token chart candles 403 in dev (referer block), fine in prod; read-path ensure*Schema is accepted convention (matches callers.ts).
 - [Top Caller scoring](top-caller-scoring.md) — caller rank/score derived live from immutable callouts (never persisted); Bayesian shrinkage K=5, hit=2×, ungraded when no fresh price.
