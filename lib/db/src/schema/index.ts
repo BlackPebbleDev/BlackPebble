@@ -563,3 +563,47 @@ export const calloutUpdates = pgTable(
     index("idx_callout_updates_user").on(t.user_id),
   ],
 );
+
+// Trading Journal: private, owner-scoped trade reviews. Unlike callouts these
+// are mutable and never public — every read/write keys off the authenticated
+// user's internal id. Created idempotently at runtime (ensureJournalSchema in
+// api-server lib/journal.ts); this definition is mirror-only for type-safety.
+export const journalEntries = pgTable(
+  "journal_entries",
+  {
+    id: serial("id").primaryKey(),
+    user_id: integer("user_id")
+      .notNull()
+      .references(() => users.id),
+    title: text("title"),
+    trade_type: text("trade_type"),
+    direction: text("direction"),
+    outcome: text("outcome"),
+    token: text("token"),
+    token_mint: text("token_mint"),
+    trade_date: bigint("trade_date", { mode: "number" }),
+    entry_reason: text("entry_reason"),
+    exit_reason: text("exit_reason"),
+    went_right: text("went_right"),
+    went_wrong: text("went_wrong"),
+    lessons: text("lessons"),
+    emotion_before: text("emotion_before"),
+    emotion_after: text("emotion_after"),
+    rating: integer("rating"),
+    notes: text("notes"),
+    template: text("template"),
+    // Auto-import scaffolding for a future "Create Journal Entry From Trade"
+    // flow — structured now, not yet populated.
+    source: text("source").default("manual"),
+    entry_mc: doublePrecision("entry_mc"),
+    exit_mc: doublePrecision("exit_mc"),
+    roi: doublePrecision("roi"),
+    pnl: doublePrecision("pnl"),
+    created_at: bigint("created_at", { mode: "number" }).default(epoch),
+    updated_at: bigint("updated_at", { mode: "number" }).default(epoch),
+  },
+  (t) => [
+    index("idx_journal_user").on(t.user_id),
+    index("idx_journal_created").on(t.created_at),
+  ],
+);

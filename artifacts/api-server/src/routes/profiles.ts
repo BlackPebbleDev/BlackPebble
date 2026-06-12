@@ -18,6 +18,7 @@ import {
   type Conviction,
 } from "../lib/profiles.js";
 import { getExecutionPrice, getTokenInfo } from "../lib/prices.js";
+import { getCallerStats } from "../lib/callers.js";
 
 const router: IRouter = Router();
 
@@ -162,6 +163,21 @@ router.get(
       })),
     );
     return res.json({ callouts: enriched });
+  }),
+);
+
+/**
+ * Caller reputation stats for a profile (calls made, avg/best multiple, hit
+ * rate, caller score + rank). Read-only aggregation over the immutable callouts
+ * table; returns null stats for users who have never called.
+ */
+router.get(
+  "/profiles/:id/caller-stats",
+  asyncHandler(async (req, res) => {
+    const target = await resolveUser(String(req.params.id));
+    if (!target) return res.status(404).json({ error: "Profile not found" });
+    const stats = await getCallerStats(target.user_id);
+    return res.json({ stats });
   }),
 );
 

@@ -15,8 +15,8 @@ import { dbAll } from "./database.js";
 
 export interface FeedActivityItem {
   id: string;
-  kind: "spot" | "leverage";
-  /** spot: 'buy' | 'sell'; leverage: 'open' | 'close' | 'liquidated'. */
+  kind: "spot" | "leverage" | "callout";
+  /** spot: 'buy'|'sell'; leverage: 'open'|'close'|'liquidated'; callout: 'call'. */
   action: string;
   token: {
     mint: string;
@@ -30,6 +30,12 @@ export interface FeedActivityItem {
   direction: string | null;
   /** Realized P&L in SOL when applicable (spot sells, leverage closes). */
   pnlSol: number | null;
+  /** Callout thesis, null for trades. */
+  thesis: string | null;
+  /** Callout conviction tier, null for trades. */
+  conviction: string | null;
+  /** Snapshotted market cap (USD) at the moment of the call, null for trades. */
+  callMarketCapUsd: number | null;
   timestamp: number;
   user: {
     user_id: number;
@@ -41,7 +47,7 @@ export interface FeedActivityItem {
 
 interface ActivityRow {
   id: string;
-  kind: "spot" | "leverage";
+  kind: "spot" | "leverage" | "callout";
   action: string;
   token_mint: string;
   token_symbol: string | null;
@@ -50,6 +56,9 @@ interface ActivityRow {
   leverage: number | null;
   direction: string | null;
   pnl_sol: number | null;
+  thesis: string | null;
+  conviction: string | null;
+  call_market_cap: number | null;
   ts: number;
   user_id: number;
   x_username: string;
@@ -69,9 +78,11 @@ export async function getActivity(opts: {
 
   const params: unknown[] = [];
   let followClause = "";
+  let followClauseCallout = "";
   if (follow && follow.length > 0) {
     params.push(follow);
     followClause = `AND i.user_id = ANY($${params.length}::int[])`;
+    followClauseCallout = `AND c.user_id = ANY($${params.length}::int[])`;
   }
   params.push(limit);
   const limitIdx = params.length;
@@ -107,6 +118,9 @@ export async function getActivity(opts: {
               NULL::int AS leverage,
               NULL::text AS direction,
               t.pnl AS pnl_sol,
+              NULL::text AS thesis,
+              NULL::text AS conviction,
+              NULL::double precision AS call_market_cap,
               t.executed_at AS ts,
               i.user_id, i.x_username, i.x_display_name, i.x_avatar_url
          FROM trades t
@@ -120,11 +134,35 @@ export async function getActivity(opts: {
               lt.leverage AS leverage,
               lt.direction AS direction,
               lt.pnl_sol AS pnl_sol,
+              NULL::text AS thesis,
+              NULL::text AS conviction,
+              NULL::double precision AS call_market_cap,
               lt.executed_at AS ts,
               i.user_id, i.x_username, i.x_display_name, i.x_avatar_url
          FROM paper_leverage_trades lt
          JOIN ident i ON i.wallet = lt.wallet
         WHERE i.x_username IS NOT NULL ${followClause}
+       UNION ALL
+       SELECT ('call-' || c.id) AS id,
+              'callout' AS kind,
+              'call' AS action,
+              c.token_mint, c.token_symbol, c.token_name, c.token_logo,
+              NULL::int AS leverage,
+              NULL::text AS direction,
+              NULL::double precision AS pnl_sol,
+              c.thesis AS thesis,
+              c.conviction AS conviction,
+              c.call_market_cap AS call_market_cap,
+              c.created_at AS ts,
+              c.user_id AS user_id,
+              xi.x_username AS x_username,
+              u.display_name AS x_display_name,
+              u.avatar_url AS x_avatar_url
+         FROM callouts c
+         JOIN user_identities xi
+           ON xi.user_id = c.user_id AND xi.provider = 'x'
+         JOIN users u ON u.id = c.user_id
+        WHERE 1 = 1 ${followClauseCallout}
      )
      SELECT * FROM activity
       ORDER BY ts DESC
@@ -145,6 +183,9 @@ export async function getActivity(opts: {
     leverage: r.leverage,
     direction: r.direction,
     pnlSol: r.pnl_sol,
+    thesis: r.thesis,
+    conviction: r.conviction,
+    callMarketCapUsd: r.call_market_cap,
     timestamp: r.ts,
     user: {
       user_id: r.user_id,

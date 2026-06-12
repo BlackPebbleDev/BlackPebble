@@ -1,10 +1,15 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { Trophy, Loader2, ExternalLink } from "lucide-react";
+import { Trophy, Loader2, ExternalLink, Megaphone } from "lucide-react";
 import { useAccount } from "@/hooks/use-account";
-import { api, type LeaderboardPeriod, type LeaderboardEntry } from "@/lib/api";
-import { fmtPercent, shortAddr, xProfileUrl } from "@/lib/format";
+import {
+  api,
+  type LeaderboardPeriod,
+  type LeaderboardEntry,
+  type CallerEntry,
+} from "@/lib/api";
+import { fmtPercent, fmtMultiple, shortAddr, xProfileUrl } from "@/lib/format";
 import { PnlAmount } from "@/components/pnl-amount";
 import { trackLeaderboardView } from "@/lib/analytics";
 import { TierBadge } from "@/components/tier-badge";
@@ -66,6 +71,235 @@ function LeaderboardComingSoon({
         {copy.body}
       </p>
     </div>
+  );
+}
+
+function callerRowId(c: CallerEntry): string {
+  const handle = c.x_username?.trim().replace(/^@+/, "") || "";
+  return handle || String(c.user_id);
+}
+
+function callerName(c: CallerEntry): string {
+  return (
+    c.x_display_name?.trim() ||
+    (c.x_username ? `@${c.x_username.replace(/^@+/, "")}` : null) ||
+    `User ${c.user_id}`
+  );
+}
+
+function TopCallers({
+  goToProfile,
+  onRowKeyDown,
+}: {
+  goToProfile: (pid: string) => void;
+  onRowKeyDown: (e: React.KeyboardEvent, pid: string) => void;
+}) {
+  const { data, isLoading } = useQuery({
+    queryKey: ["leaderboard", "callers"],
+    queryFn: () => api.leaderboardCallers(),
+    refetchInterval: 60_000,
+  });
+
+  const entries = data?.entries ?? [];
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (entries.length === 0) {
+    return (
+      <div
+        data-testid="leaderboard-callers-empty"
+        className="rounded-2xl border border-dashed border-border bg-card/40 text-center py-16 px-6"
+      >
+        <Megaphone className="w-10 h-10 text-muted-foreground/40 mx-auto mb-4" />
+        <p className="text-foreground font-medium mb-1">No callers ranked yet</p>
+        <p className="text-muted-foreground text-sm max-w-sm mx-auto">
+          Make a call from any token page to put your name on the record. Callers
+          are ranked here by accuracy and realized multiples.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <p className="text-sm text-muted-foreground mb-6">
+        Ranked by a weighted caller score blending hit rate, average and best
+        multiple, and call volume. A call “hits” at 2× or more.
+      </p>
+
+      {/* Mobile: card list */}
+      <div className="space-y-2 md:hidden" data-testid="list-callers-mobile">
+        {entries.map((c) => {
+          const pid = callerRowId(c);
+          return (
+            <div
+              key={c.user_id}
+              role="button"
+              tabIndex={0}
+              onClick={() => goToProfile(pid)}
+              onKeyDown={(e) => onRowKeyDown(e, pid)}
+              data-testid={`caller-row-${c.rank}`}
+              className="rounded-xl bg-card shadow-card p-4 card-interactive cursor-pointer"
+            >
+              <div className="flex items-center gap-3">
+                <span className="font-mono text-sm text-muted-foreground w-6 flex-shrink-0">
+                  {c.rank}
+                </span>
+                {c.x_avatar_url ? (
+                  <img
+                    src={c.x_avatar_url}
+                    alt=""
+                    className="w-9 h-9 rounded-full object-cover flex-shrink-0"
+                    onError={(e) =>
+                      (e.currentTarget.style.visibility = "hidden")
+                    }
+                  />
+                ) : (
+                  <div className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center text-[11px] text-muted-foreground flex-shrink-0 font-mono">
+                    {callerName(c).replace(/^@/, "").slice(0, 2).toUpperCase()}
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-foreground font-medium">
+                    {callerName(c)}
+                  </div>
+                  <div className="text-[11px] text-muted-foreground">
+                    {c.callsMade} call{c.callsMade === 1 ? "" : "s"} ·{" "}
+                    {fmtPercent(c.hitRate * 100, 0)} hit rate
+                  </div>
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <div className="font-mono text-sm text-accent">
+                    {c.callerScore.toFixed(1)}
+                  </div>
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Score
+                  </div>
+                </div>
+              </div>
+              <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Avg
+                  </div>
+                  <div className="font-mono text-sm">
+                    {c.avgMultiple == null ? "—" : fmtMultiple(c.avgMultiple)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Best
+                  </div>
+                  <div className="font-mono text-sm text-emerald-400">
+                    {c.bestMultiple == null ? "—" : fmtMultiple(c.bestMultiple)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Graded
+                  </div>
+                  <div className="font-mono text-sm">{c.gradedCalls}</div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Desktop: full table */}
+      <div className="hidden md:block rounded-2xl bg-card shadow-card overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="text-muted-foreground text-left border-b border-border">
+            <tr>
+              <th className="font-medium px-4 py-3 w-12">#</th>
+              <th className="font-medium px-4 py-3">Caller</th>
+              <th className="font-medium px-4 py-3 text-right">Calls</th>
+              <th className="font-medium px-4 py-3 text-right">Avg Multiple</th>
+              <th className="font-medium px-4 py-3 text-right">Best Call</th>
+              <th className="font-medium px-4 py-3 text-right hidden lg:table-cell">
+                Hit Rate
+              </th>
+              <th className="font-medium px-4 py-3 text-right">Score</th>
+            </tr>
+          </thead>
+          <tbody>
+            {entries.map((c) => {
+              const pid = callerRowId(c);
+              return (
+                <tr
+                  key={c.user_id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => goToProfile(pid)}
+                  onKeyDown={(e) => onRowKeyDown(e, pid)}
+                  data-testid={`caller-row-${c.rank}`}
+                  className="border-b border-border/60 last:border-0 hover:bg-surface-3 cursor-pointer transition-colors"
+                >
+                  <td className="px-4 py-3 font-mono text-muted-foreground">
+                    {c.rank}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      {c.x_avatar_url ? (
+                        <img
+                          src={c.x_avatar_url}
+                          alt=""
+                          className="w-8 h-8 rounded-full object-cover flex-shrink-0"
+                          onError={(e) =>
+                            (e.currentTarget.style.visibility = "hidden")
+                          }
+                        />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-[11px] text-muted-foreground flex-shrink-0 font-mono">
+                          {callerName(c)
+                            .replace(/^@/, "")
+                            .slice(0, 2)
+                            .toUpperCase()}
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <div className="truncate text-foreground font-medium">
+                          {callerName(c)}
+                        </div>
+                        {c.bestCall && (
+                          <div className="truncate text-[11px] text-muted-foreground">
+                            Best:{" "}
+                            {c.bestCall.token_symbol ||
+                              shortAddr(c.bestCall.token_mint, 4)}{" "}
+                            {fmtMultiple(c.bestCall.multiple)}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-right font-mono">
+                    {c.callsMade}
+                  </td>
+                  <td className="px-4 py-3 text-right font-mono">
+                    {c.avgMultiple == null ? "—" : fmtMultiple(c.avgMultiple)}
+                  </td>
+                  <td className="px-4 py-3 text-right font-mono text-emerald-400">
+                    {c.bestMultiple == null ? "—" : fmtMultiple(c.bestMultiple)}
+                  </td>
+                  <td className="px-4 py-3 text-right font-mono hidden lg:table-cell">
+                    {fmtPercent(c.hitRate * 100, 0)}
+                  </td>
+                  <td className="px-4 py-3 text-right font-mono text-accent">
+                    {c.callerScore.toFixed(1)}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </>
   );
 }
 
@@ -213,7 +447,9 @@ export default function Leaderboard() {
         ))}
       </div>
 
-      {category !== "top_traders" ? (
+      {category === "top_callers" ? (
+        <TopCallers goToProfile={goToProfile} onRowKeyDown={onRowKeyDown} />
+      ) : category !== "top_traders" ? (
         <LeaderboardComingSoon category={category} />
       ) : (
         <>

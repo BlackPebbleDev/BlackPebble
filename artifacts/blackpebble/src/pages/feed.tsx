@@ -8,6 +8,7 @@ import {
   Rss,
   ScrollText,
 } from "lucide-react";
+import type { FeedActivityItem } from "@/lib/api";
 import { api } from "@/lib/api";
 import { useXAuth } from "@/hooks/use-x-auth";
 import { useSolUsd } from "@/hooks/use-sol-usd";
@@ -133,6 +134,42 @@ function FollowingFeed() {
   );
 }
 
+/** Callouts-only feed: the global activity feed narrowed to callout items. */
+function CalloutFeed() {
+  const solUsd = useSolUsd();
+  const { data, isLoading } = useQuery({
+    queryKey: ["feed", "global"],
+    queryFn: () => api.feed.global(),
+    refetchInterval: 30_000,
+  });
+  const items = (data?.items ?? []).filter(
+    (item: FeedActivityItem) => item.kind === "callout",
+  );
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+  if (items.length === 0) {
+    return (
+      <EmptyState
+        title="No callouts yet"
+        body="When traders put a token call on the record, it'll show up here with their thesis and conviction."
+      />
+    );
+  }
+  return (
+    <div className="space-y-2">
+      {items.map((item) => (
+        <TradeActivityCard key={item.id} item={item} solUsd={solUsd} />
+      ))}
+    </div>
+  );
+}
+
 /** The live activity feed (filter = "all"), with a Following / Global source. */
 function ActivityFeed() {
   const [source, setSource] = useState<FeedSource>("global");
@@ -244,14 +281,7 @@ export default function FeedPage() {
           body="Soon you'll be able to narrow the feed to spot and leverage trades. For now, see everything under the All tab."
         />
       )}
-      {filter === "callouts" && (
-        <PlaceholderCard
-          kind="callout"
-          icon={Megaphone}
-          title="Token callouts are coming soon."
-          body="Soon traders will be able to call their entries on the record — bullish or bearish — and you'll see them tracked here with live performance."
-        />
-      )}
+      {filter === "callouts" && <CalloutFeed />}
       {filter === "theses" && (
         <PlaceholderCard
           kind="thesis"

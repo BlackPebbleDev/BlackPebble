@@ -15,6 +15,7 @@ import leverageRouter from "./leverage.js";
 import analyticsRouter from "./analytics.js";
 import profilesRouter from "./profiles.js";
 import feedRouter from "./feed.js";
+import journalRouter from "./journal.js";
 
 const router: IRouter = Router();
 
@@ -34,5 +35,6 @@ router.use(leverageRouter);
 router.use(analyticsRouter);
 router.use(profilesRouter);
 router.use(feedRouter);
+router.use(journalRouter);
 
 export default router;

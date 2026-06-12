@@ -9,7 +9,7 @@ import {
   Zap,
 } from "lucide-react";
 import type { FeedActivityItem } from "@/lib/api";
-import { shortAddr, timeAgo, xProfileUrl } from "@/lib/format";
+import { fmtMarketCap, shortAddr, timeAgo, xProfileUrl } from "@/lib/format";
 import { PnlAmount } from "@/components/pnl-amount";
 import { trackXProfileLinkClicked } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
@@ -96,6 +96,94 @@ export function FeedUserLink({
  * the primary reusable feed card; callout / thesis / achievement cards are
  * placeholders below until those engines exist.
  */
+const CONVICTION_TONE: Record<string, string> = {
+  low: "bg-secondary text-muted-foreground",
+  medium: "bg-accent/12 text-accent",
+  high: "bg-emerald-500/12 text-emerald-400",
+};
+
+/** A callout feed item: a trader putting a token call on the record. */
+function CalloutActivityCard({ item }: { item: FeedActivityItem }) {
+  const token = tokenLabel(item.token);
+  const handle = item.user.x_username?.trim().replace(/^@+/, "") || null;
+  const profileUrl = xProfileUrl(handle);
+  const conviction = item.conviction?.toLowerCase() || null;
+
+  return (
+    <div
+      data-testid={`feed-card-${item.id}`}
+      className="rounded-xl bg-card shadow-card p-4 flex items-start gap-3 transition-colors hover:bg-surface-3"
+    >
+      <div className="mt-0.5 flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-full bg-accent/12 text-accent">
+        <Megaphone className="w-[18px] h-[18px]" />
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <div className="flex items-start justify-between gap-3">
+          <FeedUserLink user={item.user} />
+          <span className="text-[11px] text-muted-foreground whitespace-nowrap flex-shrink-0">
+            {timeAgo(item.timestamp)}
+          </span>
+        </div>
+
+        <p className="mt-1.5 text-sm text-muted-foreground">
+          called <span className="text-foreground font-medium">{token}</span>
+          {item.token.mint && (
+            <Link
+              href={`/?token=${item.token.mint}`}
+              onClick={(e) => e.stopPropagation()}
+              className="ml-1 text-[11px] text-accent/80 hover:text-accent"
+            >
+              trade
+            </Link>
+          )}
+        </p>
+
+        {item.thesis && (
+          <p className="mt-1.5 text-sm text-foreground/90 whitespace-pre-wrap break-words">
+            {item.thesis}
+          </p>
+        )}
+
+        <div className="mt-1.5 flex items-center gap-3 text-xs flex-wrap">
+          <span className="uppercase tracking-wider text-[10px] font-semibold rounded-full px-2 py-0.5 bg-accent/12 text-accent">
+            Callout
+          </span>
+          {conviction && CONVICTION_TONE[conviction] && (
+            <span
+              className={cn(
+                "uppercase tracking-wider text-[10px] font-semibold rounded-full px-2 py-0.5",
+                CONVICTION_TONE[conviction],
+              )}
+            >
+              {conviction} conviction
+            </span>
+          )}
+          {item.callMarketCapUsd != null && (
+            <span className="text-muted-foreground font-mono">
+              Called at {fmtMarketCap(item.callMarketCapUsd)}
+            </span>
+          )}
+          {profileUrl && (
+            <a
+              href={profileUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => {
+                e.stopPropagation();
+                trackXProfileLinkClicked();
+              }}
+              className="ml-auto flex items-center gap-1 text-[11px] text-muted-foreground hover:text-accent transition-colors"
+            >
+              View on X <ExternalLink className="w-3 h-3" />
+            </a>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function TradeActivityCard({
   item,
   solUsd,
@@ -103,6 +191,10 @@ export function TradeActivityCard({
   item: FeedActivityItem;
   solUsd: number;
 }) {
+  if (item.kind === "callout") {
+    return <CalloutActivityCard item={item} />;
+  }
+
   const token = tokenLabel(item.token);
   const handle = item.user.x_username?.trim().replace(/^@+/, "") || null;
   const profileUrl = xProfileUrl(handle);

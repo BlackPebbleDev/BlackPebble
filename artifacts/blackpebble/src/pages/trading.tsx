@@ -25,6 +25,9 @@ import {
   ChevronDown,
   Copy,
   Check,
+  Megaphone,
+  Lock,
+  X as CloseIcon,
 } from "lucide-react";
 import {
   api,
@@ -33,6 +36,8 @@ import {
   type Trade,
   type TradeQuote,
   type OrderType,
+  type Conviction,
+  CALLOUT_THESIS_MAX,
 } from "@/lib/api";
 import { TradeList } from "@/components/trade-list";
 import { OpenPositions } from "@/components/open-positions";
@@ -1977,6 +1982,158 @@ function WatchButton({ info }: { info: TokenInfo }) {
 }
 
 /**
+ * "Call Token" action — lets an X-authenticated trader put a token call on the
+ * record. Price and market cap are snapshotted server-side at creation time; the
+ * trader only supplies an optional thesis + conviction. Guests are prompted to
+ * connect X. Calls are immutable (no edit/delete) by design.
+ */
+function CallTokenButton({ info }: { info: TokenInfo }) {
+  const { loggedIn, login } = useXAuth();
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [thesis, setThesis] = useState("");
+  const [conviction, setConviction] = useState<Conviction | "">("");
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      api.callouts.create({
+        tokenMint: info.mint,
+        thesis: thesis.trim(),
+        conviction: conviction || null,
+      }),
+    onSuccess: () => {
+      setOpen(false);
+      setThesis("");
+      setConviction("");
+      qc.invalidateQueries({ queryKey: ["callouts"] });
+      qc.invalidateQueries({ queryKey: ["feed"] });
+      qc.invalidateQueries({ queryKey: ["leaderboard", "callers"] });
+      toast({
+        title: "Call recorded",
+        description: "It's now on the record — permanent and immutable.",
+      });
+    },
+    onError: (e) =>
+      toast({
+        title: "Couldn't record call",
+        description: (e as Error).message,
+        variant: "destructive",
+      }),
+  });
+
+  const handleClick = () => {
+    if (!loggedIn) {
+      login();
+      return;
+    }
+    setOpen(true);
+  };
+
+  const canSubmit = !!thesis.trim() && !mutation.isPending;
+
+  return (
+    <>
+      <button
+        onClick={handleClick}
+        data-testid="button-call-token"
+        className="flex items-center gap-2 px-4 h-10 rounded-full text-xs font-medium bg-accent/15 text-accent hover:bg-accent/25 transition-all"
+      >
+        <Megaphone className="w-4 h-4" />
+        Call Token
+      </button>
+
+      {open && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          onClick={() => setOpen(false)}
+          data-testid="modal-call-token"
+        >
+          <div
+            className="w-full max-w-md rounded-2xl bg-card shadow-card p-5 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Megaphone className="w-5 h-5 text-accent" />
+                <span className="font-semibold text-foreground">
+                  Call {info.symbol ?? "token"}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                data-testid="button-cancel-call-token"
+                className="text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <CloseIcon className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="rounded-xl bg-secondary/30 border border-border px-3 py-2.5 flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Called at</span>
+              <span className="font-mono text-foreground">
+                {fmtMarketCap(info.marketCapUsd)} MC ·{" "}
+                {fmtPrice(info.priceUsd)}
+              </span>
+            </div>
+
+            <textarea
+              value={thesis}
+              onChange={(e) => setThesis(e.target.value)}
+              maxLength={CALLOUT_THESIS_MAX}
+              rows={3}
+              placeholder="Your thesis — why this call?"
+              data-testid="input-call-token-thesis"
+              className="w-full bg-secondary/40 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-accent transition-colors resize-none"
+            />
+
+            <div className="flex items-center justify-between gap-2">
+              <select
+                value={conviction}
+                onChange={(e) =>
+                  setConviction(e.target.value as Conviction | "")
+                }
+                data-testid="select-call-token-conviction"
+                className="h-9 bg-secondary/40 border border-border rounded-lg px-2 text-sm text-foreground focus:outline-none focus:border-accent"
+              >
+                <option value="">Conviction…</option>
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+              </select>
+              <span className="text-[11px] text-muted-foreground font-mono">
+                {thesis.length}/{CALLOUT_THESIS_MAX}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+              <Lock className="w-3 h-3 flex-shrink-0" />
+              Calls are permanent — no edits or deletes once recorded.
+            </div>
+
+            <button
+              type="button"
+              onClick={() => mutation.mutate()}
+              disabled={!canSubmit}
+              data-testid="button-publish-call"
+              className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-accent text-accent-foreground hover:bg-accent/90 transition-colors disabled:opacity-50"
+            >
+              {mutation.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Megaphone className="w-4 h-4" />
+              )}
+              Publish Call
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+/**
  * Copy-to-clipboard chip for the token contract address. Gives the address an
  * intentional, premium presentation in the action row (UX polish) — purely a
  * convenience control, no trading behaviour.
@@ -2267,6 +2424,7 @@ export default function TradingDesk() {
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <WatchButton info={info} />
+        <CallTokenButton info={info} />
         <a
           href={`https://dexscreener.com/solana/${info.pairAddress ?? info.mint}`}
           target="_blank"

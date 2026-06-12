@@ -551,9 +551,72 @@ export interface FollowUser {
   x_avatar_url: string | null;
 }
 
+// ---- Trading Journal ----
+export type JournalTradeType = "spot" | "leverage";
+export type JournalDirection = "long" | "short";
+export type JournalOutcome = "win" | "loss" | "neutral";
+
+/** A private trade review. Mutable and owner-scoped (unlike callouts). */
+export interface JournalEntry {
+  id: number;
+  user_id: number;
+  title: string | null;
+  trade_type: string | null;
+  direction: string | null;
+  outcome: string | null;
+  token: string | null;
+  token_mint: string | null;
+  trade_date: number | null;
+  entry_reason: string | null;
+  exit_reason: string | null;
+  went_right: string | null;
+  went_wrong: string | null;
+  lessons: string | null;
+  emotion_before: string | null;
+  emotion_after: string | null;
+  rating: number | null;
+  notes: string | null;
+  template: string | null;
+  source: string | null;
+  entry_mc: number | null;
+  exit_mc: number | null;
+  roi: number | null;
+  pnl: number | null;
+  created_at: number;
+  updated_at: number;
+}
+
+/** Fields accepted when creating/updating a journal entry. */
+export interface JournalInput {
+  title?: string | null;
+  tradeType?: string | null;
+  direction?: string | null;
+  outcome?: string | null;
+  token?: string | null;
+  tradeDate?: number | null;
+  entryReason?: string | null;
+  exitReason?: string | null;
+  wentRight?: string | null;
+  wentWrong?: string | null;
+  lessons?: string | null;
+  emotionBefore?: string | null;
+  emotionAfter?: string | null;
+  rating?: number | null;
+  notes?: string | null;
+  template?: string | null;
+}
+
+export interface JournalStats {
+  totalEntries: number;
+  entriesThisMonth: number;
+  winningReviews: number;
+  losingReviews: number;
+  lessonsRecorded: number;
+}
+
 export interface FeedActivityItem {
   id: string;
-  kind: "spot" | "leverage";
+  kind: "spot" | "leverage" | "callout";
   action: string;
   token: {
     mint: string;
@@ -564,6 +627,9 @@ export interface FeedActivityItem {
   leverage: number | null;
   direction: string | null;
   pnlSol: number | null;
+  thesis: string | null;
+  conviction: string | null;
+  callMarketCapUsd: number | null;
   timestamp: number;
   user: {
     user_id: number;
@@ -571,6 +637,29 @@ export interface FeedActivityItem {
     x_display_name: string | null;
     x_avatar_url: string | null;
   };
+}
+
+// ---- Top Caller reputation ----
+export interface CallerBestCall {
+  token_symbol: string | null;
+  token_mint: string;
+  multiple: number;
+}
+
+/** A caller's aggregated reputation stats + rank on the Top Callers board. */
+export interface CallerEntry {
+  rank: number;
+  user_id: number;
+  x_username: string | null;
+  x_display_name: string | null;
+  x_avatar_url: string | null;
+  callsMade: number;
+  gradedCalls: number;
+  avgMultiple: number | null;
+  bestMultiple: number | null;
+  hitRate: number;
+  callerScore: number;
+  bestCall: CallerBestCall | null;
 }
 
 // ---- SOL Recovery analytics ----
@@ -886,6 +975,10 @@ export const api = {
   leaderboard: (period: LeaderboardPeriod) =>
     request<LeaderboardResponse>(`/leaderboard?period=${period}`),
 
+  // Top Callers reputation leaderboard (derived live from immutable callouts).
+  leaderboardCallers: () =>
+    request<{ entries: CallerEntry[] }>(`/leaderboard/callers`),
+
   // Self-service "start a new season" for a depleted account.
   newSeason: (wallet: string) =>
     request<{ ok: boolean; error?: string; balance?: number; season?: number; account?: Account }>(
@@ -989,12 +1082,35 @@ export const api = {
         `/callouts/${calloutId}/updates`,
         { method: "POST", body: JSON.stringify({ content }) },
       ),
+    callerStats: (id: string | number) =>
+      request<{ stats: CallerEntry | null }>(
+        `/profiles/${encodeURIComponent(String(id))}/caller-stats`,
+      ),
   },
 
   // Social: read-only activity feed.
   feed: {
     global: () => request<{ items: FeedActivityItem[] }>(`/feed/global`),
     following: () => request<{ items: FeedActivityItem[] }>(`/feed/following`),
+  },
+
+  // Trading Journal: private, owner-scoped CRUD. Every call is session-scoped
+  // (X-auth required); there is no public read path.
+  journal: {
+    list: () => request<{ entries: JournalEntry[] }>(`/journal`),
+    stats: () => request<{ stats: JournalStats }>(`/journal/stats`),
+    create: (input: JournalInput) =>
+      request<{ entry: JournalEntry }>(`/journal`, {
+        method: "POST",
+        body: JSON.stringify(input),
+      }),
+    update: (id: number, input: JournalInput) =>
+      request<{ entry: JournalEntry }>(`/journal/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(input),
+      }),
+    remove: (id: number) =>
+      request<{ ok: boolean }>(`/journal/${id}`, { method: "DELETE" }),
   },
 
   // Lightweight funnel / activity beacons (public, fire-and-forget).

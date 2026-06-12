@@ -6,6 +6,7 @@ import {
   MIN_LEADERBOARD_TRADES,
 } from "../lib/trading.js";
 import { getSolPriceUsd } from "../lib/prices.js";
+import { getTopCallers } from "../lib/callers.js";
 
 const router: IRouter = Router();
 
@@ -26,6 +27,19 @@ router.get(
       entries,
       solUsd,
     });
+  }),
+);
+
+/**
+ * Top Callers leaderboard: callers ranked by a weighted reputation score
+ * derived live from the immutable callouts table. Read-only aggregation that
+ * never touches trade/leaderboard accounting.
+ */
+router.get(
+  "/leaderboard/callers",
+  asyncHandler(async (_req, res) => {
+    const entries = await getTopCallers(100);
+    return res.json({ entries });
   }),
 );
 

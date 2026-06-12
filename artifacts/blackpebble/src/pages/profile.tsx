@@ -8,6 +8,7 @@ import {
   History,
   Loader2,
   Lock,
+  Megaphone,
   Pencil,
   Pin,
   Plus,
@@ -32,6 +33,7 @@ import { useXAuth } from "@/hooks/use-x-auth";
 import { useSolUsd } from "@/hooks/use-sol-usd";
 import {
   fmtMarketCap,
+  fmtMultiple,
   fmtNum,
   fmtPercent,
   fmtPrice,
@@ -819,6 +821,73 @@ function NewCallForm({ profileKey }: { profileKey: string }) {
   );
 }
 
+/** Aggregated caller reputation — derived live from this trader's callouts. */
+function CallerStatsSection({ profile }: { profile: ProfileResponse }) {
+  const key = profile.x_username || String(profile.user_id);
+  const { data, isLoading } = useQuery({
+    queryKey: ["caller-stats", key],
+    queryFn: () => api.callouts.callerStats(profile.x_username || profile.user_id),
+    enabled: !!profile,
+    retry: false,
+  });
+  const stats = data?.stats ?? null;
+
+  return (
+    <>
+      <SectionHeader icon={Megaphone} title="Caller Stats" />
+      {isLoading ? (
+        <div className="flex items-center justify-center py-10">
+          <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+        </div>
+      ) : !stats || stats.callsMade === 0 ? (
+        <PlaceholderCard
+          kind="callout"
+          icon={Megaphone}
+          title={profile.isSelf ? "No caller stats yet" : "No calls yet"}
+          body="Caller reputation — calls made, hit rate, average and best multiple — appears here once calls are on the record."
+        />
+      ) : (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          <StatTile label="Caller Rank" value={`#${stats.rank}`} />
+          <StatTile label="Calls Made" value={String(stats.callsMade)} />
+          <StatTile
+            label="Hit Rate"
+            value={fmtPercent(stats.hitRate * 100, 0)}
+          />
+          <StatTile
+            label="Caller Score"
+            value={stats.callerScore.toFixed(1)}
+            cls="text-accent"
+          />
+          <StatTile
+            label="Avg Multiple"
+            value={stats.avgMultiple == null ? "—" : fmtMultiple(stats.avgMultiple)}
+          />
+          <StatTile
+            label="Best Multiple"
+            value={
+              stats.bestMultiple == null ? "—" : fmtMultiple(stats.bestMultiple)
+            }
+            cls={stats.bestMultiple != null ? "text-emerald-400" : undefined}
+          />
+          <StatTile label="Graded Calls" value={String(stats.gradedCalls)} />
+          <StatTile
+            label="Best Call"
+            value={
+              stats.bestCall
+                ? `${
+                    stats.bestCall.token_symbol ||
+                    shortAddr(stats.bestCall.token_mint, 4)
+                  } ${fmtMultiple(stats.bestCall.multiple)}`
+                : "—"
+            }
+          />
+        </div>
+      )}
+    </>
+  );
+}
+
 /** Real, immutable call history — newest first, with owner controls. */
 function CallHistorySection({ profile }: { profile: ProfileResponse }) {
   const key = profile.x_username || String(profile.user_id);
@@ -1012,6 +1081,9 @@ export default function ProfilePage() {
         title="No pinned thesis yet"
         body="Traders will be able to pin their highest-conviction token thesis to the top of their profile."
       />
+
+      {/* Caller Stats (real, derived from callouts) */}
+      <CallerStatsSection profile={profile} />
 
       {/* Call History (real, immutable) */}
       <CallHistorySection profile={profile} />
