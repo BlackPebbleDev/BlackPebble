@@ -3,7 +3,7 @@ import { ensureProfileSchema } from "./profiles.js";
 import { ensureThesesSchema } from "./theses.js";
 import { getTokenStatsBatch } from "./prices.js";
 import { getTokenPeaks, recordTokenPeaks, athMultipleFrom } from "./peaks.js";
-import { BADGE_DEFINITIONS, ensureBadgesSchema } from "./badges.js";
+import { BADGE_DEFINITIONS, ensureBadgesSchema, getOfficialBadgesForUsers } from "./badges.js";
 import { getUserTiers } from "./trading.js";
 
 /**
@@ -69,6 +69,7 @@ export interface FeedActivityItem {
     x_display_name: string | null;
     x_avatar_url: string | null;
     graduation_tier?: string;
+    official_badges?: string[];
   };
 }
 
@@ -313,12 +314,17 @@ export async function getActivity(opts: {
     };
   });
 
-  // Attach graduation_tier to each poster (decorative — never throws).
+  // Attach graduation_tier + official_badges per poster (decorative — never throws).
   const uniqueUserIds = [...new Set(rows.map((r) => r.user_id))];
-  const tierMap = await getUserTiers(uniqueUserIds);
+  const [tierMap, badgeMap] = await Promise.all([
+    getUserTiers(uniqueUserIds),
+    getOfficialBadgesForUsers(uniqueUserIds),
+  ]);
   for (const item of items) {
     const t = tierMap.get(item.user.user_id);
     if (t) item.user.graduation_tier = t;
+    const b = badgeMap.get(item.user.user_id);
+    if (b && b.length > 0) item.user.official_badges = b;
   }
 
   await enrichCalloutPerformance(items, rows);

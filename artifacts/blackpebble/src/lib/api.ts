@@ -880,6 +880,7 @@ export interface FeedActivityItem {
     x_display_name: string | null;
     x_avatar_url: string | null;
     graduation_tier?: string;
+    official_badges?: OfficialBadgeType[];
   };
 }
 

@@ -20,6 +20,7 @@ import {
 } from "@/lib/format";
 import { PnlAmount } from "@/components/pnl-amount";
 import { TierBadge } from "@/components/tier-badge";
+import { OfficialBadge } from "@/components/official-badge";
 import { trackXProfileLinkClicked } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
 
@@ -172,6 +173,9 @@ export function FeedUserLink({
               {displayName || "Anonymous"}
             </span>
           )}
+          {user.official_badges?.map((b) => (
+            <OfficialBadge key={b} type={b} size="xs" />
+          ))}
           <TierBadge size="sm" tier={user.graduation_tier} />
         </div>
         {handle && (

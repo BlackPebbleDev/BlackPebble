@@ -4,7 +4,8 @@ import type { OfficialBadgeType } from "@/lib/api";
 
 interface OfficialBadgeProps {
   type: OfficialBadgeType;
-  size?: "sm" | "md";
+  /** xs = icon-only with tooltip (for dense surfaces like feed cards) */
+  size?: "xs" | "sm" | "md";
   className?: string;
 }
 
@@ -14,6 +15,26 @@ export function OfficialBadge({
   className,
 }: OfficialBadgeProps) {
   const isFounder = type === "founder";
+
+  if (size === "xs") {
+    return (
+      <span
+        title={isFounder ? "Founder" : "BlackPebble Team"}
+        aria-label={isFounder ? "Founder" : "BlackPebble Team"}
+        className={cn(
+          "inline-flex items-center justify-center flex-shrink-0",
+          isFounder ? "text-amber-400" : "text-zinc-400",
+          className,
+        )}
+      >
+        {isFounder ? (
+          <Crown className="w-3 h-3" />
+        ) : (
+          <Shield className="w-3 h-3" />
+        )}
+      </span>
+    );
+  }
 
   if (size === "sm") {
     return (
