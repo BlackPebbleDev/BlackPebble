@@ -41,6 +41,14 @@ testem.log
 .DS_Store
 Thumbs.db
 
+# Database files — SQLite is not used in production (PostgreSQL via DATABASE_URL).
+# These patterns prevent local dev databases and WAL files from being committed.
+*.sqlite
+*.sqlite3
+*.db
+*.db-shm
+*.db-wal
+
 .cursor/rules/nx-rules.mdc
 .github/instructions/nx.instructions.md
 

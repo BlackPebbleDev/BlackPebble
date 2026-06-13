@@ -1,0 +1,8 @@
+# SQLite database files — these are stale development artefacts from before the
+# project migrated to PostgreSQL. They are NOT used at runtime. Tracked here so
+# the .db/.db-shm/.db-wal files are ignored going forward.
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
