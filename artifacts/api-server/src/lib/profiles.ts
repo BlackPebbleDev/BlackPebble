@@ -53,6 +53,13 @@ export interface XReputation {
   following: number | null;
 }
 
+export type TrustLabel = "New" | "Building" | "Established" | "Proven";
+
+export interface TrustScore {
+  score: number;
+  label: TrustLabel;
+}
+
 export interface ProfileResponse extends ResolvedUser {
   /** All-time leaderboard rank, or null when unranked (below min trades). */
   rank: number | null;
@@ -68,6 +75,8 @@ export interface ProfileResponse extends ResolvedUser {
   /** X account reputation (account age, verified, follower/following counts). */
   xReputation: XReputation;
   stats: ProfileStats;
+  /** Computed trust score (0–100). Augmented by the route handler. */
+  trustScore?: TrustScore;
 }
 
 export interface FollowUser {

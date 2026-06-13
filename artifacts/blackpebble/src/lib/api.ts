@@ -639,6 +639,23 @@ export interface XReputation {
   following: number | null;
 }
 
+export type TrustLabel = "New" | "Building" | "Established" | "Proven";
+export interface TrustScore {
+  score: number;
+  label: TrustLabel;
+}
+
+export type BadgeCategory = "trading" | "caller" | "thesis" | "community";
+export interface BadgeEntry {
+  key: string;
+  name: string;
+  description: string;
+  category: BadgeCategory;
+  icon: string;
+  earned: boolean;
+  earnedAt: number | null;
+}
+
 export interface ProfileResponse {
   user_id: number;
   x_id: string;
@@ -655,6 +672,8 @@ export interface ProfileResponse {
   bio: string | null;
   xReputation: XReputation;
   stats: ProfileStats;
+  /** Computed trust score (0–100). Present on profile GET responses. */
+  trustScore?: TrustScore;
 }
 
 /** Max bio length, kept in sync with the server-side BIO_MAX_LENGTH. */
@@ -1282,6 +1301,10 @@ export const api = {
       request<{ ok: boolean; bio: string | null; error?: string }>(
         `/profiles/me/bio`,
         { method: "PUT", body: JSON.stringify({ bio }) },
+      ),
+    badges: (id: string | number) =>
+      request<{ badges: BadgeEntry[]; earnedCount: number }>(
+        `/profiles/${encodeURIComponent(String(id))}/badges`,
       ),
   },
 

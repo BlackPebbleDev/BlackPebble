@@ -24,6 +24,7 @@ import {
   BIO_MAX_LENGTH,
   CALLOUT_THESIS_MAX,
   CALLOUT_UPDATE_MAX,
+  type BadgeEntry,
   type CalloutResult,
   type CalloutWithDetail,
   type Conviction,
@@ -286,6 +287,14 @@ const RepSoon = () => (
   </span>
 );
 
+/** Muted locked-state label for metrics that unlock through activity. */
+const RepLocked = ({ reason = "Builds with activity" }: { reason?: string }) => (
+  <span className="inline-flex items-center gap-1 text-muted-foreground/60">
+    <Lock className="w-3 h-3 flex-shrink-0" />
+    <span className="text-[11px]">{reason}</span>
+  </span>
+);
+
 /** Labelled group of reputation fields inside the card (Account / Social / etc). */
 function RepGroup({
   title,
@@ -362,11 +371,36 @@ function XReputationSection({ profile }: { profile: ProfileResponse }) {
         </RepGroup>
 
         <RepGroup title="BlackPebble">
-          <RepField label="Trust Score" value={<RepSoon />} />
-          <RepField label="Call Accuracy" value={<RepSoon />} />
+          <RepField
+            label="Trust Score"
+            value={
+              profile.trustScore != null ? (
+                <span
+                  className={cn(
+                    "font-mono font-semibold",
+                    profile.trustScore.score <= 15
+                      ? "text-muted-foreground"
+                      : profile.trustScore.score <= 40
+                        ? "text-foreground"
+                        : profile.trustScore.score <= 70
+                          ? "text-amber-400"
+                          : "text-accent",
+                  )}
+                >
+                  {profile.trustScore.label}
+                </span>
+              ) : (
+                <RepLocked />
+              )
+            }
+          />
+          <RepField
+            label="Call Accuracy"
+            value={<RepLocked reason="Unlocks with call history" />}
+          />
           <RepField
             label="Trading Rank"
-            value={profile.rank != null ? `#${profile.rank}` : <RepSoon />}
+            value={profile.rank != null ? `#${profile.rank}` : <RepDash />}
           />
         </RepGroup>
       </div>
@@ -445,47 +479,92 @@ function FollowButton({ profile }: { profile: ProfileResponse }) {
   );
 }
 
-/** Example badges shown in the Achievements placeholder (UI only). */
-const EXAMPLE_BADGES = [
-  "First Trade",
-  "Diamond Hands",
-  "10x Caller",
-  "Top 100",
-  "Season Veteran",
-  "Sharpshooter",
-];
-
-/** Coming-soon card for achievements, with an example badge list. */
-function AchievementsPlaceholder() {
+/** A single badge pill — gold-accented when earned, muted when locked. */
+function BadgePill({ badge }: { badge: BadgeEntry }) {
   return (
-    <div
-      data-testid="placeholder-achievements"
-      className="rounded-xl border border-dashed border-border bg-card/40 p-5"
+    <span
+      data-testid={`badge-${badge.key}`}
+      title={badge.description}
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium",
+        badge.earned
+          ? "border border-accent/50 bg-accent/10 text-accent"
+          : "border border-border/40 bg-secondary/20 text-muted-foreground/50",
+      )}
     >
-      <div className="flex items-start gap-3">
-        <Award className="w-5 h-5 text-muted-foreground/50 flex-shrink-0 mt-0.5" />
-        <div>
-          <p className="text-sm text-foreground font-medium">
-            Achievements &amp; badges coming soon
-          </p>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Earn badges for trading milestones, accurate calls, and community
-            standing. Example badges you'll be able to unlock:
-          </p>
-        </div>
+      {badge.earned ? (
+        <Award className="w-3 h-3 flex-shrink-0" />
+      ) : (
+        <Lock className="w-3 h-3 flex-shrink-0" />
+      )}
+      {badge.name}
+    </span>
+  );
+}
+
+/**
+ * Achievements & badges section — lazily fetches the full badge list for this
+ * profile and renders earned (gold) / locked (muted) pills in two groups.
+ */
+function BadgesSection({ profile }: { profile: ProfileResponse }) {
+  const profileKey = profile.x_username || String(profile.user_id);
+  const { data, isLoading } = useQuery({
+    queryKey: ["badges", profileKey],
+    queryFn: () =>
+      api.profiles.badges(profile.x_username || profile.user_id),
+    retry: false,
+    staleTime: 60_000,
+  });
+
+  const earnedBadges = (data?.badges ?? []).filter((b) => b.earned);
+  const lockedBadges = (data?.badges ?? []).filter((b) => !b.earned);
+
+  return (
+    <>
+      <SectionHeader icon={Award} title="Achievements & Badges" />
+      <div
+        data-testid="achievements-card"
+        className="rounded-xl bg-card shadow-card p-5"
+      >
+        {isLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
+          <>
+            {earnedBadges.length > 0 && (
+              <div className="mb-5">
+                <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                  Earned · {earnedBadges.length}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {earnedBadges.map((b) => (
+                    <BadgePill key={b.key} badge={b} />
+                  ))}
+                </div>
+              </div>
+            )}
+            {lockedBadges.length > 0 && (
+              <div>
+                <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                  Locked · {lockedBadges.length}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {lockedBadges.map((b) => (
+                    <BadgePill key={b.key} badge={b} />
+                  ))}
+                </div>
+              </div>
+            )}
+            {earnedBadges.length === 0 && lockedBadges.length === 0 && (
+              <p className="py-4 text-center text-sm text-muted-foreground">
+                No badges available.
+              </p>
+            )}
+          </>
+        )}
       </div>
-      <div className="mt-3 flex flex-wrap gap-2">
-        {EXAMPLE_BADGES.map((b) => (
-          <span
-            key={b}
-            className="inline-flex items-center gap-1 rounded-full border border-dashed border-border bg-secondary/30 px-2.5 py-1 text-[11px] text-muted-foreground/70"
-          >
-            <Award className="w-3 h-3" />
-            {b}
-          </span>
-        ))}
-      </div>
-    </div>
+    </>
   );
 }
 
@@ -1249,8 +1328,7 @@ export default function ProfilePage() {
       <ThesisHistorySection profile={profile} />
 
       {/* Achievements & Badges (placeholder) */}
-      <SectionHeader icon={Award} title="Achievements & Badges" />
-      <AchievementsPlaceholder />
+      <BadgesSection profile={profile} />
     </div>
   );
 }

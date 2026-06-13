@@ -407,7 +407,7 @@ function ExpandedAnalytics({
             navigate(`/position/${p.token_mint}`);
           }}
           data-testid={`button-detail-${p.token_mint}`}
-          className="inline-flex items-center gap-1.5 h-9 px-3 text-xs font-medium border border-accent/50 text-accent hover:bg-accent/10 transition-colors"
+          className="inline-flex items-center gap-1.5 h-9 px-3 text-xs font-medium rounded-xl border border-accent/50 text-accent hover:bg-accent/10 transition-colors"
         >
           <BarChart3 className="w-3.5 h-3.5" />
           View Full Detail
@@ -419,7 +419,7 @@ function ExpandedAnalytics({
             onNavigate(p.token_mint);
           }}
           data-testid={`button-open-${p.token_mint}`}
-          className="inline-flex items-center gap-1.5 h-9 px-3 text-xs font-medium border border-border text-foreground hover:bg-secondary transition-colors"
+          className="inline-flex items-center gap-1.5 h-9 px-3 text-xs font-medium rounded-xl border border-border text-foreground hover:bg-secondary transition-colors"
         >
           Continue Trading
           <ArrowRight className="w-3.5 h-3.5" />

@@ -20,6 +20,12 @@ import {
 import { getExecutionPrice, getTokenInfo } from "../lib/prices.js";
 import { getCallerStats } from "../lib/callers.js";
 import {
+  computeTrustScore,
+  getEarnedBadgeCount,
+  getUserBadges,
+  type BadgeStatsInput,
+} from "../lib/badges.js";
+import {
   getTokenPeaks,
   recordTokenPeaks,
   athMultipleFrom,
@@ -104,7 +110,58 @@ router.get(
       session?.x_id && session.sub ? Number(session.sub) : null;
     const profile = await getProfile(String(req.params.id), viewerId);
     if (!profile) return res.status(404).json({ error: "Profile not found" });
-    return res.json(profile);
+
+    const [callerEntry, earnedBadgeCount] = await Promise.all([
+      getCallerStats(profile.user_id),
+      getEarnedBadgeCount(profile.user_id),
+    ]);
+
+    const badgeStats: BadgeStatsInput = {
+      closedTrades: profile.stats.closedTrades,
+      realizedPnlSol: profile.stats.realizedPnlSol,
+      roiPercent: profile.stats.roiPercent,
+      traderRank: profile.rank,
+      callsMade: callerEntry?.callsMade ?? 0,
+      bestMultiple: callerEntry?.bestMultiple ?? null,
+      callerRank: callerEntry?.rank ?? null,
+      hitRate: callerEntry?.hitRate ?? 0,
+      gradedCalls: callerEntry?.gradedCalls ?? 0,
+      callerScore: callerEntry?.callerScore ?? 0,
+    };
+
+    const trustScore = computeTrustScore(badgeStats, earnedBadgeCount);
+    return res.json({ ...profile, trustScore });
+  }),
+);
+
+router.get(
+  "/profiles/:id/badges",
+  asyncHandler(async (req, res) => {
+    const session = await sessionFromRequest(req);
+    const viewerId =
+      session?.x_id && session.sub ? Number(session.sub) : null;
+    const profile = await getProfile(String(req.params.id), viewerId);
+    if (!profile) return res.status(404).json({ error: "Profile not found" });
+
+    const callerEntry = await getCallerStats(profile.user_id);
+    const badgeStats: BadgeStatsInput = {
+      closedTrades: profile.stats.closedTrades,
+      realizedPnlSol: profile.stats.realizedPnlSol,
+      roiPercent: profile.stats.roiPercent,
+      traderRank: profile.rank,
+      callsMade: callerEntry?.callsMade ?? 0,
+      bestMultiple: callerEntry?.bestMultiple ?? null,
+      callerRank: callerEntry?.rank ?? null,
+      hitRate: callerEntry?.hitRate ?? 0,
+      gradedCalls: callerEntry?.gradedCalls ?? 0,
+      callerScore: callerEntry?.callerScore ?? 0,
+    };
+
+    const { badges, earnedCount } = await getUserBadges(
+      profile.user_id,
+      badgeStats,
+    );
+    return res.json({ badges, earnedCount });
   }),
 );
 

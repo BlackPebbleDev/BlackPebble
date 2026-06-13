@@ -1,18 +1,11 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import {
-  ArrowUpRight,
-  Award,
-  Loader2,
-  Megaphone,
-  Rss,
-  ScrollText,
-} from "lucide-react";
+import { Loader2, Megaphone, Rss, ScrollText } from "lucide-react";
 import type { FeedActivityItem } from "@/lib/api";
 import { api } from "@/lib/api";
 import { useXAuth } from "@/hooks/use-x-auth";
 import { useSolUsd } from "@/hooks/use-sol-usd";
-import { TradeActivityCard, PlaceholderCard } from "@/components/feed-card";
+import { TradeActivityCard } from "@/components/feed-card";
 import { trackFeedView, trackFeedTabChanged } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
 
@@ -134,7 +127,43 @@ function FollowingFeed() {
   );
 }
 
-/** Callouts-only feed: the global activity feed narrowed to callout items. */
+/** Trades-only feed: spot and leverage items from the global activity feed. */
+function TradesFeed() {
+  const solUsd = useSolUsd();
+  const { data, isLoading } = useQuery({
+    queryKey: ["feed", "global"],
+    queryFn: () => api.feed.global(),
+    refetchInterval: 30_000,
+  });
+  const items = (data?.items ?? []).filter(
+    (item: FeedActivityItem) =>
+      item.kind === "spot" || item.kind === "leverage",
+  );
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+  if (items.length === 0) {
+    return (
+      <EmptyState
+        title="No trades yet"
+        body="Spot and leverage paper trades from the community will show up here."
+      />
+    );
+  }
+  return (
+    <div className="space-y-2">
+      {items.map((item) => (
+        <TradeActivityCard key={item.id} item={item} solUsd={solUsd} />
+      ))}
+    </div>
+  );
+}
+
 function CalloutFeed() {
   const solUsd = useSolUsd();
   const { data, isLoading } = useQuery({
@@ -309,22 +338,13 @@ export default function FeedPage() {
       </div>
 
       {filter === "all" && <ActivityFeed />}
-      {filter === "trades" && (
-        <PlaceholderCard
-          kind="achievement"
-          icon={ArrowUpRight}
-          title="Trade-only filtering is coming soon"
-          body="Soon you'll be able to narrow the feed to spot and leverage trades. For now, see everything under the All tab."
-        />
-      )}
+      {filter === "trades" && <TradesFeed />}
       {filter === "callouts" && <CalloutFeed />}
       {filter === "theses" && <ThesisFeed />}
       {filter === "achievements" && (
-        <PlaceholderCard
-          kind="achievement"
-          icon={Award}
-          title="Achievements are coming soon"
-          body="Milestone and reputation badges earned by the community will surface in the feed here."
+        <EmptyState
+          title="No badge events yet"
+          body="When traders earn achievements and milestones, they'll surface in the feed here."
         />
       )}
     </div>
