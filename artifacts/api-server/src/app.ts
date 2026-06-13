@@ -23,26 +23,29 @@ app.use(
 
 // ---------------------------------------------------------------------------
 // CORS — allow known origins in production, all origins in development.
-// FRONTEND_URL is always included automatically.
-// Set CORS_ALLOWED_ORIGINS (comma-separated) for additional origins.
+// In production, FRONTEND_URL is always included automatically.
+// Add CORS_ALLOWED_ORIGINS (comma-separated) for extra allowed origins.
 // Example: "https://blackpebble.fun,https://blackpebble.replit.app"
 // ---------------------------------------------------------------------------
-const rawAllowedOrigins = process.env["CORS_ALLOWED_ORIGINS"];
-const extraOrigins = rawAllowedOrigins
-  ? rawAllowedOrigins.split(",").map((o) => o.trim()).filter(Boolean)
-  : [];
-const frontendUrl = process.env["FRONTEND_URL"];
-if (frontendUrl) extraOrigins.push(frontendUrl);
-// In production (when any explicit origins are listed) restrict to allowlist;
-// in development (no overrides at all) fall back to allowing all origins.
-const allowedOrigins = extraOrigins.length > 0 ? [...new Set(extraOrigins)] : null;
+const isProduction = process.env["NODE_ENV"] === "production";
+
+let allowedOrigins: string[] | null = null;
+if (isProduction) {
+  const rawAllowedOrigins = process.env["CORS_ALLOWED_ORIGINS"];
+  const extra = rawAllowedOrigins
+    ? rawAllowedOrigins.split(",").map((o) => o.trim()).filter(Boolean)
+    : [];
+  const frontendUrl = process.env["FRONTEND_URL"];
+  if (frontendUrl) extra.push(frontendUrl);
+  allowedOrigins = extra.length > 0 ? [...new Set(extra)] : null;
+}
 
 app.use(
   cors({
     origin: allowedOrigins
       ? (origin, callback) => {
           // Allow same-origin / non-browser requests (curl, server-to-server)
-          if (!origin || allowedOrigins.includes(origin)) {
+          if (!origin || allowedOrigins!.includes(origin)) {
             callback(null, true);
           } else {
             callback(new Error(`CORS: origin "${origin}" is not allowed`));
