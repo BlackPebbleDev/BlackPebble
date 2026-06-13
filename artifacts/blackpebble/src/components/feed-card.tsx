@@ -4,6 +4,7 @@ import {
   ArrowUpRight,
   ExternalLink,
   Megaphone,
+  Medal,
   ScrollText,
   Trophy,
   Zap,
@@ -368,6 +369,66 @@ function ThesisActivityCard({ item }: { item: FeedActivityItem }) {
   );
 }
 
+/** An achievement feed item: a trader earning a badge or milestone. */
+function AchievementActivityCard({ item }: { item: FeedActivityItem }) {
+  const handle = item.user.x_username?.trim().replace(/^@+/, "") || null;
+  const profileUrl = xProfileUrl(handle);
+  const badgeName = item.badgeName || item.badgeKey || "Achievement";
+  const description = item.thesis;
+
+  return (
+    <div
+      data-testid={`feed-card-${item.id}`}
+      className="rounded-xl bg-card shadow-card p-4 flex items-start gap-3 transition-colors hover:bg-surface-3"
+    >
+      <div className="mt-0.5 flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-full bg-yellow-500/12 text-yellow-400">
+        <Medal className="w-[18px] h-[18px]" />
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <div className="flex items-start justify-between gap-3">
+          <FeedUserLink user={item.user} />
+          <span className="text-[11px] text-muted-foreground whitespace-nowrap flex-shrink-0">
+            {timeAgo(item.timestamp)}
+          </span>
+        </div>
+
+        <p className="mt-1.5 text-sm text-muted-foreground">
+          earned the{" "}
+          <span className="text-foreground font-medium">{badgeName}</span>{" "}
+          badge
+        </p>
+
+        {description && (
+          <p className="mt-1 text-sm text-foreground/70 italic">
+            {description}
+          </p>
+        )}
+
+        <div className="mt-1.5 flex items-center gap-3 text-xs flex-wrap">
+          <span className="uppercase tracking-wider text-[10px] font-semibold rounded-full px-2 py-0.5 bg-yellow-500/12 text-yellow-400">
+            Achievement
+          </span>
+          {profileUrl && (
+            <a
+              href={profileUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => {
+                e.stopPropagation();
+                trackXProfileLinkClicked();
+              }}
+              className="ml-auto flex items-center gap-1 text-[11px] text-muted-foreground hover:text-accent transition-colors"
+            >
+              View on X <ExternalLink className="w-3 h-3" />
+            </a>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function TradeActivityCard({
   item,
   solUsd,
@@ -380,6 +441,9 @@ export function TradeActivityCard({
   }
   if (item.kind === "thesis") {
     return <ThesisActivityCard item={item} />;
+  }
+  if (item.kind === "achievement") {
+    return <AchievementActivityCard item={item} />;
   }
 
   const handle = item.user.x_username?.trim().replace(/^@+/, "") || null;

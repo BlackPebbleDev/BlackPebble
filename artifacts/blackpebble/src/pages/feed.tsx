@@ -235,6 +235,42 @@ function ThesisFeed() {
   );
 }
 
+/** Achievements-only feed: badge/milestone earn events from the global feed. */
+function AchievementsFeed() {
+  const solUsd = useSolUsd();
+  const { data, isLoading } = useQuery({
+    queryKey: ["feed", "global"],
+    queryFn: () => api.feed.global(),
+    refetchInterval: 30_000,
+  });
+  const items = (data?.items ?? []).filter(
+    (item: FeedActivityItem) => item.kind === "achievement",
+  );
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+  if (items.length === 0) {
+    return (
+      <EmptyState
+        title="No achievements yet"
+        body="When traders earn badges and milestones, they'll show up here."
+      />
+    );
+  }
+  return (
+    <div className="space-y-2">
+      {items.map((item) => (
+        <TradeActivityCard key={item.id} item={item} solUsd={solUsd} />
+      ))}
+    </div>
+  );
+}
+
 /** The live activity feed (filter = "all"), with a Following / Global source. */
 function ActivityFeed() {
   const [source, setSource] = useState<FeedSource>("global");
@@ -341,12 +377,7 @@ export default function FeedPage() {
       {filter === "trades" && <TradesFeed />}
       {filter === "callouts" && <CalloutFeed />}
       {filter === "theses" && <ThesisFeed />}
-      {filter === "achievements" && (
-        <EmptyState
-          title="No badge events yet"
-          body="When traders earn achievements and milestones, they'll surface in the feed here."
-        />
-      )}
+      {filter === "achievements" && <AchievementsFeed />}
     </div>
   );
 }

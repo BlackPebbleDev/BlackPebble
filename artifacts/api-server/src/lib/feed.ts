@@ -3,18 +3,19 @@ import { ensureProfileSchema } from "./profiles.js";
 import { ensureThesesSchema } from "./theses.js";
 import { getTokenStatsBatch } from "./prices.js";
 import { getTokenPeaks, recordTokenPeaks, athMultipleFrom } from "./peaks.js";
+import { BADGE_DEFINITIONS, ensureBadgesSchema } from "./badges.js";
 
 /**
  * Read-only activity feed (Phase 1).
  *
  * Surfaces recent public activity from X-authenticated users only, unioning spot
- * trades, leverage trade events, callouts (on-the-record calls) and standalone
- * theses (token research). It re-uses the same wallet → X identity resolution as
- * the leaderboard (a wallet is either a linked `wallet` identity or the synthetic
- * `x:<id>` account key). This is purely a read of existing tables — it does not
- * change any trading accounting.
+ * trades, leverage trade events, callouts (on-the-record calls), standalone
+ * theses (token research) and achievement unlocks. It re-uses the same wallet →
+ * X identity resolution as the leaderboard. This is purely a read of existing
+ * tables — it does not change any trading accounting.
  *
  * Admin-hidden and test-tagged callouts/theses are excluded from the feed.
+ * Achievement rows are sourced from user_achievements (upserted by getUserBadges).
  *
  * - Global feed: all X users' recent activity.
  * - Following feed: activity filtered to the user ids the viewer follows.
@@ -22,10 +23,10 @@ import { getTokenPeaks, recordTokenPeaks, athMultipleFrom } from "./peaks.js";
 
 export interface FeedActivityItem {
   id: string;
-  kind: "spot" | "leverage" | "callout" | "thesis";
+  kind: "spot" | "leverage" | "callout" | "thesis" | "achievement";
   /**
    * spot: 'buy'|'sell'; leverage: 'open'|'close'|'liquidated'; callout: 'call';
-   * thesis: 'thesis'.
+   * thesis: 'thesis'; achievement: 'earned'.
    */
   action: string;
   token: {
@@ -34,23 +35,20 @@ export interface FeedActivityItem {
     name: string | null;
     logo: string | null;
   };
-  /** Leverage multiplier, null for spot. */
+  /** Leverage multiplier, null for spot/callout/thesis/achievement. */
   leverage: number | null;
-  /** Leverage direction ('long' | 'short'), null for spot. */
+  /** Leverage direction ('long' | 'short'), null for others. */
   direction: string | null;
   /** Realized P&L in SOL when applicable (spot sells, leverage closes). */
   pnlSol: number | null;
-  /** Callout thesis text / thesis body, null for trades. */
+  /** Callout thesis text / thesis body / badge description for achievements. */
   thesis: string | null;
-  /** Callout/thesis conviction tier, null for trades. */
+  /** Callout/thesis conviction tier, null for trades/achievements. */
   conviction: string | null;
   /** Snapshotted market cap (USD) at the moment of the call, null otherwise. */
   callMarketCapUsd: number | null;
   /**
-   * Live callout performance (callouts only; null for trades/theses). Computed
-   * dynamically from the call's snapshotted price — the call row is never
-   * mutated. currentMultiple = livePrice / callPrice; athMultiple uses the
-   * peak-since-tracking high-water mark (always >= currentMultiple).
+   * Live callout performance (callouts only; null for trades/theses/achievements).
    */
   currentMarketCapUsd: number | null;
   currentMultiple: number | null;
@@ -59,6 +57,10 @@ export interface FeedActivityItem {
   thesisTitle: string | null;
   /** Standalone thesis sentiment ('bullish'|'bearish'|'neutral'), else null. */
   sentiment: string | null;
+  /** Achievement badge identifier, null for non-achievement items. */
+  badgeKey: string | null;
+  /** Human-readable badge name looked up from the catalogue. */
+  badgeName: string | null;
   timestamp: number;
   user: {
     user_id: number;
@@ -70,7 +72,7 @@ export interface FeedActivityItem {
 
 interface ActivityRow {
   id: string;
-  kind: "spot" | "leverage" | "callout" | "thesis";
+  kind: "spot" | "leverage" | "callout" | "thesis" | "achievement";
   action: string;
   token_mint: string;
   token_symbol: string | null;
@@ -90,7 +92,10 @@ interface ActivityRow {
   x_username: string;
   x_display_name: string | null;
   x_avatar_url: string | null;
+  badge_key: string | null;
 }
+
+const badgeDefMap = new Map(BADGE_DEFINITIONS.map((d) => [d.key, d]));
 
 export async function getActivity(opts: {
   /** When provided, restrict to these internal user ids (the followed set). */
@@ -102,9 +107,12 @@ export async function getActivity(opts: {
   // An explicit empty follow set means "following nobody" → no activity.
   if (follow && follow.length === 0) return [];
 
-  // Ensure the callout/thesis admin columns exist before the feed reads them,
-  // so a fresh database doesn't 500 on the very first feed request.
-  await Promise.all([ensureProfileSchema(), ensureThesesSchema()]);
+  // Ensure all referenced schemas exist before querying them.
+  await Promise.all([
+    ensureProfileSchema(),
+    ensureThesesSchema(),
+    ensureBadgesSchema(),
+  ]);
 
   const params: unknown[] = [];
   let followClause = "";
@@ -155,7 +163,8 @@ export async function getActivity(opts: {
               NULL::text AS thesis_title,
               NULL::text AS sentiment,
               t.executed_at AS ts,
-              i.user_id, i.x_username, i.x_display_name, i.x_avatar_url
+              i.user_id, i.x_username, i.x_display_name, i.x_avatar_url,
+              NULL::text AS badge_key
          FROM trades t
          JOIN ident i ON i.wallet = t.wallet
         WHERE i.x_username IS NOT NULL ${followClause}
@@ -174,7 +183,8 @@ export async function getActivity(opts: {
               NULL::text AS thesis_title,
               NULL::text AS sentiment,
               lt.executed_at AS ts,
-              i.user_id, i.x_username, i.x_display_name, i.x_avatar_url
+              i.user_id, i.x_username, i.x_display_name, i.x_avatar_url,
+              NULL::text AS badge_key
          FROM paper_leverage_trades lt
          JOIN ident i ON i.wallet = lt.wallet
         WHERE i.x_username IS NOT NULL ${followClause}
@@ -196,7 +206,8 @@ export async function getActivity(opts: {
               c.user_id AS user_id,
               xi.x_username AS x_username,
               u.display_name AS x_display_name,
-              u.avatar_url AS x_avatar_url
+              u.avatar_url AS x_avatar_url,
+              NULL::text AS badge_key
          FROM callouts c
          JOIN user_identities xi
            ON xi.user_id = c.user_id AND xi.provider = 'x'
@@ -221,13 +232,42 @@ export async function getActivity(opts: {
               th.user_id AS user_id,
               xi.x_username AS x_username,
               u.display_name AS x_display_name,
-              u.avatar_url AS x_avatar_url
+              u.avatar_url AS x_avatar_url,
+              NULL::text AS badge_key
          FROM token_theses th
          JOIN user_identities xi
            ON xi.user_id = th.user_id AND xi.provider = 'x'
          JOIN users u ON u.id = th.user_id
         WHERE th.is_hidden_by_admin = FALSE AND th.is_test = FALSE
               ${followClauseUser.replace(/user_id/g, "th.user_id")}
+       UNION ALL
+       SELECT ('ach-' || ua.id) AS id,
+              'achievement' AS kind,
+              'earned' AS action,
+              '' AS token_mint,
+              NULL::text AS token_symbol,
+              NULL::text AS token_name,
+              NULL::text AS token_logo,
+              NULL::int AS leverage,
+              NULL::text AS direction,
+              NULL::double precision AS pnl_sol,
+              NULL::text AS thesis,
+              NULL::text AS conviction,
+              NULL::double precision AS call_market_cap,
+              NULL::double precision AS call_price_usd,
+              NULL::text AS thesis_title,
+              NULL::text AS sentiment,
+              ua.earned_at AS ts,
+              ua.user_id AS user_id,
+              xi.x_username AS x_username,
+              u.display_name AS x_display_name,
+              u.avatar_url AS x_avatar_url,
+              ua.badge_key AS badge_key
+         FROM user_achievements ua
+         JOIN user_identities xi
+           ON xi.user_id = ua.user_id AND xi.provider = 'x'
+         JOIN users u ON u.id = ua.user_id
+        WHERE TRUE ${followClauseUser.replace(/user_id/g, "ua.user_id")}
      )
      SELECT * FROM activity
       ORDER BY ts DESC
@@ -235,35 +275,41 @@ export async function getActivity(opts: {
     params,
   );
 
-  const items: FeedActivityItem[] = rows.map((r) => ({
-    id: r.id,
-    kind: r.kind,
-    action: r.action,
-    token: {
-      mint: r.token_mint,
-      symbol: r.token_symbol,
-      name: r.token_name,
-      logo: r.token_logo,
-    },
-    leverage: r.leverage,
-    direction: r.direction,
-    pnlSol: r.pnl_sol,
-    thesis: r.thesis,
-    conviction: r.conviction,
-    callMarketCapUsd: r.call_market_cap,
-    currentMarketCapUsd: null,
-    currentMultiple: null,
-    athMultiple: null,
-    thesisTitle: r.thesis_title,
-    sentiment: r.sentiment,
-    timestamp: r.ts,
-    user: {
-      user_id: r.user_id,
-      x_username: r.x_username,
-      x_display_name: r.x_display_name,
-      x_avatar_url: r.x_avatar_url,
-    },
-  }));
+  const items: FeedActivityItem[] = rows.map((r) => {
+    const badgeDef = r.badge_key ? (badgeDefMap.get(r.badge_key) ?? null) : null;
+    return {
+      id: r.id,
+      kind: r.kind,
+      action: r.action,
+      token: {
+        mint: r.token_mint,
+        symbol: r.token_symbol,
+        name: r.token_name,
+        logo: r.token_logo,
+      },
+      leverage: r.leverage,
+      direction: r.direction,
+      pnlSol: r.pnl_sol,
+      // For achievements, repurpose thesis to carry the badge description.
+      thesis: r.kind === "achievement" ? (badgeDef?.description ?? null) : r.thesis,
+      conviction: r.conviction,
+      callMarketCapUsd: r.call_market_cap,
+      currentMarketCapUsd: null,
+      currentMultiple: null,
+      athMultiple: null,
+      thesisTitle: r.thesis_title,
+      sentiment: r.sentiment,
+      badgeKey: r.badge_key,
+      badgeName: badgeDef?.name ?? null,
+      timestamp: r.ts,
+      user: {
+        user_id: r.user_id,
+        x_username: r.x_username,
+        x_display_name: r.x_display_name,
+        x_avatar_url: r.x_avatar_url,
+      },
+    };
+  });
 
   await enrichCalloutPerformance(items, rows);
   return items;
@@ -272,11 +318,9 @@ export async function getActivity(opts: {
 /**
  * Enrich callout feed items with live performance (Current MC, Current X, ATH X).
  * Computed dynamically and batched: one DexScreener stats batch + one peaks read
- * for all unique callout mints in the page, so a 40-item feed costs ~1–2 upstream
- * calls regardless of how many calls it contains. Best-effort — any failure
- * leaves the call showing its preserved Called MC with no live numbers, never an
- * error. Trades and theses are intentionally left untouched (theses are never
- * graded as calls).
+ * for all unique callout mints in the page. Best-effort — any failure leaves the
+ * call showing its preserved Called MC with no live numbers. Trades, theses and
+ * achievements are intentionally left untouched.
  */
 async function enrichCalloutPerformance(
   items: FeedActivityItem[],

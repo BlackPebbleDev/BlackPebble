@@ -844,7 +844,7 @@ export interface JournalStats {
 
 export interface FeedActivityItem {
   id: string;
-  kind: "spot" | "leverage" | "callout" | "thesis";
+  kind: "spot" | "leverage" | "callout" | "thesis" | "achievement";
   action: string;
   token: {
     mint: string;
@@ -855,15 +855,20 @@ export interface FeedActivityItem {
   leverage: number | null;
   direction: string | null;
   pnlSol: number | null;
+  /** Callout thesis text / thesis body / badge description for achievements. */
   thesis: string | null;
   conviction: string | null;
   callMarketCapUsd: number | null;
-  /** Live callout performance (callouts only; null for trades/theses). */
+  /** Live callout performance (callouts only; null for trades/theses/achievements). */
   currentMarketCapUsd?: number | null;
   currentMultiple?: number | null;
   athMultiple?: number | null;
   thesisTitle?: string | null;
   sentiment?: string | null;
+  /** Achievement badge identifier key, null for non-achievement items. */
+  badgeKey?: string | null;
+  /** Human-readable badge name, null for non-achievement items. */
+  badgeName?: string | null;
   timestamp: number;
   user: {
     user_id: number;
