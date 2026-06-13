@@ -177,6 +177,7 @@ function TopCallers({
                     {c.officialBadges?.map((b) => (
                       <OfficialBadge key={b} type={b} size="sm" />
                     ))}
+                    <TierBadge size="sm" tier={c.graduation_tier} />
                   </div>
                   {handle && (
                     <div className="text-[11px] text-muted-foreground truncate">
@@ -282,6 +283,7 @@ function TopCallers({
                           {c.officialBadges?.map((b) => (
                             <OfficialBadge key={b} type={b} size="sm" />
                           ))}
+                          <TierBadge size="sm" tier={c.graduation_tier} />
                         </div>
                         {c.bestCall && (
                           <div className="truncate text-[11px] text-muted-foreground">
@@ -407,6 +409,7 @@ function MostFollowed({
                     {e.officialBadges?.map((b) => (
                       <OfficialBadge key={b} type={b} size="sm" />
                     ))}
+                    <TierBadge size="sm" tier={e.graduation_tier} />
                   </div>
                   <div className="text-[11px] text-muted-foreground truncate">
                     @{e.x_username.replace(/^@/, "")}
@@ -481,6 +484,7 @@ function MostFollowed({
                           {e.officialBadges?.map((b) => (
                             <OfficialBadge key={b} type={b} size="sm" />
                           ))}
+                          <TierBadge size="sm" tier={e.graduation_tier} />
                         </div>
                         <div className="text-[11px] text-muted-foreground truncate">
                           @{e.x_username.replace(/^@/, "")}

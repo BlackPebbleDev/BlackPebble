@@ -19,6 +19,7 @@ import {
   xProfileUrl,
 } from "@/lib/format";
 import { PnlAmount } from "@/components/pnl-amount";
+import { TierBadge } from "@/components/tier-badge";
 import { trackXProfileLinkClicked } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
 
@@ -156,20 +157,23 @@ export function FeedUserLink({
     <div className="flex items-center gap-2.5 min-w-0">
       <Avatar url={user.x_avatar_url} name={displayName || handle || "?"} />
       <div className="min-w-0 leading-tight">
-        {handle ? (
-          <Link
-            href={`/u/${encodeURIComponent(handle)}`}
-            onClick={(e) => e.stopPropagation()}
-            data-testid={`link-profile-${handle}`}
-            className="block truncate text-foreground font-medium hover:text-accent transition-colors"
-          >
-            {displayName || `@${handle}`}
-          </Link>
-        ) : (
-          <span className="block truncate text-foreground font-medium">
-            {displayName || "Anonymous"}
-          </span>
-        )}
+        <div className="flex items-center gap-1.5 min-w-0">
+          {handle ? (
+            <Link
+              href={`/u/${encodeURIComponent(handle)}`}
+              onClick={(e) => e.stopPropagation()}
+              data-testid={`link-profile-${handle}`}
+              className="truncate text-foreground font-medium hover:text-accent transition-colors"
+            >
+              {displayName || `@${handle}`}
+            </Link>
+          ) : (
+            <span className="truncate text-foreground font-medium">
+              {displayName || "Anonymous"}
+            </span>
+          )}
+          <TierBadge size="sm" tier={user.graduation_tier} />
+        </div>
         {handle && (
           <span className="block truncate text-[11px] text-muted-foreground">
             @{handle}

@@ -47,6 +47,7 @@ import {
 } from "@/lib/format";
 import { PnlAmount } from "@/components/pnl-amount";
 import { TierBadge } from "@/components/tier-badge";
+import { tierMeta } from "@/lib/tiers";
 import { TokenSearch } from "@/components/token-search";
 import { PlaceholderCard } from "@/components/feed-card";
 import {
@@ -1228,7 +1229,7 @@ export default function ProfilePage() {
           value={<PnlAmount sol={stats.bestTrade} solUsd={solUsd} unit={false} />}
           cls={pnlColor(stats.bestTrade)}
         />
-        <StatTile label="Tier" value={stats.graduationTier} />
+        <StatTile label="Tier" value={tierMeta(stats.graduationTier).name} />
       </div>
 
       {/* Reputation card: real X account data + BlackPebble metric placeholders */}

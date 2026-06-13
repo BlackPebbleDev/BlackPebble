@@ -4,6 +4,7 @@ import { ensureThesesSchema } from "./theses.js";
 import { getTokenStatsBatch } from "./prices.js";
 import { getTokenPeaks, recordTokenPeaks, athMultipleFrom } from "./peaks.js";
 import { BADGE_DEFINITIONS, ensureBadgesSchema } from "./badges.js";
+import { getUserTiers } from "./trading.js";
 
 /**
  * Read-only activity feed (Phase 1).
@@ -67,6 +68,7 @@ export interface FeedActivityItem {
     x_username: string;
     x_display_name: string | null;
     x_avatar_url: string | null;
+    graduation_tier?: string;
   };
 }
 
@@ -310,6 +312,14 @@ export async function getActivity(opts: {
       },
     };
   });
+
+  // Attach graduation_tier to each poster (decorative — never throws).
+  const uniqueUserIds = [...new Set(rows.map((r) => r.user_id))];
+  const tierMap = await getUserTiers(uniqueUserIds);
+  for (const item of items) {
+    const t = tierMap.get(item.user.user_id);
+    if (t) item.user.graduation_tier = t;
+  }
 
   await enrichCalloutPerformance(items, rows);
   return items;

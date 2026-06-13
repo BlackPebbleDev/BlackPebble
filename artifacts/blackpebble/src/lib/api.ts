@@ -879,6 +879,7 @@ export interface FeedActivityItem {
     x_username: string;
     x_display_name: string | null;
     x_avatar_url: string | null;
+    graduation_tier?: string;
   };
 }
 
@@ -907,6 +908,7 @@ export interface CallerEntry {
   callerScore: number;
   bestCall: CallerBestCall | null;
   officialBadges?: OfficialBadgeType[];
+  graduation_tier?: string;
 }
 
 export interface MostFollowedEntry {
@@ -917,6 +919,7 @@ export interface MostFollowedEntry {
   x_avatar_url: string | null;
   follower_count: number;
   officialBadges?: OfficialBadgeType[];
+  graduation_tier?: string;
 }
 
 // ---- SOL Recovery analytics ----

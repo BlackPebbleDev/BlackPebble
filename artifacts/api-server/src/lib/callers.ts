@@ -3,6 +3,7 @@ import { ensureProfileSchema } from "./profiles.js";
 import { getExecutionPrice } from "./prices.js";
 import { getTokenPeaks, recordTokenPeaks, athMultipleFrom } from "./peaks.js";
 import { getOfficialBadgesForUsers, type OfficialBadgeType } from "./badges.js";
+import { getUserTiers } from "./trading.js";
 
 /**
  * Top Caller reputation aggregation.
@@ -56,6 +57,7 @@ export interface CallerEntry {
   callerScore: number;
   bestCall: CallerBestCall | null;
   officialBadges: OfficialBadgeType[];
+  graduation_tier: string;
 }
 
 interface CalloutRow {
@@ -244,6 +246,7 @@ export async function computeCallers(): Promise<CallerEntry[]> {
       callerScore,
       bestCall: acc.bestCall,
       officialBadges: [],
+      graduation_tier: "Unranked",
     };
   });
 
@@ -255,9 +258,13 @@ export async function computeCallers(): Promise<CallerEntry[]> {
   });
 
   const userIds = entries.map((e) => e.user_id);
-  const badgeMap = await getOfficialBadgesForUsers(userIds);
+  const [badgeMap, tierMap] = await Promise.all([
+    getOfficialBadgesForUsers(userIds),
+    getUserTiers(userIds),
+  ]);
   for (const e of entries) {
     e.officialBadges = badgeMap.get(e.user_id) ?? [];
+    e.graduation_tier = tierMap.get(e.user_id) ?? "Unranked";
   }
 
   cache = { at: Date.now(), entries };

@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { asyncHandler } from "../lib/asyncHandler.js";
 import {
   getLeaderboard,
+  getUserTiers,
   type LeaderboardPeriod,
   MIN_LEADERBOARD_TRADES,
 } from "../lib/trading.js";
@@ -76,11 +77,15 @@ router.get(
         LIMIT 100`,
     );
     const userIds = rows.map((r) => r.user_id);
-    const badgeMap = await getOfficialBadgesForUsers(userIds);
+    const [badgeMap, tierMap] = await Promise.all([
+      getOfficialBadgesForUsers(userIds),
+      getUserTiers(userIds),
+    ]);
     const entries = rows.map((r, i) => ({
       rank: i + 1,
       ...r,
       officialBadges: badgeMap.get(r.user_id) ?? [],
+      graduation_tier: tierMap.get(r.user_id) ?? "Unranked",
     }));
     return res.json({ entries });
   }),

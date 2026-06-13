@@ -109,6 +109,34 @@ export function graduationTier(allTimePnl: number): string {
   return "Unranked";
 }
 
+/**
+ * Batch-fetch best graduation_tier per user (highest realized_pnl account).
+ * Returns "Unranked" for users with no wallet account. Never throws — callers
+ * can display tiers as decorative so a DB error should not break the response.
+ */
+export async function getUserTiers(
+  userIds: number[],
+): Promise<Map<number, string>> {
+  if (userIds.length === 0) return new Map();
+  const placeholders = userIds.map((_, i) => `$${i + 1}`).join(", ");
+  try {
+    const rows = await dbAll<{ user_id: number; graduation_tier: string }>(
+      `SELECT DISTINCT ON (ui.user_id)
+              ui.user_id,
+              COALESCE(a.graduation_tier, 'Unranked') AS graduation_tier
+         FROM user_identities ui
+         JOIN accounts a ON a.wallet_address = ui.wallet_address
+        WHERE ui.provider = 'wallet'
+          AND ui.user_id IN (${placeholders})
+        ORDER BY ui.user_id, a.realized_pnl DESC`,
+      userIds as unknown[],
+    );
+    return new Map(rows.map((r) => [r.user_id, r.graduation_tier]));
+  } catch {
+    return new Map();
+  }
+}
+
 export async function ensureAccount(wallet: string): Promise<AccountRow> {
   await dbRun(
     `INSERT INTO accounts (wallet, paper_balance, created_at, last_active)
