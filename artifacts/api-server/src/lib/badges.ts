@@ -353,3 +353,101 @@ export async function getEarnedBadgeCount(userId: number): Promise<number> {
   ).catch(() => null);
   return row?.count ?? 0;
 }
+
+// ── Official Badges ───────────────────────────────────────────────────────────
+
+export type OfficialBadgeType = "founder" | "bp_team";
+
+export const OFFICIAL_BADGE_TYPES: OfficialBadgeType[] = ["founder", "bp_team"];
+
+export const OFFICIAL_BADGE_META: Record<
+  OfficialBadgeType,
+  { name: string; description: string }
+> = {
+  founder: {
+    name: "Founder",
+    description: "BlackPebble founder. Assigned by admin.",
+  },
+  bp_team: {
+    name: "BlackPebble Team",
+    description: "Official BlackPebble team member.",
+  },
+};
+
+let officialBadgeSchemaEnsured = false;
+
+export async function ensureOfficialBadgesSchema(): Promise<void> {
+  if (officialBadgeSchemaEnsured) return;
+  await dbRun(`
+    CREATE TABLE IF NOT EXISTS official_badges (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      badge_type TEXT NOT NULL,
+      assigned_by TEXT,
+      assigned_at BIGINT NOT NULL
+        DEFAULT EXTRACT(EPOCH FROM NOW())::bigint,
+      UNIQUE(user_id, badge_type)
+    )
+  `);
+  await dbRun(`
+    CREATE INDEX IF NOT EXISTS idx_official_badges_user
+      ON official_badges (user_id)
+  `);
+  officialBadgeSchemaEnsured = true;
+}
+
+export async function assignOfficialBadge(
+  userId: number,
+  badgeType: OfficialBadgeType,
+  assignedBy: string | null,
+): Promise<void> {
+  await ensureOfficialBadgesSchema();
+  const now = Math.floor(Date.now() / 1000);
+  await dbRun(
+    `INSERT INTO official_badges (user_id, badge_type, assigned_by, assigned_at)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (user_id, badge_type) DO NOTHING`,
+    [userId, badgeType, assignedBy, now],
+  );
+}
+
+export async function removeOfficialBadge(
+  userId: number,
+  badgeType: OfficialBadgeType,
+): Promise<void> {
+  await ensureOfficialBadgesSchema();
+  await dbRun(
+    `DELETE FROM official_badges WHERE user_id = $1 AND badge_type = $2`,
+    [userId, badgeType],
+  );
+}
+
+export async function getOfficialBadgesForUser(
+  userId: number,
+): Promise<OfficialBadgeType[]> {
+  await ensureOfficialBadgesSchema();
+  const rows = await dbAll<{ badge_type: string }>(
+    `SELECT badge_type FROM official_badges WHERE user_id = $1`,
+    [userId],
+  );
+  return rows.map((r) => r.badge_type as OfficialBadgeType);
+}
+
+export async function getOfficialBadgesForUsers(
+  userIds: number[],
+): Promise<Map<number, OfficialBadgeType[]>> {
+  if (userIds.length === 0) return new Map();
+  await ensureOfficialBadgesSchema();
+  const placeholders = userIds.map((_, i) => `$${i + 1}`).join(", ");
+  const rows = await dbAll<{ user_id: number; badge_type: string }>(
+    `SELECT user_id, badge_type FROM official_badges WHERE user_id IN (${placeholders})`,
+    userIds as unknown[],
+  );
+  const map = new Map<number, OfficialBadgeType[]>();
+  for (const r of rows) {
+    const list = map.get(r.user_id) ?? [];
+    list.push(r.badge_type as OfficialBadgeType);
+    map.set(r.user_id, list);
+  }
+  return map;
+}

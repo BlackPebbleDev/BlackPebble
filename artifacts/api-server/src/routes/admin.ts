@@ -20,6 +20,11 @@ import {
   type ResetOptions,
 } from "../lib/adminActions.js";
 import {
+  assignOfficialBadge,
+  removeOfficialBadge,
+  type OfficialBadgeType,
+} from "../lib/badges.js";
+import {
   bulkTagTest,
   deleteJournalAdmin,
   listAdminCallouts,
@@ -681,6 +686,65 @@ router.post(
       return res.status(400).json({ error: 'Type "FULL RESET" to confirm' });
     }
     return res.json(await fullReset());
+  }),
+);
+
+const VALID_OFFICIAL_BADGE_TYPES: OfficialBadgeType[] = ["founder", "bp_team"];
+
+router.post(
+  "/admin/official-badges/assign",
+  asyncHandler(async (req, res) => {
+    const session = await sessionFromRequest(req);
+    const { x_handle, badge_type } = req.body ?? {};
+    if (!x_handle || typeof x_handle !== "string") {
+      return res.status(400).json({ error: "x_handle is required" });
+    }
+    if (!VALID_OFFICIAL_BADGE_TYPES.includes(badge_type as OfficialBadgeType)) {
+      return res.status(400).json({ error: "badge_type must be founder or bp_team" });
+    }
+    const handle = x_handle.trim().replace(/^@+/, "").toLowerCase();
+    const user = await dbGet<{ user_id: number; x_username: string }>(
+      `SELECT ui.user_id, ui.x_username
+         FROM user_identities ui
+        WHERE ui.provider = 'x' AND LOWER(ui.x_username) = $1
+        LIMIT 1`,
+      [handle],
+    );
+    if (!user) {
+      return res.status(404).json({ error: "No BlackPebble user found with that X handle." });
+    }
+    await assignOfficialBadge(
+      user.user_id,
+      badge_type as OfficialBadgeType,
+      session?.x_username ?? null,
+    );
+    return res.json({ ok: true, user_id: user.user_id, x_username: user.x_username });
+  }),
+);
+
+router.post(
+  "/admin/official-badges/remove",
+  asyncHandler(async (req, res) => {
+    const { x_handle, badge_type } = req.body ?? {};
+    if (!x_handle || typeof x_handle !== "string") {
+      return res.status(400).json({ error: "x_handle is required" });
+    }
+    if (!VALID_OFFICIAL_BADGE_TYPES.includes(badge_type as OfficialBadgeType)) {
+      return res.status(400).json({ error: "badge_type must be founder or bp_team" });
+    }
+    const handle = x_handle.trim().replace(/^@+/, "").toLowerCase();
+    const user = await dbGet<{ user_id: number; x_username: string }>(
+      `SELECT ui.user_id, ui.x_username
+         FROM user_identities ui
+        WHERE ui.provider = 'x' AND LOWER(ui.x_username) = $1
+        LIMIT 1`,
+      [handle],
+    );
+    if (!user) {
+      return res.status(404).json({ error: "No BlackPebble user found with that X handle." });
+    }
+    await removeOfficialBadge(user.user_id, badge_type as OfficialBadgeType);
+    return res.json({ ok: true });
   }),
 );
 

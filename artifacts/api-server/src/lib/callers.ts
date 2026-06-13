@@ -2,6 +2,7 @@ import { dbAll } from "./database.js";
 import { ensureProfileSchema } from "./profiles.js";
 import { getExecutionPrice } from "./prices.js";
 import { getTokenPeaks, recordTokenPeaks, athMultipleFrom } from "./peaks.js";
+import { getOfficialBadgesForUsers, type OfficialBadgeType } from "./badges.js";
 
 /**
  * Top Caller reputation aggregation.
@@ -54,6 +55,7 @@ export interface CallerEntry {
   hitRate: number;
   callerScore: number;
   bestCall: CallerBestCall | null;
+  officialBadges: OfficialBadgeType[];
 }
 
 interface CalloutRow {
@@ -241,6 +243,7 @@ export async function computeCallers(): Promise<CallerEntry[]> {
       hitRate,
       callerScore,
       bestCall: acc.bestCall,
+      officialBadges: [],
     };
   });
 
@@ -250,6 +253,12 @@ export async function computeCallers(): Promise<CallerEntry[]> {
   entries.forEach((e, i) => {
     e.rank = i + 1;
   });
+
+  const userIds = entries.map((e) => e.user_id);
+  const badgeMap = await getOfficialBadgesForUsers(userIds);
+  for (const e of entries) {
+    e.officialBadges = badgeMap.get(e.user_id) ?? [];
+  }
 
   cache = { at: Date.now(), entries };
   return entries;

@@ -25,12 +25,14 @@ import {
   EyeOff,
   Trash2,
   Megaphone,
+  Award,
 } from "lucide-react";
 import { useAdmin } from "@/hooks/use-admin";
 import { useToast } from "@/hooks/use-toast";
 import {
   api,
   type FeatureFlagKey,
+  type OfficialBadgeType,
   type ResetOptions,
   type RecoveryWindowStats,
   type AdminStatsWindow,
@@ -508,6 +510,98 @@ function FlagsSection() {
           </div>
         ))}
       </div>
+    </Card>
+  );
+}
+
+function BadgesSection() {
+  const [handle, setHandle] = useState("");
+  const [badgeType, setBadgeType] = useState<OfficialBadgeType>("bp_team");
+  const [result, setResult] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function act(action: "assign" | "remove") {
+    const h = handle.trim();
+    if (!h) return;
+    setResult(null);
+    setError(null);
+    setBusy(true);
+    try {
+      if (action === "assign") {
+        const res = await api.admin.assignOfficialBadge(h, badgeType);
+        const label = badgeType === "founder" ? "Founder" : "BlackPebble Team";
+        setResult(`Assigned ${label} badge to @${res.x_username}`);
+      } else {
+        await api.admin.removeOfficialBadge(h, badgeType);
+        const label = badgeType === "founder" ? "Founder" : "BlackPebble Team";
+        setResult(`Removed ${label} badge.`);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card title="Official Badges" icon={Award}>
+      <p className="text-sm text-muted-foreground mb-4">
+        Assign or remove Founder and BlackPebble Team badges by X handle. Badges
+        display on profiles and leaderboard cards.
+      </p>
+      <div className="flex flex-col sm:flex-row gap-3 mb-3">
+        <Input
+          placeholder="X handle (e.g. PumpGunna)"
+          value={handle}
+          onChange={(e) => setHandle(e.target.value)}
+          className="flex-1"
+        />
+        <select
+          value={badgeType}
+          onChange={(e) => setBadgeType(e.target.value as OfficialBadgeType)}
+          className="h-10 rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
+        >
+          <option value="bp_team">BlackPebble Team</option>
+          <option value="founder">Founder</option>
+        </select>
+      </div>
+      <div className="flex gap-2">
+        <Button
+          onClick={() => act("assign")}
+          disabled={busy || !handle.trim()}
+          size="sm"
+          className="bg-accent text-accent-foreground hover:bg-accent/90"
+        >
+          {busy ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            "Assign Badge"
+          )}
+        </Button>
+        <Button
+          onClick={() => act("remove")}
+          disabled={busy || !handle.trim()}
+          size="sm"
+          variant="outline"
+        >
+          {busy ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            "Remove Badge"
+          )}
+        </Button>
+      </div>
+      {result && (
+        <div className="mt-3 rounded-lg bg-emerald-950/40 border border-emerald-700/40 px-4 py-2 text-sm text-emerald-400">
+          {result}
+        </div>
+      )}
+      {error && (
+        <div className="mt-3 rounded-lg bg-red-950/40 border border-red-700/40 px-4 py-2 text-sm text-red-400">
+          {error}
+        </div>
+      )}
     </Card>
   );
 }
@@ -1730,6 +1824,12 @@ export default function AdminPage() {
         <LeverageSection />
         <FlagsSection />
         <OrdersSection />
+
+        <div className="flex items-center gap-2 pt-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          <Award className="h-4 w-4 text-accent" />
+          Official Badges
+        </div>
+        <BadgesSection />
 
         <div className="flex items-center gap-2 pt-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           <MessageSquare className="h-4 w-4 text-accent" />

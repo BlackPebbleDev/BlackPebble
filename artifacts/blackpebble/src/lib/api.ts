@@ -645,6 +645,8 @@ export interface TrustScore {
   label: TrustLabel;
 }
 
+export type OfficialBadgeType = "founder" | "bp_team";
+
 export type BadgeCategory = "trading" | "caller" | "thesis" | "community";
 export interface BadgeEntry {
   key: string;
@@ -674,6 +676,8 @@ export interface ProfileResponse {
   stats: ProfileStats;
   /** Computed trust score (0–100). Present on profile GET responses. */
   trustScore?: TrustScore;
+  /** Admin-assigned official badges (founder / bp_team). */
+  officialBadges?: OfficialBadgeType[];
 }
 
 /** Max bio length, kept in sync with the server-side BIO_MAX_LENGTH. */
@@ -902,6 +906,17 @@ export interface CallerEntry {
   hitRate: number;
   callerScore: number;
   bestCall: CallerBestCall | null;
+  officialBadges?: OfficialBadgeType[];
+}
+
+export interface MostFollowedEntry {
+  rank: number;
+  user_id: number;
+  x_username: string;
+  x_display_name: string | null;
+  x_avatar_url: string | null;
+  follower_count: number;
+  officialBadges?: OfficialBadgeType[];
 }
 
 // ---- SOL Recovery analytics ----
@@ -1227,6 +1242,10 @@ export const api = {
   leaderboardCallers: () =>
     request<{ entries: CallerEntry[] }>(`/leaderboard/callers`),
 
+  // Most Followed leaderboard: users ranked by BlackPebble follower count.
+  leaderboardMostFollowed: () =>
+    request<{ entries: MostFollowedEntry[] }>(`/leaderboard/most-followed`),
+
   // Self-service "start a new season" for a depleted account.
   newSeason: (wallet: string) =>
     request<{ ok: boolean; error?: string; balance?: number; season?: number; account?: Account }>(
@@ -1443,6 +1462,18 @@ export const api = {
     recoveryStats: () =>
       request<RecoveryStatsResponse>("/admin/recovery-stats"),
     leverageStats: () => request<LeverageStats>("/admin/leverage-stats"),
+
+    // ── Official Badges ──
+    assignOfficialBadge: (x_handle: string, badge_type: OfficialBadgeType) =>
+      request<{ ok: boolean; user_id: number; x_username: string }>(
+        "/admin/official-badges/assign",
+        { method: "POST", body: JSON.stringify({ x_handle, badge_type }) },
+      ),
+    removeOfficialBadge: (x_handle: string, badge_type: OfficialBadgeType) =>
+      request<{ ok: boolean }>(
+        "/admin/official-badges/remove",
+        { method: "POST", body: JSON.stringify({ x_handle, badge_type }) },
+      ),
 
     // ── Social Control Center ──
     social: {

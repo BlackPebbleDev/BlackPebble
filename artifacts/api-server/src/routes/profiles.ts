@@ -23,6 +23,7 @@ import {
   computeTrustScore,
   getEarnedBadgeCount,
   getUserBadges,
+  getOfficialBadgesForUser,
   type BadgeStatsInput,
 } from "../lib/badges.js";
 import {
@@ -111,9 +112,10 @@ router.get(
     const profile = await getProfile(String(req.params.id), viewerId);
     if (!profile) return res.status(404).json({ error: "Profile not found" });
 
-    const [callerEntry, earnedBadgeCount] = await Promise.all([
+    const [callerEntry, earnedBadgeCount, officialBadges] = await Promise.all([
       getCallerStats(profile.user_id),
       getEarnedBadgeCount(profile.user_id),
+      getOfficialBadgesForUser(profile.user_id),
     ]);
 
     const badgeStats: BadgeStatsInput = {
@@ -130,7 +132,7 @@ router.get(
     };
 
     const trustScore = computeTrustScore(badgeStats, earnedBadgeCount);
-    return res.json({ ...profile, trustScore });
+    return res.json({ ...profile, trustScore, officialBadges });
   }),
 );
 

@@ -1,14 +1,17 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { Trophy, Loader2, ExternalLink, Megaphone } from "lucide-react";
+import { Trophy, Loader2, ExternalLink, Megaphone, Users } from "lucide-react";
 import { useAccount } from "@/hooks/use-account";
 import {
   api,
   type LeaderboardPeriod,
   type LeaderboardEntry,
   type CallerEntry,
+  type MostFollowedEntry,
+  type OfficialBadgeType,
 } from "@/lib/api";
+import { OfficialBadge } from "@/components/official-badge";
 import { fmtPercent, fmtMultiple, shortAddr, xProfileUrl } from "@/lib/format";
 import { PnlAmount } from "@/components/pnl-amount";
 import { trackLeaderboardView } from "@/lib/analytics";
@@ -133,10 +136,12 @@ function TopCallers({
         multiple, and call volume. A call “hits” at 2× or more.
       </p>
 
-      {/* Mobile: card list */}
+      {/* Mobile: card list — matches Top Trader card style */}
       <div className="space-y-2 md:hidden" data-testid="list-callers-mobile">
         {entries.map((c) => {
           const pid = callerRowId(c);
+          const name = callerName(c);
+          const handle = c.x_username?.trim().replace(/^@+/, "") || null;
           return (
             <div
               key={c.user_id}
@@ -145,12 +150,11 @@ function TopCallers({
               onClick={() => goToProfile(pid)}
               onKeyDown={(e) => onRowKeyDown(e, pid)}
               data-testid={`caller-row-${c.rank}`}
-              className="rounded-xl bg-card shadow-card p-4 card-interactive cursor-pointer"
+              className="rounded-xl bg-card shadow-card p-3.5 cursor-pointer hover:bg-surface-3 transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-accent"
             >
-              <div className="flex items-center gap-3">
-                <span className="font-mono text-sm text-muted-foreground w-6 flex-shrink-0">
-                  {c.rank}
-                </span>
+              {/* Header row: rank + avatar + name/handle/badge + score */}
+              <div className="flex items-center gap-3 mb-3">
+                <RankBadge rank={c.rank} />
                 {c.x_avatar_url ? (
                   <img
                     src={c.x_avatar_url}
@@ -162,17 +166,23 @@ function TopCallers({
                   />
                 ) : (
                   <div className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center text-[11px] text-muted-foreground flex-shrink-0 font-mono">
-                    {callerName(c).replace(/^@/, "").slice(0, 2).toUpperCase()}
+                    {name.replace(/^@/, "").slice(0, 2).toUpperCase()}
                   </div>
                 )}
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-foreground font-medium">
-                    {callerName(c)}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="font-medium text-foreground truncate">
+                      {name}
+                    </span>
+                    {c.officialBadges?.map((b) => (
+                      <OfficialBadge key={b} type={b} size="sm" />
+                    ))}
                   </div>
-                  <div className="text-[11px] text-muted-foreground">
-                    {c.callsMade} call{c.callsMade === 1 ? "" : "s"} ·{" "}
-                    {fmtPercent(c.hitRate * 100, 0)} hit rate
-                  </div>
+                  {handle && (
+                    <div className="text-[11px] text-muted-foreground truncate">
+                      @{handle}
+                    </div>
+                  )}
                 </div>
                 <div className="text-right flex-shrink-0">
                   <div className="font-mono text-sm text-accent">
@@ -183,29 +193,30 @@ function TopCallers({
                   </div>
                 </div>
               </div>
-              <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-                <div>
-                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                    Avg
-                  </div>
-                  <div className="font-mono text-sm">
-                    {c.avgMultiple == null ? "—" : fmtMultiple(c.avgMultiple)}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                    Best
-                  </div>
-                  <div className="font-mono text-sm text-emerald-400">
-                    {c.bestMultiple == null ? "—" : fmtMultiple(c.bestMultiple)}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                    Graded
-                  </div>
-                  <div className="font-mono text-sm">{c.gradedCalls}</div>
-                </div>
+              {/* Stats grid — same LbField pattern as Top Trader */}
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
+                <LbField
+                  label="Calls"
+                  value={String(c.callsMade)}
+                />
+                <LbField
+                  label="Hit Rate"
+                  value={fmtPercent(c.hitRate * 100, 0)}
+                  cls={c.hitRate >= 0.6 ? "text-emerald-400" : undefined}
+                />
+                <LbField
+                  label="Avg Multiple"
+                  value={c.avgMultiple == null ? "—" : fmtMultiple(c.avgMultiple)}
+                />
+                <LbField
+                  label="Best"
+                  value={c.bestMultiple == null ? "—" : fmtMultiple(c.bestMultiple)}
+                  cls="text-emerald-400"
+                />
+                <LbField
+                  label="Graded"
+                  value={String(c.gradedCalls)}
+                />
               </div>
             </div>
           );
@@ -264,8 +275,13 @@ function TopCallers({
                         </div>
                       )}
                       <div className="min-w-0">
-                        <div className="truncate text-foreground font-medium">
-                          {callerName(c)}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="truncate text-foreground font-medium">
+                            {callerName(c)}
+                          </span>
+                          {c.officialBadges?.map((b) => (
+                            <OfficialBadge key={b} type={b} size="sm" />
+                          ))}
                         </div>
                         {c.bestCall && (
                           <div className="truncate text-[11px] text-muted-foreground">
@@ -303,6 +319,188 @@ function TopCallers({
   );
 }
 
+function MostFollowed({
+  goToProfile,
+  onRowKeyDown,
+}: {
+  goToProfile: (pid: string) => void;
+  onRowKeyDown: (e: React.KeyboardEvent, pid: string) => void;
+}) {
+  const { data, isLoading } = useQuery({
+    queryKey: ["leaderboard", "most-followed"],
+    queryFn: () => api.leaderboardMostFollowed(),
+    refetchInterval: 60_000,
+  });
+
+  const entries = data?.entries ?? [];
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (entries.length === 0) {
+    return (
+      <div
+        data-testid="leaderboard-most-followed-empty"
+        className="rounded-2xl border border-dashed border-border bg-card/40 text-center py-16 px-6"
+      >
+        <Users className="w-10 h-10 text-muted-foreground/40 mx-auto mb-4" />
+        <p className="text-foreground font-medium mb-1">No followed traders yet</p>
+        <p className="text-muted-foreground text-sm max-w-sm mx-auto">
+          Follow traders to start building the social graph. The most-followed
+          traders will be ranked here.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <p className="text-sm text-muted-foreground mb-6">
+        Ranked by BlackPebble follower count — traders others find worth following.
+      </p>
+
+      {/* Mobile: card list */}
+      <div className="space-y-2 md:hidden" data-testid="list-most-followed-mobile">
+        {entries.map((e: MostFollowedEntry) => {
+          const pid = e.x_username.trim().replace(/^@+/, "");
+          return (
+            <div
+              key={e.user_id}
+              role="button"
+              tabIndex={0}
+              onClick={() => goToProfile(pid)}
+              onKeyDown={(ev) => onRowKeyDown(ev, pid)}
+              data-testid={`followed-row-${e.rank}`}
+              className="rounded-xl bg-card shadow-card p-3.5 cursor-pointer hover:bg-surface-3 transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-accent"
+            >
+              <div className="flex items-center gap-3 mb-3">
+                <RankBadge rank={e.rank} />
+                {e.x_avatar_url ? (
+                  <img
+                    src={e.x_avatar_url}
+                    alt=""
+                    className="w-9 h-9 rounded-full object-cover flex-shrink-0"
+                    onError={(ev) =>
+                      (ev.currentTarget.style.visibility = "hidden")
+                    }
+                  />
+                ) : (
+                  <div className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center text-[11px] text-muted-foreground flex-shrink-0 font-mono">
+                    {(e.x_display_name || e.x_username)
+                      .replace(/^@/, "")
+                      .slice(0, 2)
+                      .toUpperCase()}
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {e.x_display_name && (
+                      <span className="font-medium text-foreground truncate">
+                        {e.x_display_name}
+                      </span>
+                    )}
+                    {e.officialBadges?.map((b) => (
+                      <OfficialBadge key={b} type={b} size="sm" />
+                    ))}
+                  </div>
+                  <div className="text-[11px] text-muted-foreground truncate">
+                    @{e.x_username.replace(/^@/, "")}
+                  </div>
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <div className="font-mono text-sm text-foreground">
+                    {e.follower_count}
+                  </div>
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Followers
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Desktop: table */}
+      <div className="hidden md:block rounded-2xl bg-card shadow-card overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="text-muted-foreground text-left border-b border-border">
+            <tr>
+              <th className="font-medium px-4 py-3 w-12">#</th>
+              <th className="font-medium px-4 py-3">Trader</th>
+              <th className="font-medium px-4 py-3 text-right">Followers</th>
+            </tr>
+          </thead>
+          <tbody>
+            {entries.map((e: MostFollowedEntry) => {
+              const pid = e.x_username.trim().replace(/^@+/, "");
+              return (
+                <tr
+                  key={e.user_id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => goToProfile(pid)}
+                  onKeyDown={(ev) => onRowKeyDown(ev, pid)}
+                  data-testid={`followed-row-${e.rank}`}
+                  className="border-b border-border/60 last:border-0 hover:bg-surface-3 cursor-pointer transition-colors"
+                >
+                  <td className="px-4 py-3">
+                    <RankBadge rank={e.rank} />
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      {e.x_avatar_url ? (
+                        <img
+                          src={e.x_avatar_url}
+                          alt=""
+                          className="w-8 h-8 rounded-full object-cover flex-shrink-0"
+                          onError={(ev) =>
+                            (ev.currentTarget.style.visibility = "hidden")
+                          }
+                        />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-[11px] text-muted-foreground flex-shrink-0 font-mono">
+                          {(e.x_display_name || e.x_username)
+                            .replace(/^@/, "")
+                            .slice(0, 2)
+                            .toUpperCase()}
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {e.x_display_name && (
+                            <span className="truncate text-foreground font-medium">
+                              {e.x_display_name}
+                            </span>
+                          )}
+                          {e.officialBadges?.map((b) => (
+                            <OfficialBadge key={b} type={b} size="sm" />
+                          ))}
+                        </div>
+                        <div className="text-[11px] text-muted-foreground truncate">
+                          @{e.x_username.replace(/^@/, "")}
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-right font-mono">
+                    {e.follower_count}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
 function pnlClass(v: number): string {
   if (v > 0) return "text-emerald-400";
   if (v < 0) return "text-red-400";
@@ -316,7 +514,13 @@ function profileId(entry: LeaderboardEntry): string | null {
   return handle || null;
 }
 
-function Trader({ entry }: { entry: LeaderboardEntry }) {
+function Trader({
+  entry,
+  officialBadges,
+}: {
+  entry: LeaderboardEntry;
+  officialBadges?: OfficialBadgeType[];
+}) {
   const handle = entry.x_username?.trim().replace(/^@+/, "") || null;
   const displayName = entry.x_display_name?.trim() || null;
   // Synthetic internal keys ("x:<id>") must never surface in the public UI.
@@ -345,11 +549,16 @@ function Trader({ entry }: { entry: LeaderboardEntry }) {
       <div className="min-w-0">
         {profileUrl ? (
           <>
-            {displayName && (
-              <div className="text-foreground font-medium truncate">
-                {displayName}
-              </div>
-            )}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {displayName && (
+                <span className="text-foreground font-medium truncate">
+                  {displayName}
+                </span>
+              )}
+              {officialBadges?.map((b) => (
+                <OfficialBadge key={b} type={b} size="sm" />
+              ))}
+            </div>
             <a
               href={profileUrl}
               target="_blank"
@@ -449,6 +658,8 @@ export default function Leaderboard() {
 
       {category === "top_callers" ? (
         <TopCallers goToProfile={goToProfile} onRowKeyDown={onRowKeyDown} />
+      ) : category === "most_followed" ? (
+        <MostFollowed goToProfile={goToProfile} onRowKeyDown={onRowKeyDown} />
       ) : category !== "top_traders" ? (
         <LeaderboardComingSoon category={category} />
       ) : (

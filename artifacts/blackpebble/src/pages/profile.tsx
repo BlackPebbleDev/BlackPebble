@@ -27,9 +27,11 @@ import {
   type CalloutResult,
   type CalloutWithDetail,
   type Conviction,
+  type OfficialBadgeType,
   type ProfileResponse,
   type ThesisWithAuthor,
 } from "@/lib/api";
+import { OfficialBadge } from "@/components/official-badge";
 import { useXAuth } from "@/hooks/use-x-auth";
 import { useSolUsd } from "@/hooks/use-sol-usd";
 import {
@@ -1146,6 +1148,9 @@ export default function ProfilePage() {
                 {displayName}
               </h1>
               <TierBadge tier={profile.graduationTier} size="sm" />
+              {(profile.officialBadges ?? []).map((b: OfficialBadgeType) => (
+                <OfficialBadge key={b} type={b} />
+              ))}
             </div>
             <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
               {profileUrl && (
