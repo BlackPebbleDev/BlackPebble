@@ -1,0 +1,115 @@
+BLACKPEBBLE PRE-MERGE SAFETY REVIEW
+
+Goal:
+Before merging repo-cleanup-safe-v1 into main, perform a final safety review.
+
+IMPORTANT:
+Do NOT publish.
+Do NOT deploy.
+Do NOT merge automatically.
+Do NOT make new feature changes.
+Do NOT redesign UI.
+
+Review the current branch:
+
+repo-cleanup-safe-v1
+
+Compare it against main and report whether it is safe to merge.
+
+====================================================
+1. REVIEW SECURITY CHANGES
+====================================================
+
+Confirm:
+
+- CORS changes will not break production
+- JWT_SECRET guard will not break production if secrets are set correctly
+- Helmet will not block required app behavior
+- Rate limiting will not break normal user activity
+- SQLite gitignore changes are safe
+- No secrets were exposed or newly committed
+
+====================================================
+2. REQUIRED ENV VARS
+====================================================
+
+List every required environment variable for production.
+
+Specifically confirm:
+
+- JWT_SECRET
+- CORS_ALLOWED_ORIGINS
+- Helius-related keys
+- database variables
+- OAuth/X auth variables if used
+- any Replit deployment secrets
+
+For each variable, state:
+
+- required or optional
+- where it is used
+- what happens if missing
+
+====================================================
+3. CONFIRM FUNCTIONALITY
+====================================================
+
+Verify these still work:
+
+- Trading page
+- Token page
+- GeckoTerminal chart
+- Markets page
+- Portfolio page
+- Feed page
+- Call token flow
+- Thesis flow
+- Journal
+- Leaderboard
+- Utilities
+- Admin dashboard
+- Search
+- X login/auth
+- Wallet connection
+
+====================================================
+4. REVIEW DELETED PACKAGES / FILES
+====================================================
+
+Confirm deleted packages/files were truly unused.
+
+Report:
+
+- packages removed
+- files deleted
+- why each was safe
+- whether any runtime risk remains
+
+====================================================
+5. GIT STATUS
+====================================================
+
+Report:
+
+- current branch
+- changed files
+- commits made
+- whether branch is ahead of main
+- whether merge conflicts exist
+- whether working tree is clean
+
+====================================================
+6. DO NOT MERGE YET
+====================================================
+
+Do not merge automatically.
+
+At the end, answer clearly:
+
+SAFE TO MERGE: YES / NO
+
+If NO:
+Explain exactly what must be fixed first.
+
+If YES:
+Give me the exact next steps to merge safely.
