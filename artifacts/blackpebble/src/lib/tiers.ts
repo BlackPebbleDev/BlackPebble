@@ -40,10 +40,15 @@ export function tierFromRealizedPnl(realizedPnlSol: number): TierName {
 export interface TierMeta {
   name: TierName;
   /**
-   * Tailwind classes for the pill: color, background tint, and optional glow
-   * for Gold and above. The pill shape (rounded-full) lives in TierBadge itself.
+   * Tailwind classes for the pill variant: color, background tint, and
+   * optional glow for Gold and above. Pill shape (rounded-full) is in TierBadge.
    */
   className: string;
+  /**
+   * Text-only color class — no background, no glow.
+   * Used by the "plain" variant for inline / dense surfaces (e.g. feed cards).
+   */
+  textClass: string;
   /** Prestige indicator glyph. Empty string for Unranked (badge hidden). */
   glyph: string;
 }
@@ -52,6 +57,7 @@ const ELITE_META: TierMeta = {
   name: "Elite",
   className:
     "text-violet-300 bg-violet-400/10 shadow-[0_0_8px_rgba(167,139,250,0.3)]",
+  textClass: "text-violet-300/90",
   glyph: "◈",
 };
 
@@ -62,27 +68,32 @@ const TIER_META: Record<string, TierMeta> = {
     name: "Diamond",
     className:
       "text-sky-300 bg-sky-400/10 shadow-[0_0_6px_rgba(125,211,252,0.2)]",
+    textClass: "text-sky-300/90",
     glyph: "◈",
   },
   gold: {
     name: "Gold",
     className:
       "text-amber-400 bg-amber-400/10 shadow-[0_0_6px_rgba(251,191,36,0.2)]",
+    textClass: "text-amber-400/90",
     glyph: "◈",
   },
   silver: {
     name: "Silver",
     className: "text-slate-300 bg-slate-300/10",
+    textClass: "text-slate-400",
     glyph: "◈",
   },
   bronze: {
     name: "Bronze",
     className: "text-amber-700 bg-amber-900/20",
+    textClass: "text-amber-700/90",
     glyph: "◈",
   },
   unranked: {
     name: "Unranked",
     className: "",
+    textClass: "",
     glyph: "",
   },
 };

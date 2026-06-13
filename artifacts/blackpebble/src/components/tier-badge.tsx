@@ -2,23 +2,49 @@ import { tierMeta } from "@/lib/tiers";
 import { cn } from "@/lib/utils";
 
 /**
- * Premium prestige tier badge. Renders as a compact rounded pill with a
- * subtle background tint and glow on Gold and above. Returns null for
- * Unranked users so no badge clutters the UI.
+ * Prestige tier indicator. Two variants:
  *
- * Display order: Official badge(s) → TierBadge.
+ * - "pill" (default) — rounded-full pill with subtle background tint and glow
+ *   on Gold and above. Used in leaderboard cards, profile headers, etc.
+ *
+ * - "plain" — bare text with tier color only; no background, no border, no
+ *   glow. Used in dense surfaces like feed cards where a pill would clutter.
+ *
+ * Returns null for Unranked users in both variants.
+ * Display order convention: Official badge(s) → TierBadge.
  */
 export function TierBadge({
   tier,
   size = "md",
+  variant = "pill",
   className,
 }: {
   tier: string | null | undefined;
   size?: "sm" | "md";
+  /** "pill" = rounded badge with bg/glow; "plain" = color-only text, no box */
+  variant?: "pill" | "plain";
   className?: string;
 }) {
   const meta = tierMeta(tier);
   if (meta.name === "Unranked") return null;
+
+  if (variant === "plain") {
+    return (
+      <span
+        data-testid={`tier-badge-${meta.name.toLowerCase()}`}
+        className={cn(
+          "inline-flex items-center gap-[3px] font-medium whitespace-nowrap text-[11px]",
+          meta.textClass,
+          className,
+        )}
+      >
+        <span aria-hidden className="text-[9px] leading-none opacity-70">
+          {meta.glyph}
+        </span>
+        {meta.name}
+      </span>
+    );
+  }
 
   return (
     <span

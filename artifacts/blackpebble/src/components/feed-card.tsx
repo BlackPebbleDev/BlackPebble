@@ -176,13 +176,13 @@ export function FeedUserLink({
           {user.official_badges?.map((b) => (
             <OfficialBadge key={b} type={b} size="xs" />
           ))}
-          <TierBadge size="sm" tier={user.graduation_tier} />
         </div>
         {handle && (
           <span className="block truncate text-[11px] text-muted-foreground">
             @{handle}
           </span>
         )}
+        <TierBadge variant="plain" tier={user.graduation_tier} />
       </div>
     </div>
   );
