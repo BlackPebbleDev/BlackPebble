@@ -3,7 +3,6 @@ import { Link, useParams } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Award,
-  BadgeCheck,
   ExternalLink,
   History,
   Loader2,
@@ -36,7 +35,6 @@ import { useSolUsd } from "@/hooks/use-sol-usd";
 import {
   fmtMarketCap,
   fmtMultiple,
-  fmtNum,
   fmtPercent,
   fmtPrice,
   multipleTone,
@@ -111,19 +109,6 @@ function SectionHeader({
       </h2>
     </div>
   );
-}
-
-/** "Mar 2019" — the month/year the X account was created. */
-function formatJoinDate(tsSeconds: number): string {
-  const d = new Date(tsSeconds * 1000);
-  const month = d.toLocaleString("en-US", { month: "short" });
-  return `${month} ${d.getFullYear()}`;
-}
-
-/** "5 yr" / "< 1 yr" — elapsed time since the X account was created. */
-function formatAge(tsSeconds: number): string {
-  const years = Math.floor((Date.now() / 1000 - tsSeconds) / (365.25 * 86400));
-  return years >= 1 ? `${years} yr` : "< 1 yr";
 }
 
 function BioSection({ profile }: { profile: ProfileResponse }) {
@@ -259,150 +244,78 @@ function BioSection({ profile }: { profile: ProfileResponse }) {
   );
 }
 
-/** Compact label/value row used inside the X Reputation card (no border). */
-function RepField({
-  label,
-  value,
-}: {
-  label: string;
-  value: React.ReactNode;
-}) {
-  return (
-    <div>
-      <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
-        {label}
-      </div>
-      <div className="mt-1 font-mono text-base text-foreground">{value}</div>
-    </div>
-  );
-}
-
-/** Muted em-dash shown when a real X value is missing. */
-const RepDash = () => <span className="text-muted-foreground/50">—</span>;
-
-/** "Coming soon" chip for metrics that aren't computed yet (no calc built). */
-const RepSoon = () => (
-  <span className="inline-flex items-center bg-secondary/50 px-1.5 py-0.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-    Coming soon
-  </span>
-);
-
-/** Muted locked-state label for metrics that unlock through activity. */
-const RepLocked = ({ reason = "Builds with activity" }: { reason?: string }) => (
-  <span className="inline-flex items-center gap-1 text-muted-foreground/60">
-    <Lock className="w-3 h-3 flex-shrink-0" />
-    <span className="text-[11px]">{reason}</span>
-  </span>
-);
-
-/** Labelled group of reputation fields inside the card (Account / Social / etc). */
-function RepGroup({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <div className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-        {title}
-      </div>
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">{children}</div>
-    </div>
-  );
+/** Trading Rank label derived from leaderboard position + trading history. */
+function tradingRankLabel(profile: ProfileResponse): string {
+  const { rank, stats } = profile;
+  if (rank != null && rank <= 10) return "Top 10";
+  if (rank != null && rank <= 100) return "Top 100";
+  const { closedTrades, roiPercent } = stats;
+  if (closedTrades >= 50) return "Veteran";
+  if (closedTrades >= 25 && roiPercent > 0) return "Elite Trader";
+  if (closedTrades >= 10) return "Advanced Trader";
+  if (closedTrades >= 3) return "Trader";
+  return "Recruit";
 }
 
 function XReputationSection({ profile }: { profile: ProfileResponse }) {
-  const rep = profile.xReputation;
+  const key = profile.x_username || String(profile.user_id);
+  const { data } = useQuery({
+    queryKey: ["caller-stats", key],
+    queryFn: () =>
+      api.callouts.callerStats(profile.x_username || profile.user_id),
+    enabled: !!profile,
+    retry: false,
+    staleTime: 60_000,
+  });
+  const callerStats = data?.stats ?? null;
+
+  const trustScore = profile.trustScore?.score ?? 0;
+  const rankLabel = tradingRankLabel(profile);
+  const hasGradedCalls = callerStats != null && callerStats.gradedCalls > 0;
+  const callAccuracy = hasGradedCalls
+    ? `${(callerStats!.hitRate * 100).toFixed(0)}%`
+    : null;
+
   return (
     <>
       <SectionHeader icon={ShieldCheck} title="Reputation" />
       <div
         data-testid="reputation-card"
-        className="rounded-xl bg-card shadow-card p-5 space-y-6"
+        className="rounded-xl bg-card shadow-card overflow-hidden"
       >
-        <RepGroup title="Account">
-          <RepField
-            label="X Verified"
-            value={
-              rep.verified == null ? (
-                <RepDash />
-              ) : rep.verified ? (
-                <span className="inline-flex items-center gap-1 text-accent">
-                  <BadgeCheck className="w-4 h-4" /> Verified
-                </span>
-              ) : (
-                "No"
-              )
-            }
-          />
-          <RepField
-            label="Account Age"
-            value={
-              rep.accountCreatedAt != null ? (
-                formatAge(rep.accountCreatedAt)
-              ) : (
-                <RepDash />
-              )
-            }
-          />
-          <RepField
-            label="Join Date"
-            value={
-              rep.accountCreatedAt != null ? (
-                formatJoinDate(rep.accountCreatedAt)
-              ) : (
-                <RepDash />
-              )
-            }
-          />
-        </RepGroup>
-
-        <RepGroup title="Social">
-          <RepField
-            label="Followers"
-            value={rep.followers != null ? fmtNum(rep.followers) : <RepDash />}
-          />
-          <RepField
-            label="Following"
-            value={rep.following != null ? fmtNum(rep.following) : <RepDash />}
-          />
-        </RepGroup>
-
-        <RepGroup title="BlackPebble">
-          <RepField
-            label="Trust Score"
-            value={
-              profile.trustScore != null ? (
-                <span
-                  className={cn(
-                    "font-mono font-semibold",
-                    profile.trustScore.score <= 15
-                      ? "text-muted-foreground"
-                      : profile.trustScore.score <= 40
-                        ? "text-foreground"
-                        : profile.trustScore.score <= 70
-                          ? "text-amber-400"
-                          : "text-accent",
-                  )}
-                >
-                  {profile.trustScore.label}
-                </span>
-              ) : (
-                <RepLocked />
-              )
-            }
-          />
-          <RepField
-            label="Call Accuracy"
-            value={<RepLocked reason="Unlocks with call history" />}
-          />
-          <RepField
-            label="Trading Rank"
-            value={profile.rank != null ? `#${profile.rank}` : <RepDash />}
-          />
-        </RepGroup>
+        <div className="grid grid-cols-3 divide-x divide-border">
+          <div className="flex flex-col items-center gap-1 py-5 px-3">
+            <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
+              Trust Score
+            </div>
+            <div className="font-mono text-2xl font-bold text-foreground">
+              {trustScore}
+            </div>
+          </div>
+          <div className="flex flex-col items-center gap-1 py-5 px-3 text-center">
+            <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
+              Trading Rank
+            </div>
+            <div className="font-mono text-sm font-semibold text-foreground leading-tight">
+              {rankLabel}
+            </div>
+          </div>
+          <div className="flex flex-col items-center gap-1 py-5 px-3">
+            <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
+              Call Accuracy
+            </div>
+            <div
+              className={cn(
+                "font-mono font-semibold",
+                callAccuracy
+                  ? "text-2xl text-foreground"
+                  : "text-xs text-muted-foreground",
+              )}
+            >
+              {callAccuracy ?? "No Calls Yet"}
+            </div>
+          </div>
+        </div>
       </div>
     </>
   );
@@ -961,41 +874,39 @@ function CallerStatsSection({ profile }: { profile: ProfileResponse }) {
           <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
         </div>
       ) : !stats || stats.callsMade === 0 ? (
-        <PlaceholderCard
-          kind="callout"
-          icon={Megaphone}
-          title={profile.isSelf ? "No caller stats yet" : "No calls yet"}
-          body="Caller reputation — calls made, hit rate, average and best multiple — appears here once calls are on the record."
-        />
+        <div
+          data-testid="caller-stats-empty"
+          className="rounded-xl bg-card shadow-card p-5 text-center"
+        >
+          <p className="text-sm text-muted-foreground">No Calls Yet</p>
+        </div>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-          <StatTile label="Caller Rank" value={`#${stats.rank}`} />
-          <StatTile label="Calls Made" value={String(stats.callsMade)} />
+          <StatTile label="Total Calls" value={String(stats.callsMade)} />
           <StatTile
-            label="Hit Rate"
-            value={fmtPercent(stats.hitRate * 100, 0)}
+            label="Winning Calls"
+            value={String(
+              stats.gradedCalls > 0
+                ? Math.round(stats.hitRate * stats.gradedCalls)
+                : 0,
+            )}
           />
           <StatTile
-            label="Caller Score"
-            value={stats.callerScore.toFixed(1)}
-            cls="text-accent"
+            label="Win Rate"
+            value={
+              stats.gradedCalls > 0
+                ? fmtPercent(stats.hitRate * 100, 0)
+                : "—"
+            }
           />
           <StatTile
             label="Avg Multiple"
-            value={stats.avgMultiple == null ? "—" : fmtMultiple(stats.avgMultiple)}
+            value={stats.avgMultiple != null ? fmtMultiple(stats.avgMultiple) : "—"}
           />
-          <StatTile
-            label="Best Multiple"
-            value={
-              stats.bestMultiple == null ? "—" : fmtMultiple(stats.bestMultiple)
-            }
-            cls={stats.bestMultiple != null ? "text-emerald-400" : undefined}
-          />
-          <StatTile label="Graded Calls" value={String(stats.gradedCalls)} />
           {stats.bestCall ? (
             <Link
               href={`/?token=${stats.bestCall.token_mint}`}
-              className="block rounded-lg border border-border bg-secondary/30 p-3 hover:border-accent/60 transition-colors"
+              className="col-span-2 md:col-span-4 block rounded-xl border border-border bg-secondary/30 p-3 hover:border-accent/60 transition-colors"
             >
               <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
                 Best Call
