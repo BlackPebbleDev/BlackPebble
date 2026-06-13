@@ -23,13 +23,19 @@ app.use(
 
 // ---------------------------------------------------------------------------
 // CORS — allow known origins in production, all origins in development.
-// Set CORS_ALLOWED_ORIGINS (comma-separated) in the deployment environment.
+// FRONTEND_URL is always included automatically.
+// Set CORS_ALLOWED_ORIGINS (comma-separated) for additional origins.
 // Example: "https://blackpebble.fun,https://blackpebble.replit.app"
 // ---------------------------------------------------------------------------
 const rawAllowedOrigins = process.env["CORS_ALLOWED_ORIGINS"];
-const allowedOrigins = rawAllowedOrigins
+const extraOrigins = rawAllowedOrigins
   ? rawAllowedOrigins.split(",").map((o) => o.trim()).filter(Boolean)
-  : null;
+  : [];
+const frontendUrl = process.env["FRONTEND_URL"];
+if (frontendUrl) extraOrigins.push(frontendUrl);
+// In production (when any explicit origins are listed) restrict to allowlist;
+// in development (no overrides at all) fall back to allowing all origins.
+const allowedOrigins = extraOrigins.length > 0 ? [...new Set(extraOrigins)] : null;
 
 app.use(
   cors({
