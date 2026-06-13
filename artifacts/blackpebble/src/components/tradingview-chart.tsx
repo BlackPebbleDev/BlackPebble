@@ -43,22 +43,10 @@ export function TradingViewChart({ pairAddress }: { pairAddress: string }) {
     "loading",
   );
   const [nonce, setNonce] = useState(0);
-  const [mode, setMode] = useState<ChartMode>(loadChartMode);
+  // Mode is read from localStorage (default: market_cap). GeckoTerminal's own
+  // built-in toggle handles switching — no outer toggle needed.
+  const mode: ChartMode = loadChartMode();
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
-
-  // Switch the chart mode: remember the choice across token pages and remount
-  // the iframe (the chart_type can only be set at load time).
-  function changeMode(next: ChartMode) {
-    if (next === mode) return;
-    setMode(next);
-    try {
-      window.localStorage.setItem(CHART_MODE_KEY, next);
-    } catch {
-      /* private mode / storage disabled — non-fatal */
-    }
-    setStatus("loading");
-    setNonce((n) => n + 1);
-  }
 
   useEffect(() => {
     setStatus("loading");
@@ -84,34 +72,6 @@ export function TradingViewChart({ pairAddress }: { pairAddress: string }) {
 
   return (
     <div className="relative flex flex-col rounded-2xl bg-card shadow-card overflow-hidden h-[440px] md:h-[560px] border border-border/60">
-      <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border/60">
-        <span className="text-[11px] uppercase tracking-wider text-muted-foreground">
-          Chart
-        </span>
-        <div className="flex items-center gap-0.5 rounded-full border border-border/60 bg-secondary/40 p-0.5">
-          {(
-            [
-              ["market_cap", "MCAP"],
-              ["price", "Price"],
-            ] as const
-          ).map(([value, label]) => (
-            <button
-              key={value}
-              onClick={() => changeMode(value)}
-              data-testid={`button-chart-mode-${value}`}
-              aria-pressed={mode === value}
-              className={
-                "px-2.5 h-6 rounded-full text-[11px] font-medium transition-colors " +
-                (mode === value
-                  ? "bg-accent/20 text-accent"
-                  : "text-muted-foreground hover:text-foreground")
-              }
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
       <div className="relative flex-1">
         <iframe
           key={`${pairAddress}-${nonce}`}
