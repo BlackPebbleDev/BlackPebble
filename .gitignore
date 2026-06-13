@@ -55,3 +55,7 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Instruction files dropped by the Replit agent (task descriptions, review docs).
+# These are ephemeral context files, not project source.
+attached_assets/
