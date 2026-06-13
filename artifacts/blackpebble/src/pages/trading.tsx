@@ -1960,7 +1960,7 @@ function CallTokenButton({ info }: { info: TokenInfo }) {
     setOpen(true);
   };
 
-  const canSubmit = !!thesis.trim() && !mutation.isPending;
+  const canSubmit = !mutation.isPending;
 
   return (
     <>
@@ -2013,7 +2013,7 @@ function CallTokenButton({ info }: { info: TokenInfo }) {
               onChange={(e) => setThesis(e.target.value)}
               maxLength={CALLOUT_THESIS_MAX}
               rows={3}
-              placeholder="Your thesis — why this call?"
+              placeholder="Your thesis — why this call? (optional)"
               data-testid="input-call-token-thesis"
               className="w-full bg-secondary/40 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-accent transition-colors resize-none"
             />

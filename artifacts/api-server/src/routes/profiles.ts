@@ -271,10 +271,11 @@ router.get(
 );
 
 /**
- * Owner-only: create an immutable callout. The caller supplies the token + a
- * thesis; the server snapshots authoritative entry price / market cap /
- * liquidity from the live price source so the on-the-record entry can never be
- * back-dated or spoofed. There is intentionally NO edit or delete path.
+ * Owner-only: create an immutable callout. The caller supplies the token + an
+ * optional thesis + conviction; the server snapshots authoritative entry price /
+ * market cap / liquidity from the live price source so the on-the-record entry
+ * can never be back-dated or spoofed. There is intentionally NO edit or delete
+ * path. Thesis is optional — a call with no thesis is valid.
  *
  * Declared before `/profiles/:id/*` matchers so "me" is never read as a handle.
  */
@@ -288,11 +289,8 @@ router.post(
     if (!tokenMint) {
       return res.status(400).json({ error: "A token is required" });
     }
-    const thesis = String(req.body?.thesis ?? "").trim();
-    if (!thesis) {
-      return res.status(400).json({ error: "A thesis is required" });
-    }
-    if (thesis.length > THESIS_MAX) {
+    const thesis = String(req.body?.thesis ?? "").trim() || null;
+    if (thesis !== null && thesis.length > THESIS_MAX) {
       return res
         .status(400)
         .json({ error: `Thesis must be ${THESIS_MAX} characters or fewer` });

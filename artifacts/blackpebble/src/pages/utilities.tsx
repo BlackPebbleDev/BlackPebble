@@ -1,6 +1,7 @@
 import { Sparkles, ChevronRight, Target, BookOpen } from "lucide-react";
 import { Link } from "wouter";
 import { useFeatureFlags } from "@/hooks/use-feature-flags";
+import { SupportSection } from "@/components/support-section";
 
 export default function Utilities() {
   const flags = useFeatureFlags();
@@ -89,6 +90,10 @@ export default function Utilities() {
         </Link>{" "}
         for what's next.
       </p>
+
+      <div className="border-t border-border/50 pt-6">
+        <SupportSection />
+      </div>
     </div>
   );
 }
