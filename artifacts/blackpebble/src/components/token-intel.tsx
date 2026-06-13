@@ -71,19 +71,6 @@ function Tile({
   );
 }
 
-/** A "Coming Soon" tile for data the model doesn't capture yet. */
-function SoonTile({ label }: { label: string }) {
-  return (
-    <div className="rounded-xl bg-secondary/20 border border-dashed border-border/60 px-3 py-2.5">
-      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-        {label}
-      </div>
-      <div className="mt-1 text-xs font-medium text-muted-foreground/70">
-        Coming Soon
-      </div>
-    </div>
-  );
-}
 
 function SectionHeader({
   icon: Icon,
@@ -218,7 +205,6 @@ function IntelligencePanel({
               accent={info.buys24h != null}
             />
             <Tile label="Sells 24h" value={fmtInt(info.sells24h)} />
-            <SoonTile label="Holders" />
           </div>
         </div>
 
@@ -238,8 +224,6 @@ function IntelligencePanel({
               mono={false}
             />
             <Tile label="Vol 1h" value={fmtMarketCap(info.volume1hUsd)} />
-            <SoonTile label="Largest Buy" />
-            <SoonTile label="Largest Sell" />
           </div>
           {ratio.buyPct != null && (
             <div className="mt-2 h-1.5 rounded-full bg-rose-500/30 overflow-hidden">
