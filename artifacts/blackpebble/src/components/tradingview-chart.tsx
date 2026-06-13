@@ -2,6 +2,27 @@ import { useEffect, useRef, useState } from "react";
 import { Loader2, RefreshCw, ExternalLink } from "lucide-react";
 
 /**
+ * Chart display mode. GeckoTerminal's embed accepts these exact values for its
+ * `chart_type` URL parameter (`market_cap` renders the MCAP chart, `price` the
+ * standard price chart). MCAP is our default on every token page.
+ */
+type ChartMode = "market_cap" | "price";
+
+const CHART_MODE_KEY = "bp_chart_mode";
+
+/** Read the remembered mode, defaulting to MCAP. */
+function loadChartMode(): ChartMode {
+  if (typeof window === "undefined") return "market_cap";
+  try {
+    return window.localStorage.getItem(CHART_MODE_KEY) === "price"
+      ? "price"
+      : "market_cap";
+  } catch {
+    return "market_cap";
+  }
+}
+
+/**
  * TradingView-style price chart for migrated tokens.
  *
  * A native TradingView widget can't be used for arbitrary SPL tokens (TradingView
@@ -22,7 +43,22 @@ export function TradingViewChart({ pairAddress }: { pairAddress: string }) {
     "loading",
   );
   const [nonce, setNonce] = useState(0);
+  const [mode, setMode] = useState<ChartMode>(loadChartMode);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
+
+  // Switch the chart mode: remember the choice across token pages and remount
+  // the iframe (the chart_type can only be set at load time).
+  function changeMode(next: ChartMode) {
+    if (next === mode) return;
+    setMode(next);
+    try {
+      window.localStorage.setItem(CHART_MODE_KEY, next);
+    } catch {
+      /* private mode / storage disabled — non-fatal */
+    }
+    setStatus("loading");
+    setNonce((n) => n + 1);
+  }
 
   useEffect(() => {
     setStatus("loading");
@@ -44,19 +80,48 @@ export function TradingViewChart({ pairAddress }: { pairAddress: string }) {
 
   const src =
     `https://www.geckoterminal.com/solana/pools/${pairAddress}` +
-    `?embed=1&info=0&swaps=0&grayscale=0&light_chart=0&chart_type=price&resolution=15m`;
+    `?embed=1&info=0&swaps=0&grayscale=0&light_chart=0&chart_type=${mode}&resolution=15m`;
 
   return (
-    <div className="relative rounded-2xl bg-card shadow-card overflow-hidden h-[440px] md:h-[560px] border border-border/60">
-      <iframe
-        key={`${pairAddress}-${nonce}`}
-        ref={iframeRef}
-        title="TradingView chart"
-        src={src}
-        className="w-full h-full"
-        allow="clipboard-write"
-        onLoad={() => setStatus("loaded")}
-      />
+    <div className="relative flex flex-col rounded-2xl bg-card shadow-card overflow-hidden h-[440px] md:h-[560px] border border-border/60">
+      <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border/60">
+        <span className="text-[11px] uppercase tracking-wider text-muted-foreground">
+          Chart
+        </span>
+        <div className="flex items-center gap-0.5 rounded-full border border-border/60 bg-secondary/40 p-0.5">
+          {(
+            [
+              ["market_cap", "MCAP"],
+              ["price", "Price"],
+            ] as const
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              onClick={() => changeMode(value)}
+              data-testid={`button-chart-mode-${value}`}
+              aria-pressed={mode === value}
+              className={
+                "px-2.5 h-6 rounded-full text-[11px] font-medium transition-colors " +
+                (mode === value
+                  ? "bg-accent/20 text-accent"
+                  : "text-muted-foreground hover:text-foreground")
+              }
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="relative flex-1">
+        <iframe
+          key={`${pairAddress}-${nonce}`}
+          ref={iframeRef}
+          title="TradingView chart"
+          src={src}
+          className="w-full h-full"
+          allow="clipboard-write"
+          onLoad={() => setStatus("loaded")}
+        />
       {status === "loading" && (
         <div className="absolute inset-0 flex items-center justify-center bg-card/80 pointer-events-none">
           <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
@@ -91,6 +156,7 @@ export function TradingViewChart({ pairAddress }: { pairAddress: string }) {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }
