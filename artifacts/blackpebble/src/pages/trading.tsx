@@ -2153,7 +2153,7 @@ function ThesisButton({ info }: { info: TokenInfo }) {
       <button
         onClick={handleClick}
         data-testid="button-thesis"
-        className="flex items-center gap-2 px-4 h-10 rounded-full text-xs font-medium bg-secondary/60 text-foreground hover:bg-secondary transition-all"
+        className="flex items-center gap-2 px-4 h-10 rounded-full text-xs font-medium bg-secondary/60 text-muted-foreground hover:text-foreground hover:bg-secondary transition-all"
       >
         <ScrollText className="w-4 h-4" />
         Thesis
@@ -2305,9 +2305,9 @@ function CopyContract({ mint }: { mint: string }) {
       className="flex items-center gap-2 px-4 h-10 rounded-full bg-secondary/60 text-xs font-mono text-muted-foreground hover:text-foreground hover:bg-secondary transition-all"
     >
       {copied ? (
-        <Check className="w-3.5 h-3.5 text-accent" />
+        <Check className="w-4 h-4 text-accent" />
       ) : (
-        <Copy className="w-3.5 h-3.5" />
+        <Copy className="w-4 h-4" />
       )}
       {copied ? "Copied" : shortAddr(mint, 4)}
     </button>
@@ -2654,7 +2654,7 @@ export default function TradingDesk() {
             rel="noreferrer"
             className="flex items-center gap-2 px-4 h-10 rounded-full bg-secondary/60 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-all"
           >
-            <ExternalLink className="w-3.5 h-3.5" />
+            <ExternalLink className="w-4 h-4" />
             DexScreener
           </a>
           <div className="ml-auto">
