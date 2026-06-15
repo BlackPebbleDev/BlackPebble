@@ -340,6 +340,8 @@ export interface RecentCallout {
   /** Peak-since-tracking multiple (ATH high-water mark), >= currentMultiple. */
   athMultiple: number | null;
   currentMarketCapUsd: number | null;
+  /** Caller's graduation tier (decorative). */
+  graduation_tier?: string;
   created_at: number;
 }
 
@@ -353,6 +355,8 @@ export interface RecentThesis {
   content: string;
   sentiment: string;
   conviction: string | null;
+  /** Author's graduation tier (decorative). */
+  graduation_tier?: string;
   created_at: number;
   updated_at: number;
 }

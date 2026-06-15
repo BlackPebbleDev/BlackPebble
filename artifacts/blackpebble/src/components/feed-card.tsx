@@ -19,8 +19,7 @@ import {
   xProfileUrl,
 } from "@/lib/format";
 import { PnlAmount } from "@/components/pnl-amount";
-import { TierBadge } from "@/components/tier-badge";
-import { OfficialBadge } from "@/components/official-badge";
+import { UserIdentity } from "@/components/user-identity";
 import { trackXProfileLinkClicked } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
 
@@ -115,37 +114,6 @@ function CalloutPerformance({ item }: { item: FeedActivityItem }) {
   );
 }
 
-function Avatar({
-  url,
-  name,
-  size = 36,
-}: {
-  url: string | null;
-  name: string;
-  size?: number;
-}) {
-  const initial = name.replace(/^@+/, "").slice(0, 2).toUpperCase() || "?";
-  if (url) {
-    return (
-      <img
-        src={url}
-        alt=""
-        style={{ width: size, height: size }}
-        className="rounded-full object-cover flex-shrink-0"
-        onError={(e) => (e.currentTarget.style.visibility = "hidden")}
-      />
-    );
-  }
-  return (
-    <div
-      style={{ width: size, height: size }}
-      className="rounded-full bg-secondary flex items-center justify-center text-[11px] text-muted-foreground flex-shrink-0 font-mono"
-    >
-      {initial}
-    </div>
-  );
-}
-
 /** Avatar + display name/handle that links to the in-app profile. */
 export function FeedUserLink({
   user,
@@ -153,38 +121,24 @@ export function FeedUserLink({
   user: FeedActivityItem["user"];
 }) {
   const handle = user.x_username?.trim().replace(/^@+/, "") || null;
-  const displayName = user.x_display_name?.trim() || null;
   return (
-    <div className="flex items-center gap-2.5 min-w-0">
-      <Avatar url={user.x_avatar_url} name={displayName || handle || "?"} />
-      <div className="min-w-0 leading-tight">
-        <div className="flex items-center gap-1.5 min-w-0">
-          {handle ? (
-            <Link
-              href={`/u/${encodeURIComponent(handle)}`}
-              onClick={(e) => e.stopPropagation()}
-              data-testid={`link-profile-${handle}`}
-              className="truncate text-foreground font-medium hover:text-accent transition-colors"
-            >
-              {displayName || `@${handle}`}
-            </Link>
-          ) : (
-            <span className="truncate text-foreground font-medium">
-              {displayName || "Anonymous"}
-            </span>
-          )}
-          {user.official_badges?.map((b) => (
-            <OfficialBadge key={b} type={b} size="xs" />
-          ))}
-        </div>
-        {handle && (
-          <span className="block truncate text-[11px] text-muted-foreground">
-            @{handle}
-          </span>
-        )}
-        <TierBadge variant="plain" tier={user.graduation_tier} />
-      </div>
-    </div>
+    <UserIdentity
+      avatarUrl={user.x_avatar_url}
+      displayName={user.x_display_name}
+      handle={user.x_username}
+      officialBadges={user.official_badges}
+      tier={user.graduation_tier}
+      size="md"
+      badgeSize="xs"
+      tierVariant="plain"
+      tierPosition="below"
+      nameLink={
+        handle
+          ? { type: "internal", href: `/u/${encodeURIComponent(handle)}` }
+          : undefined
+      }
+      testIdName={handle ? `link-profile-${handle}` : undefined}
+    />
   );
 }
 

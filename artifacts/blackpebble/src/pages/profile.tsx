@@ -3,7 +3,6 @@ import { Link, useParams } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Award,
-  ExternalLink,
   History,
   Loader2,
   Lock,
@@ -27,11 +26,10 @@ import {
   type CalloutResult,
   type CalloutWithDetail,
   type Conviction,
-  type OfficialBadgeType,
   type ProfileResponse,
   type ThesisWithAuthor,
 } from "@/lib/api";
-import { OfficialBadge } from "@/components/official-badge";
+import { UserIdentity } from "@/components/user-identity";
 import { useXAuth } from "@/hooks/use-x-auth";
 import { useSolUsd } from "@/hooks/use-sol-usd";
 import {
@@ -46,7 +44,6 @@ import {
   xProfileUrl,
 } from "@/lib/format";
 import { PnlAmount } from "@/components/pnl-amount";
-import { TierBadge } from "@/components/tier-badge";
 import { tierMeta } from "@/lib/tiers";
 import { TokenSearch } from "@/components/token-search";
 import { PlaceholderCard } from "@/components/feed-card";
@@ -58,25 +55,6 @@ import {
 } from "@/lib/analytics";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-
-function Avatar({ url, name }: { url: string | null; name: string }) {
-  const initial = name.replace(/^@+/, "").slice(0, 2).toUpperCase() || "?";
-  if (url) {
-    return (
-      <img
-        src={url}
-        alt=""
-        className="w-16 h-16 md:w-20 md:h-20 rounded-full object-cover flex-shrink-0"
-        onError={(e) => (e.currentTarget.style.visibility = "hidden")}
-      />
-    );
-  }
-  return (
-    <div className="w-16 h-16 md:w-20 md:h-20 rounded-full bg-secondary flex items-center justify-center text-lg text-muted-foreground flex-shrink-0 font-mono">
-      {initial}
-    </div>
-  );
-}
 
 function StatTile({
   label,
@@ -1129,7 +1107,6 @@ export default function ProfilePage() {
   }
 
   const profile = data;
-  const displayName = profile.x_display_name?.trim() || `@${profile.x_username}`;
   const profileUrl = xProfileUrl(profile.x_username);
   const stats = profile.stats;
 
@@ -1137,68 +1114,57 @@ export default function ProfilePage() {
     <div className="w-full max-w-3xl mx-auto px-4 md:px-6 py-6">
       {/* Header */}
       <div className="rounded-2xl bg-card shadow-card p-5 md:p-6">
-        <div className="flex items-start gap-4">
-          <Avatar url={profile.x_avatar_url} name={displayName} />
-          <div className="min-w-0 flex-1">
-            {/* Identity: display name → @handle → bio */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <h1
-                data-testid="text-profile-name"
-                className="text-xl md:text-2xl font-semibold text-foreground truncate"
-              >
-                {displayName}
-              </h1>
-              <TierBadge tier={profile.graduationTier} size="sm" />
-              {(profile.officialBadges ?? []).map((b: OfficialBadgeType) => (
-                <OfficialBadge key={b} type={b} />
-              ))}
-            </div>
-            <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
-              {profileUrl && (
-                <a
-                  href={profileUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={() => trackXProfileLinkClicked()}
-                  data-testid="link-view-on-x"
-                  className="flex items-center gap-1 hover:text-accent transition-colors"
-                >
-                  @{profile.x_username}
-                  <ExternalLink className="w-3 h-3" />
-                </a>
-              )}
-              {profile.rank != null && (
-                <span className="font-mono">Rank #{profile.rank}</span>
-              )}
-            </div>
-
-            {/* Bio: directly under avatar/name/handle (owner can edit inline) */}
-            <BioSection profile={profile} />
-
-            {/* Social: followers / following */}
-            <div className="flex items-center gap-4 mt-3 text-sm">
-              <span data-testid="text-following-count">
-                <span className="font-semibold text-foreground">
-                  {profile.following}
-                </span>{" "}
-                <span className="text-muted-foreground">Following</span>
+        <UserIdentity
+          size="lg"
+          align="start"
+          nameAs="h1"
+          testIdName="text-profile-name"
+          avatarUrl={profile.x_avatar_url}
+          displayName={profile.x_display_name}
+          handle={profile.x_username}
+          officialBadges={profile.officialBadges}
+          tier={profile.graduationTier}
+          tierPosition="inline"
+          stopPropagation={false}
+          handleLink={
+            profileUrl ? { type: "external", href: profileUrl } : undefined
+          }
+          handleTestId="link-view-on-x"
+          onHandleClick={() => trackXProfileLinkClicked()}
+          handleTrailing={
+            profile.rank != null ? (
+              <span className="font-mono text-sm text-muted-foreground">
+                Rank #{profile.rank}
               </span>
-              <span data-testid="text-followers-count">
-                <span className="font-semibold text-foreground">
-                  {profile.followers}
-                </span>{" "}
-                <span className="text-muted-foreground">Followers</span>
-              </span>
-            </div>
+            ) : undefined
+          }
+        >
+          {/* Bio: directly under avatar/name/handle (owner can edit inline) */}
+          <BioSection profile={profile} />
 
-            {/* Social action: follow button (hidden for self) */}
-            {!profile.isSelf && (
-              <div className="mt-3">
-                <FollowButton profile={profile} />
-              </div>
-            )}
+          {/* Social: followers / following */}
+          <div className="flex items-center gap-4 mt-3 text-sm">
+            <span data-testid="text-following-count">
+              <span className="font-semibold text-foreground">
+                {profile.following}
+              </span>{" "}
+              <span className="text-muted-foreground">Following</span>
+            </span>
+            <span data-testid="text-followers-count">
+              <span className="font-semibold text-foreground">
+                {profile.followers}
+              </span>{" "}
+              <span className="text-muted-foreground">Followers</span>
+            </span>
           </div>
-        </div>
+
+          {/* Social action: follow button (hidden for self) */}
+          {!profile.isSelf && (
+            <div className="mt-3">
+              <FollowButton profile={profile} />
+            </div>
+          )}
+        </UserIdentity>
       </div>
 
       {/* Trader stats (real) */}

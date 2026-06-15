@@ -22,6 +22,7 @@ import {
   timeAgo,
 } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { UserIdentity } from "@/components/user-identity";
 
 /** Token age from the pair-creation timestamp (ms epoch). */
 function fmtAge(ms?: number | null): string {
@@ -85,37 +86,6 @@ function SectionHeader({
       <h3 className="text-sm font-semibold text-foreground">{title}</h3>
     </div>
   );
-}
-
-function Avatar({
-  url,
-  name,
-}: {
-  url: string | null;
-  name: string | null;
-}) {
-  if (url) {
-    return (
-      <img
-        src={url}
-        alt={name ?? ""}
-        className="w-7 h-7 rounded-full object-cover flex-shrink-0"
-        loading="lazy"
-      />
-    );
-  }
-  return (
-    <div className="w-7 h-7 rounded-full bg-accent/15 text-accent flex items-center justify-center text-[11px] font-semibold flex-shrink-0">
-      {(name ?? "?").slice(0, 1).toUpperCase()}
-    </div>
-  );
-}
-
-function callerName(
-  display: string | null,
-  username: string | null,
-): string {
-  return display || (username ? `@${username}` : "Anonymous");
 }
 
 function convictionTone(c: string | null): string {
@@ -345,18 +315,32 @@ function RecentThesesCard({
             return (
               <div
                 key={t.id}
-                className="flex items-start gap-3 rounded-xl bg-secondary/20 border border-border/60 px-3 py-2.5"
+                className="rounded-xl bg-secondary/20 border border-border/60 px-3 py-2.5"
               >
-                <Avatar url={t.x_avatar_url} name={t.x_display_name} />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-semibold text-foreground truncate">
-                      {callerName(t.x_display_name, t.x_username)}
-                    </span>
+                <UserIdentity
+                  size="sm"
+                  align="start"
+                  avatarUrl={t.x_avatar_url}
+                  displayName={t.x_display_name}
+                  handle={t.x_username}
+                  tier={t.graduation_tier}
+                  tierPosition="inline"
+                  showHandle={false}
+                  fallbackName="Anonymous"
+                  nameLink={
+                    t.x_username
+                      ? {
+                          type: "internal",
+                          href: `/u/${encodeURIComponent(t.x_username)}`,
+                        }
+                      : undefined
+                  }
+                  handleTrailing={
                     <span className="text-[10px] text-muted-foreground flex-shrink-0">
                       {timeAgo(t.created_at)}
                     </span>
-                  </div>
+                  }
+                >
                   <p className="text-xs font-semibold text-foreground mt-1 line-clamp-1">
                     {t.title}
                   </p>
@@ -383,7 +367,7 @@ function RecentThesesCard({
                       </span>
                     )}
                   </div>
-                </div>
+                </UserIdentity>
               </div>
             );
           })}
@@ -433,12 +417,25 @@ function RecentCalloutsCard({
                   className="border-t border-border/40"
                 >
                   <td className="py-2.5 pr-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <Avatar url={c.x_avatar_url} name={c.x_display_name} />
-                      <span className="font-medium text-foreground truncate max-w-[120px]">
-                        {callerName(c.x_display_name, c.x_username)}
-                      </span>
-                    </div>
+                    <UserIdentity
+                      size="xs"
+                      avatarUrl={c.x_avatar_url}
+                      displayName={c.x_display_name}
+                      handle={c.x_username}
+                      tier={c.graduation_tier}
+                      tierPosition="inline"
+                      showHandle={false}
+                      fallbackName="Anonymous"
+                      nameLink={
+                        c.x_username
+                          ? {
+                              type: "internal",
+                              href: `/u/${encodeURIComponent(c.x_username)}`,
+                            }
+                          : undefined
+                      }
+                      className="max-w-[160px]"
+                    />
                   </td>
                   <td className="py-2.5 px-2 text-right font-mono text-muted-foreground">
                     {fmtMarketCap(c.call_market_cap)}

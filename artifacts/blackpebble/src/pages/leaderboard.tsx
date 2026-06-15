@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { Trophy, Loader2, ExternalLink, Megaphone, Users } from "lucide-react";
+import { Trophy, Loader2, Megaphone, Users } from "lucide-react";
 import { useAccount } from "@/hooks/use-account";
 import {
   api,
@@ -9,14 +9,29 @@ import {
   type LeaderboardEntry,
   type CallerEntry,
   type MostFollowedEntry,
-  type OfficialBadgeType,
 } from "@/lib/api";
-import { OfficialBadge } from "@/components/official-badge";
-import { fmtPercent, fmtMultiple, shortAddr, xProfileUrl } from "@/lib/format";
+import { UserIdentity, type IdentitySize } from "@/components/user-identity";
+import { fmtPercent, fmtMultiple, shortAddr } from "@/lib/format";
 import { PnlAmount } from "@/components/pnl-amount";
 import { trackLeaderboardView } from "@/lib/analytics";
-import { TierBadge } from "@/components/tier-badge";
 import { cn } from "@/lib/utils";
+
+/**
+ * Shared leaderboard card shell — every category (Top Traders / Top Callers /
+ * Most Followed) uses the exact same base shade, radius, padding and shadow so
+ * the tabs look identical. Only the rank accent differs.
+ */
+const LB_CARD = "rounded-xl bg-card shadow-card p-3.5 transition-colors";
+const LB_CARD_CLICK =
+  "cursor-pointer hover:bg-surface-3 focus:outline-none focus-visible:ring-1 focus-visible:ring-accent";
+
+/** Subtle rank accent ring: #1 gold, #2 silver, #3 bronze, #4+ none. */
+function rankAccent(rank: number): string {
+  if (rank === 1) return "ring-1 ring-amber-400/30";
+  if (rank === 2) return "ring-1 ring-zinc-300/25";
+  if (rank === 3) return "ring-1 ring-orange-400/25";
+  return "";
+}
 
 const tabs: { id: LeaderboardPeriod; label: string }[] = [
   { id: "daily", label: "Daily" },
@@ -82,14 +97,6 @@ function callerRowId(c: CallerEntry): string {
   return handle || String(c.user_id);
 }
 
-function callerName(c: CallerEntry): string {
-  return (
-    c.x_display_name?.trim() ||
-    (c.x_username ? `@${c.x_username.replace(/^@+/, "")}` : null) ||
-    `User ${c.user_id}`
-  );
-}
-
 function TopCallers({
   goToProfile,
   onRowKeyDown,
@@ -140,8 +147,6 @@ function TopCallers({
       <div className="space-y-2 md:hidden" data-testid="list-callers-mobile">
         {entries.map((c) => {
           const pid = callerRowId(c);
-          const name = callerName(c);
-          const handle = c.x_username?.trim().replace(/^@+/, "") || null;
           return (
             <div
               key={c.user_id}
@@ -150,41 +155,20 @@ function TopCallers({
               onClick={() => goToProfile(pid)}
               onKeyDown={(e) => onRowKeyDown(e, pid)}
               data-testid={`caller-row-${c.rank}`}
-              className="rounded-xl bg-card shadow-card p-3.5 cursor-pointer hover:bg-surface-3 transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-accent"
+              className={cn(LB_CARD, LB_CARD_CLICK, rankAccent(c.rank))}
             >
-              {/* Header row: rank + avatar + name/handle/badge + score */}
+              {/* Header row: rank + identity + score */}
               <div className="flex items-center gap-3 mb-3">
                 <RankBadge rank={c.rank} />
-                {c.x_avatar_url ? (
-                  <img
-                    src={c.x_avatar_url}
-                    alt=""
-                    className="w-9 h-9 rounded-full object-cover flex-shrink-0"
-                    onError={(e) =>
-                      (e.currentTarget.style.visibility = "hidden")
-                    }
-                  />
-                ) : (
-                  <div className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center text-[11px] text-muted-foreground flex-shrink-0 font-mono">
-                    {name.replace(/^@/, "").slice(0, 2).toUpperCase()}
-                  </div>
-                )}
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="font-medium text-foreground truncate">
-                      {name}
-                    </span>
-                    {c.officialBadges?.map((b) => (
-                      <OfficialBadge key={b} type={b} size="sm" />
-                    ))}
-                    <TierBadge size="sm" tier={c.graduation_tier} />
-                  </div>
-                  {handle && (
-                    <div className="text-[11px] text-muted-foreground truncate">
-                      @{handle}
-                    </div>
-                  )}
-                </div>
+                <UserIdentity
+                  className="flex-1"
+                  avatarUrl={c.x_avatar_url}
+                  displayName={c.x_display_name}
+                  handle={c.x_username}
+                  officialBadges={c.officialBadges}
+                  tier={c.graduation_tier}
+                  fallbackName={`User ${c.user_id}`}
+                />
                 <div className="text-right flex-shrink-0">
                   <div className="font-mono text-sm text-accent">
                     {c.callerScore.toFixed(1)}
@@ -257,44 +241,25 @@ function TopCallers({
                     {c.rank}
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      {c.x_avatar_url ? (
-                        <img
-                          src={c.x_avatar_url}
-                          alt=""
-                          className="w-8 h-8 rounded-full object-cover flex-shrink-0"
-                          onError={(e) =>
-                            (e.currentTarget.style.visibility = "hidden")
-                          }
-                        />
-                      ) : (
-                        <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-[11px] text-muted-foreground flex-shrink-0 font-mono">
-                          {callerName(c)
-                            .replace(/^@/, "")
-                            .slice(0, 2)
-                            .toUpperCase()}
-                        </div>
-                      )}
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="truncate text-foreground font-medium">
-                            {callerName(c)}
-                          </span>
-                          {c.officialBadges?.map((b) => (
-                            <OfficialBadge key={b} type={b} size="sm" />
-                          ))}
-                          <TierBadge size="sm" tier={c.graduation_tier} />
-                        </div>
-                        {c.bestCall && (
+                    <UserIdentity
+                      size="sm"
+                      avatarUrl={c.x_avatar_url}
+                      displayName={c.x_display_name}
+                      handle={c.x_username}
+                      officialBadges={c.officialBadges}
+                      tier={c.graduation_tier}
+                      fallbackName={`User ${c.user_id}`}
+                      subline={
+                        c.bestCall ? (
                           <div className="truncate text-[11px] text-muted-foreground">
                             Best:{" "}
                             {c.bestCall.token_symbol ||
                               shortAddr(c.bestCall.token_mint, 4)}{" "}
                             {fmtMultiple(c.bestCall.multiple)}
                           </div>
-                        )}
-                      </div>
-                    </div>
+                        ) : undefined
+                      }
+                    />
                   </td>
                   <td className="px-4 py-3 text-right font-mono">
                     {c.callsMade}
@@ -378,43 +343,18 @@ function MostFollowed({
               onClick={() => goToProfile(pid)}
               onKeyDown={(ev) => onRowKeyDown(ev, pid)}
               data-testid={`followed-row-${e.rank}`}
-              className="rounded-xl bg-card shadow-card p-3.5 cursor-pointer hover:bg-surface-3 transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-accent"
+              className={cn(LB_CARD, LB_CARD_CLICK, rankAccent(e.rank))}
             >
-              <div className="flex items-center gap-3 mb-3">
+              <div className="flex items-center gap-3">
                 <RankBadge rank={e.rank} />
-                {e.x_avatar_url ? (
-                  <img
-                    src={e.x_avatar_url}
-                    alt=""
-                    className="w-9 h-9 rounded-full object-cover flex-shrink-0"
-                    onError={(ev) =>
-                      (ev.currentTarget.style.visibility = "hidden")
-                    }
-                  />
-                ) : (
-                  <div className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center text-[11px] text-muted-foreground flex-shrink-0 font-mono">
-                    {(e.x_display_name || e.x_username)
-                      .replace(/^@/, "")
-                      .slice(0, 2)
-                      .toUpperCase()}
-                  </div>
-                )}
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {e.x_display_name && (
-                      <span className="font-medium text-foreground truncate">
-                        {e.x_display_name}
-                      </span>
-                    )}
-                    {e.officialBadges?.map((b) => (
-                      <OfficialBadge key={b} type={b} size="sm" />
-                    ))}
-                    <TierBadge size="sm" tier={e.graduation_tier} />
-                  </div>
-                  <div className="text-[11px] text-muted-foreground truncate">
-                    @{e.x_username.replace(/^@/, "")}
-                  </div>
-                </div>
+                <UserIdentity
+                  className="flex-1"
+                  avatarUrl={e.x_avatar_url}
+                  displayName={e.x_display_name}
+                  handle={e.x_username}
+                  officialBadges={e.officialBadges}
+                  tier={e.graduation_tier}
+                />
                 <div className="text-right flex-shrink-0">
                   <div className="font-mono text-sm text-foreground">
                     {e.follower_count}
@@ -456,41 +396,14 @@ function MostFollowed({
                     <RankBadge rank={e.rank} />
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      {e.x_avatar_url ? (
-                        <img
-                          src={e.x_avatar_url}
-                          alt=""
-                          className="w-8 h-8 rounded-full object-cover flex-shrink-0"
-                          onError={(ev) =>
-                            (ev.currentTarget.style.visibility = "hidden")
-                          }
-                        />
-                      ) : (
-                        <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-[11px] text-muted-foreground flex-shrink-0 font-mono">
-                          {(e.x_display_name || e.x_username)
-                            .replace(/^@/, "")
-                            .slice(0, 2)
-                            .toUpperCase()}
-                        </div>
-                      )}
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          {e.x_display_name && (
-                            <span className="truncate text-foreground font-medium">
-                              {e.x_display_name}
-                            </span>
-                          )}
-                          {e.officialBadges?.map((b) => (
-                            <OfficialBadge key={b} type={b} size="sm" />
-                          ))}
-                          <TierBadge size="sm" tier={e.graduation_tier} />
-                        </div>
-                        <div className="text-[11px] text-muted-foreground truncate">
-                          @{e.x_username.replace(/^@/, "")}
-                        </div>
-                      </div>
-                    </div>
+                    <UserIdentity
+                      size="sm"
+                      avatarUrl={e.x_avatar_url}
+                      displayName={e.x_display_name}
+                      handle={e.x_username}
+                      officialBadges={e.officialBadges}
+                      tier={e.graduation_tier}
+                    />
                   </td>
                   <td className="px-4 py-3 text-right font-mono">
                     {e.follower_count}
@@ -520,71 +433,25 @@ function profileId(entry: LeaderboardEntry): string | null {
 
 function Trader({
   entry,
-  officialBadges,
+  size = "sm",
 }: {
   entry: LeaderboardEntry;
-  officialBadges?: OfficialBadgeType[];
+  size?: IdentitySize;
 }) {
   const handle = entry.x_username?.trim().replace(/^@+/, "") || null;
-  const displayName = entry.x_display_name?.trim() || null;
   // Synthetic internal keys ("x:<id>") must never surface in the public UI.
   const isSynthetic = entry.wallet.startsWith("x:");
   const fallback = isSynthetic ? "Anonymous trader" : shortAddr(entry.wallet, 4);
-  const profileUrl = xProfileUrl(handle);
-  const initialSource =
-    displayName || handle || (isSynthetic ? "" : entry.wallet);
-  const initial =
-    initialSource.replace(/^@+/, "").slice(0, 2).toUpperCase() || "?";
 
   return (
-    <div className="flex items-center gap-2.5 min-w-0">
-      {entry.x_avatar_url ? (
-        <img
-          src={entry.x_avatar_url}
-          alt=""
-          className="w-7 h-7 rounded-full object-cover flex-shrink-0"
-          onError={(e) => (e.currentTarget.style.visibility = "hidden")}
-        />
-      ) : (
-        <div className="w-7 h-7 rounded-full bg-secondary flex items-center justify-center text-[10px] text-muted-foreground flex-shrink-0 font-mono">
-          {initial}
-        </div>
-      )}
-      <div className="min-w-0">
-        {profileUrl ? (
-          <>
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {displayName && (
-                <span className="text-foreground font-medium truncate">
-                  {displayName}
-                </span>
-              )}
-              {officialBadges?.map((b) => (
-                <OfficialBadge key={b} type={b} size="sm" />
-              ))}
-            </div>
-            <a
-              href={profileUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
-              data-testid={`link-x-${handle}`}
-              className={cn(
-                "flex items-center gap-1 truncate hover:text-accent transition-colors",
-                displayName
-                  ? "text-[11px] text-muted-foreground"
-                  : "text-foreground font-medium",
-              )}
-            >
-              <span className="truncate">@{handle}</span>
-              <ExternalLink className="w-3 h-3 flex-shrink-0 opacity-60" />
-            </a>
-          </>
-        ) : (
-          <div className="text-foreground font-medium truncate">{fallback}</div>
-        )}
-      </div>
-    </div>
+    <UserIdentity
+      size={size}
+      avatarUrl={entry.x_avatar_url}
+      displayName={entry.x_display_name}
+      handle={handle}
+      tier={entry.graduation_tier}
+      fallbackName={fallback}
+    />
   );
 }
 
@@ -732,23 +599,23 @@ export default function Leaderboard() {
                   role={pid ? "link" : undefined}
                   tabIndex={pid ? 0 : undefined}
                   className={cn(
-                    "rounded-xl bg-card shadow-card p-3.5 transition-colors",
-                    isMe && "ring-1 ring-accent/50 bg-accent/10",
-                    pid &&
-                      "cursor-pointer hover:bg-surface-3 focus:outline-none focus-visible:ring-1 focus-visible:ring-accent",
+                    LB_CARD,
+                    pid && LB_CARD_CLICK,
+                    isMe
+                      ? "ring-1 ring-accent/50 bg-accent/10"
+                      : rankAccent(e.rank),
                   )}
                 >
                   <div className="flex items-center gap-3 mb-3">
                     <RankBadge rank={e.rank} />
                     <div className="min-w-0 flex-1">
-                      <Trader entry={e} />
+                      <Trader entry={e} size="md" />
                     </div>
                     {isMe && (
                       <span className="text-[10px] uppercase tracking-wider text-accent shrink-0">
                         You
                       </span>
                     )}
-                    <TierBadge tier={e.graduation_tier} size="sm" />
                   </div>
                   <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
                     <LbField
@@ -799,7 +666,6 @@ export default function Leaderboard() {
               <tr className="text-left text-muted-foreground border-b border-border">
                 <th className="font-medium px-4 py-3 w-16">Rank</th>
                 <th className="font-medium px-4 py-3">Trader</th>
-                <th className="font-medium px-4 py-3 hidden sm:table-cell">Tier</th>
                 <th className="font-medium px-4 py-3 text-right">P&L</th>
                 <th className="font-medium px-4 py-3 text-right">ROI</th>
                 <th className="font-medium px-4 py-3 text-right hidden sm:table-cell">
@@ -842,9 +708,6 @@ export default function Leaderboard() {
                           You
                         </span>
                       )}
-                    </td>
-                    <td className="px-4 py-3 hidden sm:table-cell">
-                      <TierBadge tier={e.graduation_tier} size="sm" />
                     </td>
                     <td
                       className={cn(

@@ -4,6 +4,7 @@ import { ensureJournalSchema } from "./journal.js";
 import { countTokenTheses, getTokenTheses } from "./theses.js";
 import { getExecutionPrice } from "./prices.js";
 import { getTokenPeaks, recordTokenPeaks, athMultipleFrom } from "./peaks.js";
+import { getUserTiers } from "./trading.js";
 
 /**
  * Per-token "intelligence" aggregation for the Token Page V2 workstation.
@@ -60,6 +61,8 @@ export interface RecentCallout {
   /** Peak-since-tracking multiple (ATH high-water mark), >= currentMultiple. */
   athMultiple: number | null;
   currentMarketCapUsd: number | null;
+  /** Caller's graduation tier (decorative — never affects grading). */
+  graduation_tier?: string;
   created_at: number;
 }
 
@@ -73,6 +76,8 @@ export interface RecentThesis {
   content: string;
   sentiment: string;
   conviction: string | null;
+  /** Author's graduation tier (decorative — never affects anything). */
+  graduation_tier?: string;
   created_at: number;
   updated_at: number;
 }
@@ -212,6 +217,23 @@ export async function getTokenIntelligence(
     created_at: t.created_at,
     updated_at: t.updated_at,
   }));
+
+  // Attach graduation_tier per user (decorative — never throws, never grades).
+  const tierUserIds = [
+    ...new Set([
+      ...recentCallouts.map((c) => c.user_id),
+      ...recentTheses.map((t) => t.user_id),
+    ]),
+  ];
+  const tierMap = await getUserTiers(tierUserIds);
+  for (const c of recentCallouts) {
+    const t = tierMap.get(c.user_id);
+    if (t) c.graduation_tier = t;
+  }
+  for (const t of recentTheses) {
+    const tier = tierMap.get(t.user_id);
+    if (tier) t.graduation_tier = tier;
+  }
 
   // Cheap COUNT roll-ups for the Community Intelligence card.
   const [watchRow, journalRow] = await Promise.all([
