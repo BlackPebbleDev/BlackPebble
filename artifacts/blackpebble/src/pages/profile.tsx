@@ -559,7 +559,7 @@ function AddUpdateForm({
         e.preventDefault();
         if (content.trim()) mutation.mutate();
       }}
-      className="mt-3 flex items-center gap-2"
+      className="mt-3 flex items-stretch"
     >
       <input
         value={content}
@@ -567,13 +567,13 @@ function AddUpdateForm({
         maxLength={CALLOUT_UPDATE_MAX}
         placeholder="Add an update…"
         data-testid={`input-callout-update-${calloutId}`}
-        className="flex-1 h-9 bg-secondary/40 border border-border px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-accent transition-colors"
+        className="flex-1 h-9 rounded-l-2xl bg-secondary/40 border border-r-0 border-border px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-accent transition-colors"
       />
       <button
         type="submit"
         disabled={!content.trim() || mutation.isPending}
         data-testid={`button-callout-update-${calloutId}`}
-        className="inline-flex items-center justify-center h-9 w-9 bg-accent text-accent-foreground hover:bg-accent/90 transition-colors disabled:opacity-50 flex-shrink-0"
+        className="inline-flex items-center justify-center h-9 w-11 rounded-r-2xl bg-accent text-accent-foreground hover:bg-accent/90 transition-colors disabled:opacity-50 flex-shrink-0"
       >
         {mutation.isPending ? (
           <Loader2 className="w-4 h-4 animate-spin" />
@@ -598,7 +598,7 @@ function CalloutCard({
   return (
     <div
       data-testid={`card-callout-${callout.id}`}
-      className="rounded-xl bg-card shadow-card p-4"
+      className="rounded-3xl bg-card shadow-card p-4"
     >
       {/* Header: token identity + timestamp */}
       <div className="flex items-start gap-3">

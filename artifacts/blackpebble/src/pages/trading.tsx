@@ -1457,7 +1457,7 @@ function TradePanel({
                 min={unit === "SOL" ? 0.1 : 1}
                 step={unit === "SOL" ? 0.1 : 1}
                 data-testid="input-buy-amount"
-                className="w-full h-11 bg-background border border-border px-3 font-mono text-sm focus:outline-none focus:border-accent"
+                className="w-full h-11 rounded-2xl bg-background border border-border px-3 font-mono text-sm focus:outline-none focus:border-accent"
               />
             </div>
             <div className="grid grid-cols-4 gap-2">
@@ -1466,7 +1466,7 @@ function TradePanel({
                   key={p}
                   onClick={() => setSolAmount(String(p))}
                   data-testid={`preset-buy-${p}`}
-                  className="py-2 text-xs border border-border hover:border-accent hover:text-accent transition-colors font-mono"
+                  className="rounded-xl py-2 text-xs border border-border hover:border-accent hover:text-accent transition-colors font-mono"
                 >
                   {unit === "USD" ? `$${p}` : p}
                 </button>
@@ -1503,7 +1503,7 @@ function TradePanel({
                   key={p}
                   onClick={() => setSellPercent(p)}
                   data-testid={`preset-sell-${p}`}
-                  className="py-2 text-xs border border-border hover:border-accent hover:text-accent transition-colors font-mono"
+                  className="rounded-xl py-2 text-xs border border-border hover:border-accent hover:text-accent transition-colors font-mono"
                 >
                   {p}%
                 </button>

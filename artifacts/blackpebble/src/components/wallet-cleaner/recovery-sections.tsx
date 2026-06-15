@@ -4,6 +4,7 @@ import {
   Sparkles,
   Clock,
   ShieldCheck,
+  Lock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatRentSol, type UseWalletCleaner } from "@/hooks/use-wallet-cleaner";
@@ -33,7 +34,7 @@ function ExpandableSection({
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="rounded-xl bg-card shadow-card overflow-hidden" data-testid={testId}>
+    <div className="rounded-3xl bg-card shadow-card overflow-hidden" data-testid={testId}>
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -46,7 +47,7 @@ function ExpandableSection({
         </div>
         <div className="flex-1 min-w-0">
           <div className="font-semibold text-sm">{title}</div>
-          <div className="text-xs text-muted-foreground truncate">
+          <div className="text-xs text-muted-foreground leading-snug">
             {subtitle}
           </div>
         </div>
@@ -76,10 +77,11 @@ function FutureList({ items }: { items: string[] }) {
           className="flex items-center justify-between gap-3 text-sm text-muted-foreground"
         >
           <span className="flex items-center gap-2.5">
-            <span className="w-1.5 h-1.5 bg-muted-foreground/50 flex-shrink-0" />
+            <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/50 flex-shrink-0" />
             {item}
           </span>
-          <span className="text-[10px] uppercase tracking-wider text-muted-foreground/70 border border-border px-1.5 py-0.5">
+          <span className="inline-flex items-center gap-1 rounded-md bg-muted-foreground/10 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wider text-muted-foreground/60">
+            <Lock className="w-2.5 h-2.5" />
             Soon
           </span>
         </li>
@@ -142,7 +144,7 @@ export function RecoverySections({ cleaner }: { cleaner: UseWalletCleaner }) {
       <ExpandableSection
         icon={<ShieldCheck className="w-4 h-4" />}
         title="Protected"
-        subtitle="Always kept safe — never selected or touched"
+        subtitle="Always kept safe — never selected or touched."
         testId="section-protected"
       >
         <ul className="space-y-2">

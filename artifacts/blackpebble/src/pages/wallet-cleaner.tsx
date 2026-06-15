@@ -84,7 +84,7 @@ export default function WalletCleaner() {
       <SafetyBanner />
 
       {!connected ? (
-        <div className="rounded-2xl bg-card shadow-card p-8 text-center space-y-4">
+        <div className="rounded-3xl bg-card shadow-card p-8 text-center space-y-4">
           <Wallet className="w-8 h-8 text-muted-foreground mx-auto" />
           <div className="space-y-1">
             <div className="font-semibold">Connect your wallet to begin</div>
@@ -99,7 +99,7 @@ export default function WalletCleaner() {
         </div>
       ) : status === "done" ? (
         <div
-          className="rounded-2xl bg-card shadow-card p-6 sm:p-8 text-center space-y-5"
+          className="rounded-3xl bg-card shadow-card p-6 sm:p-8 text-center space-y-5"
           data-testid="recovery-complete"
         >
           <CheckCircle2 className="w-9 h-9 text-accent mx-auto" />
@@ -136,7 +136,7 @@ export default function WalletCleaner() {
             </div>
           </div>
           <div className="flex items-center justify-center gap-2">
-            <Button onClick={scan} data-testid="button-scan-again">
+            <Button onClick={scan} className="rounded-2xl" data-testid="button-scan-again">
               Scan again
             </Button>
             {owner && (
@@ -146,7 +146,7 @@ export default function WalletCleaner() {
                 rel="noopener noreferrer"
                 data-testid="link-view-details"
               >
-                <Button variant="outline">
+                <Button variant="outline" className="rounded-2xl">
                   View details
                   <ExternalLink className="w-3.5 h-3.5" />
                 </Button>
@@ -163,7 +163,7 @@ export default function WalletCleaner() {
             <div className="space-y-4">
               <Button
                 onClick={scan}
-                className="w-full sm:w-auto"
+                className="w-full sm:w-auto rounded-2xl"
                 data-testid="button-scan-wallet"
               >
                 {status === "error"
@@ -180,7 +180,7 @@ export default function WalletCleaner() {
           )}
 
           {status === "scanning" && (
-            <div className="rounded-2xl bg-card shadow-card p-10 text-center">
+            <div className="rounded-3xl bg-card shadow-card p-10 text-center">
               <Loader2 className="w-6 h-6 text-accent animate-spin mx-auto mb-3" />
               <p className="text-sm text-muted-foreground">
                 Scanning your token accounts…
@@ -207,7 +207,7 @@ export default function WalletCleaner() {
 
           {status === "scanned" && accounts.length === 0 && (
             <div
-              className="rounded-2xl bg-card shadow-card p-10 text-center space-y-3"
+              className="rounded-3xl bg-card shadow-card p-10 text-center space-y-3"
               data-testid="wallet-clean"
             >
               <CheckCircle2 className="w-8 h-8 text-accent mx-auto" />
@@ -218,7 +218,7 @@ export default function WalletCleaner() {
                   is shown above.
                 </p>
               </div>
-              <Button variant="outline" onClick={scan} data-testid="button-rescan">
+              <Button variant="outline" onClick={scan} className="rounded-2xl" data-testid="button-rescan">
                 Scan again
               </Button>
             </div>
@@ -251,6 +251,7 @@ export default function WalletCleaner() {
               <Button
                 onClick={() => setPreviewOpen(true)}
                 disabled={selectedAccounts.length === 0}
+                className="rounded-2xl"
                 data-testid="button-open-preview"
               >
                 Preview &amp; recover

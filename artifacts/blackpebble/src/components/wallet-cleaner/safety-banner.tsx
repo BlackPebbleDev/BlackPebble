@@ -9,7 +9,7 @@ const RULES = [
 
 export function SafetyBanner() {
   return (
-    <div className="rounded-xl bg-card shadow-card p-4 sm:p-5 space-y-3">
+    <div className="rounded-3xl bg-card shadow-card p-4 sm:p-5 space-y-3">
       <div className="flex items-center gap-2">
         <ShieldCheck className="w-4 h-4 text-accent flex-shrink-0" />
         <h2 className="text-sm font-semibold text-foreground">
@@ -22,7 +22,7 @@ export function SafetyBanner() {
             key={rule}
             className="flex items-start gap-2.5 text-xs text-muted-foreground leading-relaxed"
           >
-            <span className="mt-1.5 w-1.5 h-1.5 bg-accent flex-shrink-0" />
+            <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-accent flex-shrink-0" />
             <span>{rule}</span>
           </li>
         ))}

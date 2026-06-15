@@ -27,7 +27,7 @@ export function RecoveryNotification() {
 
   return (
     <div
-      className="fixed z-50 bottom-20 md:bottom-4 right-4 left-4 sm:left-auto sm:w-80 border border-accent/40 bg-card shadow-lg p-4 animate-in fade-in slide-in-from-bottom-2"
+      className="fixed z-50 bottom-20 md:bottom-4 right-4 left-4 sm:left-auto sm:w-80 rounded-2xl border border-accent/40 bg-card shadow-lg p-4 animate-in fade-in slide-in-from-bottom-2"
       role="status"
       data-testid="recovery-notification"
     >
@@ -54,7 +54,7 @@ export function RecoveryNotification() {
             <Link
               href="/utilities/sol-recovery"
               onClick={dismissNotification}
-              className="text-xs font-medium text-accent border border-accent/40 hover:bg-accent/10 px-2.5 py-1 transition-colors"
+              className="rounded-xl text-xs font-medium text-accent border border-accent/40 hover:bg-accent/10 px-2.5 py-1 transition-colors"
               data-testid="button-recover-now"
             >
               Recover now
@@ -62,7 +62,7 @@ export function RecoveryNotification() {
             <button
               type="button"
               onClick={dismissNotification}
-              className="text-xs text-muted-foreground hover:text-foreground px-2.5 py-1 transition-colors"
+              className="rounded-xl text-xs text-muted-foreground hover:text-foreground px-2.5 py-1 transition-colors"
               data-testid="button-dismiss"
             >
               Dismiss
