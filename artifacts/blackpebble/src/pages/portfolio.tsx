@@ -14,6 +14,8 @@ import {
 } from "chart.js";
 import { Wallet, Loader2, Sparkles } from "lucide-react";
 import { useAccount } from "@/hooks/use-account";
+import { useXAuth } from "@/hooks/use-x-auth";
+import { UserIdentity } from "@/components/user-identity";
 import { api, type PortfolioStats } from "@/lib/api";
 import { OpenPositions } from "@/components/open-positions";
 import { LeveragePortfolioSection } from "@/components/leverage-portfolio";
@@ -151,6 +153,19 @@ export default function Portfolio() {
     return leaderboard?.entries.find((e) => e.wallet === wallet)?.rank ?? null;
   }, [leaderboard, wallet, isGuest]);
 
+  // Identity for the signed-in trader's summary header. The X session carries
+  // avatar/name; the profile fetch adds official badges so the portfolio shows
+  // the same shared identity cluster (avatar + name + badges + tier + @handle)
+  // used everywhere else. Read-only; absent for guests.
+  const { user: xUser } = useXAuth();
+  const selfHandle = xUser?.x_username ?? null;
+  const { data: selfProfile } = useQuery({
+    queryKey: ["profile", selfHandle],
+    queryFn: () => api.profiles.get(selfHandle!),
+    enabled: !isGuest && !!selfHandle,
+    staleTime: 60_000,
+  });
+
   const fallbackSolUsd = useSolUsd();
   const guestState = useGuestStore();
   const guestValued = useGuestValuedPositions();
@@ -224,6 +239,31 @@ export default function Portfolio() {
           </span>
         )}
       </div>
+
+      {!isGuest && selfHandle && (
+        <div
+          data-testid="portfolio-user-summary"
+          className="rounded-2xl bg-card shadow-card px-4 py-4 md:px-5 md:py-5 mb-6"
+        >
+          <UserIdentity
+            size="lg"
+            avatarUrl={selfProfile?.x_avatar_url ?? xUser?.x_avatar_url}
+            displayName={selfProfile?.x_display_name ?? xUser?.x_display_name}
+            handle={selfHandle}
+            officialBadges={selfProfile?.officialBadges}
+            tier={stats?.graduationTier ?? selfProfile?.graduationTier}
+            handleLink={{
+              type: "internal",
+              href: `/u/${encodeURIComponent(selfHandle)}`,
+            }}
+            handleTrailing={
+              rank != null ? (
+                <span className="text-sm text-accent font-mono">#{rank}</span>
+              ) : undefined
+            }
+          />
+        </div>
+      )}
 
       {isGuest && (
         <div

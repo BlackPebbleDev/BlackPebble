@@ -20,4 +20,4 @@
 - [Top Caller scoring](top-caller-scoring.md) — caller rank/score derived live from immutable callouts (never persisted); Bayesian shrinkage K=5, hit=2×, ungraded when no fresh price.
 - [Universal search user lookup](universal-search-user-lookup.md) — search resolves users only for @handle queries; profiles.get is exact-lookup, firing on every word 404-spams.
 - [Rounded table wrappers](rounded-table-overflow.md) — table containers need overflow-x-auto (not overflow-hidden) when rounded, else wide columns clip; corners still clip via overflow-y auto.
-- [Shared UserIdentity component](shared-user-identity.md) — all user clusters render via UserIdentity; handle line suppressed to avoid feed @handle dup; decorative tier from getUserTiers (never grades); leaderboard tabs share LB_CARD + rankAccent.
+- [Shared UserIdentity component](shared-user-identity.md) — render every user via the one shared component; tier/badges are decoration only (never grade/rank); leaderboard tabs share one card, rank-accent only.

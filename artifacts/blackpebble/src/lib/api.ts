@@ -603,6 +603,7 @@ export type LeaderboardPeriod = "daily" | "weekly" | "all";
 export interface LeaderboardEntry {
   rank: number;
   wallet: string;
+  user_id: number | null;
   x_username: string | null;
   x_avatar_url: string | null;
   x_display_name: string | null;
@@ -612,6 +613,7 @@ export interface LeaderboardEntry {
   total_closed_trades: number;
   best_trade: number;
   graduation_tier: string;
+  officialBadges?: OfficialBadgeType[];
   created_at: number;
   updated_at: number;
 }

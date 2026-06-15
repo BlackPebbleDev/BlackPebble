@@ -3,7 +3,6 @@ import { useLocation } from "wouter";
 import {
   Search,
   Loader2,
-  AtSign,
   Wrench,
   LineChart,
   BarChart3,
@@ -18,11 +17,12 @@ import {
   Calculator,
   type LucideIcon,
 } from "lucide-react";
-import { api, type SearchResult } from "@/lib/api";
+import { api, type SearchResult, type OfficialBadgeType } from "@/lib/api";
 import { fmtMarketCap } from "@/lib/format";
 import { trackWalletSearch } from "@/lib/analytics";
 import { getGuestState } from "@/lib/guest-store";
 import { useAccount } from "@/hooks/use-account";
+import { UserIdentity } from "@/components/user-identity";
 import { cn } from "@/lib/utils";
 
 interface TokenSearchProps {
@@ -72,6 +72,8 @@ interface UserResult {
   display: string | null;
   avatar: string | null;
   rank: number | null;
+  tier: string | null;
+  officialBadges?: OfficialBadgeType[];
 }
 
 /**
@@ -139,6 +141,8 @@ export function TokenSearch({
           display: p.x_display_name,
           avatar: p.x_avatar_url,
           rank: p.rank,
+          tier: p.graduationTier,
+          officialBadges: p.officialBadges,
         });
       } else {
         setUser(null);
@@ -301,26 +305,15 @@ export function TokenSearch({
                     data-testid={`search-user-${user.handle}`}
                     className={rowCls(i === activeIdx)}
                   >
-                    {user.avatar ? (
-                      <img
-                        src={user.avatar}
-                        alt=""
-                        className="w-8 h-8 rounded-full object-cover flex-shrink-0"
-                        onError={(e) => (e.currentTarget.style.visibility = "hidden")}
-                      />
-                    ) : (
-                      <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-muted-foreground flex-shrink-0">
-                        <AtSign className="w-4 h-4" />
-                      </div>
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <div className="text-sm text-foreground truncate">
-                        {user.display || user.handle}
-                        <span className="text-muted-foreground ml-2 text-xs">
-                          @{user.handle}
-                        </span>
-                      </div>
-                    </div>
+                    <UserIdentity
+                      size="sm"
+                      className="flex-1"
+                      avatarUrl={user.avatar}
+                      displayName={user.display}
+                      handle={user.handle}
+                      officialBadges={user.officialBadges}
+                      tier={user.tier}
+                    />
                     {user.rank != null && (
                       <div className="text-xs text-muted-foreground font-mono flex-shrink-0">
                         #{user.rank}

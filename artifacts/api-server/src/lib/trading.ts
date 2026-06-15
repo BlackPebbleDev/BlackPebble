@@ -1196,6 +1196,7 @@ export type LeaderboardPeriod = "daily" | "weekly" | "all";
 export interface LeaderboardEntry {
   rank: number;
   wallet: string;
+  user_id: number | null;
   x_username: string | null;
   x_avatar_url: string | null;
   x_display_name: string | null;
@@ -1238,6 +1239,7 @@ export async function getLeaderboard(
   // can never duplicate or skew the per-wallet trade aggregates.
   const rows = await dbAll<{
     wallet: string;
+    user_id: number | null;
     created_at: number;
     total_closed_trades: number;
     winning_trades: number;
@@ -1277,6 +1279,7 @@ export async function getLeaderboard(
        -- Wallet-keyed accounts: resolve the X profile linked to the wallet.
        SELECT
          wi.wallet_address AS wallet,
+         MAX(wi.user_id) AS user_id,
          MAX(xi.x_username) AS x_username,
          MAX(u.avatar_url) AS x_avatar_url,
          MAX(u.display_name) AS x_display_name
@@ -1290,6 +1293,7 @@ export async function getLeaderboard(
        -- X-only accounts: the account key is the synthetic 'x:<x_id>' identity.
        SELECT
          ('x:' || xi.provider_user_id) AS wallet,
+         xi.user_id AS user_id,
          xi.x_username AS x_username,
          u.avatar_url AS x_avatar_url,
          u.display_name AS x_display_name
@@ -1307,6 +1311,7 @@ export async function getLeaderboard(
        agg.best_trade AS best_trade,
        agg.cost_basis AS cost_basis,
        agg.updated_at AS updated_at,
+       ident.user_id AS user_id,
        ident.x_username AS x_username,
        ident.x_avatar_url AS x_avatar_url,
        ident.x_display_name AS x_display_name
@@ -1320,6 +1325,7 @@ export async function getLeaderboard(
   return rows.map((r, i) => ({
     rank: i + 1,
     wallet: r.wallet,
+    user_id: r.user_id ?? null,
     x_username: r.x_username ?? null,
     x_avatar_url: r.x_avatar_url ?? null,
     x_display_name: r.x_display_name ?? null,

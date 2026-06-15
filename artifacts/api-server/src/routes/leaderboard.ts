@@ -21,10 +21,21 @@ router.get(
   asyncHandler(async (req, res) => {
     const raw = String(req.query.period || "all").trim() as LeaderboardPeriod;
     const period: LeaderboardPeriod = PERIODS.includes(raw) ? raw : "all";
-    const [entries, solUsd] = await Promise.all([
+    const [baseEntries, solUsd] = await Promise.all([
       getLeaderboard(period),
       getSolPriceUsd(),
     ]);
+    // Attach decorative official badges so Top Traders shows the same
+    // founder / BlackPebble Team badges as the other leaderboard tabs.
+    // Best-effort, read-only — never affects ranking or trade accounting.
+    const traderUserIds = baseEntries
+      .map((e) => e.user_id)
+      .filter((id): id is number => id != null);
+    const badgeMap = await getOfficialBadgesForUsers(traderUserIds);
+    const entries = baseEntries.map((e) => ({
+      ...e,
+      officialBadges: e.user_id != null ? badgeMap.get(e.user_id) ?? [] : [],
+    }));
     return res.json({
       period,
       minTrades: MIN_LEADERBOARD_TRADES,

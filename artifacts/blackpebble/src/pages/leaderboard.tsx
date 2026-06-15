@@ -449,6 +449,7 @@ function Trader({
       avatarUrl={entry.x_avatar_url}
       displayName={entry.x_display_name}
       handle={handle}
+      officialBadges={entry.officialBadges}
       tier={entry.graduation_tier}
       fallbackName={fallback}
     />
