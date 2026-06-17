@@ -4,6 +4,7 @@ import { ensureThesesSchema } from "./theses.js";
 import { getTokenStatsBatch } from "./prices.js";
 import { getTokenPeaks, recordTokenPeaks, athMultipleFrom } from "./peaks.js";
 import { BADGE_DEFINITIONS, ensureBadgesSchema, getOfficialBadgesForUsers } from "./badges.js";
+import { ensureRecoverySchema } from "./recovery-verify.js";
 import { getUserTiers } from "./trading.js";
 
 /**
@@ -119,6 +120,7 @@ export async function getActivity(opts: {
     ensureProfileSchema(),
     ensureThesesSchema(),
     ensureBadgesSchema(),
+    ensureRecoverySchema(),
   ]);
 
   const params: unknown[] = [];
@@ -310,6 +312,7 @@ export async function getActivity(opts: {
          JOIN users u ON u.id = xi.user_id
         WHERE re.event_type = 'cleanup'
               AND re.status = 'success'
+              AND re.verified = true
               AND re.x_user_id IS NOT NULL
               AND re.accounts_closed > 0
               ${followClauseUser.replace(/user_id/g, "xi.user_id")}

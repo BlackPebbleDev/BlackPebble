@@ -3,6 +3,11 @@ import { asyncHandler } from "../lib/asyncHandler.js";
 import { requireAdmin, sessionFromRequest } from "../lib/auth.js";
 import { dbAll, dbGet, dbRun } from "../lib/database.js";
 import { getTokenMetadataBatch } from "../lib/helius.js";
+import {
+  ensureRecoverySchema,
+  verifyRecoveryEvent,
+} from "../lib/recovery-verify.js";
+import { logger } from "../lib/logger.js";
 
 const router: IRouter = Router();
 
@@ -18,19 +23,19 @@ function clampInt(v: unknown, max = 1_000_000): number {
 }
 
 /**
- * Sanitize a list of confirmed tx signatures from the client into a JSON string
- * (or null). Solana signatures are base58 and ~64–96 chars; anything that does
- * not look like a signature is dropped. Capped so a hostile client cannot bloat
- * the row. This is public, non-sensitive data (a signature is already on-chain).
+ * Sanitize a list of confirmed tx signatures from the client into a base58
+ * string[]. Anything that does not look like a Solana signature is dropped and
+ * the list is capped so a hostile client cannot bloat the row. The signatures
+ * are only a *pointer* to on-chain data — they are independently verified server
+ * side before any value is credited (see recovery-verify.ts).
  */
-function sanitizeSignatures(v: unknown): string | null {
-  if (!Array.isArray(v)) return null;
-  const sigs = v
+function sanitizeSignatures(v: unknown): string[] {
+  if (!Array.isArray(v)) return [];
+  return v
     .filter((s): s is string => typeof s === "string")
     .map((s) => s.trim())
     .filter((s) => /^[1-9A-HJ-NP-Za-km-z]{32,128}$/.test(s))
     .slice(0, 100);
-  return sigs.length > 0 ? JSON.stringify(sigs) : null;
 }
 
 /**
@@ -82,38 +87,82 @@ router.post(
     // V2 capture: confirmed signatures + fee/net breakdown (cleanup only). The
     // BlackPebble platform fee is forced to 0 here — fees are inert scaffolding,
     // never trusted or charged from the client.
-    const txSignatures =
-      eventType === "cleanup" ? sanitizeSignatures(body.txSignatures) : null;
+    const sigList =
+      eventType === "cleanup" ? sanitizeSignatures(body.txSignatures) : [];
+    const txSignatures = sigList.length > 0 ? JSON.stringify(sigList) : null;
     const networkFeeSol =
       eventType === "cleanup" ? clampNum(body.networkFeeSol) : 0;
     const bpFeeSol = 0;
     const netSol = eventType === "cleanup" ? clampNum(body.netSol) : 0;
 
-    await dbRun(
+    // Client-reported counts are stored as UNVERIFIED telemetry only. The
+    // canonical accounts_closed / recovered_sol start as the client values but
+    // a row is never publicly visible until verification overwrites them with
+    // on-chain truth and flips `verified` (see recovery-verify.ts). The mirror
+    // client_* columns preserve the original claim for admin/debug review.
+    const clientAccountsClosed = clampInt(body.accountsClosed);
+    const clientRecoveredSol = clampNum(body.recoveredSol);
+
+    await ensureRecoverySchema();
+
+    const inserted = await dbGet<{ id: number }>(
       `INSERT INTO recovery_events
          (event_type, wallet, x_user_id, x_username, accounts_found,
           accounts_closed, recoverable_sol, recovered_sol, status, error_message,
-          tx_signatures, network_fee_sol, bp_fee_sol, net_sol)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+          tx_signatures, network_fee_sol, bp_fee_sol, net_sol,
+          client_accounts_closed, client_recovered_sol, verification_status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
+               $15, $16, $17)
+       RETURNING id`,
       [
         eventType,
         wallet,
         xUserId,
         xUsername,
         clampInt(body.accountsFound),
-        clampInt(body.accountsClosed),
+        clientAccountsClosed,
         clampNum(body.recoverableSol),
-        clampNum(body.recoveredSol),
+        clientRecoveredSol,
         status,
         errorMessage,
         txSignatures,
         networkFeeSol,
         bpFeeSol,
         netSol,
+        clientAccountsClosed,
+        clientRecoveredSol,
+        eventType === "cleanup" && status === "success" ? "pending" : "n/a",
       ],
     );
 
-    return res.json({ ok: true });
+    // Only successful cleanups carry on-chain proof worth verifying. Scans and
+    // failed cleanups stay verified=false (they never surface as public truth).
+    // Verification is identity-independent, so it runs for guests too — the X
+    // identity (resolved server-side above) only governs feed attribution.
+    let verification: { verified: boolean; status: string } | null = null;
+    if (
+      inserted?.id != null &&
+      eventType === "cleanup" &&
+      status === "success"
+    ) {
+      try {
+        const r = await verifyRecoveryEvent(inserted.id, wallet, sigList);
+        verification = { verified: r.verified, status: r.status };
+      } catch (e) {
+        logger.warn({ err: e, eventId: inserted.id }, "recovery verify failed");
+        await dbRun(
+          `UPDATE recovery_events
+              SET verified = false,
+                  verification_status = 'failed',
+                  verification_error = $2
+            WHERE id = $1`,
+          [inserted.id, "verification error"],
+        );
+        verification = { verified: false, status: "failed" };
+      }
+    }
+
+    return res.json({ ok: true, verification });
   }),
 );
 
@@ -171,11 +220,15 @@ router.get(
       return res.status(400).json({ error: "valid wallet is required" });
     }
 
+    await ensureRecoverySchema();
+
+    // History is public truth → only verified on-chain cleanups are returned.
     const rows = await dbAll<Record<string, unknown>>(
       `SELECT created_at, accounts_closed, recovered_sol, network_fee_sol,
-              bp_fee_sol, net_sol, status, tx_signatures, error_message
+              bp_fee_sol, net_sol, status, tx_signatures, error_message,
+              verification_status
        FROM recovery_events
-       WHERE event_type = 'cleanup' AND wallet = $1
+       WHERE event_type = 'cleanup' AND wallet = $1 AND verified = true
        ORDER BY created_at DESC
        LIMIT 200`,
       [wallet],
@@ -190,18 +243,20 @@ router.get(
       bp_fee_sol: 0,
       net_sol: Number(r.net_sol ?? 0),
       status: String(r.status ?? ""),
+      verification_status: String(r.verification_status ?? "verified"),
       signatures: parseSignatures(r.tx_signatures),
       error_message: r.error_message ? String(r.error_message) : null,
     }));
 
+    // Lifetime totals also reflect verified rows only.
     const ltRow = await dbGet<Record<string, number>>(
       `SELECT
-         COALESCE(SUM(accounts_closed) FILTER (WHERE status = 'success'), 0)::int AS accounts_closed,
-         COALESCE(SUM(recovered_sol) FILTER (WHERE status = 'success'), 0) AS sol_recovered,
-         COALESCE(SUM(network_fee_sol) FILTER (WHERE status = 'success'), 0) AS total_network_fees,
-         COALESCE(SUM(net_sol) FILTER (WHERE status = 'success'), 0) AS total_net,
-         COALESCE(MAX(recovered_sol) FILTER (WHERE status = 'success'), 0) AS largest_recovery,
-         count(*) FILTER (WHERE status = 'success')::int AS successful_cleanups,
+         COALESCE(SUM(accounts_closed) FILTER (WHERE status = 'success' AND verified), 0)::int AS accounts_closed,
+         COALESCE(SUM(recovered_sol) FILTER (WHERE status = 'success' AND verified), 0) AS sol_recovered,
+         COALESCE(SUM(network_fee_sol) FILTER (WHERE status = 'success' AND verified), 0) AS total_network_fees,
+         COALESCE(SUM(net_sol) FILTER (WHERE status = 'success' AND verified), 0) AS total_net,
+         COALESCE(MAX(recovered_sol) FILTER (WHERE status = 'success' AND verified), 0) AS largest_recovery,
+         count(*) FILTER (WHERE status = 'success' AND verified)::int AS successful_cleanups,
          count(*) FILTER (WHERE status = 'failed')::int AS failed_cleanups
        FROM recovery_events
        WHERE event_type = 'cleanup' AND wallet = $1`,
@@ -237,9 +292,9 @@ async function windowStats(
     `SELECT
        count(*) FILTER (WHERE event_type = 'scan')::int AS scans,
        count(DISTINCT wallet) FILTER (WHERE event_type = 'scan')::int AS unique_wallets,
-       COALESCE(SUM(accounts_closed) FILTER (WHERE event_type = 'cleanup' AND status = 'success'), 0)::int AS accounts_closed,
-       COALESCE(SUM(recovered_sol) FILTER (WHERE event_type = 'cleanup' AND status = 'success'), 0) AS sol_recovered,
-       count(*) FILTER (WHERE event_type = 'cleanup' AND status = 'success')::int AS successful_cleanups
+       COALESCE(SUM(accounts_closed) FILTER (WHERE event_type = 'cleanup' AND status = 'success' AND verified), 0)::int AS accounts_closed,
+       COALESCE(SUM(recovered_sol) FILTER (WHERE event_type = 'cleanup' AND status = 'success' AND verified), 0) AS sol_recovered,
+       count(*) FILTER (WHERE event_type = 'cleanup' AND status = 'success' AND verified)::int AS successful_cleanups
      FROM recovery_events ${where}`,
     params,
   );
@@ -260,19 +315,24 @@ router.get(
     const week = now - 7 * 86_400;
     const month = now - 30 * 86_400;
 
+    await ensureRecoverySchema();
+
+    // Headline metrics are public truth → verified rows only. A pending count is
+    // surfaced separately so admins can see the unverified review backlog.
     const lifetimeRow = await dbGet<Record<string, number>>(
       `SELECT
          count(*) FILTER (WHERE event_type = 'scan')::int AS scans,
          count(DISTINCT wallet) FILTER (WHERE event_type = 'scan')::int AS unique_wallets,
-         count(DISTINCT wallet) FILTER (WHERE event_type = 'cleanup' AND status = 'success')::int AS recovery_users,
-         COALESCE(SUM(accounts_closed) FILTER (WHERE event_type = 'cleanup' AND status = 'success'), 0)::int AS accounts_closed,
-         COALESCE(SUM(recovered_sol) FILTER (WHERE event_type = 'cleanup' AND status = 'success'), 0) AS sol_recovered,
-         count(*) FILTER (WHERE event_type = 'cleanup' AND status = 'success')::int AS successful_cleanups,
+         count(DISTINCT wallet) FILTER (WHERE event_type = 'cleanup' AND status = 'success' AND verified)::int AS recovery_users,
+         COALESCE(SUM(accounts_closed) FILTER (WHERE event_type = 'cleanup' AND status = 'success' AND verified), 0)::int AS accounts_closed,
+         COALESCE(SUM(recovered_sol) FILTER (WHERE event_type = 'cleanup' AND status = 'success' AND verified), 0) AS sol_recovered,
+         count(*) FILTER (WHERE event_type = 'cleanup' AND status = 'success' AND verified)::int AS successful_cleanups,
          count(*) FILTER (WHERE event_type = 'cleanup' AND status = 'failed')::int AS failed_cleanups,
-         COALESCE(MAX(recovered_sol) FILTER (WHERE event_type = 'cleanup' AND status = 'success'), 0) AS largest_recovery,
-         COALESCE(SUM(network_fee_sol) FILTER (WHERE event_type = 'cleanup' AND status = 'success'), 0) AS total_network_fees,
-         COALESCE(SUM(bp_fee_sol) FILTER (WHERE event_type = 'cleanup' AND status = 'success'), 0) AS total_bp_fees,
-         COALESCE(SUM(net_sol) FILTER (WHERE event_type = 'cleanup' AND status = 'success'), 0) AS total_net
+         count(*) FILTER (WHERE event_type = 'cleanup' AND status = 'success' AND NOT verified)::int AS unverified_cleanups,
+         COALESCE(MAX(recovered_sol) FILTER (WHERE event_type = 'cleanup' AND status = 'success' AND verified), 0) AS largest_recovery,
+         COALESCE(SUM(network_fee_sol) FILTER (WHERE event_type = 'cleanup' AND status = 'success' AND verified), 0) AS total_network_fees,
+         COALESCE(SUM(bp_fee_sol) FILTER (WHERE event_type = 'cleanup' AND status = 'success' AND verified), 0) AS total_bp_fees,
+         COALESCE(SUM(net_sol) FILTER (WHERE event_type = 'cleanup' AND status = 'success' AND verified), 0) AS total_net
        FROM recovery_events`,
     );
     const lifetime = lifetimeRow ?? {};
@@ -286,22 +346,26 @@ router.get(
       windowStats(month),
     ]);
 
+    // Recent feed is for admin review, so it intentionally shows ALL cleanups
+    // (verified + unverified) along with their verification state.
     const recent = await dbAll<Record<string, unknown>>(
       `SELECT created_at, wallet, accounts_closed, recovered_sol, status,
-              x_username, net_sol, network_fee_sol
+              x_username, net_sol, network_fee_sol, verified,
+              verification_status, client_accounts_closed, client_recovered_sol
        FROM recovery_events
        WHERE event_type = 'cleanup'
        ORDER BY created_at DESC
        LIMIT 25`,
     );
 
+    // Public leaderboard → verified rows only.
     const topUsers = await dbAll<Record<string, unknown>>(
       `SELECT wallet,
               MAX(x_username) AS x_username,
               COALESCE(SUM(recovered_sol), 0) AS total_recovered,
               COALESCE(SUM(accounts_closed), 0)::int AS total_closed
        FROM recovery_events
-       WHERE event_type = 'cleanup' AND status = 'success'
+       WHERE event_type = 'cleanup' AND status = 'success' AND verified = true
        GROUP BY wallet
        ORDER BY total_recovered DESC
        LIMIT 10`,
@@ -314,6 +378,51 @@ router.get(
       recent,
       topUsers,
     });
+  }),
+);
+
+/**
+ * Admin-only backfill: re-run on-chain verification for not-yet-verified
+ * successful cleanups that carry signatures. This NEVER fabricates verification
+ * — each row still has to pass the same on-chain proof, so historical rows are
+ * only promoted to verified when the chain confirms them. Bounded per call.
+ */
+router.post(
+  "/admin/recovery-verify-pending",
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    await ensureRecoverySchema();
+    const limit = Math.min(Math.max(clampInt((req.body ?? {}).limit) || 25, 1), 100);
+
+    const rows = await dbAll<Record<string, unknown>>(
+      `SELECT id, wallet, tx_signatures
+         FROM recovery_events
+        WHERE event_type = 'cleanup' AND status = 'success'
+          AND verified = false
+          AND tx_signatures IS NOT NULL
+        ORDER BY created_at ASC
+        LIMIT ${limit}`,
+    );
+
+    let verified = 0;
+    let partial = 0;
+    let failed = 0;
+    for (const r of rows) {
+      const id = Number(r.id);
+      const wallet = String(r.wallet ?? "");
+      const sigs = parseSignatures(r.tx_signatures);
+      try {
+        const result = await verifyRecoveryEvent(id, wallet, sigs);
+        if (result.status === "verified") verified += 1;
+        else if (result.status === "verified_partial") partial += 1;
+        else failed += 1;
+      } catch (e) {
+        logger.warn({ err: e, eventId: id }, "recovery backfill verify failed");
+        failed += 1;
+      }
+    }
+
+    return res.json({ processed: rows.length, verified, partial, failed });
   }),
 );
 

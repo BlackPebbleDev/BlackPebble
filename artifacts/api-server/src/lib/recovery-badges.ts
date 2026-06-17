@@ -136,13 +136,16 @@ export function deriveRecoveryBadges(
 export async function getRecoveryBadgesForWallet(
   wallet: string,
 ): Promise<{ badges: RecoveryBadgeEntry[]; stats: RecoveryBadgeStats }> {
+  // Achievements derive ONLY from verified on-chain recovery — unverified
+  // telemetry rows must never unlock a badge.
   const row = await dbGet<Record<string, number>>(
     `SELECT
        COALESCE(SUM(accounts_closed), 0)::int AS accounts_closed,
        COALESCE(SUM(recovered_sol), 0) AS sol_recovered,
        count(*)::int AS successful_cleanups
      FROM recovery_events
-     WHERE event_type = 'cleanup' AND status = 'success' AND wallet = $1`,
+     WHERE event_type = 'cleanup' AND status = 'success'
+       AND verified = true AND wallet = $1`,
     [wallet],
   ).catch(() => null);
 
