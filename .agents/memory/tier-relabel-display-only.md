@@ -1,23 +1,19 @@
 ---
 name: Tier relabel is display-only
-description: How BlackPebble reputation tier names are relabeled without touching server/DB or any calculation.
+description: Reputation tier names are a display-only label layer; renaming must never touch stored values, rank, or trust math.
 ---
 
-The reputation tier names shown in the web app (Black Label / Elite / Premium /
-Pro / Verified / Member) are a DISPLAY-ONLY relabel layer in
-`artifacts/blackpebble/src/lib/tiers.ts`.
+Reputation tier names shown in the web app are a DISPLAY-ONLY relabel layer.
 
-**Rule:** The server/DB still store the legacy keys (legend/diamond/gold/silver/
-bronze/none) and own all thresholds + ranking + trust math. `tierMeta()` maps
-BOTH legacy keys and the new display names (case-insensitive) to display
-metadata. `tierFromRealizedPnl` returns the new names and they round-trip
-through `tierMeta`. Thresholds mirror the server's TIERS table in
-`artifacts/api-server/src/lib/trading.ts` and must stay in lockstep.
+**Rule:** The server/DB own the stored tier (legacy keys), all thresholds, and
+all ranking + trust math. The client label layer maps both legacy keys and the
+display names (case-insensitive) and mirrors the server thresholds — it must
+stay in lockstep with the server's tier table.
 
-**Why:** A rename must never alter any stored value, leaderboard rank, or trust
+**Why:** A rename must never alter a stored value, leaderboard rank, or trust
 score — only the label a user sees.
 
-**How to apply:** To rename a tier, change only the display name in tiers.ts and
-its mapping; never edit thresholds without matching the server. The base tier is
-"Member" and `tier-badge.tsx` always renders (no null-return), so a tier is
-always visible on every user via the shared UserIdentity.
+**How to apply:** To rename a tier, change only the display name + its mapping;
+never edit thresholds without matching the server. There is a base tier every
+account always carries, and the tier badge always renders (no null path), so a
+tier is never absent from a user's identity.
