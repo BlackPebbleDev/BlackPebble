@@ -9,7 +9,6 @@ import {
   CheckCircle2,
   AlertTriangle,
   Wallet,
-  ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useWalletCleaner, formatRentSol } from "@/hooks/use-wallet-cleaner";
@@ -17,16 +16,8 @@ import { SafetyBanner } from "@/components/wallet-cleaner/safety-banner";
 import { WalletStatusCard } from "@/components/wallet-cleaner/wallet-status-card";
 import { RecoverySections } from "@/components/wallet-cleaner/recovery-sections";
 import { RecoverySummary } from "@/components/wallet-cleaner/recovery-summary";
+import { RecoverySuccess } from "@/components/wallet-cleaner/recovery-success";
 import { ClosePreviewDialog } from "@/components/wallet-cleaner/close-preview-dialog";
-
-/** Wallet-balance precision matching the status card. */
-function formatBalanceSol(sol: number | null): string {
-  if (sol == null || !Number.isFinite(sol)) return "—";
-  return sol.toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 4,
-  });
-}
 
 export default function WalletCleaner() {
   const { connected } = useWallet();
@@ -36,16 +27,11 @@ export default function WalletCleaner() {
   const {
     status,
     error,
-    owner,
-    walletBalance,
     accounts,
     selectedAccounts,
     selectedRecoverable,
-    closedCount,
-    recoveredSol,
     scan,
     closeSelected,
-    reset,
   } = cleaner;
 
   async function handleConfirmClose() {
@@ -98,62 +84,7 @@ export default function WalletCleaner() {
           </div>
         </div>
       ) : status === "done" ? (
-        <div
-          className="rounded-3xl bg-card shadow-card p-6 sm:p-8 text-center space-y-5"
-          data-testid="recovery-complete"
-        >
-          <CheckCircle2 className="w-9 h-9 text-accent mx-auto" />
-          <div className="space-y-1">
-            <div className="text-lg font-semibold">Recovery complete</div>
-            <p className="text-sm text-muted-foreground">
-              Your recovered SOL has landed in your connected wallet.
-            </p>
-          </div>
-          <div className="grid grid-cols-3 border border-border divide-x divide-border max-w-md mx-auto">
-            <div className="px-3 py-3">
-              <div className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1">
-                SOL recovered
-              </div>
-              <div className="font-mono text-sm text-accent">
-                {formatRentSol(recoveredSol)}
-              </div>
-            </div>
-            <div className="px-3 py-3">
-              <div className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1">
-                Accounts closed
-              </div>
-              <div className="font-mono text-sm text-foreground">
-                {closedCount}
-              </div>
-            </div>
-            <div className="px-3 py-3">
-              <div className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1">
-                Wallet balance
-              </div>
-              <div className="font-mono text-sm text-foreground">
-                {formatBalanceSol(walletBalance)} SOL
-              </div>
-            </div>
-          </div>
-          <div className="flex items-center justify-center gap-2">
-            <Button onClick={scan} className="rounded-2xl" data-testid="button-scan-again">
-              Scan again
-            </Button>
-            {owner && (
-              <a
-                href={`https://solscan.io/account/${owner}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                data-testid="link-view-details"
-              >
-                <Button variant="outline" className="rounded-2xl">
-                  View details
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </Button>
-              </a>
-            )}
-          </div>
-        </div>
+        <RecoverySuccess cleaner={cleaner} />
       ) : (
         <>
           <WalletStatusCard cleaner={cleaner} />
@@ -266,9 +197,6 @@ export default function WalletCleaner() {
         onOpenChange={setPreviewOpen}
         onConfirm={handleConfirmClose}
       />
-
-      {/* Keep the unused reset reachable for future flows without dead-code warnings. */}
-      <span className="hidden" aria-hidden onClick={reset} />
     </div>
   );
 }

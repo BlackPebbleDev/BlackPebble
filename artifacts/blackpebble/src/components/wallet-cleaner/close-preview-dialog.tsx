@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { Loader2, AlertTriangle, Info } from "lucide-react";
 import {
   Dialog,
@@ -9,7 +10,10 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { RecoverySummary } from "@/components/wallet-cleaner/recovery-summary";
+import { TokenAvatar } from "@/components/wallet-cleaner/token-avatar";
 import { type UseWalletCleaner } from "@/hooks/use-wallet-cleaner";
+import { useTokenMetadata } from "@/hooks/use-token-metadata";
+import { shortAddr } from "@/lib/format";
 
 export function ClosePreviewDialog({
   cleaner,
@@ -25,6 +29,12 @@ export function ClosePreviewDialog({
   const { selectedAccounts, txCount, status, progress, error } = cleaner;
   const isClosing = status === "closing";
   const hasError = status === "error";
+
+  const mints = useMemo(
+    () => selectedAccounts.map((a) => a.mint),
+    [selectedAccounts],
+  );
+  const { metaByMint, isLoading: metaLoading } = useTokenMetadata(mints);
 
   const pct =
     progress && progress.totalBatches > 0
@@ -77,23 +87,47 @@ export function ClosePreviewDialog({
             <RecoverySummary cleaner={cleaner} />
 
             <div className="rounded-xl bg-card shadow-card max-h-40 overflow-y-auto divide-y divide-border">
-              {selectedAccounts.map((acc) => (
-                <div
-                  key={acc.pubkey}
-                  className="flex items-center justify-between gap-3 px-3 py-2 text-xs"
-                >
-                  <span className="font-mono text-muted-foreground truncate">
-                    {acc.mint.slice(0, 6)}…{acc.mint.slice(-6)}
-                  </span>
-                  <span className="font-mono text-foreground flex-shrink-0">
-                    {acc.sol.toLocaleString("en-US", {
-                      minimumFractionDigits: 4,
-                      maximumFractionDigits: 6,
-                    })}{" "}
-                    SOL
-                  </span>
-                </div>
-              ))}
+              {selectedAccounts.map((acc) => {
+                const meta = metaByMint.get(acc.mint);
+                const symbol = meta?.symbol?.trim() ?? "";
+                const name = meta?.name?.trim() ?? "";
+                const known = symbol.length > 0;
+                // Still resolving and nothing cached yet — show the short mint as
+                // a neutral placeholder rather than flashing "Unknown Token".
+                const pending = metaLoading && !meta;
+                const shortMint = shortAddr(acc.mint, 4);
+                const primary = known
+                  ? symbol
+                  : pending
+                    ? shortMint
+                    : "Unknown Token";
+                const secondary =
+                  known && name && name !== symbol ? name : shortMint;
+                return (
+                  <div
+                    key={acc.pubkey}
+                    className="flex items-center gap-2.5 px-3 py-2"
+                    data-testid={`preview-account-${acc.pubkey}`}
+                  >
+                    <TokenAvatar logo={meta?.logo} symbol={symbol} size={24} />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-medium text-foreground truncate">
+                        {primary}
+                      </div>
+                      <div className="font-mono text-[10px] text-muted-foreground truncate">
+                        {secondary}
+                      </div>
+                    </div>
+                    <span className="font-mono text-xs text-foreground flex-shrink-0">
+                      {acc.sol.toLocaleString("en-US", {
+                        minimumFractionDigits: 4,
+                        maximumFractionDigits: 6,
+                      })}{" "}
+                      SOL
+                    </span>
+                  </div>
+                );
+              })}
             </div>
 
             {hasError && error && (

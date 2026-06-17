@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { shortAddr } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -6,6 +5,7 @@ import {
   formatRentSol,
   type CloseableAccount,
 } from "@/hooks/use-wallet-cleaner";
+import { TokenAvatar } from "@/components/wallet-cleaner/token-avatar";
 import type { RecoveryTokenMeta } from "@/lib/api";
 
 export function AccountRow({
@@ -21,13 +21,10 @@ export function AccountRow({
   meta?: RecoveryTokenMeta;
   metaLoading?: boolean;
 }) {
-  const [logoFailed, setLogoFailed] = useState(false);
-
   const symbol = meta?.symbol?.trim() ?? "";
   const name = meta?.name?.trim() ?? "";
   const known = symbol.length > 0;
   const shortMint = shortAddr(account.mint, 4);
-  const logo = !logoFailed ? (meta?.logo ?? null) : null;
 
   // While the batch lookup is still in flight and we have nothing for this mint,
   // show the short mint as a neutral placeholder rather than flashing
@@ -60,23 +57,7 @@ export function AccountRow({
         data-testid={`checkbox-account-${account.pubkey}`}
       />
 
-      <div className="w-8 h-8 rounded-full overflow-hidden bg-secondary flex items-center justify-center flex-shrink-0">
-        {logo ? (
-          <img
-            src={logo}
-            alt=""
-            loading="lazy"
-            referrerPolicy="no-referrer"
-            onError={() => setLogoFailed(true)}
-            className="w-full h-full object-cover"
-            data-testid={`img-token-logo-${account.pubkey}`}
-          />
-        ) : (
-          <span className="text-[11px] font-semibold text-muted-foreground">
-            {known ? symbol.slice(0, 1).toUpperCase() : "?"}
-          </span>
-        )}
-      </div>
+      <TokenAvatar logo={meta?.logo} symbol={symbol} size={32} />
 
       <div className="flex-1 min-w-0">
         <div
