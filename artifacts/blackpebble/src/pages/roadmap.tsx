@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { CheckCircle2, Dot } from "lucide-react";
 
 const FOCUS_AREAS = [
@@ -23,10 +22,6 @@ const DIRECTION_ITEMS = [
 ];
 
 export default function Roadmap() {
-  useEffect(() => {
-    document.title = "Vision — BlackPebble";
-  }, []);
-
   return (
     <div className="flex flex-col gap-10 px-4 py-6 sm:py-12 max-w-3xl mx-auto">
       <div className="space-y-3">

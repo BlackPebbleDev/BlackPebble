@@ -1,9 +1,30 @@
+# BlackPebble — robots.txt
+# Professional Solana trading and utility platform.
+
 User-agent: *
 Allow: /
+Disallow: /admin
 
-# Public informational pages
-Allow: /about
-Allow: /features
-Allow: /roadmap
+# Major AI / answer-engine crawlers are explicitly welcome.
+User-agent: GPTBot
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Claude-Web
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
 
 Sitemap: https://blackpebble.fun/sitemap.xml

@@ -1,0 +1,75 @@
+{
+  "siteUrl": "https://blackpebble.fun",
+  "routes": [
+    {
+      "path": "/",
+      "title": "BlackPebble — Professional Solana Trading & Utility Platform",
+      "description": "A professional Solana trading and utility platform for memecoin traders: paper trading, market discovery, trader reputation and trust scores, leaderboards, portfolio tracking, SOL recovery, and wallet cleanup tools."
+    },
+    {
+      "path": "/markets",
+      "title": "Markets — Trending Solana Tokens & Analytics | BlackPebble",
+      "description": "Discover trending Solana tokens with live price, market cap, liquidity, and volume. Token analytics, watchlists, and new token discovery for memecoin traders."
+    },
+    {
+      "path": "/discover",
+      "title": "Discover Traders & Opportunities | BlackPebble",
+      "description": "Find top Solana traders, trending tokens, and new opportunities. Explore the BlackPebble reputation network and market discovery tools."
+    },
+    {
+      "path": "/leaderboard",
+      "title": "Solana Trader Leaderboard — Rankings by P&L | BlackPebble",
+      "description": "Trader leaderboards ranking Solana memecoin traders by realized profit and loss across daily, weekly, and all-time periods."
+    },
+    {
+      "path": "/portfolio",
+      "title": "Portfolio Tracking — Positions & P&L | BlackPebble",
+      "description": "Track open Solana positions, realized and unrealized P&L, ROI, and full trade history in one professional paper-trading dashboard."
+    },
+    {
+      "path": "/feed",
+      "title": "Trader Activity Feed | BlackPebble",
+      "description": "Follow public trader activity, calls, and performance across the BlackPebble Solana trading community."
+    },
+    {
+      "path": "/utilities",
+      "title": "Solana Wallet Utilities & Trader Tools | BlackPebble",
+      "description": "Standalone Solana wallet utilities and trader tools: SOL recovery, wallet cleanup, trade planner, and trading journal."
+    },
+    {
+      "path": "/utilities/sol-recovery",
+      "title": "SOL Recovery — Recover Rent SOL from Token Accounts | BlackPebble",
+      "description": "Recover trapped rent SOL from unused and empty Solana token accounts. Scan your wallet, see recoverable SOL, and close accounts on-chain with recovery history and wallet health analytics."
+    },
+    {
+      "path": "/utilities/wallet-cleaner",
+      "title": "Solana Wallet Cleanup — Close Empty Token Accounts | BlackPebble",
+      "description": "Clean up your Solana wallet by reviewing and closing empty token accounts, surfacing dust and recoverable rent, and keeping your wallet healthy. Manual, user-initiated cleanup."
+    },
+    {
+      "path": "/utilities/trade-planner",
+      "title": "Trade Planner — Plan Entries, Size & Exits | BlackPebble",
+      "description": "Plan Solana trades with position sizing, risk, buy limit orders, and automated take-profit and stop-loss multi-target exits."
+    },
+    {
+      "path": "/utilities/journal",
+      "title": "Trading Journal — Record & Review Trades | BlackPebble",
+      "description": "Keep a Solana trading journal to record trades and review your performance and decisions over time."
+    },
+    {
+      "path": "/about",
+      "title": "About BlackPebble — Solana Paper Trading & Utilities",
+      "description": "Learn what BlackPebble is: a professional Solana trading and utility platform for memecoin traders combining paper trading, reputation, recovery, and wallet tools."
+    },
+    {
+      "path": "/features",
+      "title": "Features — Solana Trading, Reputation & Wallet Tools | BlackPebble",
+      "description": "Explore BlackPebble's features: live paper trading, market discovery, portfolio tracking, trade planning, leaderboards, trader reputation, SOL recovery, and wallet cleanup."
+    },
+    {
+      "path": "/roadmap",
+      "title": "Vision & Roadmap | BlackPebble",
+      "description": "BlackPebble's vision and roadmap: the tools that are live today and the future direction for Solana traders and communities."
+    }
+  ]
+}

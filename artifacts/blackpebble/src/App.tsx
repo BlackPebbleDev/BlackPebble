@@ -15,6 +15,7 @@ import "@solana/wallet-adapter-react-ui/styles.css";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppShell } from "@/components/app-shell";
+import { RouteMeta } from "@/components/route-meta";
 import { AccountProvider } from "@/hooks/use-account";
 import { XAuthProvider } from "@/hooks/use-x-auth";
 import { PnlCurrencyProvider } from "@/lib/pnl-currency";
@@ -52,6 +53,7 @@ function Router() {
   return (
     <AppShell>
       <ScrollToTop />
+      <RouteMeta />
       <Switch>
         <Route path="/" component={TradingDesk} />
         <Route path="/markets" component={Markets} />

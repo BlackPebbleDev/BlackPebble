@@ -11,9 +11,9 @@
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://blackpebble.fun/portfolio</loc>
+    <loc>https://blackpebble.fun/discover</loc>
     <changefreq>daily</changefreq>
-    <priority>0.7</priority>
+    <priority>0.8</priority>
   </url>
   <url>
     <loc>https://blackpebble.fun/leaderboard</loc>
@@ -21,19 +21,49 @@
     <priority>0.8</priority>
   </url>
   <url>
+    <loc>https://blackpebble.fun/portfolio</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://blackpebble.fun/feed</loc>
+    <changefreq>hourly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
     <loc>https://blackpebble.fun/utilities</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://blackpebble.fun/utilities/sol-recovery</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://blackpebble.fun/utilities/wallet-cleaner</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://blackpebble.fun/utilities/trade-planner</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://blackpebble.fun/utilities/journal</loc>
     <changefreq>weekly</changefreq>
     <priority>0.5</priority>
   </url>
   <url>
     <loc>https://blackpebble.fun/about</loc>
     <changefreq>monthly</changefreq>
-    <priority>0.6</priority>
+    <priority>0.7</priority>
   </url>
   <url>
     <loc>https://blackpebble.fun/features</loc>
     <changefreq>monthly</changefreq>
-    <priority>0.6</priority>
+    <priority>0.7</priority>
   </url>
   <url>
     <loc>https://blackpebble.fun/roadmap</loc>

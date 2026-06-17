@@ -1,12 +1,7 @@
-import { useEffect } from "react";
 import { Link } from "wouter";
 import { Info, ArrowRight } from "lucide-react";
 
 export default function About() {
-  useEffect(() => {
-    document.title = "About — BlackPebble";
-  }, []);
-
   return (
     <div className="flex flex-col gap-8 px-4 py-6 sm:py-10 max-w-3xl mx-auto">
       <div className="space-y-3">

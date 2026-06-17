@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { Link } from "wouter";
 import {
   TrendingUp,
@@ -46,10 +45,6 @@ const FEATURES: { icon: LucideIcon; title: string; desc: string }[] = [
 ];
 
 export default function Features() {
-  useEffect(() => {
-    document.title = "Features — BlackPebble";
-  }, []);
-
   return (
     <div className="flex flex-col gap-8 px-4 py-6 sm:py-10 max-w-4xl mx-auto">
       <div className="space-y-3">

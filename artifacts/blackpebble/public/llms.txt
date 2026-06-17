@@ -1,20 +1,42 @@
 # BlackPebble
 
-> BlackPebble is a free Solana paper-trading platform. Users trade real, live Solana tokens with virtual SOL — practicing strategies and competing on leaderboards without risking real money. All prices and market data are live and on-chain; all balances and trades are simulated. BlackPebble never takes custody of real funds and never executes real swaps.
+> BlackPebble is a professional Solana trading and utility platform built for memecoin traders. It combines paper trading, market discovery, trader reputation and trust scores, public profiles, leaderboards, portfolio tracking, a recovery suite, wallet cleanup tools, and analytics into a single dashboard. Market data (price, market cap, liquidity, volume) is live and on-chain; paper-trading balances and trades are simulated. BlackPebble never takes custody of real funds in paper trading and never executes real swaps. The only feature that touches a real wallet is SOL Recovery, which operates on-chain and separately from paper trading.
+
+## Live features
+
+- Paper Trading: buy and sell real, live Solana tokens with virtual SOL at on-chain prices — risk-free trading practice.
+- Market Discovery: trending Solana tokens with live price, market cap, liquidity, and volume; token analytics, watchlists, and new token discovery.
+- Trader Reputation & Trust Scores: a transparent reputation network with trust scores derived from public, recorded trading activity.
+- Public Trader Profiles & Social Feed: public profiles, performance tracking, and an activity feed to follow and compare traders.
+- Leaderboards: trader rankings by realized P&L across daily, weekly, and all-time periods.
+- Portfolio Tracking: open positions, realized and unrealized P&L, ROI, and full trade history.
+- Trade Planning & Smart Exits: position sizing and risk, buy limit orders, and automated take-profit / stop-loss with multi-target exits.
+- Recovery Suite (SOL Recovery): reclaim rent SOL from unused or empty token accounts on-chain, with recovery history and wallet health analytics.
+- Wallet Cleanup Tools: review and close empty token accounts, surface dust and recoverable rent; manual, user-initiated actions.
+- Trading Journal & Analytics: record trades and review performance over time.
 
 ## Pages
 
-- [Home / Trading Desk](https://blackpebble.fun/): Trade live Solana tokens with paper money.
+- [Home / Trading Desk](https://blackpebble.fun/): Paper-trade live Solana tokens with virtual SOL.
 - [Markets](https://blackpebble.fun/markets): Trending Solana tokens with live price, market cap, liquidity, and volume.
-- [Portfolio](https://blackpebble.fun/portfolio): Open positions, realized and unrealized P&L, ROI, and trade history.
+- [Discover](https://blackpebble.fun/discover): Find traders, trending tokens, and new opportunities.
 - [Leaderboard](https://blackpebble.fun/leaderboard): Traders ranked by realized P&L across daily, weekly, and all-time periods.
-- [Utilities](https://blackpebble.fun/utilities): Standalone wallet tools, including SOL Recovery for reclaiming trapped rent.
+- [Portfolio](https://blackpebble.fun/portfolio): Open positions, realized and unrealized P&L, ROI, and trade history.
+- [Feed](https://blackpebble.fun/feed): Public trader activity and calls.
+- [SOL Recovery](https://blackpebble.fun/utilities/sol-recovery): Reclaim trapped rent SOL from unused token accounts.
+- [Wallet Cleanup](https://blackpebble.fun/utilities/wallet-cleaner): Review and close empty Solana token accounts.
+- [Trade Planner](https://blackpebble.fun/utilities/trade-planner): Plan entries, position size, and automated exits.
+- [Trading Journal](https://blackpebble.fun/utilities/journal): Record and review trades.
 - [About](https://blackpebble.fun/about): What BlackPebble is and how it works.
-- [Features](https://blackpebble.fun/features): The full set of trading, planning, and portfolio features.
-- [Roadmap](https://blackpebble.fun/roadmap): What is live today and what is planned next.
+- [Features](https://blackpebble.fun/features): The full set of live features.
+- [Vision / Roadmap](https://blackpebble.fun/roadmap): What is live today and the future direction.
+
+## Planned (not yet live)
+
+- Telegram utilities, community funding systems, a professional trading terminal, and a broader BlackPebble ecosystem and rewards. These are future directions and are not currently available.
 
 ## Notes
 
 - BlackPebble is for entertainment and education only and is not financial advice.
-- Trading uses virtual SOL; no real money is ever at risk in the paper-trading experience.
+- Paper trading uses virtual SOL; no real money is at risk in the paper-trading experience.
 - SOL Recovery is the only feature that interacts with a real wallet, and it operates entirely on-chain and separately from paper trading.
