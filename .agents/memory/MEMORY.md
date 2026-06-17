@@ -10,6 +10,7 @@
 - [Guest funnel event semantics](guest-funnel-semantics.md) — funnel stage beacons must be oncePerDevice AND guest-scoped, else conversion% goes >100%; counts are independent per event_type, no identity joins.
 - [Profile/social reads must stay read-only](profile-stats-readonly.md) — getProfileStats must not call ensureAccount/getPortfolio for never-traded users (they INSERT accounts); fetch read-only, default if absent.
 - [USD-default needs a position-independent rate](usd-default-needs-rate.md) — empty/guest portfolios have solUsd=0; use /markets/sol-price + useSolUsd() so USD renders without positions.
+- [Cash-balance desync](cash-balance-desync.md) — size USD orders via authoritative useTradeRate (not token quote, collapses to ~1); keep account a React Query so ["account"] invalidations aren't no-ops.
 - [$25 PUFFY block is correct](puffy-25-block-audit.md) — not a calc bug; many same-name tokens, illiquid duplicates rightly blocked. Don't lower threshold. Sell dedup matches identical token_amount.
 - [Leverage P&L isolation](leverage-pnl-isolation.md) — leverage open/close only mutate paper_balance; never spot stat columns (realized_pnl/total_trades/etc).
 - [Leverage MC denomination](leverage-mc-denomination.md) — liquidation + P&L must track USD market cap (mc<=liq_market_cap), not SOL price; SOL-denominated logic liquidated profitable longs when SOL/USD rose.

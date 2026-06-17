@@ -72,7 +72,21 @@ router.post(
     const meta = { name: b.name ?? null, symbol: b.symbol ?? null, logo: b.logo ?? null };
 
     if (side === "buy") {
-      const result = await executeBuy(wallet, mint, Number(b.solAmount), meta);
+      // USD-sized buys carry the raw usdAmount; convert to SOL here using the
+      // server's authoritative SOL price so sizing never depends on the client's
+      // (possibly stale) per-token rate. SOL-sized buys are unchanged.
+      let solAmount = Number(b.solAmount);
+      if (b.usdAmount != null) {
+        const usd = Number(b.usdAmount);
+        const solPrice = await getSolPriceUsd();
+        if (!Number.isFinite(usd) || usd <= 0 || !solPrice || solPrice <= 0) {
+          return res
+            .status(400)
+            .json({ ok: false, error: "SOL price unavailable; try again." });
+        }
+        solAmount = usd / solPrice;
+      }
+      const result = await executeBuy(wallet, mint, solAmount, meta);
       return res.status(result.ok ? 200 : 400).json(result);
     }
     if (side === "sell") {

@@ -25,6 +25,7 @@ import { SegmentedToggle, PlannerField, Stat } from "./primitives";
 import { fmtUnitAmt, fmtPct, fmtMult, fmtRatioOneTo } from "./util";
 import { fmtMarketCap, fmtSol } from "@/lib/format";
 import { useFeatureFlags } from "@/hooks/use-feature-flags";
+import { useTradeRate } from "@/hooks/use-sol-usd";
 
 export interface PlannedTrade {
   targetMc: number | null;
@@ -171,21 +172,20 @@ export function MiniPlanner({
     [parsed],
   );
 
-  // SOL/USD rate derived straight from the token quote — no extra fetch.
-  const solUsd =
-    info.priceUsd != null && info.priceSol != null && info.priceSol > 0
-      ? info.priceUsd / info.priceSol
-      : null;
+  // Authoritative SOL/USD rate — `rate` for the SOL amount applied to the buy
+  // field, `rateReady` to gate Apply. Using the trusted rate (not the per-token
+  // quote) keeps the applied SOL amount correct when the quote is stale.
+  const { rate, rateReady } = useTradeRate(info);
 
   // The SOL value that would be pushed into the buy field on Apply.
   const amountSol = useMemo(() => {
     const amt = parsed.investment;
     if (amt == null || amt <= 0) return null;
     if (unit === "SOL") return amt;
-    return solUsd != null && solUsd > 0 ? amt / solUsd : null;
-  }, [parsed.investment, unit, solUsd]);
+    return rate != null && rate > 0 ? amt / rate : null;
+  }, [parsed.investment, unit, rate]);
 
-  const usdRateMissing = unit === "USD" && solUsd == null;
+  const usdRateMissing = unit === "USD" && !rateReady;
 
   // Field-level validation for a long trade. Only flags a field once the user
   // has entered a value (blank Target/Stop are optional and never error), so the
@@ -225,7 +225,7 @@ export function MiniPlanner({
     parsed.investment != null &&
     parsed.investment > 0 &&
     !hasFieldError &&
-    !(unit === "USD" && (solUsd == null || solUsd <= 0));
+    !(unit === "USD" && !rateReady);
 
   const canAttachTp = parsed.target != null && parsed.target > 0;
   const canAttachSl = parsed.stop != null && parsed.stop > 0;

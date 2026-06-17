@@ -58,6 +58,7 @@ import {
   type PlannedAttachments,
 } from "@/components/trade-planner/mini-planner";
 import { useAccount } from "@/hooks/use-account";
+import { useTradeRate } from "@/hooks/use-sol-usd";
 import { useToast } from "@/hooks/use-toast";
 import { useFeatureFlags } from "@/hooks/use-feature-flags";
 import { useXAuth } from "@/hooks/use-x-auth";
@@ -462,13 +463,6 @@ function useDebounced<T>(value: T, delayMs: number): T {
 function formatAppliedAmount(value: number): string {
   if (!Number.isFinite(value) || value <= 0) return "";
   return String(Number(value.toFixed(4)));
-}
-
-/** SOL/USD rate from a token quote, or null when it can't be derived. */
-function solUsdFromInfo(info: TokenInfo): number | null {
-  return info.priceUsd != null && info.priceSol != null && info.priceSol > 0
-    ? info.priceUsd / info.priceSol
-    : null;
 }
 
 /** Position value in the active unit. Falls back to SOL when the rate is missing. */
@@ -879,7 +873,8 @@ function TradePanel({
   /** Create a buy-limit entry order immediately (reuses the page helper). */
   onCreateBuyLimit?: (p: { triggerMc: number; solAmount: number }) => void;
 }) {
-  const { wallet, account, isGuest } = useAccount();
+  const { wallet, account, isGuest, loading: accountLoading, refresh } =
+    useAccount();
   const { toast } = useToast();
   const qc = useQueryClient();
   const flags = useFeatureFlags();
@@ -895,18 +890,28 @@ function TradePanel({
     if (isGuest && info?.mint) trackTokenView(getGuestState().anon_id);
   }, [isGuest, info?.mint]);
 
-  // SOL/USD rate for this token (derived from the quote — no extra fetch).
-  // The Amount field holds a raw value interpreted in `unit`; everything that
-  // talks to the trade API is converted to SOL via `toSol` so the existing
-  // SOL-based execution contract is untouched.
-  const solUsd = solUsdFromInfo(info);
-  const usdUnavailable = unit === "USD" && (solUsd == null || solUsd <= 0);
+  // Authoritative SOL/USD rate. `solUsd` is the best-effort display value;
+  // `rate` is the trusted value used to size/validate orders; `rateReady` gates
+  // submission so a USD order is never sized against a stale per-token quote that
+  // has collapsed toward ~1 (the cash-balance desync bug). The Amount field holds
+  // a raw value interpreted in `unit`; everything that talks to the trade API is
+  // converted to SOL via `toSol` so the existing SOL execution contract is intact.
+  const { solUsd, rate, rateReady } = useTradeRate(info);
+  const usdUnavailable = unit === "USD" && !rateReady;
   const toSol = (raw: string | number): number => {
     const n = typeof raw === "number" ? raw : Number(raw);
     if (!Number.isFinite(n) || n <= 0) return NaN;
     if (unit === "SOL") return n;
-    return solUsd != null && solUsd > 0 ? n / solUsd : NaN;
+    return rate != null && rate > 0 ? n / rate : NaN;
   };
+
+  // Keep the cash balance fresh whenever the trader opens a new token or toggles
+  // between spot and leverage — both are moments where a stale balance would
+  // mislead the pre-trade UI (the desync bug surfaced exactly here).
+  useEffect(() => {
+    if (!isGuest) void refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [info.mint, tradeMode, isGuest]);
 
   // When the Mini Planner applies a plan, switch to Buy and pre-fill the amount.
   // Keyed on `nonce` so re-applying the same value still re-fills the field.
@@ -1192,6 +1197,10 @@ function TradePanel({
         }
         return result;
       }
+      // Refetch the balance immediately before submitting so the pre-submit UI
+      // reflects the freshest cash balance. The server re-reads paper_balance FOR
+      // UPDATE and re-derives the SOL amount from usdAmount, so this is UI-only.
+      await refresh();
       return api.execute(
         side === "buy"
           ? {
@@ -1199,6 +1208,9 @@ function TradePanel({
               mint: info.mint,
               side: "buy",
               solAmount: execSol,
+              // In USD mode, send the raw USD so the server sizes the buy from its
+              // own authoritative SOL price (client rate is never trusted).
+              usdAmount: unit === "USD" ? Number(solAmount) : undefined,
               name: info.name,
               symbol: info.symbol,
               logo: info.logo,
@@ -1751,6 +1763,7 @@ function TradePanel({
               mutation.isPending ||
               (side === "buy" && usdUnavailable) ||
               (side === "buy" && !(toSol(solAmount) >= 0.1)) ||
+              (!isGuest && (accountLoading || !account)) ||
               (side === "sell" && !position) ||
               (quoteEnabled && quote?.ok === false)
             }

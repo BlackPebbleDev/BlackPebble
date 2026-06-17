@@ -2,10 +2,10 @@ import {
   createContext,
   useContext,
   useEffect,
-  useState,
   useCallback,
   type ReactNode,
 } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { api, type Account } from "@/lib/api";
 import { useXAuth } from "@/hooks/use-x-auth";
@@ -40,45 +40,30 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   // a wallet-only key preserves the original behaviour for users who never sign
   // in with X. Guest mode only applies when neither identity exists.
   const accountKey = user ? `x:${user.x_id}` : solanaWallet;
+  const qc = useQueryClient();
 
-  const [account, setAccount] = useState<Account | null>(null);
-  const [loading, setLoading] = useState(false);
+  // The account is the single source of truth for the cash balance, shared by
+  // the spot panel, leverage panel and Portfolio. It lives in a React Query so
+  // every `invalidateQueries(["account"])` (after a trade, cancel, close, or a
+  // server-side TP/SL/liquidation fill) actually refetches it, and so it
+  // refreshes on window focus / remount. `getAccount` is upsert-safe server-side
+  // (ensureAccount ON CONFLICT DO NOTHING), so refetching never resets a balance.
+  const {
+    data: account = null,
+    isLoading,
+  } = useQuery<Account | null>({
+    queryKey: ["account", accountKey],
+    enabled: !!accountKey,
+    queryFn: () => api.getAccount(accountKey!),
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
+  });
 
   const refresh = useCallback(async () => {
-    if (!accountKey) {
-      setAccount(null);
-      return;
-    }
-    try {
-      const a = await api.getAccount(accountKey);
-      setAccount(a);
-    } catch {
-      setAccount(null);
-    }
-  }, [accountKey]);
-
-  useEffect(() => {
-    let cancelled = false;
-    async function init() {
-      if (!accountKey) {
-        setAccount(null);
-        return;
-      }
-      setLoading(true);
-      try {
-        const a = await api.createAccount(accountKey);
-        if (!cancelled) setAccount(a);
-      } catch {
-        if (!cancelled) setAccount(null);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-    init();
-    return () => {
-      cancelled = true;
-    };
-  }, [accountKey, user, solanaWallet]);
+    if (!accountKey) return;
+    await qc.invalidateQueries({ queryKey: ["account", accountKey] });
+  }, [qc, accountKey]);
 
   // Funnel beacon: a device with no identity is a guest. Deduped per device by
   // the analytics helper, so this only counts once.
@@ -93,7 +78,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         connected,
         isGuest: !accountKey,
         account,
-        loading,
+        loading: isLoading,
         refresh,
       }}
     >

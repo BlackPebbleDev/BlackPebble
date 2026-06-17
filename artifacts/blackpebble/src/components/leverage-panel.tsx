@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, ChevronDown, Loader2 } from "lucide-react";
 import { api, type TokenInfo } from "@/lib/api";
 import { useAccount } from "@/hooks/use-account";
+import { useTradeRate } from "@/hooks/use-sol-usd";
 import { useToast } from "@/hooks/use-toast";
 import { useXAuth } from "@/hooks/use-x-auth";
 import { fmtSol, fmtMarketCap, fmtPercent, fmtPrice } from "@/lib/format";
@@ -26,13 +27,6 @@ const SOL_MARGIN_PRESETS = [0.5, 1, 5, 10];
 const USD_MARGIN_PRESETS = [25, 50, 100, 500];
 const ROI_EXAMPLES = [0.2, 0.5, 1.0];
 
-/** SOL/USD rate from a token quote, or null when it can't be derived. */
-function solUsdFromInfo(info: TokenInfo): number | null {
-  return info.priceUsd != null && info.priceSol != null && info.priceSol > 0
-    ? info.priceUsd / info.priceSol
-    : null;
-}
-
 /** Amount shown in the active unit (margin/size are SOL internally). */
 function unitAmt(solValue: number, unit: Unit, solUsd: number | null): string {
   if (unit === "USD" && solUsd != null && solUsd > 0) {
@@ -48,7 +42,8 @@ function unitAmt(solValue: number, unit: Unit, solUsd: number | null): string {
  * edits. Optional Take Profit / Stop Loss (by market cap) attach to the position.
  */
 export function LeveragePanel({ info }: { info: TokenInfo }) {
-  const { wallet, account, isGuest } = useAccount();
+  const { wallet, account, isGuest, loading: accountLoading, refresh } =
+    useAccount();
   const { toast } = useToast();
   const qc = useQueryClient();
   const { login } = useXAuth();
@@ -79,16 +74,28 @@ export function LeveragePanel({ info }: { info: TokenInfo }) {
   const [slMc, setSlMc] = useState("");
 
   const cashBalance = account?.paper_balance ?? 0;
-  const solUsd = solUsdFromInfo(info);
-  const usdUnavailable = unit === "USD" && (solUsd == null || solUsd <= 0);
+  // Authoritative SOL/USD rate (position-independent). `rate` is the trusted value
+  // used for sizing + validation; `solUsd` is the best-effort display value; the
+  // panel disables submission until `rateReady` so an order is never sized against
+  // a stale per-token quote that has collapsed toward ~1.
+  const { solUsd, rate, rateReady } = useTradeRate(info);
+  const usdUnavailable = unit === "USD" && !rateReady;
 
-  // Convert the (possibly USD) margin field into the SOL the API expects.
+  // Convert the (possibly USD) margin field into the SOL the API expects, using
+  // the trusted rate only.
   const marginSol = useMemo(() => {
     const n = Number(margin);
     if (!Number.isFinite(n) || n <= 0) return NaN;
     if (unit === "SOL") return n;
-    return solUsd != null && solUsd > 0 ? n / solUsd : NaN;
-  }, [margin, unit, solUsd]);
+    return rate != null && rate > 0 ? n / rate : NaN;
+  }, [margin, unit, rate]);
+  // Raw USD margin (USD mode only) — sent so the server re-derives margin from its
+  // own authoritative SOL price (defence in depth; client rate is never trusted).
+  const marginUsd = useMemo(() => {
+    if (unit !== "USD") return null;
+    const n = Number(margin);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }, [margin, unit]);
 
   const marginValid = Number.isFinite(marginSol) && marginSol >= MIN_MARGIN_SOL;
   const notionalSol = marginValid ? marginSol * leverage : 0;
@@ -150,18 +157,24 @@ export function LeveragePanel({ info }: { info: TokenInfo }) {
       (liqMarketCap != null && slMcNum <= liqMarketCap));
 
   const mutation = useMutation({
-    mutationFn: () =>
-      api.leverage.open({
+    mutationFn: async () => {
+      // Refetch the balance immediately before submitting so the client gate is
+      // checked against the freshest cash balance (the server re-validates FOR
+      // UPDATE regardless, so this is purely for an accurate pre-submit UI).
+      await refresh();
+      return api.leverage.open({
         wallet: wallet!,
         mint: info.mint,
         symbol: info.symbol,
         name: info.name,
         logo: info.logo,
         marginSol,
+        marginUsd,
         leverage,
         tpTriggerMc: tpEnabled && !tpInvalid ? tpMcNum : null,
         slTriggerMc: slEnabled && !slInvalid ? slMcNum : null,
-      }),
+      });
+    },
     onSuccess: (res) => {
       if (!res.ok) {
         toast({
@@ -185,6 +198,8 @@ export function LeveragePanel({ info }: { info: TokenInfo }) {
       qc.invalidateQueries({ queryKey: ["leverage-positions"] });
       qc.invalidateQueries({ queryKey: ["leverage-history"] });
       qc.invalidateQueries({ queryKey: ["account"] });
+      qc.invalidateQueries({ queryKey: ["pf"] });
+      qc.invalidateQueries({ queryKey: ["pf-stats"] });
     },
     onError: (e: Error) =>
       toast({
@@ -226,6 +241,8 @@ export function LeveragePanel({ info }: { info: TokenInfo }) {
     !usdUnavailable &&
     !tpInvalid &&
     !slInvalid &&
+    !accountLoading &&
+    !!account &&
     !mutation.isPending;
 
   return (

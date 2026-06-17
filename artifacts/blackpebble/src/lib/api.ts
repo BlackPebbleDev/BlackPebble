@@ -1441,6 +1441,7 @@ export const api = {
       name?: string | null;
       logo?: string | null;
       marginSol: number;
+      marginUsd?: number | null;
       leverage: number;
       tpTriggerMc?: number | null;
       slTriggerMc?: number | null;

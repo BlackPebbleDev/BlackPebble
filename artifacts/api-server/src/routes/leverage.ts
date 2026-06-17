@@ -27,10 +27,24 @@ router.post(
     if (!wallet || !mint) {
       return res.status(400).json({ ok: false, error: "wallet and mint are required" });
     }
+    // USD-sized margin carries the raw marginUsd; convert to SOL here with the
+    // server's authoritative SOL price so margin sizing never depends on the
+    // client's (possibly stale) per-token rate. SOL-sized margin is unchanged.
+    let marginSol = Number(b.marginSol);
+    if (b.marginUsd != null) {
+      const usd = Number(b.marginUsd);
+      const solPrice = await getSolPriceUsd();
+      if (!Number.isFinite(usd) || usd <= 0 || !solPrice || solPrice <= 0) {
+        return res
+          .status(400)
+          .json({ ok: false, error: "SOL price unavailable; try again." });
+      }
+      marginSol = usd / solPrice;
+    }
     const result = await openLeverage({
       wallet,
       mint,
-      marginSol: Number(b.marginSol),
+      marginSol,
       leverage: Number(b.leverage),
       meta: { name: b.name ?? null, symbol: b.symbol ?? null, logo: b.logo ?? null },
       tpTriggerMc: b.tpTriggerMc != null ? Number(b.tpTriggerMc) : null,
