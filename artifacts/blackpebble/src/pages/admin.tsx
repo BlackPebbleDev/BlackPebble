@@ -995,6 +995,7 @@ function RecoverySection() {
   const l = data?.lifetime;
   const recent = data?.recent ?? [];
   const top = data?.topUsers ?? [];
+  const fee = data?.feeStatus;
 
   return (
     <Card
@@ -1031,6 +1032,47 @@ function RecoverySection() {
             <Stat label="Unique wallets" value={fmt(l?.unique_wallets)} />
           </div>
         </div>
+
+        {fee && (
+          <div>
+            <div className="mb-2 flex items-center gap-2 text-[11px] uppercase tracking-wider text-muted-foreground">
+              Fee architecture
+              <span
+                className={
+                  fee.active
+                    ? "rounded-sm bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-400"
+                    : "rounded-sm bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground"
+                }
+                data-testid="badge-fee-status"
+              >
+                {fee.active ? `ACTIVE · ${fee.feePercent}%` : "DISABLED · 0%"}
+              </span>
+            </div>
+            <div className="border border-border p-3 text-xs text-muted-foreground">
+              {fee.summary}
+            </div>
+            <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {fee.pipeline.map((s) => (
+                <div
+                  key={s.key}
+                  className="border border-border/60 px-3 py-2"
+                  title={s.description}
+                >
+                  <div className="text-[13px] text-foreground">{s.label}</div>
+                  <div
+                    className={
+                      s.enabled
+                        ? "text-[11px] text-emerald-400"
+                        : "text-[11px] text-muted-foreground"
+                    }
+                  >
+                    {s.enabled ? "Enabled" : "Disabled"}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div>
           <div className="mb-2 text-[11px] uppercase tracking-wider text-muted-foreground">

@@ -7,6 +7,10 @@ import {
   ensureRecoverySchema,
   verifyRecoveryEvent,
 } from "../lib/recovery-verify.js";
+import {
+  calculateRecoveryFee,
+  getRecoveryFeeStatus,
+} from "../lib/recovery-fee.js";
 import { logger } from "../lib/logger.js";
 
 const router: IRouter = Router();
@@ -92,7 +96,11 @@ router.post(
     const txSignatures = sigList.length > 0 ? JSON.stringify(sigList) : null;
     const networkFeeSol =
       eventType === "cleanup" ? clampNum(body.networkFeeSol) : 0;
-    const bpFeeSol = 0;
+    // BlackPebble platform fee is computed via the central fee helper, which
+    // returns 0 while fees are disabled (the current state). Routing it through
+    // the helper means the "fee is 0" guarantee lives in ONE place and the
+    // recovery payout (netSol below) is provably unchanged.
+    const { bpFeeSol } = calculateRecoveryFee(clampNum(body.recoveredSol));
     const netSol = eventType === "cleanup" ? clampNum(body.netSol) : 0;
 
     // Client-reported counts are stored as UNVERIFIED telemetry only. The
@@ -377,6 +385,9 @@ router.get(
       windows: { day: day24, week: days7, month: days30 },
       recent,
       topUsers,
+      // Disabled future-fee architecture status (Phase G). Always reports the
+      // fee system as off — see recovery-fee.ts.
+      feeStatus: getRecoveryFeeStatus(),
     });
   }),
 );

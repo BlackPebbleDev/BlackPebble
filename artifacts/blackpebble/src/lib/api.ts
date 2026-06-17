@@ -1038,6 +1038,29 @@ export interface RecoveryHistoryResponse {
   lifetime: RecoveryHistoryLifetime;
 }
 
+/** One stage of the (disabled) future recovery-fee pipeline. */
+export interface RecoveryFeeStage {
+  key: "recovery_fee" | "treasury" | "buybacks" | "burns";
+  label: string;
+  enabled: boolean;
+  description: string;
+}
+
+/**
+ * Disabled future-fee architecture status (Phase G). The fee system is inert:
+ * `active` is always false today and users keep 100% of recovered SOL.
+ */
+export interface RecoveryFeeStatus {
+  active: boolean;
+  feeBps: number;
+  feePercent: number;
+  treasuryConfigured: boolean;
+  buybacksEnabled: boolean;
+  burnsEnabled: boolean;
+  pipeline: RecoveryFeeStage[];
+  summary: string;
+}
+
 export interface RecoveryStatsResponse {
   generatedAt: number;
   lifetime: RecoveryLifetimeStats;
@@ -1048,6 +1071,8 @@ export interface RecoveryStatsResponse {
   };
   recent: RecoveryRecentRow[];
   topUsers: RecoveryTopUser[];
+  /** Disabled fee-architecture status. Optional for backward compatibility. */
+  feeStatus?: RecoveryFeeStatus;
 }
 
 export interface ExecuteResult {

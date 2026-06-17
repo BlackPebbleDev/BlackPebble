@@ -35,3 +35,13 @@ re-verify-pending endpoint that re-runs the same on-chain proof. Verification is
 identity-independent (guests included); X identity only governs feed attribution.
 Schema self-heals at runtime via ensureRecoverySchema() (ADD COLUMN/CREATE TABLE IF NOT
 EXISTS), matching the codebase's read-path ensure*Schema convention.
+
+**Recovery fee = DISABLED scaffolding (Phase G):** BlackPebble recovery is free. The
+fee policy lives in ONE frozen place (recovery-fee.ts RECOVERY_FEE_CONFIG, enabled:false,
+feeBps:0, pipeline Recovery Fee→Treasury→Buybacks→Burns all disabled, no treasury/token
+addresses). calculateRecoveryFee() returns a 0 fee on the live path; the non-zero branch
+is unreachable while disabled. bp_fee_sol is sourced from this helper (not a literal) so
+the "fee is 0" guarantee is centralized; netSol/payouts are unchanged. Admin sees a
+read-only disabled status via getRecoveryFeeStatus() in /admin/recovery-stats. **Why:** a
+non-zero charge can only ever appear by deliberately editing the frozen config — there is
+no hidden/runtime path. If fees are ever enabled, compute netSol from the same helper.
