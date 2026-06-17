@@ -21,6 +21,7 @@ import {
 } from "@/lib/format";
 import { PnlAmount } from "@/components/pnl-amount";
 import { UserIdentity } from "@/components/user-identity";
+import { TrustBadge, trustLabelFromScore } from "@/components/reputation-card";
 import { trackXProfileLinkClicked } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
 
@@ -139,6 +140,18 @@ export function FeedUserLink({
           : undefined
       }
       testIdName={handle ? `link-profile-${handle}` : undefined}
+      subline={
+        user.trustScore != null && user.trustScore > 0 ? (
+          <div className="mt-0.5">
+            <TrustBadge
+              score={user.trustScore}
+              label={trustLabelFromScore(user.trustScore)}
+              size="xs"
+              showLabel={false}
+            />
+          </div>
+        ) : undefined
+      }
     />
   );
 }

@@ -20,6 +20,11 @@ import {
 import { getExecutionPrice, getTokenInfo } from "../lib/prices.js";
 import { getCallerStats } from "../lib/callers.js";
 import {
+  searchTraders,
+  getPeriodPerformance,
+  type TraderSearchFilters,
+} from "../lib/reputation.js";
+import {
   computeTrustScore,
   getEarnedBadgeCount,
   getUserBadges,
@@ -95,6 +100,36 @@ router.put(
       return res.status(result.status).json({ error: result.error });
     }
     return res.json({ ok: true, bio: result.bio });
+  }),
+);
+
+/**
+ * Trader discovery: search/filter the reputation board. Declared before the
+ * polymorphic `/profiles/:id` route so "search" is never read as a handle.
+ * Read-only — never mutates trading/reputation state.
+ */
+router.get(
+  "/profiles/search",
+  asyncHandler(async (req, res) => {
+    const sortRaw = String(req.query.sort || "trust");
+    const sort: TraderSearchFilters["sort"] = (
+      ["trust", "followers", "rising", "calls"] as const
+    ).includes(sortRaw as never)
+      ? (sortRaw as TraderSearchFilters["sort"])
+      : "trust";
+    const toNum = (v: unknown): number | undefined => {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : undefined;
+    };
+    const entries = await searchTraders({
+      q: req.query.q ? String(req.query.q) : undefined,
+      tier: req.query.tier ? String(req.query.tier) : undefined,
+      minTrust: toNum(req.query.minTrust),
+      minFollowers: toNum(req.query.minFollowers),
+      sort,
+      limit: toNum(req.query.limit),
+    });
+    return res.json({ entries });
   }),
 );
 
@@ -269,6 +304,21 @@ router.get(
     if (!target) return res.status(404).json({ error: "Profile not found" });
     const stats = await getCallerStats(target.user_id);
     return res.json({ stats });
+  }),
+);
+
+/**
+ * Period-filtered call performance for a profile (30d / 90d / all-time): total
+ * calls, win rate, avg return, best/worst call. Graded live against current
+ * prices over the immutable callouts table — read-only, no scoring changes.
+ */
+router.get(
+  "/profiles/:id/performance",
+  asyncHandler(async (req, res) => {
+    const target = await resolveUser(String(req.params.id));
+    if (!target) return res.status(404).json({ error: "Profile not found" });
+    const performance = await getPeriodPerformance(target.user_id);
+    return res.json({ performance });
   }),
 );
 

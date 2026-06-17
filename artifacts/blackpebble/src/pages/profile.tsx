@@ -2,7 +2,12 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  Activity,
   Award,
+  Check,
+  Coins,
+  Copy,
+  Gem,
   History,
   Loader2,
   Lock,
@@ -11,10 +16,13 @@ import {
   Plus,
   ScrollText,
   Send,
+  Share2,
   ShieldCheck,
+  Swords,
   Trophy,
   UserPlus,
   UserCheck,
+  Wallet,
   X as CloseIcon,
 } from "lucide-react";
 import {
@@ -26,10 +34,13 @@ import {
   type CalloutResult,
   type CalloutWithDetail,
   type Conviction,
+  type PeriodPerformance,
   type ProfileResponse,
   type ThesisWithAuthor,
 } from "@/lib/api";
 import { UserIdentity } from "@/components/user-identity";
+import { TrustBadge, trustLabelFromScore } from "@/components/reputation-card";
+import { FilterPills } from "@/components/filter-pills";
 import { useXAuth } from "@/hooks/use-x-auth";
 import { useSolUsd } from "@/hooks/use-sol-usd";
 import {
@@ -251,6 +262,8 @@ function XReputationSection({ profile }: { profile: ProfileResponse }) {
   const callerStats = data?.stats ?? null;
 
   const trustScore = profile.trustScore?.score ?? 0;
+  const trustLabel =
+    profile.trustScore?.label ?? trustLabelFromScore(trustScore);
   const rankLabel = tradingRankLabel(profile);
   const hasGradedCalls = callerStats != null && callerStats.gradedCalls > 0;
   const callAccuracy = hasGradedCalls
@@ -265,13 +278,19 @@ function XReputationSection({ profile }: { profile: ProfileResponse }) {
         className="rounded-xl bg-card shadow-card overflow-hidden"
       >
         <div className="grid grid-cols-3 divide-x divide-border">
-          <div className="flex flex-col items-center gap-1 py-5 px-3">
+          <div className="flex flex-col items-center gap-1.5 py-5 px-3">
             <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
               Trust Score
             </div>
             <div className="font-mono text-2xl font-bold text-foreground">
               {trustScore}
             </div>
+            <TrustBadge
+              score={trustScore}
+              label={trustLabel}
+              size="xs"
+              showLabel
+            />
           </div>
           <div className="flex flex-col items-center gap-1 py-5 px-3 text-center">
             <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
@@ -1069,6 +1088,282 @@ function CallHistorySection({ profile }: { profile: ProfileResponse }) {
   );
 }
 
+type PerfWindow = "30d" | "90d" | "all";
+
+const perfTabs: { id: PerfWindow; label: string }[] = [
+  { id: "30d", label: "30D" },
+  { id: "90d", label: "90D" },
+  { id: "all", label: "All Time" },
+];
+
+/** Period-filtered call performance (30D / 90D / All-time), graded live. */
+function PerformanceSection({ profile }: { profile: ProfileResponse }) {
+  const [win, setWin] = useState<PerfWindow>("30d");
+  const key = profile.x_username || String(profile.user_id);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["performance", key],
+    queryFn: () =>
+      api.profiles.performance(profile.x_username || profile.user_id),
+    retry: false,
+    staleTime: 60_000,
+  });
+
+  const perf: PeriodPerformance | null = data
+    ? win === "30d"
+      ? data.performance.window30d
+      : win === "90d"
+        ? data.performance.window90d
+        : data.performance.all
+    : null;
+
+  return (
+    <>
+      <SectionHeader icon={Activity} title="Call Performance" />
+      <FilterPills
+        options={perfTabs}
+        value={win}
+        onChange={(id) => setWin(id)}
+        size="sm"
+        ariaLabel="Performance window"
+        testIdPrefix="perf-window"
+        className="mb-3"
+      />
+      {isLoading ? (
+        <div className="flex items-center justify-center py-10">
+          <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+        </div>
+      ) : !perf || perf.totalCalls === 0 ? (
+        <div
+          data-testid="performance-empty"
+          className="rounded-xl bg-card shadow-card text-center py-10 px-6"
+        >
+          <p className="text-foreground font-medium mb-1">No calls in this window</p>
+          <p className="text-muted-foreground text-sm max-w-sm mx-auto">
+            Calls made in the selected period are graded live and summarized here.
+          </p>
+        </div>
+      ) : (
+        <div data-testid="performance-card">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            <StatTile label="Total Calls" value={String(perf.totalCalls)} />
+            <StatTile label="Graded" value={String(perf.gradedCalls)} />
+            <StatTile
+              label="Win Rate"
+              value={`${perf.winRate.toFixed(0)}%`}
+              cls={perf.winRate >= 60 ? "text-emerald-400" : undefined}
+            />
+            <StatTile
+              label="Avg Return"
+              value={
+                perf.avgReturnPercent == null
+                  ? "—"
+                  : fmtPercent(perf.avgReturnPercent, 0)
+              }
+              cls={
+                perf.avgReturnPercent != null
+                  ? pnlColor(perf.avgReturnPercent)
+                  : undefined
+              }
+            />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
+            <PerfCallTile label="Best Call" call={perf.bestCall} />
+            <PerfCallTile label="Worst Call" call={perf.worstCall} />
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function PerfCallTile({
+  label,
+  call,
+}: {
+  label: string;
+  call: PeriodPerformance["bestCall"];
+}) {
+  return (
+    <div className="rounded-xl bg-card shadow-card p-4">
+      <div className="stat-label">{label}</div>
+      {call ? (
+        <div className="mt-1.5 flex items-center justify-between gap-2">
+          <span className="font-medium text-foreground truncate">
+            {call.token_symbol || shortAddr(call.token_mint, 4)}
+          </span>
+          <span
+            className={cn("font-mono text-lg", pnlColor(call.returnPercent))}
+          >
+            {fmtPercent(call.returnPercent, 0)}
+          </span>
+        </div>
+      ) : (
+        <div className="stat-value mt-1.5 text-lg text-muted-foreground">—</div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Forward-looking profile surfaces. These mirror the planned BlackPebble
+ * reputation architecture (Recovery, Paper Trading, Campaigns, BlackPebble
+ * Score) but carry NO logic yet — they render disabled "Coming soon" tiles so
+ * the layout and information architecture are set ahead of the engines.
+ */
+function ScaffoldTile({ label }: { label: string }) {
+  return (
+    <div className="rounded-xl bg-card/50 border border-dashed border-border p-4">
+      <div className="stat-label">{label}</div>
+      <div className="stat-value mt-1.5 text-lg text-muted-foreground/50">—</div>
+    </div>
+  );
+}
+
+function ScaffoldSection({
+  icon,
+  title,
+  fields,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  fields: string[];
+}) {
+  return (
+    <>
+      <div className="flex items-center justify-between mb-2 mt-6">
+        <div className="flex items-center gap-2">
+          {(() => {
+            const Icon = icon;
+            return <Icon className="w-4 h-4 text-accent" />;
+          })()}
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground">
+            {title}
+          </h2>
+        </div>
+        <span className="text-[10px] uppercase tracking-[0.2em] text-accent/80">
+          Coming soon
+        </span>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        {fields.map((f) => (
+          <ScaffoldTile key={f} label={f} />
+        ))}
+      </div>
+    </>
+  );
+}
+
+function FutureScaffolding() {
+  return (
+    <>
+      <ScaffoldSection
+        icon={Wallet}
+        title="SOL Recovery"
+        fields={["SOL Recovered", "Accounts Closed", "Recovery Rank", "Wallet Health"]}
+      />
+      <ScaffoldSection
+        icon={Coins}
+        title="Paper Trading"
+        fields={["ROI", "Trader Rank", "Best Trade", "Trade Count"]}
+      />
+      <ScaffoldSection
+        icon={Swords}
+        title="Campaigns"
+        fields={["Participation", "Raider Score", "Wins", "Rewards"]}
+      />
+      <ScaffoldSection
+        icon={Gem}
+        title="BlackPebble Score"
+        fields={["Overall Score", "Percentile", "Components", "Trend"]}
+      />
+    </>
+  );
+}
+
+/** Share this profile to X / Telegram, or copy a link. */
+function ShareCard({ profile }: { profile: ProfileResponse }) {
+  const { toast } = useToast();
+  const [copied, setCopied] = useState(false);
+
+  const handle = profile.x_username?.trim().replace(/^@+/, "") || null;
+  const url =
+    typeof window !== "undefined"
+      ? `${window.location.origin}${window.location.pathname}`
+      : "";
+  const name = profile.x_display_name || (handle ? `@${handle}` : "this trader");
+  const trust = profile.trustScore?.score;
+  const text =
+    trust != null
+      ? `Check out ${name} on BlackPebble — Trust Score ${trust}.`
+      : `Check out ${name} on BlackPebble.`;
+
+  const xUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(
+    text,
+  )}&url=${encodeURIComponent(url)}`;
+  const tgUrl = `https://t.me/share/url?url=${encodeURIComponent(
+    url,
+  )}&text=${encodeURIComponent(text)}`;
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      toast({
+        title: "Couldn't copy link",
+        description: "Copy the address from your browser instead.",
+        variant: "destructive",
+      });
+    }
+  }
+
+  const btn =
+    "inline-flex items-center justify-center gap-1.5 rounded-lg bg-card shadow-card px-3 py-2 text-sm font-medium text-foreground hover:bg-surface-3 transition-colors";
+
+  return (
+    <>
+      <SectionHeader icon={Share2} title="Share Profile" />
+      <div className="grid grid-cols-3 gap-2">
+        <a
+          href={xUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          data-testid="share-x"
+          className={btn}
+        >
+          <CloseIcon className="w-4 h-4" />
+          Post
+        </a>
+        <a
+          href={tgUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          data-testid="share-telegram"
+          className={btn}
+        >
+          <Send className="w-4 h-4" />
+          Telegram
+        </a>
+        <button
+          type="button"
+          onClick={copy}
+          data-testid="share-copy"
+          className={btn}
+        >
+          {copied ? (
+            <Check className="w-4 h-4 text-emerald-400" />
+          ) : (
+            <Copy className="w-4 h-4" />
+          )}
+          {copied ? "Copied" : "Copy"}
+        </button>
+      </div>
+    </>
+  );
+}
+
 export default function ProfilePage() {
   const { handle } = useParams<{ handle: string }>();
   const solUsd = useSolUsd();
@@ -1205,6 +1500,9 @@ export default function ProfilePage() {
       {/* Caller Stats (real, derived from callouts) */}
       <CallerStatsSection profile={profile} />
 
+      {/* Period-filtered call performance (30D / 90D / All) */}
+      <PerformanceSection profile={profile} />
+
       {/* Call History (real, immutable) */}
       <CallHistorySection profile={profile} />
 
@@ -1213,6 +1511,12 @@ export default function ProfilePage() {
 
       {/* Achievements & Badges (placeholder) */}
       <BadgesSection profile={profile} />
+
+      {/* Forward-looking reputation surfaces (no logic yet) */}
+      <FutureScaffolding />
+
+      {/* Share this profile */}
+      <ShareCard profile={profile} />
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { getTokenPeaks, recordTokenPeaks, athMultipleFrom } from "./peaks.js";
 import { BADGE_DEFINITIONS, ensureBadgesSchema, getOfficialBadgesForUsers } from "./badges.js";
 import { ensureRecoverySchema } from "./recovery-verify.js";
 import { getUserTiers } from "./trading.js";
+import { computeReputationBoard } from "./reputation.js";
 
 /**
  * Read-only activity feed (Phase 1).
@@ -75,6 +76,8 @@ export interface FeedActivityItem {
     x_avatar_url: string | null;
     graduation_tier?: string;
     official_badges?: string[];
+    /** Shared Trust Score (decorative; from the cached reputation board). */
+    trustScore?: number;
   };
 }
 
@@ -364,17 +367,22 @@ export async function getActivity(opts: {
     };
   });
 
-  // Attach graduation_tier + official_badges per poster (decorative — never throws).
+  // Attach graduation_tier + official_badges + trust score per poster
+  // (decorative — never throws). Trust comes from the cached reputation board.
   const uniqueUserIds = [...new Set(rows.map((r) => r.user_id))];
-  const [tierMap, badgeMap] = await Promise.all([
+  const [tierMap, badgeMap, reputation] = await Promise.all([
     getUserTiers(uniqueUserIds),
     getOfficialBadgesForUsers(uniqueUserIds),
+    computeReputationBoard().catch(() => []),
   ]);
+  const trustMap = new Map(reputation.map((e) => [e.user_id, e.trustScore]));
   for (const item of items) {
     const t = tierMap.get(item.user.user_id);
     if (t) item.user.graduation_tier = t;
     const b = badgeMap.get(item.user.user_id);
     if (b && b.length > 0) item.user.official_badges = b;
+    const trust = trustMap.get(item.user.user_id);
+    if (trust != null) item.user.trustScore = trust;
   }
 
   await enrichCalloutPerformance(items, rows);

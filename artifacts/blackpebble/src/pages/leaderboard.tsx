@@ -1,7 +1,15 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { Trophy, Loader2, Megaphone, Users } from "lucide-react";
+import {
+  Trophy,
+  Loader2,
+  Megaphone,
+  Users,
+  ShieldCheck,
+  TrendingUp,
+  Search,
+} from "lucide-react";
 import { useAccount } from "@/hooks/use-account";
 import {
   api,
@@ -11,6 +19,7 @@ import {
   type MostFollowedEntry,
 } from "@/lib/api";
 import { UserIdentity, type IdentitySize } from "@/components/user-identity";
+import { ReputationCard } from "@/components/reputation-card";
 import { FilterPills } from "@/components/filter-pills";
 import { fmtPercent, fmtMultiple, shortAddr } from "@/lib/format";
 import { PnlAmount } from "@/components/pnl-amount";
@@ -46,52 +55,16 @@ type LbCategory =
   | "top_traders"
   | "top_callers"
   | "most_followed"
+  | "top_rising"
   | "highest_trust";
 
 const categoryTabs: { id: LbCategory; label: string }[] = [
   { id: "top_traders", label: "Top Traders" },
   { id: "top_callers", label: "Top Callers" },
   { id: "most_followed", label: "Most Followed" },
-  { id: "highest_trust", label: "Highest Trust Score" },
+  { id: "top_rising", label: "Top Rising" },
+  { id: "highest_trust", label: "Highest Trust" },
 ];
-
-const comingSoonCopy: Record<
-  Exclude<LbCategory, "top_traders">,
-  { title: string; body: string }
-> = {
-  top_callers: {
-    title: "Top Callers coming soon",
-    body: "Once on-the-record callouts launch, traders will be ranked here by call accuracy and realized multiples.",
-  },
-  most_followed: {
-    title: "Most Followed coming soon",
-    body: "A ranking of the community's most-followed traders will appear here as the social graph grows.",
-  },
-  highest_trust: {
-    title: "Highest Trust Score coming soon",
-    body: "Traders will be ranked by a reputation score blending call accuracy, trading performance, and X reputation.",
-  },
-};
-
-function LeaderboardComingSoon({
-  category,
-}: {
-  category: Exclude<LbCategory, "top_traders">;
-}) {
-  const copy = comingSoonCopy[category];
-  return (
-    <div
-      data-testid={`leaderboard-coming-soon-${category}`}
-      className="rounded-2xl border border-dashed border-border bg-card/40 text-center py-16 px-6"
-    >
-      <Trophy className="w-10 h-10 text-muted-foreground/40 mx-auto mb-4" />
-      <p className="text-foreground font-medium mb-1">{copy.title}</p>
-      <p className="text-muted-foreground text-sm max-w-sm mx-auto">
-        {copy.body}
-      </p>
-    </div>
-  );
-}
 
 function callerRowId(c: CallerEntry): string {
   const handle = c.x_username?.trim().replace(/^@+/, "") || "";
@@ -419,6 +392,86 @@ function MostFollowed({
   );
 }
 
+/**
+ * Reputation board — shared list shell for Top Rising and Highest Trust. Both
+ * render the same ReputationCard; only the data source, copy and momentum
+ * highlight differ. No new ranking logic here: order comes straight from the
+ * server's reputation board.
+ */
+function ReputationBoard({
+  variant,
+}: {
+  variant: "rising" | "trust";
+}) {
+  const { data, isLoading } = useQuery({
+    queryKey: ["leaderboard", variant],
+    queryFn: () =>
+      variant === "rising" ? api.leaderboardRising() : api.leaderboardTrust(),
+    refetchInterval: 60_000,
+  });
+
+  const entries = data?.entries ?? [];
+
+  const copy =
+    variant === "rising"
+      ? {
+          intro:
+            "Traders with the most momentum over the last 30 days — ranked by new followers, recent calls and Trust Score growth, not lifetime totals.",
+          emptyTitle: "No rising traders yet",
+          emptyBody:
+            "As traders gain followers and make calls, the fastest-climbing names will surface here.",
+          icon: TrendingUp,
+        }
+      : {
+          intro:
+            "Ranked by Trust Score — a reputation blend of call accuracy, trading performance and X reputation.",
+          emptyTitle: "No trusted traders ranked yet",
+          emptyBody:
+            "Connect X, trade and make calls to build a Trust Score and appear on this board.",
+          icon: ShieldCheck,
+        };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (entries.length === 0) {
+    const Icon = copy.icon;
+    return (
+      <div
+        data-testid={`leaderboard-${variant}-empty`}
+        className="rounded-2xl border border-dashed border-border bg-card/40 text-center py-16 px-6"
+      >
+        <Icon className="w-10 h-10 text-muted-foreground/40 mx-auto mb-4" />
+        <p className="text-foreground font-medium mb-1">{copy.emptyTitle}</p>
+        <p className="text-muted-foreground text-sm max-w-sm mx-auto">
+          {copy.emptyBody}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <p className="text-sm text-muted-foreground mb-6">{copy.intro}</p>
+      <div className="space-y-2" data-testid={`list-${variant}`}>
+        {entries.map((e) => (
+          <ReputationCard
+            key={e.user_id}
+            entry={e}
+            showRank
+            highlight={variant === "rising" ? "rising" : "trust"}
+          />
+        ))}
+      </div>
+    </>
+  );
+}
+
 function pnlClass(v: number): string {
   if (v > 0) return "text-emerald-400";
   if (v < 0) return "text-red-400";
@@ -505,9 +558,20 @@ export default function Leaderboard() {
         <Trophy className="w-7 h-7 text-accent" />
         <h1 className="text-3xl md:text-4xl font-bold tracking-tight">Leaderboard</h1>
       </div>
-      <p className="text-sm text-muted-foreground mb-6">
-        How the BlackPebble community stacks up across trading and reputation.
-      </p>
+      <div className="flex items-start justify-between gap-3 mb-6">
+        <p className="text-sm text-muted-foreground">
+          How the BlackPebble community stacks up across trading and reputation.
+        </p>
+        <button
+          type="button"
+          onClick={() => navigate("/discover")}
+          data-testid="link-discover-traders"
+          className="inline-flex items-center gap-1.5 shrink-0 rounded-full bg-card px-3 py-1.5 text-xs font-medium text-foreground shadow-card hover:bg-surface-3 transition-colors"
+        >
+          <Search className="w-3.5 h-3.5 text-accent" />
+          Discover
+        </button>
+      </div>
 
       {/* Category nav — shared filter pills (no horizontal scroll). */}
       <FilterPills
@@ -523,8 +587,10 @@ export default function Leaderboard() {
         <TopCallers goToProfile={goToProfile} onRowKeyDown={onRowKeyDown} />
       ) : category === "most_followed" ? (
         <MostFollowed goToProfile={goToProfile} onRowKeyDown={onRowKeyDown} />
-      ) : category !== "top_traders" ? (
-        <LeaderboardComingSoon category={category} />
+      ) : category === "top_rising" ? (
+        <ReputationBoard variant="rising" />
+      ) : category === "highest_trust" ? (
+        <ReputationBoard variant="trust" />
       ) : (
         <>
           <p className="text-sm text-muted-foreground mb-6">

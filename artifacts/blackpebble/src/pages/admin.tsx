@@ -27,6 +27,7 @@ import {
   Megaphone,
   Award,
   BadgeCheck,
+  ShieldCheck,
 } from "lucide-react";
 import { useAdmin } from "@/hooks/use-admin";
 import { useToast } from "@/hooks/use-toast";
@@ -1898,6 +1899,146 @@ function SocialResetCard({
   );
 }
 
+function ReputationRow({
+  entry,
+  metric,
+}: {
+  entry: import("@/lib/api").ReputationEntry;
+  metric: "trust" | "rising";
+}) {
+  const handle = entry.x_username?.trim().replace(/^@+/, "") || null;
+  return (
+    <div className="flex items-center gap-3 px-3 py-2">
+      <span className="w-6 shrink-0 font-mono text-xs text-muted-foreground">
+        #{entry.rank}
+      </span>
+      <UserIdentity
+        className="flex-1 min-w-0"
+        size="sm"
+        avatarUrl={entry.x_avatar_url}
+        displayName={entry.x_display_name}
+        handle={handle}
+        officialBadges={entry.officialBadges}
+        tier={entry.graduation_tier}
+        fallbackName={`User ${entry.user_id}`}
+      />
+      <div className="shrink-0 text-right">
+        {metric === "trust" ? (
+          <>
+            <div className="font-mono text-sm text-foreground">
+              {entry.trustScore}
+            </div>
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+              {entry.trustLabel}
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="font-mono text-sm text-emerald-400">
+              +{entry.followers30d}
+            </div>
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+              30d follows
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Admin visibility into the reputation network: trust + rising boards. */
+function ReputationSection() {
+  const { data: trust, isFetching: trustLoading } = useQuery({
+    queryKey: ["admin", "reputation", "trust"],
+    queryFn: () => api.leaderboardTrust(),
+    refetchInterval: 60_000,
+  });
+  const { data: rising, isFetching: risingLoading } = useQuery({
+    queryKey: ["admin", "reputation", "rising"],
+    queryFn: () => api.leaderboardRising(),
+    refetchInterval: 60_000,
+  });
+
+  const trustEntries = trust?.entries ?? [];
+  const risingEntries = rising?.entries ?? [];
+
+  const totalFollowers = trustEntries.reduce((s, e) => s + e.followers, 0);
+  const totalFollowing = trustEntries.reduce((s, e) => s + e.following, 0);
+  const totalCalls = trustEntries.reduce((s, e) => s + e.callsMade, 0);
+  const avgTrust =
+    trustEntries.length > 0
+      ? Math.round(
+          trustEntries.reduce((s, e) => s + e.trustScore, 0) /
+            trustEntries.length,
+        )
+      : 0;
+
+  return (
+    <Card title="Reputation network" icon={ShieldCheck}>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <Stat label="Ranked traders" value={fmt(trustEntries.length)} />
+        <Stat label="Avg trust" value={fmt(avgTrust)} />
+        <Stat label="Total followers" value={fmt(totalFollowers)} />
+        <Stat label="Total calls" value={fmt(totalCalls)} />
+      </div>
+      <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <Stat label="Total following" value={fmt(totalFollowing)} />
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div>
+          <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <ShieldCheck className="h-3.5 w-3.5 text-accent" />
+            Highest trust
+          </div>
+          <div className="rounded-lg bg-surface-2 shadow-card divide-y divide-border">
+            {trustLoading && trustEntries.length === 0 ? (
+              <div className="px-3 py-6 text-center text-sm text-muted-foreground">
+                Loading…
+              </div>
+            ) : trustEntries.length === 0 ? (
+              <div className="px-3 py-6 text-center text-sm text-muted-foreground">
+                No ranked traders yet.
+              </div>
+            ) : (
+              trustEntries
+                .slice(0, 10)
+                .map((e) => (
+                  <ReputationRow key={e.user_id} entry={e} metric="trust" />
+                ))
+            )}
+          </div>
+        </div>
+
+        <div>
+          <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <TrendingUp className="h-3.5 w-3.5 text-accent" />
+            Top rising (30d)
+          </div>
+          <div className="rounded-lg bg-surface-2 shadow-card divide-y divide-border">
+            {risingLoading && risingEntries.length === 0 ? (
+              <div className="px-3 py-6 text-center text-sm text-muted-foreground">
+                Loading…
+              </div>
+            ) : risingEntries.length === 0 ? (
+              <div className="px-3 py-6 text-center text-sm text-muted-foreground">
+                No rising traders yet.
+              </div>
+            ) : (
+              risingEntries
+                .slice(0, 10)
+                .map((e) => (
+                  <ReputationRow key={e.user_id} entry={e} metric="rising" />
+                ))
+            )}
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 function SocialResetSection() {
   return (
     <Card title="Social & test-data resets" icon={AlertTriangle}>
@@ -1977,6 +2118,7 @@ export default function AdminPage() {
           <MessageSquare className="h-4 w-4 text-accent" />
           Social & moderation
         </div>
+        <ReputationSection />
         <SocialControlSection />
         <SocialResetSection />
 

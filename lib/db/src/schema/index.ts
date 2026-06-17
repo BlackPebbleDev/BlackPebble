@@ -644,3 +644,30 @@ export const journalEntries = pgTable(
     index("idx_journal_created").on(t.created_at),
   ],
 );
+
+// ── Reputation snapshots (additive; powers Top Rising Traders growth) ────────
+// Daily point-in-time snapshot of a trader's reputation (trust score, follower
+// count, calls made, win rate). Trust-score / follower growth is derived by
+// diffing today's value against the closest snapshot ~30 days ago. Snapshots
+// accrue over time; until history exists, growth metrics degrade to 0.
+// Created idempotently at runtime (ensureReputationSnapshotsSchema in
+// api-server lib/reputation.ts); this definition is mirror-only for type-safety,
+// matching the analytics_events / user_follows convention above.
+export const reputationSnapshots = pgTable(
+  "reputation_snapshots",
+  {
+    id: serial("id").primaryKey(),
+    user_id: integer("user_id").notNull(),
+    // Calendar day of the snapshot, 'YYYY-MM-DD' (one row per user per day).
+    snapshot_date: text("snapshot_date").notNull(),
+    trust_score: integer("trust_score").notNull(),
+    follower_count: integer("follower_count").notNull(),
+    calls_made: integer("calls_made").notNull(),
+    win_rate: doublePrecision("win_rate").notNull(),
+    created_at: bigint("created_at", { mode: "number" }).default(epoch),
+  },
+  (t) => [
+    uniqueIndex("reputation_snapshots_unique").on(t.user_id, t.snapshot_date),
+    index("idx_reputation_snapshots_date").on(t.snapshot_date),
+  ],
+);

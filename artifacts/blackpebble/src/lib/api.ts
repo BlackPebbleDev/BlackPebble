@@ -891,6 +891,8 @@ export interface FeedActivityItem {
     x_avatar_url: string | null;
     graduation_tier?: string;
     official_badges?: OfficialBadgeType[];
+    /** Shared Trust Score (decorative; from the cached reputation board). */
+    trustScore?: number;
   };
 }
 
@@ -931,6 +933,70 @@ export interface MostFollowedEntry {
   follower_count: number;
   officialBadges?: OfficialBadgeType[];
   graduation_tier?: string;
+}
+
+/**
+ * A trader's row on the Reputation Network — the shared shape returned by
+ * trader search, Top Rising Traders, and Highest Trust Score. Reuses the same
+ * Trust Score / tier / caller primitives shown on the profile.
+ */
+export interface ReputationEntry {
+  rank?: number;
+  user_id: number;
+  x_username: string | null;
+  x_display_name: string | null;
+  x_avatar_url: string | null;
+  graduation_tier: string;
+  officialBadges?: OfficialBadgeType[];
+  trustScore: number;
+  trustLabel: TrustLabel;
+  followers: number;
+  following: number;
+  followers30d: number;
+  callsMade: number;
+  calls30d: number;
+  winRate: number;
+  roiPercent: number;
+  realizedPnlSol: number;
+  closedTrades: number;
+  traderRank: number | null;
+  callerScore: number;
+  trustGrowth30d: number;
+  risingScore: number;
+}
+
+export type TraderSort = "trust" | "followers" | "rising" | "calls";
+
+export interface TraderSearchParams {
+  q?: string;
+  tier?: string;
+  minTrust?: number;
+  minFollowers?: number;
+  sort?: TraderSort;
+  limit?: number;
+}
+
+/** A single best/worst call within a performance window. */
+export interface PeriodCall {
+  token_symbol: string | null;
+  token_mint: string;
+  returnPercent: number;
+}
+
+/** Call performance over one time window (30d / 90d / all). */
+export interface PeriodPerformance {
+  totalCalls: number;
+  gradedCalls: number;
+  winRate: number;
+  avgReturnPercent: number | null;
+  bestCall: PeriodCall | null;
+  worstCall: PeriodCall | null;
+}
+
+export interface PerformanceResponse {
+  window30d: PeriodPerformance;
+  window90d: PeriodPerformance;
+  all: PeriodPerformance;
 }
 
 // ---- SOL Recovery analytics ----
@@ -1348,6 +1414,14 @@ export const api = {
   leaderboardMostFollowed: () =>
     request<{ entries: MostFollowedEntry[] }>(`/leaderboard/most-followed`),
 
+  // Top Rising Traders: ranked by recent momentum (last 30d), not lifetime.
+  leaderboardRising: () =>
+    request<{ entries: ReputationEntry[] }>(`/leaderboard/rising`),
+
+  // Highest Trust Score: reputation board ranked by the shared Trust Score.
+  leaderboardTrust: () =>
+    request<{ entries: ReputationEntry[] }>(`/leaderboard/trust`),
+
   // Self-service "start a new season" for a depleted account.
   newSeason: (wallet: string) =>
     request<{ ok: boolean; error?: string; balance?: number; season?: number; account?: Account }>(
@@ -1441,6 +1515,26 @@ export const api = {
       request<{ badges: BadgeEntry[]; earnedCount: number }>(
         `/profiles/${encodeURIComponent(String(id))}/badges`,
       ),
+    // Period-filtered call performance (30d / 90d / all-time), graded live.
+    performance: (id: string | number) =>
+      request<{ performance: PerformanceResponse }>(
+        `/profiles/${encodeURIComponent(String(id))}/performance`,
+      ),
+    // Trader discovery: filter/sort the reputation board.
+    search: (params: TraderSearchParams = {}) => {
+      const qs = new URLSearchParams();
+      if (params.q) qs.set("q", params.q);
+      if (params.tier) qs.set("tier", params.tier);
+      if (params.minTrust != null) qs.set("minTrust", String(params.minTrust));
+      if (params.minFollowers != null)
+        qs.set("minFollowers", String(params.minFollowers));
+      if (params.sort) qs.set("sort", params.sort);
+      if (params.limit != null) qs.set("limit", String(params.limit));
+      const s = qs.toString();
+      return request<{ entries: ReputationEntry[] }>(
+        `/profiles/search${s ? `?${s}` : ""}`,
+      );
+    },
   },
 
   // Immutable call history. Reads are public; create/update are owner-only and

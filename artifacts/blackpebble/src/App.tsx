@@ -34,6 +34,7 @@ import Features from "@/pages/features";
 import Roadmap from "@/pages/roadmap";
 import FeedPage from "@/pages/feed";
 import ProfilePage from "@/pages/profile";
+import DiscoverPage from "@/pages/discover";
 import TradingJournal from "@/pages/journal";
 
 const queryClient = new QueryClient();
@@ -58,6 +59,7 @@ function Router() {
         <Route path="/position/:mint" component={PositionDetail} />
         <Route path="/feed" component={FeedPage} />
         <Route path="/u/:handle" component={ProfilePage} />
+        <Route path="/discover" component={DiscoverPage} />
         <Route path="/leaderboard" component={Leaderboard} />
         <Route path="/utilities/sol-recovery" component={WalletCleaner} />
         <Route path="/utilities/wallet-cleaner" component={WalletCleaner} />
