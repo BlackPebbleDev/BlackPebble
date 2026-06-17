@@ -6,8 +6,8 @@ import { useGuestWatchlist, guestWatchRemove } from "@/lib/guest-store";
 import {
   fmtPrice,
   fmtMarketCap,
-  fmtPercent,
-  pnlColor,
+  fmtPercentSafe,
+  pnlColorSafe,
   shortAddr,
 } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -88,10 +88,10 @@ export function Watchlist({
             <div
               className={cn(
                 "font-mono text-xs w-16 text-right shrink-0",
-                pnlColor(w.priceChange24h),
+                pnlColorSafe(w.priceChange24h),
               )}
             >
-              {fmtPercent(w.priceChange24h)}
+              {fmtPercentSafe(w.priceChange24h)}
             </div>
             <button
               type="button"
@@ -148,10 +148,10 @@ export function Watchlist({
                 <td
                   className={cn(
                     "px-4 py-2.5 text-right font-mono",
-                    pnlColor(w.priceChange24h),
+                    pnlColorSafe(w.priceChange24h),
                   )}
                 >
-                  {fmtPercent(w.priceChange24h)}
+                  {fmtPercentSafe(w.priceChange24h)}
                 </td>
                 <td className="px-2 py-2.5 text-right">
                   <button

@@ -14,8 +14,8 @@ import {
   fmtMarketCap,
   fmtVolume,
   fmtPrice,
-  fmtPercent,
-  pnlColor,
+  fmtPercentSafe,
+  pnlColorSafe,
   shortAddr,
   timeAgo,
 } from "@/lib/format";
@@ -107,8 +107,8 @@ function MarketTable({ tokens, navigate }: { tokens: TokenInfo[]; navigate: (p: 
                 {fmtMarketCap(t.marketCapUsd)}
                 <span className="text-[10px] text-muted-foreground ml-1">MC</span>
               </div>
-              <div className={cn("font-mono text-xs", pnlColor(t.priceChange24h))}>
-                {fmtPercent(t.priceChange24h)}
+              <div className={cn("font-mono text-xs", pnlColorSafe(t.priceChange24h))}>
+                {fmtPercentSafe(t.priceChange24h)}
               </div>
             </div>
           </button>
@@ -167,10 +167,10 @@ function MarketTable({ tokens, navigate }: { tokens: TokenInfo[]; navigate: (p: 
               <td
                 className={cn(
                   "px-4 py-3 text-right font-mono",
-                  pnlColor(t.priceChange24h),
+                  pnlColorSafe(t.priceChange24h),
                 )}
               >
-                {fmtPercent(t.priceChange24h)}
+                {fmtPercentSafe(t.priceChange24h)}
               </td>
               <td className="px-4 py-3 text-right font-mono hidden sm:table-cell">
                 {fmtVolume(t.volume24hUsd)}

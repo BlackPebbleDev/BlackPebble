@@ -6,6 +6,7 @@ import {
   getMarketStatus,
   getTokenStatsBatch,
   getSolPriceUsd,
+  PERCENT_SANITY_CEILING,
   type MarketToken,
 } from "../lib/prices.js";
 import { pumpportal } from "../lib/pumpportal.js";
@@ -61,7 +62,11 @@ router.get(
   asyncHandler(async (_req, res) => {
     const tokens = dedupe(await getTrendingTokens());
     const sorted = tokens
-      .filter((t) => (t.priceChange24h ?? 0) > 0)
+      .filter(
+        (t) =>
+          (t.priceChange24h ?? 0) > 0 &&
+          (t.priceChange24h ?? 0) <= PERCENT_SANITY_CEILING,
+      )
       .sort((a, b) => (b.priceChange24h ?? 0) - (a.priceChange24h ?? 0));
     return res.json(withFreshness(sorted));
   }),

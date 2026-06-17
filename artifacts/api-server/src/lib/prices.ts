@@ -39,6 +39,7 @@ interface DexPair {
   chainId: string;
   pairAddress: string;
   baseToken: { address: string; name: string; symbol: string };
+  quoteToken?: { address: string; name?: string; symbol?: string };
   priceNative: string;
   priceUsd?: string;
   liquidity?: { usd?: number };
@@ -88,6 +89,51 @@ export async function getSolPriceUsd(): Promise<number> {
   return last ? Number(last) : 0;
 }
 
+/**
+ * Quote tokens we trust to value a base token correctly: wSOL, USDC, USDT.
+ * A token mint can have many pools, and a manipulated pool quoted in a junk/
+ * scam token reports an inflated USD price, market cap and an impossible 24h
+ * change (this is what made established tokens like USELESS/FARTCOIN show
+ * +520,000% with a ~1000× price). We therefore always prefer a trusted-quote
+ * pool over an untrusted one, regardless of reported liquidity.
+ */
+const TRUSTED_QUOTE_MINTS = new Set<string>([
+  SOL_MINT,
+  "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", // USDC
+  "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB", // USDT
+]);
+
+/** A trusted-quote pool must still hold real liquidity to be preferred, so a
+ *  dead/empty trusted pool never wins over a deep, active untrusted one. */
+const MIN_TRUSTED_LIQUIDITY_USD = 1_000;
+
+/** Upstream percentages beyond this are treated as corrupt market data. */
+export const PERCENT_SANITY_CEILING = 100_000;
+
+/** 1 when the pair is quoted in a trusted token AND holds real liquidity. */
+function trustedScore(p: DexPair): number {
+  return TRUSTED_QUOTE_MINTS.has(p.quoteToken?.address ?? "") &&
+    (p.liquidity?.usd ?? 0) >= MIN_TRUSTED_LIQUIDITY_USD
+    ? 1
+    : 0;
+}
+
+/**
+ * Rank two pools for the same base token. A trusted-quote pool always ranks
+ * above an untrusted one; deepest liquidity then breaks the tie. Returns <0
+ * when `a` should rank before `b`.
+ */
+function comparePairs(a: DexPair, b: DexPair): number {
+  const t = trustedScore(b) - trustedScore(a);
+  if (t !== 0) return t;
+  return (b.liquidity?.usd ?? 0) - (a.liquidity?.usd ?? 0);
+}
+
+/** True when candidate `p` should replace the currently-kept `existing` pair. */
+function isBetterPair(p: DexPair, existing: DexPair | undefined): boolean {
+  return !existing || comparePairs(p, existing) < 0;
+}
+
 function pickBestPair(pairs: DexPair[], mint: string): DexPair | null {
   const solanaPairs = (pairs ?? []).filter(
     (p) =>
@@ -95,9 +141,7 @@ function pickBestPair(pairs: DexPair[], mint: string): DexPair | null {
       p.baseToken?.address?.toLowerCase() === mint.toLowerCase(),
   );
   if (solanaPairs.length === 0) return null;
-  return solanaPairs.sort(
-    (a, b) => (b.liquidity?.usd ?? 0) - (a.liquidity?.usd ?? 0),
-  )[0];
+  return [...solanaPairs].sort(comparePairs)[0];
 }
 
 async function fetchDexScreener(mint: string): Promise<DexPair | null> {
@@ -339,8 +383,7 @@ export async function searchTokens(query: string): Promise<SearchResult[]> {
     for (const p of pairs) {
       const addr = p.baseToken?.address;
       if (!addr) continue;
-      const existing = byMint.get(addr);
-      if (!existing || (p.liquidity?.usd ?? 0) > (existing.liquidity?.usd ?? 0)) {
+      if (isBetterPair(p, byMint.get(addr))) {
         byMint.set(addr, p);
       }
     }
@@ -396,8 +439,7 @@ export async function getTokenStatsBatch(
         if (p.chainId !== "solana") continue;
         const addr = p.baseToken?.address;
         if (!addr) continue;
-        const existing = bestPair.get(addr);
-        if (!existing || (p.liquidity?.usd ?? 0) > (existing.liquidity?.usd ?? 0)) {
+        if (isBetterPair(p, bestPair.get(addr))) {
           bestPair.set(addr, p);
         }
       }
@@ -539,8 +581,7 @@ export async function getTrendingTokens(): Promise<MarketToken[]> {
         if (p.chainId !== "solana") continue;
         const addr = p.baseToken?.address;
         if (!addr) continue;
-        const existing = byMint.get(addr);
-        if (!existing || (p.liquidity?.usd ?? 0) > (existing.liquidity?.usd ?? 0)) {
+        if (isBetterPair(p, byMint.get(addr))) {
           byMint.set(addr, p);
         }
       }

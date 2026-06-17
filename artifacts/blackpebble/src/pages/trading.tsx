@@ -84,9 +84,11 @@ import {
   fmtUsd,
   fmtMarketCap,
   fmtPercent,
+  fmtPercentSafe,
   fmtPrice,
   fmtTokenAmount,
   pnlColor,
+  pnlColorSafe,
   shortAddr,
   timeAgo,
 } from "@/lib/format";
@@ -194,8 +196,8 @@ function TokenHeader({ info }: { info: TokenInfo }) {
           <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
             24h
           </div>
-          <div className={cn("font-mono text-sm", pnlColor(info.priceChange24h))}>
-            {fmtPercent(info.priceChange24h)}
+          <div className={cn("font-mono text-sm", pnlColorSafe(info.priceChange24h))}>
+            {fmtPercentSafe(info.priceChange24h)}
           </div>
         </div>
         <div className="hidden sm:block">

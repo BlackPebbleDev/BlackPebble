@@ -53,6 +53,40 @@ export function fmtPercent(value: number | null | undefined, digits = 2): string
 }
 
 /**
+ * Sanity ceiling for an *externally-sourced* market percentage — e.g. a token's
+ * 24h price change pulled from DexScreener. A legitimate 24h move never reaches
+ * this; a value beyond it means the upstream pair data is corrupt (wrong/junk
+ * pool), so we surface "Data Error" instead of an impossible number like
+ * +520,651%. Deliberately NOT applied to position/portfolio P&L, where a paper
+ * memecoin position can legitimately exceed 1000× (100,000%).
+ */
+export const PERCENT_SANITY_CEILING = 100_000;
+
+/** True when a percentage is present, finite and within the sanity ceiling. */
+export function isPercentSane(value: number | null | undefined): boolean {
+  return (
+    value != null &&
+    Number.isFinite(value) &&
+    Math.abs(value) <= PERCENT_SANITY_CEILING
+  );
+}
+
+/**
+ * Percentage display for externally-sourced market data, with a sanity guard:
+ * - null / non-finite  -> "—"          (no data available yet)
+ * - |value| > ceiling  -> "Data Error" (obviously corrupt upstream value)
+ * - otherwise          -> normal signed percent
+ */
+export function fmtPercentSafe(
+  value: number | null | undefined,
+  digits = 2,
+): string {
+  if (value == null || !Number.isFinite(value)) return "—";
+  if (Math.abs(value) > PERCENT_SANITY_CEILING) return "Data Error";
+  return fmtPercent(value, digits);
+}
+
+/**
  * Shared premium V2 colour for a performance multiple. Restrained palette —
  * green for winners, rose for losers, neutral foreground near break-even — so
  * the feed reads at a glance without a casino look. "Near 1.0x" (0.95–1.05) is
@@ -130,6 +164,16 @@ export function timeAgo(tsSeconds: number | null | undefined): string {
 export function pnlColor(value: number | null | undefined): string {
   if (value == null || value === 0) return "text-muted-foreground";
   return value > 0 ? "text-emerald-400" : "text-red-400";
+}
+
+/**
+ * pnlColor variant for externally-sourced market percentages: an out-of-range
+ * or invalid value (rendered as "Data Error" by fmtPercentSafe) is shown
+ * neutral rather than misleadingly green/red.
+ */
+export function pnlColorSafe(value: number | null | undefined): string {
+  if (!isPercentSane(value)) return "text-muted-foreground";
+  return pnlColor(value);
 }
 
 /**
