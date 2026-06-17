@@ -17,6 +17,22 @@ function clampInt(v: unknown, max = 1_000_000): number {
 }
 
 /**
+ * Sanitize a list of confirmed tx signatures from the client into a JSON string
+ * (or null). Solana signatures are base58 and ~64–96 chars; anything that does
+ * not look like a signature is dropped. Capped so a hostile client cannot bloat
+ * the row. This is public, non-sensitive data (a signature is already on-chain).
+ */
+function sanitizeSignatures(v: unknown): string | null {
+  if (!Array.isArray(v)) return null;
+  const sigs = v
+    .filter((s): s is string => typeof s === "string")
+    .map((s) => s.trim())
+    .filter((s) => /^[1-9A-HJ-NP-Za-km-z]{32,128}$/.test(s))
+    .slice(0, 100);
+  return sigs.length > 0 ? JSON.stringify(sigs) : null;
+}
+
+/**
  * Public usage tracking for the SOL Recovery tool. Recovery works for guests
  * (unlinked wallets) too, so this endpoint is intentionally NOT admin-gated.
  * We only persist public, non-sensitive analytics: a public wallet address,
@@ -62,11 +78,22 @@ router.post(
       ? String(body.error).slice(0, 500)
       : null;
 
+    // V2 capture: confirmed signatures + fee/net breakdown (cleanup only). The
+    // BlackPebble platform fee is forced to 0 here — fees are inert scaffolding,
+    // never trusted or charged from the client.
+    const txSignatures =
+      eventType === "cleanup" ? sanitizeSignatures(body.txSignatures) : null;
+    const networkFeeSol =
+      eventType === "cleanup" ? clampNum(body.networkFeeSol) : 0;
+    const bpFeeSol = 0;
+    const netSol = eventType === "cleanup" ? clampNum(body.netSol) : 0;
+
     await dbRun(
       `INSERT INTO recovery_events
          (event_type, wallet, x_user_id, x_username, accounts_found,
-          accounts_closed, recoverable_sol, recovered_sol, status, error_message)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+          accounts_closed, recoverable_sol, recovered_sol, status, error_message,
+          tx_signatures, network_fee_sol, bp_fee_sol, net_sol)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
       [
         eventType,
         wallet,
@@ -78,6 +105,10 @@ router.post(
         clampNum(body.recoveredSol),
         status,
         errorMessage,
+        txSignatures,
+        networkFeeSol,
+        bpFeeSol,
+        netSol,
       ],
     );
 
@@ -126,7 +157,10 @@ router.get(
          COALESCE(SUM(recovered_sol) FILTER (WHERE event_type = 'cleanup' AND status = 'success'), 0) AS sol_recovered,
          count(*) FILTER (WHERE event_type = 'cleanup' AND status = 'success')::int AS successful_cleanups,
          count(*) FILTER (WHERE event_type = 'cleanup' AND status = 'failed')::int AS failed_cleanups,
-         COALESCE(MAX(recovered_sol) FILTER (WHERE event_type = 'cleanup' AND status = 'success'), 0) AS largest_recovery
+         COALESCE(MAX(recovered_sol) FILTER (WHERE event_type = 'cleanup' AND status = 'success'), 0) AS largest_recovery,
+         COALESCE(SUM(network_fee_sol) FILTER (WHERE event_type = 'cleanup' AND status = 'success'), 0) AS total_network_fees,
+         COALESCE(SUM(bp_fee_sol) FILTER (WHERE event_type = 'cleanup' AND status = 'success'), 0) AS total_bp_fees,
+         COALESCE(SUM(net_sol) FILTER (WHERE event_type = 'cleanup' AND status = 'success'), 0) AS total_net
        FROM recovery_events`,
     );
     const lifetime = lifetimeRow ?? {};
@@ -141,7 +175,8 @@ router.get(
     ]);
 
     const recent = await dbAll<Record<string, unknown>>(
-      `SELECT created_at, wallet, accounts_closed, recovered_sol, status, x_username
+      `SELECT created_at, wallet, accounts_closed, recovered_sol, status,
+              x_username, net_sol, network_fee_sol
        FROM recovery_events
        WHERE event_type = 'cleanup'
        ORDER BY created_at DESC

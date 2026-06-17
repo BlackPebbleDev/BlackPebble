@@ -369,6 +369,14 @@ export const recoveryEvents = pgTable(
     status: text("status").notNull(),
     error_message: text("error_message"),
     created_at: bigint("created_at", { mode: "number" }).default(epoch),
+    // V2: JSON array (TEXT) of confirmed close-tx signatures for a cleanup.
+    tx_signatures: text("tx_signatures"),
+    // V2: estimated Solana base network fee paid for the cleanup (SOL).
+    network_fee_sol: doublePrecision("network_fee_sol").default(0),
+    // V2: BlackPebble platform fee — always 0 today; inert future-fee scaffolding.
+    bp_fee_sol: doublePrecision("bp_fee_sol").default(0),
+    // V2: net SOL that actually landed in the wallet (recovered − network fee).
+    net_sol: doublePrecision("net_sol").default(0),
   },
   (t) => [
     index("idx_recovery_events_type").on(t.event_type),

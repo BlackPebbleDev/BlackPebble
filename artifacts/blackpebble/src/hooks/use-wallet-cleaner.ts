@@ -72,6 +72,12 @@ export interface UseWalletCleaner {
   walletHealth: number;
   closedCount: number;
   recoveredSol: number;
+  /** Confirmed close-tx signatures from the most recent cleanup run. */
+  signatures: string[];
+  /** Network fee actually paid across the confirmed cleanup txs (SOL). */
+  recoveredFee: number;
+  /** Net SOL that landed in the wallet after the network fee (SOL). */
+  recoveredNet: number;
   txCount: number;
   progress: CloseProgress | null;
   scan: () => Promise<void>;
@@ -93,6 +99,7 @@ export function useWalletCleaner(): UseWalletCleaner {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [closedCount, setClosedCount] = useState(0);
   const [recoveredSol, setRecoveredSol] = useState(0);
+  const [signatures, setSignatures] = useState<string[]>([]);
   const [progress, setProgress] = useState<CloseProgress | null>(null);
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
   const [balanceStatus, setBalanceStatus] = useState<BalanceStatus>("idle");
@@ -142,6 +149,7 @@ export function useWalletCleaner(): UseWalletCleaner {
     setSelected(new Set());
     setClosedCount(0);
     setRecoveredSol(0);
+    setSignatures([]);
     setProgress(null);
 
     try {
@@ -175,6 +183,9 @@ export function useWalletCleaner(): UseWalletCleaner {
     let closed = 0;
     let recovered = 0;
     const closedPubkeys = new Set<string>();
+    // Confirmed signatures collected as each batch lands — surfaced on the
+    // success screen and persisted (public, already on-chain) for analytics.
+    const sigs: string[] = [];
 
     try {
       for (let i = 0; i < toClose.length; i += MAX_CLOSES_PER_TX) {
@@ -214,13 +225,20 @@ export function useWalletCleaner(): UseWalletCleaner {
           "confirmed",
         );
 
+        sigs.push(signature);
         closed += batch.length;
         recovered += batch.reduce((sum, a) => sum + a.sol, 0);
         for (const a of batch) closedPubkeys.add(a.pubkey);
       }
 
+      // Network fee = one base signature per confirmed tx. Net is what actually
+      // landed after that fee, floored at 0 so it never reads negative.
+      const networkFee = sigs.length * FEE_SOL_PER_TX;
+      const net = Math.max(0, recovered - networkFee);
+
       setClosedCount(closed);
       setRecoveredSol(recovered);
+      setSignatures(sigs);
       setAccounts((prev) => prev.filter((a) => !closedPubkeys.has(a.pubkey)));
       setSelected(new Set());
       setProgress(null);
@@ -233,6 +251,9 @@ export function useWalletCleaner(): UseWalletCleaner {
         accountsClosed: closed,
         recoverableSol: toClose.reduce((sum, a) => sum + a.sol, 0),
         recoveredSol: recovered,
+        txSignatures: sigs,
+        networkFeeSol: networkFee,
+        netSol: net,
       });
       // Recovered rent has landed in the wallet — pull the new balance.
       void refreshBalance();
@@ -248,6 +269,7 @@ export function useWalletCleaner(): UseWalletCleaner {
         });
         setClosedCount(closed);
         setRecoveredSol(recovered);
+        setSignatures(sigs);
       }
       const prefix =
         closed > 0
@@ -267,6 +289,9 @@ export function useWalletCleaner(): UseWalletCleaner {
         accountsClosed: closed,
         recoverableSol: toClose.reduce((sum, a) => sum + a.sol, 0),
         recoveredSol: recovered,
+        txSignatures: sigs,
+        networkFeeSol: sigs.length * FEE_SOL_PER_TX,
+        netSol: Math.max(0, recovered - sigs.length * FEE_SOL_PER_TX),
         error: message,
       });
       return false;
@@ -295,6 +320,7 @@ export function useWalletCleaner(): UseWalletCleaner {
     setSelected(new Set());
     setClosedCount(0);
     setRecoveredSol(0);
+    setSignatures([]);
     setProgress(null);
   }, []);
 
@@ -329,6 +355,10 @@ export function useWalletCleaner(): UseWalletCleaner {
   // Cleanup score derived purely from the real number of empty accounts found.
   const walletHealth = computeWalletHealth(accounts.length);
 
+  // Realised fee/net from the confirmed cleanup run (one base fee per tx).
+  const recoveredFee = signatures.length * FEE_SOL_PER_TX;
+  const recoveredNet = Math.max(0, recoveredSol - recoveredFee);
+
   return {
     status,
     error,
@@ -348,6 +378,9 @@ export function useWalletCleaner(): UseWalletCleaner {
     walletHealth,
     closedCount,
     recoveredSol,
+    signatures,
+    recoveredFee,
+    recoveredNet,
     txCount,
     progress,
     scan,

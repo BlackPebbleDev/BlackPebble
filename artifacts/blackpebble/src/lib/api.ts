@@ -939,6 +939,12 @@ export interface RecoveryTrackBody {
   recoveredSol?: number;
   status?: "success" | "failed";
   error?: string;
+  /** Confirmed close-tx signatures for a cleanup (omitted for scans). */
+  txSignatures?: string[];
+  /** Estimated Solana base network fee paid for the cleanup (SOL). */
+  networkFeeSol?: number;
+  /** Net SOL that landed in the wallet after the network fee (SOL). */
+  netSol?: number;
 }
 
 export interface RecoveryWindowStats {
@@ -953,6 +959,12 @@ export interface RecoveryLifetimeStats extends RecoveryWindowStats {
   failed_cleanups: number;
   largest_recovery: number;
   avg_recovered: number;
+  /** Total estimated network fees paid across all successful cleanups (SOL). */
+  total_network_fees: number;
+  /** Total BlackPebble platform fees collected — always 0 today (SOL). */
+  total_bp_fees: number;
+  /** Total net SOL that landed in wallets across successful cleanups (SOL). */
+  total_net: number;
 }
 
 export interface RecoveryRecentRow {
@@ -962,6 +974,10 @@ export interface RecoveryRecentRow {
   recovered_sol: number;
   status: string;
   x_username: string | null;
+  /** Net SOL after network fees for this cleanup (SOL). */
+  net_sol?: number;
+  /** Estimated network fee paid for this cleanup (SOL). */
+  network_fee_sol?: number;
 }
 
 export interface RecoveryTopUser {
