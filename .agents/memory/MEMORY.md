@@ -27,6 +27,7 @@
 - [Generic FilterPills onChange inference](filterpills-generic-inference.md) — passing a useState setter directly to a generic onChange widens T to string; wrap in an arrow fn.
 - [Tier relabel display-only](tier-relabel-display-only.md) — tier names are a display-only label layer; renaming must never touch stored values, rank, or trust math.
 - [Recovery token-metadata enrichment](recovery-token-metadata.md) — batch Helius getAssetBatch; server returns nullable symbol/name/logo, UI owns "Unknown Token" fallback; separate cache namespace from getTokenMetadata.
+- [Intl fraction-digits crash](intl-fraction-digits.md) — toLocaleString throws RangeError when minFractionDigits > maxFractionDigits; data-dependent render crash → ErrorBoundary. Repro via renderToStaticMarkup + real fixture.
 - [DexScreener pair selection](dexscreener-pair-selection.md) — pick pools by TRUSTED quote (wSOL/USDC/USDT) first, not raw liquidity; junk-quote pools inflate price/MC/24h. Keep isBetterPair as the one selection primitive across all 4 per-mint paths.
 - [Sparkline data source](sparkline-data-source.md) — no stored time-series; token-card sparklines fetch GeckoTerminal OHLCV server-side (batched+cached), same trusted-quote pool as price/MC.
 - [SEO crawler visibility](seo-crawler-visibility.md) — pure Vite SPA: static crawler content in #root (createRoot replaces it), per-route SEO via seo.routes.json + post-build string-templating prerender + client RouteMeta; never headless-prerender (build OOMs).

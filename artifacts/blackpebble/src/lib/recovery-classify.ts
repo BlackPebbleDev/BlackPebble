@@ -216,11 +216,16 @@ export function formatUsd(value: number | null | undefined): string {
   if (value == null || !Number.isFinite(value)) return "—";
   if (value === 0) return "$0.00";
   if (value > 0 && value < 0.01) return "<$0.01";
+  // Large values render without cents ($2,073); smaller values keep two
+  // decimals ($4.33). minimumFractionDigits must never exceed
+  // maximumFractionDigits or toLocaleString throws a RangeError, so both move
+  // together.
+  const fractionDigits = value >= 1000 ? 0 : 2;
   return value.toLocaleString("en-US", {
     style: "currency",
     currency: "USD",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: value >= 1000 ? 0 : 2,
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
   });
 }
 
