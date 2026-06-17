@@ -21,4 +21,5 @@
 - [Universal search user lookup](universal-search-user-lookup.md) — search resolves users only for @handle queries; profiles.get is exact-lookup, firing on every word 404-spams.
 - [Rounded table wrappers](rounded-table-overflow.md) — table containers need overflow-x-auto (not overflow-hidden) when rounded, else wide columns clip; corners still clip via overflow-y auto.
 - [Shared UserIdentity component](shared-user-identity.md) — render every user via the one shared component; tier/badges are decoration only (never grade/rank); leaderboard tabs share one card, rank-accent only.
+- [Generic FilterPills onChange inference](filterpills-generic-inference.md) — passing a useState setter directly to a generic onChange widens T to string; wrap in an arrow fn.
 - [Tier relabel display-only](tier-relabel-display-only.md) — tier names are a display-only label layer; renaming must never touch stored values, rank, or trust math.

@@ -11,6 +11,7 @@ import {
   type MostFollowedEntry,
 } from "@/lib/api";
 import { UserIdentity, type IdentitySize } from "@/components/user-identity";
+import { FilterPills } from "@/components/filter-pills";
 import { fmtPercent, fmtMultiple, shortAddr } from "@/lib/format";
 import { PnlAmount } from "@/components/pnl-amount";
 import { trackLeaderboardView } from "@/lib/analytics";
@@ -508,31 +509,15 @@ export default function Leaderboard() {
         How the BlackPebble community stacks up across trading and reputation.
       </p>
 
-      {/* Category nav — wrapping pills (Markets-style), no horizontal scroll. */}
-      <div
-        role="tablist"
-        aria-label="Leaderboard category"
-        className="flex flex-wrap gap-2 mb-5"
-      >
-        {categoryTabs.map((c) => (
-          <button
-            key={c.id}
-            type="button"
-            role="tab"
-            aria-selected={category === c.id}
-            onClick={() => setCategory(c.id)}
-            data-testid={`category-${c.id}`}
-            className={cn(
-              "px-4 py-2 text-sm font-medium rounded-full border transition-colors whitespace-nowrap",
-              category === c.id
-                ? "border-accent text-accent bg-accent/10"
-                : "border-border text-muted-foreground hover:text-foreground hover:border-accent/40",
-            )}
-          >
-            {c.label}
-          </button>
-        ))}
-      </div>
+      {/* Category nav — shared filter pills (no horizontal scroll). */}
+      <FilterPills
+        options={categoryTabs}
+        value={category}
+        onChange={(id) => setCategory(id)}
+        ariaLabel="Leaderboard category"
+        testIdPrefix="category"
+        className="mb-5"
+      />
 
       {category === "top_callers" ? (
         <TopCallers goToProfile={goToProfile} onRowKeyDown={onRowKeyDown} />
@@ -558,24 +543,15 @@ export default function Leaderboard() {
             </div>
           )}
 
-          <div className="flex flex-wrap gap-2 mb-5">
-            {tabs.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => setPeriod(t.id)}
-                data-testid={`tab-${t.id}`}
-                className={cn(
-                  "px-3.5 py-1.5 text-sm font-medium rounded-full border transition-colors",
-                  period === t.id
-                    ? "border-accent text-accent bg-accent/10"
-                    : "border-border text-muted-foreground hover:text-foreground hover:border-accent/40",
-                )}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
+          <FilterPills
+            options={tabs}
+            value={period}
+            onChange={(id) => setPeriod(id)}
+            size="sm"
+            ariaLabel="Leaderboard time range"
+            testIdPrefix="tab"
+            className="mb-5"
+          />
 
           {isLoading ? (
         <div className="flex items-center justify-center py-20">

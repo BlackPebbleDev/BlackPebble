@@ -8,6 +8,7 @@ import {
 import { Loader2, TrendingUp, Sparkles, RefreshCw } from "lucide-react";
 import { LiveIndicator } from "@/components/live-indicator";
 import { Watchlist } from "@/components/watchlist";
+import { FilterPills } from "@/components/filter-pills";
 import { api, type TokenInfo, type MigratedToken } from "@/lib/api";
 import {
   fmtMarketCap,
@@ -438,29 +439,14 @@ export default function Markets() {
           : "Awaiting first update…"}
       </p>
 
-      <div
-        role="tablist"
-        aria-label="Market category"
-        className="flex flex-wrap gap-2 mb-5"
-      >
-        {tabs.map((t) => (
-          <button
-            key={t.id}
-            role="tab"
-            aria-selected={tab === t.id}
-            onClick={() => setTab(t.id)}
-            data-testid={`tab-market-${t.id}`}
-            className={cn(
-              "px-4 py-2 text-sm rounded-md border transition-colors",
-              tab === t.id
-                ? "border-accent text-accent bg-accent/10"
-                : "border-border text-muted-foreground hover:text-foreground hover:border-accent/40",
-            )}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <FilterPills
+        options={tabs}
+        value={tab}
+        onChange={(id) => setTab(id)}
+        ariaLabel="Market category"
+        testIdPrefix="tab-market"
+        className="mb-5"
+      />
 
       {tab === "migrated" ? (
         <MigratedTab navigate={navigate} />

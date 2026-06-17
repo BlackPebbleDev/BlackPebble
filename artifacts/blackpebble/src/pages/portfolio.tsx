@@ -252,6 +252,8 @@ export default function Portfolio() {
             handle={selfHandle}
             officialBadges={selfProfile?.officialBadges}
             tier={stats?.graduationTier ?? selfProfile?.graduationTier}
+            tierPosition="inline"
+            badgePosition="row"
             handleLink={{
               type: "internal",
               href: `/u/${encodeURIComponent(selfHandle)}`,
@@ -261,7 +263,16 @@ export default function Portfolio() {
                 <span className="text-sm text-accent font-mono">#{rank}</span>
               ) : undefined
             }
-          />
+          >
+            {selfProfile?.bio && (
+              <p
+                data-testid="text-portfolio-bio"
+                className="mt-3 text-sm text-foreground/90 whitespace-pre-wrap break-words"
+              >
+                {selfProfile.bio}
+              </p>
+            )}
+          </UserIdentity>
         </div>
       )}
 

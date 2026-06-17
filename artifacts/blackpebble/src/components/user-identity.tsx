@@ -16,6 +16,26 @@ import { cn } from "@/lib/utils";
  * @handle / subline. Only sizing and link behaviour vary by surface.
  */
 
+const BADGE_PRIORITY: Record<OfficialBadgeType, number> = {
+  founder: 0,
+  bp_team: 1,
+};
+
+/**
+ * Official badges always render in a fixed priority order (Founder, then
+ * BlackPebble Team, then any future event/achievement/seasonal badges) so the
+ * highest-priority badges lead and are never dropped first when space is tight.
+ * Unknown/future badge types sort after the known ones.
+ */
+function orderBadges(
+  badges: readonly OfficialBadgeType[] | null | undefined,
+): OfficialBadgeType[] {
+  if (!badges?.length) return [];
+  return [...badges].sort(
+    (a, b) => (BADGE_PRIORITY[a] ?? 99) - (BADGE_PRIORITY[b] ?? 99),
+  );
+}
+
 export type IdentitySize = "xs" | "sm" | "md" | "lg";
 
 type BadgeSize = "xs" | "sm" | "md";
@@ -131,6 +151,8 @@ export interface UserIdentityProps {
   tierVariant?: "pill" | "plain";
   /** Where the tier sits: beside the name, or under the @handle. */
   tierPosition?: "inline" | "below";
+  /** Where official badges sit: inline beside the name, or on their own row. */
+  badgePosition?: "inline" | "row";
   /** Vertical alignment of the avatar against the text column. */
   align?: "center" | "start";
   /** Make the display name a link. */
@@ -168,6 +190,7 @@ export function UserIdentity({
   badgeSize,
   tierVariant = "pill",
   tierPosition = "inline",
+  badgePosition = "inline",
   align = "center",
   nameLink,
   handleLink,
@@ -288,6 +311,10 @@ export function UserIdentity({
     <TierBadge tier={tier} size="sm" variant={tierVariant} />
   );
 
+  const badgeEls = orderBadges(officialBadges).map((b) => (
+    <OfficialBadge key={b} type={b} size={bSize} />
+  ));
+
   return (
     <div
       className={cn(
@@ -301,11 +328,14 @@ export function UserIdentity({
       <div className="min-w-0 flex-1 leading-tight">
         <div className="flex items-center gap-1.5 flex-wrap min-w-0">
           {nameEl}
-          {officialBadges?.map((b) => (
-            <OfficialBadge key={b} type={b} size={bSize} />
-          ))}
+          {badgePosition === "inline" && badgeEls}
           {tierPosition === "inline" && tierBadge}
         </div>
+        {badgePosition === "row" && badgeEls.length > 0 && (
+          <div className="mt-1.5 flex items-center gap-1.5 flex-wrap min-w-0">
+            {badgeEls}
+          </div>
+        )}
         {handleRow}
         {subline}
         {tierPosition === "below" && <div className="mt-0.5">{tierBadge}</div>}

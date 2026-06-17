@@ -1125,6 +1125,7 @@ export default function ProfilePage() {
           officialBadges={profile.officialBadges}
           tier={profile.graduationTier}
           tierPosition="inline"
+          badgePosition="row"
           stopPropagation={false}
           handleLink={
             profileUrl ? { type: "external", href: profileUrl } : undefined

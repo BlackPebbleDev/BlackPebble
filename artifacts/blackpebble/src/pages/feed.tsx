@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import { useXAuth } from "@/hooks/use-x-auth";
 import { useSolUsd } from "@/hooks/use-sol-usd";
 import { TradeActivityCard } from "@/components/feed-card";
+import { FilterPills } from "@/components/filter-pills";
 import { trackFeedView, trackFeedTabChanged } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
 
@@ -331,47 +332,15 @@ export default function FeedPage() {
         Live trading activity from the BlackPebble community.
       </p>
 
-      {/* Content-type filter bar — two-row grid (3 + 2), no horizontal scroll */}
-      <div className="mb-5 border-b border-border">
-        {/* Row 1: All · Trades · Callouts */}
-        <div className="flex">
-          {filterTabs.slice(0, 3).map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => selectFilter(t.id)}
-              data-testid={`filter-${t.id}`}
-              className={cn(
-                "flex-1 py-2 text-sm font-medium text-center border-b-2 -mb-px transition-colors",
-                filter === t.id
-                  ? "border-accent text-foreground"
-                  : "border-transparent text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-        {/* Row 2: Theses · Achievements — centred under the row above */}
-        <div className="flex justify-center">
-          {filterTabs.slice(3).map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => selectFilter(t.id)}
-              data-testid={`filter-${t.id}`}
-              className={cn(
-                "w-1/3 py-2 text-sm font-medium text-center border-b-2 -mb-px transition-colors",
-                filter === t.id
-                  ? "border-accent text-foreground"
-                  : "border-transparent text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-      </div>
+      {/* Content-type filter — shared pills, wraps cleanly, no horizontal scroll */}
+      <FilterPills
+        options={filterTabs}
+        value={filter}
+        onChange={selectFilter}
+        ariaLabel="Feed content type"
+        testIdPrefix="filter"
+        className="mb-5"
+      />
 
       {filter === "all" && <ActivityFeed />}
       {filter === "trades" && <TradesFeed />}
