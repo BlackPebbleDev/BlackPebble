@@ -142,6 +142,91 @@ router.post(
   }),
 );
 
+/** Parse the stored tx_signatures JSON column back into a string[] (best-effort). */
+function parseSignatures(v: unknown): string[] {
+  if (typeof v !== "string" || v.length === 0) return [];
+  try {
+    const arr = JSON.parse(v);
+    return Array.isArray(arr)
+      ? arr.filter((s): s is string => typeof s === "string")
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Per-wallet Recovery History + lifetime metrics, derived entirely from the
+ * stored recovery_events captured during recovery (Phase A). Public — recovery
+ * works for guest wallets and a wallet address is public on-chain data. Returns
+ * ONLY real persisted cleanups: nothing is fabricated, sampled, or estimated.
+ * Lifetime metrics are aggregated from the same rows so the history is the
+ * single source of truth for a wallet's recovery totals.
+ */
+router.get(
+  "/recovery/history/:wallet",
+  asyncHandler(async (req, res) => {
+    const wallet = String(req.params.wallet ?? "").trim();
+    if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(wallet)) {
+      return res.status(400).json({ error: "valid wallet is required" });
+    }
+
+    const rows = await dbAll<Record<string, unknown>>(
+      `SELECT created_at, accounts_closed, recovered_sol, network_fee_sol,
+              bp_fee_sol, net_sol, status, tx_signatures, error_message
+       FROM recovery_events
+       WHERE event_type = 'cleanup' AND wallet = $1
+       ORDER BY created_at DESC
+       LIMIT 200`,
+      [wallet],
+    );
+
+    const events = rows.map((r) => ({
+      created_at: Number(r.created_at ?? 0),
+      accounts_closed: Number(r.accounts_closed ?? 0),
+      recovered_sol: Number(r.recovered_sol ?? 0),
+      network_fee_sol: Number(r.network_fee_sol ?? 0),
+      // The BlackPebble fee is inert scaffolding — always 0, never charged.
+      bp_fee_sol: 0,
+      net_sol: Number(r.net_sol ?? 0),
+      status: String(r.status ?? ""),
+      signatures: parseSignatures(r.tx_signatures),
+      error_message: r.error_message ? String(r.error_message) : null,
+    }));
+
+    const ltRow = await dbGet<Record<string, number>>(
+      `SELECT
+         COALESCE(SUM(accounts_closed) FILTER (WHERE status = 'success'), 0)::int AS accounts_closed,
+         COALESCE(SUM(recovered_sol) FILTER (WHERE status = 'success'), 0) AS sol_recovered,
+         COALESCE(SUM(network_fee_sol) FILTER (WHERE status = 'success'), 0) AS total_network_fees,
+         COALESCE(SUM(net_sol) FILTER (WHERE status = 'success'), 0) AS total_net,
+         COALESCE(MAX(recovered_sol) FILTER (WHERE status = 'success'), 0) AS largest_recovery,
+         count(*) FILTER (WHERE status = 'success')::int AS successful_cleanups,
+         count(*) FILTER (WHERE status = 'failed')::int AS failed_cleanups
+       FROM recovery_events
+       WHERE event_type = 'cleanup' AND wallet = $1`,
+      [wallet],
+    );
+    const lt = ltRow ?? {};
+    const successful = Number(lt.successful_cleanups ?? 0);
+    const solRecovered = Number(lt.sol_recovered ?? 0);
+
+    const lifetime = {
+      sol_recovered: solRecovered,
+      accounts_closed: Number(lt.accounts_closed ?? 0),
+      largest_recovery: Number(lt.largest_recovery ?? 0),
+      avg_recovered: successful > 0 ? solRecovered / successful : 0,
+      successful_cleanups: successful,
+      failed_cleanups: Number(lt.failed_cleanups ?? 0),
+      total_network_fees: Number(lt.total_network_fees ?? 0),
+      total_bp_fees: 0,
+      total_net: Number(lt.total_net ?? 0),
+    };
+
+    return res.json({ wallet, events, lifetime });
+  }),
+);
+
 /** Aggregate recovery stats for an optional time window (since = unix seconds). */
 async function windowStats(
   since: number | null,

@@ -1,24 +1,11 @@
-import { useState } from "react";
-import {
-  CheckCircle2,
-  Copy,
-  Check,
-  ExternalLink,
-  Share2,
-  RotateCw,
-} from "lucide-react";
+import { CheckCircle2, Share2, RotateCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { shortAddr } from "@/lib/format";
 import { formatRentSol, type UseWalletCleaner } from "@/hooks/use-wallet-cleaner";
-
-function solscanTx(sig: string): string {
-  return `https://solscan.io/tx/${sig}`;
-}
-
-function explorerTx(sig: string): string {
-  return `https://explorer.solana.com/tx/${sig}`;
-}
+import {
+  SignatureRow,
+  solscanTx,
+} from "@/components/wallet-cleaner/signature-row";
 
 /** One labelled metric row in the recovery breakdown. */
 function StatRow({
@@ -65,23 +52,8 @@ export function RecoverySuccess({ cleaner }: { cleaner: UseWalletCleaner }) {
   const { recoveredSol, closedCount, recoveredFee, recoveredNet, signatures, scan, reset } =
     cleaner;
   const { toast } = useToast();
-  const [copied, setCopied] = useState<string | null>(null);
 
   const sigCount = signatures.length;
-
-  async function copySig(sig: string) {
-    try {
-      await navigator.clipboard.writeText(sig);
-      setCopied(sig);
-      toast({ title: "Signature copied" });
-      window.setTimeout(
-        () => setCopied((c) => (c === sig ? null : c)),
-        1500,
-      );
-    } catch {
-      toast({ title: "Copy failed", variant: "destructive" });
-    }
-  }
 
   // Only expose Share when a safe mechanism actually exists: the native share
   // sheet, or a clipboard fallback. If neither is available we hide the button
@@ -173,48 +145,7 @@ export function RecoverySuccess({ cleaner }: { cleaner: UseWalletCleaner }) {
           </div>
           <div className="rounded-2xl border border-border divide-y divide-border overflow-hidden">
             {signatures.map((sig) => (
-              <div
-                key={sig}
-                className="flex items-center gap-2 px-3 py-2.5"
-                data-testid={`recovery-signature-${sig}`}
-              >
-                <span className="font-mono text-xs text-foreground flex-1 min-w-0 truncate">
-                  {shortAddr(sig, 6)}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => copySig(sig)}
-                  className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-                  aria-label="Copy signature"
-                  data-testid={`button-copy-signature-${sig}`}
-                >
-                  {copied === sig ? (
-                    <Check className="w-3.5 h-3.5 text-accent" />
-                  ) : (
-                    <Copy className="w-3.5 h-3.5" />
-                  )}
-                </button>
-                <a
-                  href={solscanTx(sig)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-                  data-testid={`link-solscan-${sig}`}
-                >
-                  Solscan
-                  <ExternalLink className="w-3 h-3" />
-                </a>
-                <a
-                  href={explorerTx(sig)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-                  data-testid={`link-explorer-${sig}`}
-                >
-                  Explorer
-                  <ExternalLink className="w-3 h-3" />
-                </a>
-              </div>
+              <SignatureRow key={sig} sig={sig} />
             ))}
           </div>
         </div>

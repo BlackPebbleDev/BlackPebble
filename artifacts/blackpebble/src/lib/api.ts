@@ -998,6 +998,40 @@ export interface RecoveryTopUser {
   total_closed: number;
 }
 
+/** One stored cleanup in a wallet's Recovery History (real persisted data only). */
+export interface RecoveryHistoryEvent {
+  created_at: number;
+  accounts_closed: number;
+  recovered_sol: number;
+  network_fee_sol: number;
+  /** BlackPebble platform fee — always 0 today (SOL). */
+  bp_fee_sol: number;
+  net_sol: number;
+  status: string;
+  signatures: string[];
+  error_message: string | null;
+}
+
+/** Lifetime recovery metrics for a wallet, aggregated from its history rows. */
+export interface RecoveryHistoryLifetime {
+  sol_recovered: number;
+  accounts_closed: number;
+  largest_recovery: number;
+  avg_recovered: number;
+  successful_cleanups: number;
+  failed_cleanups: number;
+  total_network_fees: number;
+  /** Always 0 — fees are inert scaffolding. */
+  total_bp_fees: number;
+  total_net: number;
+}
+
+export interface RecoveryHistoryResponse {
+  wallet: string;
+  events: RecoveryHistoryEvent[];
+  lifetime: RecoveryHistoryLifetime;
+}
+
 export interface RecoveryStatsResponse {
   generatedAt: number;
   lifetime: RecoveryLifetimeStats;
@@ -1336,6 +1370,10 @@ export const api = {
       request<{ tokens: Record<string, RecoveryTokenMeta> }>(
         "/recovery/token-metadata",
         { method: "POST", body: JSON.stringify({ mints }) },
+      ),
+    history: (wallet: string) =>
+      request<RecoveryHistoryResponse>(
+        `/recovery/history/${encodeURIComponent(wallet)}`,
       ),
   },
 

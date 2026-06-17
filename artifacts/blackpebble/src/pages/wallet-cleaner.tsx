@@ -17,6 +17,7 @@ import { WalletStatusCard } from "@/components/wallet-cleaner/wallet-status-card
 import { RecoverySections } from "@/components/wallet-cleaner/recovery-sections";
 import { RecoverySummary } from "@/components/wallet-cleaner/recovery-summary";
 import { RecoverySuccess } from "@/components/wallet-cleaner/recovery-success";
+import { RecoveryHistory } from "@/components/wallet-cleaner/recovery-history";
 import { ClosePreviewDialog } from "@/components/wallet-cleaner/close-preview-dialog";
 
 export default function WalletCleaner() {
@@ -27,6 +28,7 @@ export default function WalletCleaner() {
   const {
     status,
     error,
+    owner,
     accounts,
     selectedAccounts,
     selectedRecoverable,
@@ -163,6 +165,10 @@ export default function WalletCleaner() {
           )}
         </>
       )}
+
+      {/* Permanent per-wallet recovery history — visible in every connected
+          state, including the post-recovery success screen. */}
+      {connected && owner && <RecoveryHistory wallet={owner} />}
 
       {/* Sticky action bar — appears when there are selectable accounts. */}
       {connected &&
