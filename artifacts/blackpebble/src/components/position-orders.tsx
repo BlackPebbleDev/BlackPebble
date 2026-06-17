@@ -1,6 +1,11 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { X } from "lucide-react";
-import { api, type PaperOrder, type LeveragePosition } from "@/lib/api";
+import {
+  api,
+  type PaperOrder,
+  type LeveragePosition,
+  type LeverageExitOrder,
+} from "@/lib/api";
 import { useAccount } from "@/hooks/use-account";
 import { useFeatureFlags } from "@/hooks/use-feature-flags";
 import { useToast } from "@/hooks/use-toast";
@@ -36,6 +41,34 @@ function useCancelOrder() {
       });
     }
   };
+}
+
+/** Cancel a single leverage exit order (signed-in only — guests have no leverage). */
+function useCancelLeverageOrder() {
+  const { wallet } = useAccount();
+  const { toast } = useToast();
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: (orderId: number) => api.leverage.cancelOrder(wallet!, orderId),
+    onSuccess: (res) => {
+      if (!res.ok) {
+        toast({
+          title: "Couldn't cancel order",
+          description: res.error,
+          variant: "destructive",
+        });
+        return;
+      }
+      qc.invalidateQueries({ queryKey: ["leverage-positions", wallet] });
+    },
+    onError: (e: Error) =>
+      toast({
+        title: "Couldn't cancel order",
+        description: e.message,
+        variant: "destructive",
+      }),
+  });
 }
 
 /**
@@ -125,34 +158,50 @@ function OrderRow({
 }
 
 /**
- * Read-only display of a leverage position's TP or SL trigger. Leverage TP/SL
- * live on the position itself (not the orders table), so there is no cancel —
- * closing the position removes them.
+ * A single leverage exit order (take-profit / stop-loss) attached to a position.
+ * These live in their own table; pending ones can be cancelled here, while a
+ * filling order shows a transient status. Modify lives on the position card.
  */
 function LeverageOrderRow({
-  p,
-  kind,
+  order,
+  onCancel,
 }: {
-  p: LeveragePosition;
-  kind: "tp" | "sl";
+  order: LeverageExitOrder;
+  onCancel: (id: number) => void;
 }) {
-  const isTp = kind === "tp";
-  const triggerMc = isTp ? p.tp_trigger_mc : p.sl_trigger_mc;
-  if (triggerMc == null) return null;
+  const isTp = order.kind === "take_profit";
   const label = isTp ? "Leverage TP" : "Leverage SL";
   const labelColor = isTp ? "text-emerald-400" : "text-red-400";
+  const filling = order.status === "filling";
   return (
     <div
-      data-testid={`leverage-order-row-${kind}-${p.id}`}
+      data-testid={`leverage-order-row-${order.id}`}
       className="flex items-center justify-between gap-2 border border-border/60 bg-background/40 px-2.5 py-1.5 text-xs"
     >
       <span className="flex items-center gap-1.5 min-w-0">
         <span className={cn("font-medium shrink-0", labelColor)}>{label}</span>
         <span className="text-muted-foreground truncate font-mono">
-          Close 100% @ {isTp ? "≥" : "≤"} {fmtMarketCap(triggerMc)} MC
+          Close {order.percent}% @ {isTp ? "≥" : "≤"} {fmtMarketCap(order.trigger_mc)} MC
+          {filling ? " · filling…" : ""}
         </span>
       </span>
-      <span className="text-[11px] text-muted-foreground shrink-0">Auto</span>
+      {filling ? (
+        <span className="text-[11px] text-muted-foreground shrink-0">Filling…</span>
+      ) : (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onCancel(order.id);
+          }}
+          data-testid={`button-cancel-leverage-order-${order.id}`}
+          aria-label="Cancel order"
+          className="flex items-center gap-1 text-muted-foreground hover:text-red-400 transition-colors shrink-0"
+        >
+          <X className="h-3.5 w-3.5" />
+          Cancel
+        </button>
+      )}
     </div>
   );
 }
@@ -214,6 +263,7 @@ export function AllOrders({
   const flags = useFeatureFlags();
   const guestState = useGuestStore();
   const cancel = useCancelOrder();
+  const cancelLeverage = useCancelLeverageOrder();
 
   const { data } = useQuery({
     queryKey: ["orders", wallet],
@@ -222,8 +272,8 @@ export function AllOrders({
     refetchInterval: 15_000,
   });
 
-  // Leverage TP/SL live on the position (signed-in only) and are shown here
-  // read-only alongside spot orders.
+  // Leverage exit orders (TP/SL) live in their own table (signed-in only) and
+  // are shown here alongside spot orders, cancelable in place.
   const { data: levData } = useQuery({
     queryKey: ["leverage-positions", wallet],
     queryFn: () => api.leverage.positions(wallet!),
@@ -236,10 +286,10 @@ export function AllOrders({
     : data?.orders ?? [];
 
   const levWithTriggers = (levData?.positions ?? []).filter(
-    (p) => p.tp_trigger_mc != null || p.sl_trigger_mc != null,
+    (p) => (p.exitOrders?.length ?? 0) > 0,
   );
   const levTriggerCount = levWithTriggers.reduce(
-    (n, p) => n + (p.tp_trigger_mc != null ? 1 : 0) + (p.sl_trigger_mc != null ? 1 : 0),
+    (n, p) => n + (p.exitOrders?.length ?? 0),
     0,
   );
   const totalCount = orders.length + levTriggerCount;
@@ -346,11 +396,19 @@ export function AllOrders({
                     </span>
                   </span>
                 )}
-                <span className="text-[11px] text-muted-foreground">Leverage</span>
+                <span className="text-[11px] text-muted-foreground">
+                  {(p.exitOrders?.length ?? 0)}{" "}
+                  {(p.exitOrders?.length ?? 0) === 1 ? "order" : "orders"}
+                </span>
               </div>
               <div className="p-2 space-y-1.5">
-                <LeverageOrderRow p={p} kind="tp" />
-                <LeverageOrderRow p={p} kind="sl" />
+                {(p.exitOrders ?? []).map((o) => (
+                  <LeverageOrderRow
+                    key={o.id}
+                    order={o}
+                    onCancel={(id) => cancelLeverage.mutate(id)}
+                  />
+                ))}
               </div>
             </div>
           ))}

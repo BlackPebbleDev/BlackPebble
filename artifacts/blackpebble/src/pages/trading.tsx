@@ -1614,10 +1614,29 @@ function TradePanel({
                 </>
               )}
               {side === "buy" ? (
-                <p className="text-[11px] text-muted-foreground leading-relaxed">
-                  Take Profit / Stop Loss are created automatically after your
-                  next Buy fills.
-                </p>
+                <div className="space-y-2">
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    Take Profit / Stop Loss are created automatically after your
+                    next Buy fills.
+                  </p>
+                  {position && (
+                    <>
+                      <p className="text-[11px] text-muted-foreground leading-relaxed">
+                        Already holding {info.symbol ?? "this token"}? Apply these
+                        to your open position now — no new buy needed.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => void handleCreateExitsNow()}
+                        disabled={quickExitSpecs.length === 0}
+                        data-testid="button-create-exits-now-buy"
+                        className="h-9 w-full rounded-xl bg-accent text-accent-foreground text-xs font-medium hover:bg-accent/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        Create Orders Now
+                      </button>
+                    </>
+                  )}
+                </div>
               ) : (
                 <div className="space-y-2">
                   <p className="text-[11px] text-muted-foreground leading-relaxed">
@@ -1630,7 +1649,7 @@ function TradePanel({
                     onClick={() => void handleCreateExitsNow()}
                     disabled={!position || quickExitSpecs.length === 0}
                     data-testid="button-create-exits-now"
-                    className="h-9 w-full bg-accent text-accent-foreground text-xs font-medium hover:bg-accent/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="h-9 w-full rounded-xl bg-accent text-accent-foreground text-xs font-medium hover:bg-accent/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     Create Orders
                   </button>

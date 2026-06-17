@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
+import { Loader2, Plus, X, Pencil, Check } from "lucide-react";
 import {
   api,
+  type LeverageExitKind,
+  type LeverageExitOrder,
   type LeverageFill,
   type LeveragePosition,
   type LeverageTrade,
@@ -10,6 +12,22 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { fmtSol, fmtMarketCap, fmtPercent, pnlColor, timeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
+
+const MAX_TP = 4;
+const MAX_SL = 1;
+const PARTIAL_PRESETS = [25, 50, 75, 100] as const;
+
+/** Parse a human market-cap input (e.g. "1.5m", "900k", "2,000,000") to a number. */
+function parseMc(raw: string): number | null {
+  const s = raw.trim().toLowerCase().replace(/[$,\s]/g, "");
+  if (!s) return null;
+  const m = s.match(/^([0-9]*\.?[0-9]+)([kmb])?$/);
+  if (!m) return null;
+  const n = parseFloat(m[1]);
+  if (!Number.isFinite(n)) return null;
+  const mult = m[2] === "b" ? 1e9 : m[2] === "m" ? 1e6 : m[2] === "k" ? 1e3 : 1;
+  return n * mult;
+}
 
 const FILL_LABELS: Record<string, string> = {
   liquidated: "Liquidated",
@@ -77,8 +95,9 @@ function useLeverageData(wallet: string, announce = true) {
   }, [posData?.fills, qc, toast, wallet, announce]);
 
   const closeMutation = useMutation({
-    mutationFn: (id: number) => api.leverage.close(wallet, id),
-    onSuccess: (res) => {
+    mutationFn: ({ id, percent }: { id: number; percent?: number }) =>
+      api.leverage.close(wallet, id, percent),
+    onSuccess: (res, vars) => {
       if (!res.ok) {
         toast({
           title: "Close failed",
@@ -87,8 +106,9 @@ function useLeverageData(wallet: string, announce = true) {
         });
         return;
       }
+      const partial = vars.percent != null && vars.percent < 100;
       toast({
-        title: "Position closed",
+        title: partial ? `Closed ${vars.percent}% of position` : "Position closed",
         description:
           res.realizedPnlSol != null
             ? `P&L ${fmtSol(res.realizedPnlSol)} SOL`
@@ -107,6 +127,68 @@ function useLeverageData(wallet: string, announce = true) {
     trades: histData?.trades ?? [],
     closeMutation,
   };
+}
+
+/**
+ * Mutations for managing a position's take-profit / stop-loss exit orders.
+ * All settle balance-only on the server; here we just invalidate the positions
+ * query so the row re-renders with the updated order set.
+ */
+function useExitOrderMutations(wallet: string) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const invalidate = () =>
+    qc.invalidateQueries({ queryKey: ["leverage-positions", wallet] });
+  const fail = (title: string) => (e: unknown) =>
+    toast({
+      title,
+      description: e instanceof Error ? e.message : undefined,
+      variant: "destructive",
+    });
+
+  const create = useMutation({
+    mutationFn: (body: {
+      positionId: number;
+      kind: LeverageExitKind;
+      triggerMc: number;
+      percent: number;
+    }) => api.leverage.createOrder({ wallet, ...body }),
+    onSuccess: (res) => {
+      if (!res.ok) {
+        toast({ title: "Couldn't add order", description: res.error, variant: "destructive" });
+        return;
+      }
+      invalidate();
+    },
+    onError: fail("Couldn't add order"),
+  });
+
+  const update = useMutation({
+    mutationFn: (body: { orderId: number; triggerMc?: number; percent?: number }) =>
+      api.leverage.updateOrder({ wallet, ...body }),
+    onSuccess: (res) => {
+      if (!res.ok) {
+        toast({ title: "Couldn't update order", description: res.error, variant: "destructive" });
+        return;
+      }
+      invalidate();
+    },
+    onError: fail("Couldn't update order"),
+  });
+
+  const cancel = useMutation({
+    mutationFn: (orderId: number) => api.leverage.cancelOrder(wallet, orderId),
+    onSuccess: (res) => {
+      if (!res.ok) {
+        toast({ title: "Couldn't cancel order", description: res.error, variant: "destructive" });
+        return;
+      }
+      invalidate();
+    },
+    onError: fail("Couldn't cancel order"),
+  });
+
+  return { create, update, cancel };
 }
 
 /**
@@ -164,9 +246,10 @@ export function LeveragePortfolioSection({
             <LeverageRow
               key={p.id}
               p={p}
+              wallet={wallet}
               onNavigate={onNavigate}
-              onClose={() => closeMutation.mutate(p.id)}
-              closing={closeMutation.isPending && closeMutation.variables === p.id}
+              onClose={(percent) => closeMutation.mutate({ id: p.id, percent })}
+              closing={closeMutation.isPending && closeMutation.variables?.id === p.id}
             />
           ))}
         </div>
@@ -239,10 +322,11 @@ export function TokenLeverageActivity({
                 <LeverageRow
                   key={p.id}
                   p={p}
+                  wallet={wallet}
                   onNavigate={onNavigate}
-                  onClose={() => closeMutation.mutate(p.id)}
+                  onClose={(percent) => closeMutation.mutate({ id: p.id, percent })}
                   closing={
-                    closeMutation.isPending && closeMutation.variables === p.id
+                    closeMutation.isPending && closeMutation.variables?.id === p.id
                   }
                 />
               ))}
@@ -285,19 +369,23 @@ function StatCell({
 
 function LeverageRow({
   p,
+  wallet,
   onNavigate,
   onClose,
   closing,
 }: {
   p: LeveragePosition;
+  wallet: string;
   onNavigate: (mint: string) => void;
-  onClose: () => void;
+  onClose: (percent?: number) => void;
   closing: boolean;
 }) {
+  const [manageOpen, setManageOpen] = useState(false);
   const pnl = p.unrealizedPnlSol;
   const roi = p.roiOnMargin;
   const curVal = currentValueSol(p);
   const dist = distanceToLiqPercent(p);
+  const exits = p.exitOrders ?? [];
   return (
     <div className="rounded-xl bg-card shadow-card p-3.5">
       <div className="flex items-start justify-between gap-3">
@@ -354,6 +442,27 @@ function LeverageRow({
         />
       </div>
 
+      {exits.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {exits.map((o) => (
+            <span
+              key={o.id}
+              data-testid={`leverage-exit-pill-${o.id}`}
+              className={cn(
+                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium",
+                o.kind === "take_profit"
+                  ? "bg-emerald-500/15 text-emerald-400"
+                  : "bg-red-500/15 text-red-400",
+              )}
+            >
+              {o.kind === "take_profit" ? "TP" : "SL"} {o.percent}% @{" "}
+              {fmtMarketCap(o.trigger_mc)}
+              {o.status === "filling" ? " · filling…" : ""}
+            </span>
+          ))}
+        </div>
+      )}
+
       <div className="mt-3 flex items-center justify-between gap-3">
         <span className="text-[11px] text-muted-foreground">
           Distance to Liq:{" "}
@@ -366,16 +475,329 @@ function LeverageRow({
             {fmtDistance(dist)}
           </span>
         </span>
-        <button
-          type="button"
-          onClick={onClose}
-          disabled={closing}
-          data-testid={`button-leverage-close-${p.id}`}
-          className="flex items-center gap-1.5 h-8 px-3 text-xs font-medium border border-red-400/40 text-red-400 hover:bg-red-500/15 transition-colors rounded-md disabled:opacity-40"
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setManageOpen((o) => !o)}
+            data-testid={`button-leverage-manage-${p.id}`}
+            className={cn(
+              "h-8 px-3 text-xs font-medium border transition-colors rounded-md",
+              manageOpen
+                ? "border-accent text-accent"
+                : "border-border text-muted-foreground hover:text-foreground",
+            )}
+          >
+            Manage
+          </button>
+          <button
+            type="button"
+            onClick={() => onClose()}
+            disabled={closing}
+            data-testid={`button-leverage-close-${p.id}`}
+            className="flex items-center gap-1.5 h-8 px-3 text-xs font-medium border border-red-400/40 text-red-400 hover:bg-red-500/15 transition-colors rounded-md disabled:opacity-40"
+          >
+            {closing && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            Close
+          </button>
+        </div>
+      </div>
+
+      {manageOpen && (
+        <ManageExits
+          p={p}
+          wallet={wallet}
+          exits={exits}
+          onPartialClose={(percent) => onClose(percent)}
+          closing={closing}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Expandable management surface for a leverage position: partial close (% of
+ * remaining), plus add / modify / cancel of take-profit (≤4) and stop-loss (1)
+ * exit orders. Triggers are USD market caps validated server-side.
+ */
+function ManageExits({
+  p,
+  wallet,
+  exits,
+  onPartialClose,
+  closing,
+}: {
+  p: LeveragePosition;
+  wallet: string;
+  exits: LeverageExitOrder[];
+  onPartialClose: (percent: number) => void;
+  closing: boolean;
+}) {
+  const { create, update, cancel } = useExitOrderMutations(wallet);
+  const [adding, setAdding] = useState<LeverageExitKind | null>(null);
+
+  const tpCount = exits.filter((o) => o.kind === "take_profit").length;
+  const slCount = exits.filter((o) => o.kind === "stop_loss").length;
+  const canAddTp = tpCount < MAX_TP;
+  const canAddSl = slCount < MAX_SL;
+
+  return (
+    <div className="mt-3 space-y-3 border-t border-border/60 pt-3">
+      {/* Partial close */}
+      <div>
+        <div className="mb-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+          Close Amount
+        </div>
+        <div className="grid grid-cols-4 gap-1.5">
+          {PARTIAL_PRESETS.map((pct) => (
+            <button
+              key={pct}
+              type="button"
+              disabled={closing}
+              onClick={() => onPartialClose(pct)}
+              data-testid={`button-leverage-partial-${p.id}-${pct}`}
+              className="h-8 rounded-md border border-border text-xs font-medium text-muted-foreground hover:border-accent hover:text-accent transition-colors disabled:opacity-40"
+            >
+              {pct === 100 ? "Full" : `${pct}%`}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Exit orders */}
+      <div>
+        <div className="mb-1.5 flex items-center justify-between">
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+            Take Profit / Stop Loss
+          </span>
+          <div className="flex gap-1.5">
+            <button
+              type="button"
+              disabled={!canAddTp}
+              onClick={() => setAdding(adding === "take_profit" ? null : "take_profit")}
+              data-testid={`button-leverage-add-tp-${p.id}`}
+              className="inline-flex items-center gap-1 rounded-md border border-emerald-400/40 px-2 py-1 text-[11px] font-medium text-emerald-400 hover:bg-emerald-500/10 transition-colors disabled:opacity-30"
+            >
+              <Plus className="h-3 w-3" /> TP
+            </button>
+            <button
+              type="button"
+              disabled={!canAddSl}
+              onClick={() => setAdding(adding === "stop_loss" ? null : "stop_loss")}
+              data-testid={`button-leverage-add-sl-${p.id}`}
+              className="inline-flex items-center gap-1 rounded-md border border-red-400/40 px-2 py-1 text-[11px] font-medium text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-30"
+            >
+              <Plus className="h-3 w-3" /> SL
+            </button>
+          </div>
+        </div>
+
+        {exits.length === 0 && !adding && (
+          <p className="text-[11px] text-muted-foreground">
+            No exit orders. Add a take-profit or stop-loss above.
+          </p>
+        )}
+
+        <div className="space-y-1.5">
+          {exits.map((o) => (
+            <ExitOrderRow
+              key={o.id}
+              order={o}
+              onSave={(triggerMc, percent) =>
+                update.mutate({ orderId: o.id, triggerMc, percent })
+              }
+              onCancel={() => cancel.mutate(o.id)}
+              busy={
+                (update.isPending && update.variables?.orderId === o.id) ||
+                (cancel.isPending && cancel.variables === o.id)
+              }
+            />
+          ))}
+
+          {adding && (
+            <ExitOrderEditor
+              kind={adding}
+              busy={create.isPending}
+              onSubmit={(triggerMc, percent) =>
+                create.mutate(
+                  { positionId: p.id, kind: adding, triggerMc, percent },
+                  { onSuccess: () => setAdding(null) },
+                )
+              }
+              onCancel={() => setAdding(null)}
+            />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** One existing exit order: read-only summary with inline edit + cancel. */
+function ExitOrderRow({
+  order,
+  onSave,
+  onCancel,
+  busy,
+}: {
+  order: LeverageExitOrder;
+  onSave: (triggerMc: number, percent: number) => void;
+  onCancel: () => void;
+  busy: boolean;
+}) {
+  const [editing, setEditing] = useState(false);
+  const isTp = order.kind === "take_profit";
+  const filling = order.status === "filling";
+
+  if (editing) {
+    return (
+      <ExitOrderEditor
+        kind={order.kind}
+        initialMc={String(order.trigger_mc)}
+        initialPercent={order.percent}
+        busy={busy}
+        onSubmit={(mc, pct) => {
+          onSave(mc, pct);
+          setEditing(false);
+        }}
+        onCancel={() => setEditing(false)}
+      />
+    );
+  }
+
+  return (
+    <div
+      data-testid={`leverage-exit-row-${order.id}`}
+      className="flex items-center justify-between gap-2 rounded-md border border-border/60 bg-background/40 px-2.5 py-1.5 text-xs"
+    >
+      <span className="flex min-w-0 items-center gap-1.5">
+        <span
+          className={cn(
+            "font-medium shrink-0",
+            isTp ? "text-emerald-400" : "text-red-400",
+          )}
         >
-          {closing && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-          Close
-        </button>
+          {isTp ? "Take Profit" : "Stop Loss"}
+        </span>
+        <span className="truncate font-mono text-muted-foreground">
+          Close {order.percent}% @ {isTp ? "≥" : "≤"} {fmtMarketCap(order.trigger_mc)} MC
+          {filling ? " · filling…" : ""}
+        </span>
+      </span>
+      {!filling && (
+        <span className="flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            disabled={busy}
+            data-testid={`button-leverage-exit-edit-${order.id}`}
+            aria-label="Edit order"
+            className="flex items-center gap-1 text-muted-foreground hover:text-accent transition-colors disabled:opacity-40"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={busy}
+            data-testid={`button-leverage-exit-cancel-${order.id}`}
+            aria-label="Cancel order"
+            className="flex items-center gap-1 text-muted-foreground hover:text-red-400 transition-colors disabled:opacity-40"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** Inline editor for creating or modifying an exit order. */
+function ExitOrderEditor({
+  kind,
+  initialMc = "",
+  initialPercent = 100,
+  busy,
+  onSubmit,
+  onCancel,
+}: {
+  kind: LeverageExitKind;
+  initialMc?: string;
+  initialPercent?: number;
+  busy: boolean;
+  onSubmit: (triggerMc: number, percent: number) => void;
+  onCancel: () => void;
+}) {
+  const isTp = kind === "take_profit";
+  const [mc, setMc] = useState(initialMc);
+  const [percent, setPercent] = useState(String(initialPercent));
+  const parsedMc = parseMc(mc);
+  const parsedPct = Number(percent);
+  const pctValid = Number.isFinite(parsedPct) && parsedPct > 0 && parsedPct <= 100;
+  const valid = parsedMc != null && parsedMc > 0 && pctValid;
+
+  return (
+    <div
+      data-testid={`leverage-exit-editor-${kind}`}
+      className="rounded-md border border-border/60 bg-background/40 p-2 space-y-2"
+    >
+      <div className="flex items-center gap-2">
+        <span
+          className={cn(
+            "w-[74px] shrink-0 text-xs font-medium",
+            isTp ? "text-emerald-400" : "text-red-400",
+          )}
+        >
+          {isTp ? "Take Profit" : "Stop Loss"}
+        </span>
+        <input
+          type="text"
+          value={mc}
+          onChange={(e) => setMc(e.target.value)}
+          placeholder={isTp ? "Trigger MC (e.g. 2m)" : "Trigger MC (e.g. 600k)"}
+          data-testid={`input-leverage-exit-mc-${kind}`}
+          className="flex-1 h-9 rounded-xl bg-background border border-border px-2.5 font-mono text-[11px] focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent"
+        />
+      </div>
+      <div className="flex items-center gap-2">
+        <span className="w-[74px] shrink-0 text-[11px] text-muted-foreground">
+          Close %
+        </span>
+        <input
+          type="number"
+          min={1}
+          max={100}
+          value={percent}
+          onChange={(e) => setPercent(e.target.value)}
+          data-testid={`input-leverage-exit-percent-${kind}`}
+          className="w-20 h-9 rounded-xl bg-background border border-border px-2.5 font-mono text-[11px] focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent"
+        />
+        <span className="text-[10px] text-muted-foreground">of remaining</span>
+        <div className="ml-auto flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={onCancel}
+            data-testid={`button-leverage-exit-editor-cancel-${kind}`}
+            aria-label="Discard"
+            className="flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            disabled={!valid || busy}
+            onClick={() => parsedMc != null && onSubmit(parsedMc, parsedPct)}
+            data-testid={`button-leverage-exit-editor-save-${kind}`}
+            aria-label="Save"
+            className="flex h-8 w-8 items-center justify-center rounded-md border border-accent/50 text-accent hover:bg-accent/10 transition-colors disabled:opacity-40"
+          >
+            {busy ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Check className="h-3.5 w-3.5" />
+            )}
+          </button>
+        </div>
       </div>
     </div>
   );

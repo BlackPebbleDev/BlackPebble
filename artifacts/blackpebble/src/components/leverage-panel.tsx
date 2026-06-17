@@ -384,9 +384,9 @@ export function LeveragePanel({ info }: { info: TokenInfo }) {
                   value={tpMc}
                   onChange={(e) => setTpMc(e.target.value)}
                   disabled={!tpEnabled}
-                  placeholder="Take Profit MC"
+                  placeholder="Trigger MC (e.g. 2m)"
                   data-testid="input-leverage-tp-mc"
-                  className="flex-1 h-7 bg-background border border-border px-2 font-mono text-[11px] focus:outline-none focus:border-accent disabled:opacity-50"
+                  className="flex-1 h-9 rounded-xl bg-background border border-border px-2.5 font-mono text-[11px] focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent disabled:opacity-50"
                 />
               </div>
               {tpInvalid && (
@@ -413,9 +413,9 @@ export function LeveragePanel({ info }: { info: TokenInfo }) {
                   value={slMc}
                   onChange={(e) => setSlMc(e.target.value)}
                   disabled={!slEnabled}
-                  placeholder="Stop Loss MC"
+                  placeholder="Trigger MC (e.g. 600k)"
                   data-testid="input-leverage-sl-mc"
-                  className="flex-1 h-7 bg-background border border-border px-2 font-mono text-[11px] focus:outline-none focus:border-accent disabled:opacity-50"
+                  className="flex-1 h-9 rounded-xl bg-background border border-border px-2.5 font-mono text-[11px] focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent disabled:opacity-50"
                 />
               </div>
               {slInvalid && (

@@ -1268,6 +1268,8 @@ export interface LeveragePosition {
   roiOnMargin: number | null;
   positionEquitySol: number | null;
   marketCapChangePercent: number | null;
+  // Active take-profit / stop-loss orders (present on the positions endpoint).
+  exitOrders?: LeverageExitOrder[];
 }
 
 export interface LeverageFill {
@@ -1278,6 +1280,32 @@ export interface LeverageFill {
   exitPriceSol: number | null;
   exitMarketCap: number | null;
   realizedPnlSol: number | null;
+}
+
+export type LeverageExitKind = "take_profit" | "stop_loss";
+
+export interface LeverageExitOrder {
+  id: number;
+  position_id: number;
+  wallet: string;
+  token_mint: string;
+  kind: LeverageExitKind;
+  trigger_mc: number;
+  percent: number;
+  status: string;
+  created_at: number;
+  updated_at: number;
+  last_checked_at: number | null;
+  filled_at: number | null;
+  fill_market_cap: number | null;
+  fill_price: number | null;
+  fill_reason: string | null;
+}
+
+export interface LeverageExitOrderResult {
+  ok: boolean;
+  error?: string;
+  order?: LeverageExitOrder;
 }
 
 export interface LeverageTrade {
@@ -1527,10 +1555,14 @@ export const api = {
         method: "POST",
         body: JSON.stringify(body),
       }),
-    close: (wallet: string, id: number) =>
+    // `percent` (1..100) closes that share of the remaining notional; omitted
+    // defaults to a full 100% close.
+    close: (wallet: string, id: number, percent?: number) =>
       request<LeverageCloseResult>("/leverage/close", {
         method: "POST",
-        body: JSON.stringify({ wallet, id }),
+        body: JSON.stringify(
+          percent != null ? { wallet, id, percent } : { wallet, id },
+        ),
       }),
     positions: (wallet: string) =>
       request<{
@@ -1540,6 +1572,32 @@ export const api = {
       }>(`/leverage/positions/${wallet}`),
     history: (wallet: string) =>
       request<{ trades: LeverageTrade[] }>(`/leverage/history/${wallet}`),
+    createOrder: (body: {
+      wallet: string;
+      positionId: number;
+      kind: LeverageExitKind;
+      triggerMc: number;
+      percent: number;
+    }) =>
+      request<LeverageExitOrderResult>("/leverage/orders", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    updateOrder: (body: {
+      wallet: string;
+      orderId: number;
+      triggerMc?: number;
+      percent?: number;
+    }) =>
+      request<LeverageExitOrderResult>("/leverage/orders/update", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    cancelOrder: (wallet: string, orderId: number) =>
+      request<LeverageExitOrderResult>("/leverage/orders/cancel", {
+        method: "POST",
+        body: JSON.stringify({ wallet, orderId }),
+      }),
   },
 
   // SOL Recovery usage tracking (public — recovery works for guests too).

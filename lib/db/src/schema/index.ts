@@ -266,6 +266,42 @@ export const paperLeverageTrades = pgTable(
   ],
 );
 
+// Manageable exit orders for an OPEN leverage position. Replaces the write-once
+// tp_trigger_mc / sl_trigger_mc columns on paper_leverage_positions: a position
+// can now carry up to 4 take-profit rungs + 1 stop-loss, each closing a percent
+// of the *remaining* notional when its USD market-cap trigger is met. Fully
+// isolated from spot paper_orders (separate engine, balance-only settlement).
+// Legacy columns are retained for rollback; the engine reads from this table.
+export const paperLeverageExitOrders = pgTable(
+  "paper_leverage_exit_orders",
+  {
+    id: serial("id").primaryKey(),
+    position_id: integer("position_id").notNull(),
+    wallet: text("wallet").notNull(),
+    token_mint: text("token_mint").notNull(),
+    // 'take_profit' | 'stop_loss'
+    kind: text("kind").notNull(),
+    // Trigger by USD market cap (same basis as entry / liq / valuation).
+    trigger_mc: doublePrecision("trigger_mc").notNull(),
+    // Percent of the position's REMAINING notional to close on trigger (1..100).
+    percent: doublePrecision("percent").notNull(),
+    // 'pending' | 'filling' | 'filled' | 'canceled' | 'failed'
+    status: text("status").notNull().default("pending"),
+    created_at: bigint("created_at", { mode: "number" }).default(epoch),
+    updated_at: bigint("updated_at", { mode: "number" }).default(epoch),
+    last_checked_at: bigint("last_checked_at", { mode: "number" }),
+    filled_at: bigint("filled_at", { mode: "number" }),
+    fill_market_cap: doublePrecision("fill_market_cap"),
+    fill_price: doublePrecision("fill_price"),
+    fill_reason: text("fill_reason"),
+  },
+  (t) => [
+    index("idx_lev_exit_wallet").on(t.wallet),
+    index("idx_lev_exit_position_status").on(t.position_id, t.status),
+    index("idx_lev_exit_status").on(t.status),
+  ],
+);
+
 // ── Analytics ───────────────────────────────────────────────────────────────
 export const tokenViews = pgTable(
   "token_views",

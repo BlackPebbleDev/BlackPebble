@@ -9,6 +9,12 @@ import {
   valueLeveragePositions,
   evaluateLeverage,
   getLeverageHistory,
+  getLeverageExitOrders,
+  createLeverageExitOrder,
+  updateLeverageExitOrder,
+  cancelLeverageExitOrder,
+  type LeverageExitOrderRow,
+  type ValuedLeveragePosition,
 } from "../lib/leverage.js";
 
 const router: IRouter = Router();
@@ -64,7 +70,59 @@ router.post(
     if (!wallet || !Number.isInteger(id) || id <= 0) {
       return res.status(400).json({ ok: false, error: "wallet and a valid position id are required" });
     }
-    const result = await closeLeverage(wallet, id);
+    // Optional partial close: percent of the remaining notional (1..100).
+    // Omitted / null defaults to a full (100%) close — behavior unchanged.
+    const percent = b.percent != null ? Number(b.percent) : 100;
+    const result = await closeLeverage(wallet, id, percent);
+    return res.status(result.ok ? 200 : 400).json(result);
+  }),
+);
+
+// ── Manageable exit orders (take-profit / stop-loss) ────────────────────────
+router.post(
+  "/leverage/orders",
+  requireOwnership((req) => String(req.body?.wallet || "").trim()),
+  asyncHandler(async (req, res) => {
+    const b = req.body ?? {};
+    const result = await createLeverageExitOrder({
+      wallet: String(b.wallet || "").trim(),
+      positionId: Number(b.positionId),
+      kind: b.kind,
+      triggerMc: Number(b.triggerMc),
+      percent: Number(b.percent),
+    });
+    return res.status(result.ok ? 200 : 400).json(result);
+  }),
+);
+
+router.post(
+  "/leverage/orders/update",
+  requireOwnership((req) => String(req.body?.wallet || "").trim()),
+  asyncHandler(async (req, res) => {
+    const b = req.body ?? {};
+    const result = await updateLeverageExitOrder({
+      wallet: String(b.wallet || "").trim(),
+      orderId: Number(b.orderId),
+      triggerMc: b.triggerMc != null ? Number(b.triggerMc) : undefined,
+      percent: b.percent != null ? Number(b.percent) : undefined,
+    });
+    return res.status(result.ok ? 200 : 400).json(result);
+  }),
+);
+
+router.post(
+  "/leverage/orders/cancel",
+  requireOwnership((req) => String(req.body?.wallet || "").trim()),
+  asyncHandler(async (req, res) => {
+    const b = req.body ?? {};
+    const wallet = String(b.wallet || "").trim();
+    const orderId = Number(b.orderId);
+    if (!wallet || !Number.isInteger(orderId) || orderId <= 0) {
+      return res
+        .status(400)
+        .json({ ok: false, error: "wallet and a valid order id are required" });
+    }
+    const result = await cancelLeverageExitOrder(wallet, orderId);
     return res.status(result.ok ? 200 : 400).json(result);
   }),
 );
@@ -87,7 +145,21 @@ router.get(
     // Re-value after any closes so the client sees the post-close set.
     const finalPositions =
       fills.length > 0 ? await valueLeveragePositions(wallet) : positions;
-    return res.json({ positions: finalPositions, solUsd, fills });
+    // Attach each position's active exit orders (no extra external calls).
+    const exitOrders = await getLeverageExitOrders(wallet);
+    const ordersByPosition = new Map<number, LeverageExitOrderRow[]>();
+    for (const o of exitOrders) {
+      const list = ordersByPosition.get(o.position_id) ?? [];
+      list.push(o);
+      ordersByPosition.set(o.position_id, list);
+    }
+    const withOrders = finalPositions.map(
+      (p: ValuedLeveragePosition) => ({
+        ...p,
+        exitOrders: ordersByPosition.get(p.id) ?? [],
+      }),
+    );
+    return res.json({ positions: withOrders, solUsd, fills });
   }),
 );
 
