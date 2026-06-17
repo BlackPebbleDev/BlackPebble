@@ -328,13 +328,33 @@ function TradeEstimate({
   if (!quote) return null;
 
   if (!quote.ok) {
+    const reasons = quote.errors ?? (quote.error ? [quote.error] : []);
     return (
       <div
-        className="rounded-xl border border-red-500/40 bg-red-500/10 p-3 text-xs text-red-300 flex items-start gap-2"
+        className="rounded-xl border border-red-500/40 bg-red-500/10 p-3 text-xs text-red-300"
         data-testid="quote-error"
       >
-        <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-        <span>{quote.error ?? "Quote unavailable."}</span>
+        {reasons.length <= 1 ? (
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+            <span>{reasons[0] ?? "Quote unavailable."}</span>
+          </div>
+        ) : (
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+            <div>
+              <div className="font-medium mb-1">Trade blocked:</div>
+              <ol className="space-y-0.5 list-none">
+                {reasons.map((r, i) => (
+                  <li key={i} className="flex gap-1.5">
+                    <span className="shrink-0 font-medium">{i + 1}.</span>
+                    <span>{r}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </div>
+        )}
       </div>
     );
   }

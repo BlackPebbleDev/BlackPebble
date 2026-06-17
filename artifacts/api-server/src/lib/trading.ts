@@ -809,7 +809,10 @@ export async function executeSell(
 
 export interface TradeQuote {
   ok: boolean;
+  /** First (or only) blocking reason — kept for backward compat. */
   error?: string;
+  /** All blocking reasons when more than one validation fails simultaneously. */
+  errors?: string[];
   /** True only when rejected for exceeding the max liquidity impact. */
   blocked?: boolean;
   /** True when the fill was simulated from market cap (liquidity missing). */
@@ -968,30 +971,44 @@ export async function getTradeQuote(opts: {
 
   // Anti-whale supply cap (buys only): mirror executeBuy so the preview blocks
   // an order that would push the trader's total holding past MAX_SUPPLY_PCT of
-  // supply. Applied on top of the liquidity-impact cap — whichever is stricter.
+  // supply. Run INDEPENDENTLY of slip.ok so both violations surface together.
+  // When slip failed, estimatedTokens is null; use raw price as a conservative
+  // over-estimate for the supply check (no formula change — same cap threshold).
   let supplyOk = true;
   let supplyError: string | undefined;
-  if (slip.ok && side === "buy" && estimatedTokens != null) {
-    const maxTokens = maxTokensForSupply(marketCapUsd, priceUsd);
-    if (maxTokens != null) {
-      const held = opts.wallet
-        ? (
-            await dbGet<{ total_tokens: number }>(
-              "SELECT total_tokens FROM positions WHERE wallet = $1 AND token_mint = $2",
-              [opts.wallet, mint],
-            )
-          )?.total_tokens ?? 0
-        : 0;
-      if (held + estimatedTokens > maxTokens) {
-        supplyOk = false;
-        supplyError = supplyCapError(undefined);
+  if (side === "buy") {
+    const tokensForCap =
+      estimatedTokens ??
+      (priceUsd > 0 ? tradeUsdValue / priceUsd : null);
+    if (tokensForCap != null) {
+      const maxTokens = maxTokensForSupply(marketCapUsd, priceUsd);
+      if (maxTokens != null) {
+        const held = opts.wallet
+          ? (
+              await dbGet<{ total_tokens: number }>(
+                "SELECT total_tokens FROM positions WHERE wallet = $1 AND token_mint = $2",
+                [opts.wallet, mint],
+              )
+            )?.total_tokens ?? 0
+          : 0;
+        if (held + tokensForCap > maxTokens) {
+          supplyOk = false;
+          supplyError = supplyCapError(undefined);
+        }
       }
     }
   }
 
+  // Collect every blocking reason so the UI can show them all at once.
+  const blockingReasons: string[] = [
+    ...(slip.error ? [slip.error] : []),
+    ...(supplyError ? [supplyError] : []),
+  ];
+
   return {
     ok: slip.ok && supplyOk,
-    error: supplyError ?? slip.error,
+    error: blockingReasons[0],
+    errors: blockingReasons.length > 0 ? blockingReasons : undefined,
     blocked: slip.blocked || !supplyOk,
     lowData: slip.lowData,
     side,

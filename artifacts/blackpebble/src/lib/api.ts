@@ -482,7 +482,10 @@ export type WarningLevel = "none" | "high" | "extreme";
 
 export interface TradeQuote {
   ok: boolean;
+  /** First (or only) blocking reason — kept for backward compat. */
   error?: string;
+  /** All blocking reasons when more than one validation fails simultaneously. */
+  errors?: string[];
   blocked?: boolean;
   lowData?: boolean;
   side: "buy" | "sell";
