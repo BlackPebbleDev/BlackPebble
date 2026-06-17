@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { useWalletCleaner, formatRentSol } from "@/hooks/use-wallet-cleaner";
 import { SafetyBanner } from "@/components/wallet-cleaner/safety-banner";
 import { WalletStatusCard } from "@/components/wallet-cleaner/wallet-status-card";
+import { WalletHealthDashboard } from "@/components/wallet-cleaner/wallet-health-dashboard";
 import { RecoverySections } from "@/components/wallet-cleaner/recovery-sections";
 import { RecoverySummary } from "@/components/wallet-cleaner/recovery-summary";
 import { RecoverySuccess } from "@/components/wallet-cleaner/recovery-success";
@@ -90,6 +91,8 @@ export default function WalletCleaner() {
       ) : (
         <>
           <WalletStatusCard cleaner={cleaner} />
+
+          <WalletHealthDashboard cleaner={cleaner} wallet={owner} />
 
           {(status === "idle" ||
             (status === "error" && accounts.length === 0)) && (

@@ -44,11 +44,10 @@ function Metric({
 }
 
 /**
- * Primary SOL Recovery status card: the connected wallet plus the four headline
- * figures — live balance, recoverable SOL, estimated net recovery and a Wallet
- * Health score. Recovery figures read "—" until a scan completes (they are never
- * shown as a misleading 0), and Wallet Health is derived only from the real
- * count of empty accounts found.
+ * Primary SOL Recovery status card: the connected wallet plus its live balance
+ * and the estimated net recovery for the current scan. The expanded health,
+ * recoverable totals and lifetime figures live in the Wallet Health Dashboard.
+ * Recovery figures read "—" until a scan completes (never a misleading 0).
  */
 export function WalletStatusCard({ cleaner }: { cleaner: UseWalletCleaner }) {
   const {
@@ -57,9 +56,7 @@ export function WalletStatusCard({ cleaner }: { cleaner: UseWalletCleaner }) {
     walletBalance,
     balanceStatus,
     accounts,
-    totalRecoverable,
     totalNet,
-    walletHealth,
     refreshBalance,
   } = cleaner;
 
@@ -119,44 +116,19 @@ export function WalletStatusCard({ cleaner }: { cleaner: UseWalletCleaner }) {
       </div>
 
       <div className="grid grid-cols-2 border border-border divide-border [&>*]:border-border">
-        <div className="border-b border-r">
+        <div className="border-r">
           <Metric
             label="Wallet balance"
             value={balanceText}
             testId="metric-balance"
           />
         </div>
-        <div className="border-b">
-          <Metric
-            label="Recoverable SOL"
-            value={fmt(totalRecoverable)}
-            sub={hasScanned ? `${accounts.length} empty accounts` : undefined}
-            testId="metric-recoverable"
-            emphasis={hasScanned && totalRecoverable > 0}
-          />
-        </div>
-        <div className="border-r">
+        <div>
           <Metric
             label="Est. net recovery"
             value={fmt(totalNet)}
             sub="after network fees"
             testId="metric-net"
-          />
-        </div>
-        <div>
-          <Metric
-            label="Wallet health"
-            value={hasScanned ? `${walletHealth} / 100` : "—"}
-            sub={
-              hasScanned
-                ? accounts.length === 0
-                  ? "No cleanup needed"
-                  : `${accounts.length} cleanup ${
-                      accounts.length === 1 ? "opportunity" : "opportunities"
-                    }`
-                : undefined
-            }
-            testId="metric-health"
           />
         </div>
       </div>
