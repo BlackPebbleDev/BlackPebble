@@ -341,10 +341,19 @@ export async function valueLeveragePositions(
     const px = priceByMint.get(p.token_mint) ?? { priceSol: null, mc: null };
     const currentPriceSol = px.priceSol;
     const currentMarketCapUsd = px.mc;
+    // P&L tracks the token's USD market-cap move — the same basis as the entry
+    // MC, the chart (MCAP/USD), the TP/SL triggers and the Liq MC shown to the
+    // trader. Fall back to the SOL-denominated price move only when market-cap
+    // data is unavailable, so a long is never liquidated or marked down purely
+    // because SOL/USD moved.
     const priceMovePercent =
-      currentPriceSol != null && p.entry_price_sol > 0
-        ? (currentPriceSol - p.entry_price_sol) / p.entry_price_sol
-        : null;
+      currentMarketCapUsd != null &&
+      p.entry_market_cap != null &&
+      p.entry_market_cap > 0
+        ? (currentMarketCapUsd - p.entry_market_cap) / p.entry_market_cap
+        : currentPriceSol != null && p.entry_price_sol > 0
+          ? (currentPriceSol - p.entry_price_sol) / p.entry_price_sol
+          : null;
     const unrealizedPnlSol =
       priceMovePercent != null ? p.notional_sol * priceMovePercent : null;
     const roiOnMargin =
@@ -416,7 +425,17 @@ async function performClose(
       finalStatus = "liquidated";
       action = "liquidated";
     } else {
-      const priceMovePercent = entry > 0 ? (exitPriceSol - entry) / entry : 0;
+      // Realized P&L tracks the token's USD market-cap move (consistent with the
+      // valuation, the liquidation level and the TP/SL triggers). Fall back to
+      // the SOL-denominated price move only when market-cap data is unavailable
+      // at entry or exit.
+      const entryMc = claimed.entry_market_cap;
+      const priceMovePercent =
+        entryMc != null && entryMc > 0 && exitMarketCap != null
+          ? (exitMarketCap - entryMc) / entryMc
+          : entry > 0
+            ? (exitPriceSol - entry) / entry
+            : 0;
       const rawPnl = notional * priceMovePercent;
       // Max loss is the margin; account equity can never go negative.
       realizedPnl = Math.max(rawPnl, -margin);
@@ -531,8 +550,16 @@ export async function evaluateLeverage(
     if (price == null || !Number.isFinite(price)) continue;
 
     let reason: CloseReason | null = null;
-    // 1. Liquidation: price has fallen to/through the liquidation level.
-    if (price <= p.liq_price_sol) {
+    // 1. Liquidation: the token's USD market cap has fallen to/through the
+    //    liquidation level. This is the same basis as the entry MC, the chart,
+    //    the TP/SL triggers and the Liq MC shown to the trader. Fall back to the
+    //    SOL-denominated price only when market-cap data is unavailable, so a
+    //    long is never liquidated purely because SOL/USD appreciated.
+    const liquidated =
+      mc != null && p.liq_market_cap != null
+        ? mc <= p.liq_market_cap
+        : price <= p.liq_price_sol;
+    if (liquidated) {
       reason = "liquidated";
     } else if (p.sl_trigger_mc != null && mc != null && mc <= p.sl_trigger_mc) {
       // 2. Stop-loss (by market cap).

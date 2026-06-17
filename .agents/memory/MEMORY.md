@@ -12,6 +12,7 @@
 - [USD-default needs a position-independent rate](usd-default-needs-rate.md) — empty/guest portfolios have solUsd=0; use /markets/sol-price + useSolUsd() so USD renders without positions.
 - [$25 PUFFY block is correct](puffy-25-block-audit.md) — not a calc bug; many same-name tokens, illiquid duplicates rightly blocked. Don't lower threshold. Sell dedup matches identical token_amount.
 - [Leverage P&L isolation](leverage-pnl-isolation.md) — leverage open/close only mutate paper_balance; never spot stat columns (realized_pnl/total_trades/etc).
+- [Leverage MC denomination](leverage-mc-denomination.md) — liquidation + P&L must track USD market cap (mc<=liq_market_cap), not SOL price; SOL-denominated logic liquidated profitable longs when SOL/USD rose.
 - [Guest funnel analytics](guest-funnel-analytics.md) — guests are client-only; funnel via public beacon→analytics_events. guest_converted only when ≥1 position migrated; preserve anon_id across expiry resets.
 - [Callouts are append-only](callouts-immutable.md) — callouts/callout_updates have NO edit/delete/hide path by design; corrections go in callout_updates. Never add a mutation path.
 - [Callout live performance (ATH/X)](callout-ath-multiple.md) — ATH = peak-since-tracking high-water mark (token_price_peaks); athMultipleFrom clamps ATH>=current so read/record order is moot; enrich callouts only, never theses/trades; batch peaks (no N+1).
