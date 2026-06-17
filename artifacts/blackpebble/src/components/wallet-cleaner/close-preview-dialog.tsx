@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Loader2, AlertTriangle, Info } from "lucide-react";
+import { Loader2, AlertTriangle, Info, ArrowRight } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -13,7 +13,47 @@ import { RecoverySummary } from "@/components/wallet-cleaner/recovery-summary";
 import { TokenAvatar } from "@/components/wallet-cleaner/token-avatar";
 import { type UseWalletCleaner } from "@/hooks/use-wallet-cleaner";
 import { useTokenMetadata } from "@/hooks/use-token-metadata";
+import { healthBandLabel } from "@/lib/recovery-scan";
 import { shortAddr } from "@/lib/format";
+import { cn } from "@/lib/utils";
+
+/** Wallet health score before → after the pending close, with band labels. */
+function HealthDelta({ before, after }: { before: number; after: number }) {
+  const improved = after > before;
+  return (
+    <div
+      className="rounded-xl border border-border bg-secondary/30 px-4 py-3"
+      data-testid="close-health-delta"
+    >
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">
+        Wallet health after cleanup
+      </div>
+      <div className="flex items-center gap-3">
+        <div className="text-center">
+          <div className="font-mono text-xl text-muted-foreground">{before}</div>
+          <div className="text-[9px] uppercase tracking-wider text-muted-foreground">
+            {healthBandLabel(before)}
+          </div>
+        </div>
+        <ArrowRight className="w-4 h-4 text-muted-foreground" />
+        <div className="text-center">
+          <div
+            className={cn(
+              "font-mono text-xl font-semibold",
+              improved ? "text-accent" : "text-foreground",
+            )}
+            data-testid="close-health-after"
+          >
+            {after}
+          </div>
+          <div className="text-[9px] uppercase tracking-wider text-muted-foreground">
+            {healthBandLabel(after)}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export function ClosePreviewDialog({
   cleaner,
@@ -26,7 +66,15 @@ export function ClosePreviewDialog({
   onOpenChange: (open: boolean) => void;
   onConfirm: () => void;
 }) {
-  const { selectedAccounts, txCount, status, progress, error } = cleaner;
+  const {
+    selectedAccounts,
+    txCount,
+    status,
+    progress,
+    error,
+    walletHealth,
+    projectedHealthAfterClose,
+  } = cleaner;
   const isClosing = status === "closing";
   const hasError = status === "error";
 
@@ -84,6 +132,11 @@ export function ClosePreviewDialog({
           </div>
         ) : (
           <div className="space-y-4">
+            <HealthDelta
+              before={walletHealth}
+              after={projectedHealthAfterClose}
+            />
+
             <RecoverySummary cleaner={cleaner} />
 
             <div className="rounded-xl bg-card shadow-card max-h-40 overflow-y-auto divide-y divide-border">

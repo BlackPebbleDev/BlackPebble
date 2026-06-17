@@ -13,8 +13,22 @@ import {
   formatUsd,
   formatTokenAmount,
   type EnrichedToken,
+  type SuggestedAction,
 } from "@/lib/recovery-classify";
-import type { RecoveryTokenMeta } from "@/lib/api";
+import type { RecoveryTokenMeta, TokenRiskClass } from "@/lib/api";
+
+const ELEVATED_RISK: readonly TokenRiskClass[] = [
+  "suspicious",
+  "spam",
+  "high_risk",
+];
+
+const ACTION_STYLES: Record<SuggestedAction, string> = {
+  Keep: "bg-secondary text-muted-foreground",
+  Review: "bg-amber-500/10 text-amber-400",
+  "Burn candidate": "bg-red-500/10 text-red-400",
+  Protected: "bg-accent/12 text-accent",
+};
 
 /**
  * One held token in the cleanup suite. Shows real on-chain balance, displayed
@@ -50,8 +64,10 @@ export function TokenCard({
   const pending = metaLoading && !meta;
   const primary = known ? symbol : pending ? shortMint : "Unknown Token";
 
-  const hasDetails =
-    !!intel && (intel.riskReasons.length > 0 || intel.riskFactors.length > 0);
+  const elevated = !!intel && ELEVATED_RISK.includes(intel.risk);
+  // Reasons surface inline for elevated-risk tokens; "Details" only adds the
+  // structured factor pills (and reasons for non-elevated tokens, if any).
+  const hasDetails = !!intel && intel.riskFactors.length > 0;
 
   return (
     <div
@@ -123,6 +139,15 @@ export function TokenCard({
               Inflated value
             </span>
           )}
+          <span
+            className={cn(
+              "inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium",
+              ACTION_STYLES[token.suggestedAction],
+            )}
+            data-testid={`suggested-action-${asset.pubkey}`}
+          >
+            {token.suggestedAction}
+          </span>
         </div>
 
         <div className="flex items-center gap-2 flex-shrink-0">
@@ -171,10 +196,34 @@ export function TokenCard({
         </div>
       </div>
 
+      {/* Always-visible market facts so liquidity + market cap are never hidden. */}
+      {intel && (
+        <div className="grid grid-cols-3 gap-2 mt-2.5">
+          <Stat label="Price" value={formatUsd(intel.priceUsd)} />
+          <Stat label="Liquidity" value={formatUsd(intel.liquidityUsd)} />
+          <Stat label="Market cap" value={formatUsd(intel.marketCapUsd)} />
+        </div>
+      )}
+
+      {/* Elevated-risk reasons surface inline — never buried behind a toggle. */}
+      {elevated && intel.riskReasons.length > 0 && (
+        <ul className="mt-2 space-y-1 rounded-lg bg-red-500/[0.06] p-2">
+          {intel.riskReasons.map((reason) => (
+            <li
+              key={reason}
+              className="flex items-start gap-1.5 text-[11px] text-red-400/90 leading-snug"
+            >
+              <span className="w-1 h-1 rounded-full bg-red-400/60 flex-shrink-0 mt-1.5" />
+              {reason}
+            </li>
+          ))}
+        </ul>
+      )}
+
       {expanded && intel && (
         <div className="mt-2.5 space-y-2 border-t border-border pt-2.5">
           <RiskFactors factors={intel.riskFactors} />
-          {intel.riskReasons.length > 0 && (
+          {!elevated && intel.riskReasons.length > 0 && (
             <ul className="space-y-1">
               {intel.riskReasons.map((reason) => (
                 <li
@@ -187,11 +236,6 @@ export function TokenCard({
               ))}
             </ul>
           )}
-          <div className="grid grid-cols-3 gap-2 pt-1">
-            <Stat label="Price" value={formatUsd(intel.priceUsd)} />
-            <Stat label="Liquidity" value={formatUsd(intel.liquidityUsd)} />
-            <Stat label="Market cap" value={formatUsd(intel.marketCapUsd)} />
-          </div>
         </div>
       )}
     </div>

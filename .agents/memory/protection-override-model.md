@@ -1,22 +1,16 @@
 ---
 name: Wallet-cleanup protection override model
-description: How user protect/unprotect overrides combine with default protection so a verified/valuable asset can actually be made cleanup-eligible.
+description: Why default protection needs a separate un-protect override set, not a single user-protect set.
 ---
 
 # Protection override model (wallet cleanup suite)
 
-A token's `isProtected` is computed in `enrichToken` (recovery-classify.ts) as:
+A token is protected when the user protected it, OR it is default-protected (verified / meaningfully realizable) AND the user has not explicitly un-protected it.
 
-```
-isProtected = protectedByUser || (protectedByDefault && !userUnprotected)
-```
-
-- `protectedByDefault` = verified token OR realizable ≥ MEANINGFUL_REALIZABLE_USD ($5).
-- Two independent persisted override sets in the cleaner hook: `userProtected` and `userUnprotected`.
-
-**Why:** a single `userProtected` set with `isProtected = protectedByDefault || protectedByUser` made it IMPOSSIBLE to unprotect a default-protected asset — adding it to the protect set was a no-op, so the "remove protection" confirm dialog was functionally broken.
+**Why:** a single `userProtected` set with `protected = default || user` makes it impossible to un-protect a default-protected asset — re-adding it is a no-op, so the "remove protection" confirm dialog becomes dead UI. Two independent override sets (protect / un-protect) are required.
 
 **How to apply:**
-- `protectToken(mint)` and `unprotectToken(mint)` must be idempotent and mutually-clearing (protect removes from unprotected, unprotect removes from protected) so a mint is never in both lists; this makes them order-independent.
-- UI: clicking protect on an `isProtected && protectedByDefault` token must route through the extra-confirm dialog before calling `unprotectToken`; all other transitions apply immediately.
-- Invariant preserved elsewhere: protected tokens can never be burn-selected (guards in toggleBurn / selectAllInBucket / burnSelectedTokens, and protectToken drops any existing burn selection for the mint).
+- Protect and un-protect must be idempotent and mutually-clearing (each adds to its set and removes from the other) so a mint is never in both, making them order-independent.
+- Persist both sets per-wallet; reload on wallet change. Treat tampered storage where a mint is in both as un-resolved (don't trust either).
+- Removing default protection must route through an extra confirmation; all other transitions apply immediately.
+- Invariant: a protected token can never be burn-selected — enforce on every selection path AND clear any existing burn selection when a mint becomes protected.
