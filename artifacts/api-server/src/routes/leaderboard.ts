@@ -8,6 +8,7 @@ import {
 } from "../lib/trading.js";
 import { getSolPriceUsd } from "../lib/prices.js";
 import { getTopCallers } from "../lib/callers.js";
+import { getTopRising, getHighestTrust } from "../lib/reputation.js";
 import { dbAll } from "../lib/database.js";
 import { ensureFollowsTable } from "../lib/profiles.js";
 import { getOfficialBadgesForUsers } from "../lib/badges.js";
@@ -98,6 +99,33 @@ router.get(
       officialBadges: badgeMap.get(r.user_id) ?? [],
       graduation_tier: tierMap.get(r.user_id) ?? "Unranked",
     }));
+    return res.json({ entries });
+  }),
+);
+
+/**
+ * Top Rising Traders: ranked by recent momentum (follower growth + recent call
+ * volume + trust-score growth over the last 30 days), not lifetime totals.
+ * Read-only reputation aggregation; never affects trade/leaderboard accounting.
+ */
+router.get(
+  "/leaderboard/rising",
+  asyncHandler(async (_req, res) => {
+    const all = await getTopRising(100);
+    const entries = all.map((e, i) => ({ ...e, rank: i + 1 }));
+    return res.json({ entries });
+  }),
+);
+
+/**
+ * Highest Trust Score: reputation leaderboard ranked by the shared Trust Score
+ * (computeTrustScore), the same value shown on profiles. Read-only.
+ */
+router.get(
+  "/leaderboard/trust",
+  asyncHandler(async (_req, res) => {
+    const all = await getHighestTrust(100);
+    const entries = all.map((e, i) => ({ ...e, rank: i + 1 }));
     return res.json({ entries });
   }),
 );
