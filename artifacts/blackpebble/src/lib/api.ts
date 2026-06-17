@@ -947,6 +947,17 @@ export interface RecoveryTrackBody {
   netSol?: number;
 }
 
+/**
+ * Per-mint token metadata for the recovery account list. Every field is
+ * nullable; a null means "not resolvable", and the UI shows its own fallback
+ * ("Unknown Token" + short mint). The server never fabricates symbol/name.
+ */
+export interface RecoveryTokenMeta {
+  symbol: string | null;
+  name: string | null;
+  logo: string | null;
+}
+
 export interface RecoveryWindowStats {
   scans: number;
   unique_wallets: number;
@@ -1321,6 +1332,11 @@ export const api = {
         method: "POST",
         body: JSON.stringify(body),
       }),
+    tokenMetadata: (mints: string[]) =>
+      request<{ tokens: Record<string, RecoveryTokenMeta> }>(
+        "/recovery/token-metadata",
+        { method: "POST", body: JSON.stringify({ mints }) },
+      ),
   },
 
   // Social: profiles + follow graph (X-authenticated only). `id` is a numeric

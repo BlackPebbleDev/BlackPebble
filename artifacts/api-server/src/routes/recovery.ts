@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { asyncHandler } from "../lib/asyncHandler.js";
 import { requireAdmin, sessionFromRequest } from "../lib/auth.js";
 import { dbAll, dbGet, dbRun } from "../lib/database.js";
+import { getTokenMetadataBatch } from "../lib/helius.js";
 
 const router: IRouter = Router();
 
@@ -113,6 +114,31 @@ router.post(
     );
 
     return res.json({ ok: true });
+  }),
+);
+
+/**
+ * Batch token-metadata lookup for the recovery account list. Public (recovery
+ * works for guest wallets too). Accepts a list of mint addresses and returns a
+ * mint -> {symbol,name,logo} map, each field nullable. This is purely a display
+ * enrichment — it never touches scanning or the close/recovery transaction flow.
+ */
+router.post(
+  "/recovery/token-metadata",
+  asyncHandler(async (req, res) => {
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const raw = Array.isArray(body.mints) ? body.mints : [];
+    const mints = raw
+      .filter((m): m is string => typeof m === "string")
+      .map((m) => m.trim())
+      // Solana mints are base58, 32–44 chars; drop anything that is not.
+      .filter((m) => /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(m))
+      .slice(0, 100);
+
+    if (mints.length === 0) return res.json({ tokens: {} });
+
+    const tokens = await getTokenMetadataBatch(mints);
+    return res.json({ tokens });
   }),
 );
 

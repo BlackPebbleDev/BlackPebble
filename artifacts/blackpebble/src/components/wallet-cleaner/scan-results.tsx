@@ -1,6 +1,8 @@
+import { useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { AccountRow } from "@/components/wallet-cleaner/account-row";
 import { formatRentSol, type UseWalletCleaner } from "@/hooks/use-wallet-cleaner";
+import { useTokenMetadata } from "@/hooks/use-token-metadata";
 
 export function ScanResults({ cleaner }: { cleaner: UseWalletCleaner }) {
   const {
@@ -11,6 +13,9 @@ export function ScanResults({ cleaner }: { cleaner: UseWalletCleaner }) {
     clearSelection,
     toggle,
   } = cleaner;
+
+  const mints = useMemo(() => accounts.map((a) => a.mint), [accounts]);
+  const { metaByMint, isLoading: metaLoading } = useTokenMetadata(mints);
 
   const allSelected = accounts.length > 0 && selected.size === accounts.length;
 
@@ -47,6 +52,8 @@ export function ScanResults({ cleaner }: { cleaner: UseWalletCleaner }) {
             account={account}
             checked={selected.has(account.pubkey)}
             onToggle={() => toggle(account.pubkey)}
+            meta={metaByMint.get(account.mint)}
+            metaLoading={metaLoading}
           />
         ))}
       </div>
