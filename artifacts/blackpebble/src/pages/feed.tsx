@@ -12,7 +12,13 @@ import { cn } from "@/lib/utils";
 
 // Content-type filter bar. Only "all" is wired to the live activity feed; the
 // rest are forward-looking placeholders until their engines exist.
-type FeedFilter = "all" | "trades" | "callouts" | "theses" | "achievements";
+type FeedFilter =
+  | "all"
+  | "trades"
+  | "callouts"
+  | "theses"
+  | "achievements"
+  | "recovery";
 type FeedSource = "following" | "global";
 
 const filterTabs: { id: FeedFilter; label: string }[] = [
@@ -21,6 +27,7 @@ const filterTabs: { id: FeedFilter; label: string }[] = [
   { id: "callouts", label: "Callouts" },
   { id: "theses", label: "Theses" },
   { id: "achievements", label: "Achievements" },
+  { id: "recovery", label: "Recovery" },
 ];
 
 function EmptyState({
@@ -272,6 +279,42 @@ function AchievementsFeed() {
   );
 }
 
+/** Recovery-only feed: wallet cleanup events from the global activity feed. */
+function RecoveryFeed() {
+  const solUsd = useSolUsd();
+  const { data, isLoading } = useQuery({
+    queryKey: ["feed", "global"],
+    queryFn: () => api.feed.global(),
+    refetchInterval: 30_000,
+  });
+  const items = (data?.items ?? []).filter(
+    (item: FeedActivityItem) => item.kind === "recovery",
+  );
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+  if (items.length === 0) {
+    return (
+      <EmptyState
+        title="No recoveries yet"
+        body="When traders clean up their wallets and recover SOL rent, it'll show up here."
+      />
+    );
+  }
+  return (
+    <div className="space-y-2">
+      {items.map((item) => (
+        <TradeActivityCard key={item.id} item={item} solUsd={solUsd} />
+      ))}
+    </div>
+  );
+}
+
 /** The live activity feed (filter = "all"), with a Following / Global source. */
 function ActivityFeed() {
   const [source, setSource] = useState<FeedSource>("global");
@@ -347,6 +390,7 @@ export default function FeedPage() {
       {filter === "callouts" && <CalloutFeed />}
       {filter === "theses" && <ThesisFeed />}
       {filter === "achievements" && <AchievementsFeed />}
+      {filter === "recovery" && <RecoveryFeed />}
     </div>
   );
 }

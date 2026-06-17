@@ -6,6 +6,7 @@ import {
   Megaphone,
   Medal,
   ScrollText,
+  Sparkles,
   Trophy,
   Zap,
 } from "lucide-react";
@@ -391,6 +392,77 @@ function AchievementActivityCard({ item }: { item: FeedActivityItem }) {
   );
 }
 
+/** Format a SOL amount for the recovery card: trim trailing zeros, max 4 dp. */
+function fmtSol(v: number | null | undefined): string {
+  if (v == null || !Number.isFinite(v)) return "0";
+  return Number(v.toFixed(4)).toString();
+}
+
+/**
+ * A recovery feed item: a trader completing a wallet cleanup. Sourced from real
+ * recovery_events only (successful cleanups that closed accounts). Surfaces the
+ * SOL recovered and accounts closed, reusing the standard feed card styling.
+ */
+function RecoveryActivityCard({ item }: { item: FeedActivityItem }) {
+  const handle = item.user.x_username?.trim().replace(/^@+/, "") || null;
+  const profileUrl = xProfileUrl(handle);
+  const sol = item.recoveredSol ?? 0;
+  const closed = item.accountsClosed ?? 0;
+
+  return (
+    <div
+      data-testid={`feed-card-${item.id}`}
+      className="rounded-xl bg-card shadow-card p-4 flex items-start gap-3 transition-colors hover:bg-surface-3"
+    >
+      <div className="mt-0.5 flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-full bg-accent/12 text-accent">
+        <Sparkles className="w-[18px] h-[18px]" />
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <div className="flex items-start justify-between gap-3">
+          <FeedUserLink user={item.user} />
+          <span className="text-[11px] text-muted-foreground whitespace-nowrap flex-shrink-0">
+            {timeAgo(item.timestamp)}
+          </span>
+        </div>
+
+        <p className="mt-1.5 text-sm text-muted-foreground">
+          completed a wallet cleanup
+        </p>
+
+        <div className="mt-2.5 grid grid-cols-2 gap-x-4 gap-y-2 rounded-lg bg-secondary/40 px-3 py-2.5">
+          <PerfStat
+            label="SOL recovered"
+            value={`${fmtSol(sol)} SOL`}
+            valueClass="text-emerald-400"
+          />
+          <PerfStat label="Accounts closed" value={closed.toLocaleString()} />
+        </div>
+
+        <div className="mt-1.5 flex items-center gap-3 text-xs flex-wrap">
+          <span className="uppercase tracking-wider text-[10px] font-semibold rounded-full px-2 py-0.5 bg-accent/12 text-accent">
+            Recovery
+          </span>
+          {profileUrl && (
+            <a
+              href={profileUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => {
+                e.stopPropagation();
+                trackXProfileLinkClicked();
+              }}
+              className="ml-auto flex items-center gap-1 text-[11px] text-muted-foreground hover:text-accent transition-colors"
+            >
+              View on X <ExternalLink className="w-3 h-3" />
+            </a>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function TradeActivityCard({
   item,
   solUsd,
@@ -406,6 +478,9 @@ export function TradeActivityCard({
   }
   if (item.kind === "achievement") {
     return <AchievementActivityCard item={item} />;
+  }
+  if (item.kind === "recovery") {
+    return <RecoveryActivityCard item={item} />;
   }
 
   const handle = item.user.x_username?.trim().replace(/^@+/, "") || null;

@@ -24,10 +24,10 @@ import { getUserTiers } from "./trading.js";
 
 export interface FeedActivityItem {
   id: string;
-  kind: "spot" | "leverage" | "callout" | "thesis" | "achievement";
+  kind: "spot" | "leverage" | "callout" | "thesis" | "achievement" | "recovery";
   /**
    * spot: 'buy'|'sell'; leverage: 'open'|'close'|'liquidated'; callout: 'call';
-   * thesis: 'thesis'; achievement: 'earned'.
+   * thesis: 'thesis'; achievement: 'earned'; recovery: 'cleanup'.
    */
   action: string;
   token: {
@@ -62,6 +62,10 @@ export interface FeedActivityItem {
   badgeKey: string | null;
   /** Human-readable badge name looked up from the catalogue. */
   badgeName: string | null;
+  /** Recovery only: SOL recovered in this cleanup, null otherwise. */
+  recoveredSol: number | null;
+  /** Recovery only: rent accounts closed in this cleanup, null otherwise. */
+  accountsClosed: number | null;
   timestamp: number;
   user: {
     user_id: number;
@@ -75,7 +79,7 @@ export interface FeedActivityItem {
 
 interface ActivityRow {
   id: string;
-  kind: "spot" | "leverage" | "callout" | "thesis" | "achievement";
+  kind: "spot" | "leverage" | "callout" | "thesis" | "achievement" | "recovery";
   action: string;
   token_mint: string;
   token_symbol: string | null;
@@ -271,6 +275,44 @@ export async function getActivity(opts: {
            ON xi.user_id = ua.user_id AND xi.provider = 'x'
          JOIN users u ON u.id = ua.user_id
         WHERE TRUE ${followClauseUser.replace(/user_id/g, "ua.user_id")}
+       UNION ALL
+       -- Recovery cleanups by X-authenticated users. Real recovery_events only:
+       -- successful cleanups that actually closed accounts. We re-use the int
+       -- leverage column to carry accounts_closed and the double pnl_sol column
+       -- to carry recovered_sol (the same field-overloading convention this
+       -- UNION already uses, e.g. thesis carrying badge text). These are split
+       -- back into dedicated fields in the row mapper below.
+       SELECT ('rec-' || re.id) AS id,
+              'recovery' AS kind,
+              'cleanup' AS action,
+              '' AS token_mint,
+              NULL::text AS token_symbol,
+              NULL::text AS token_name,
+              NULL::text AS token_logo,
+              re.accounts_closed AS leverage,
+              NULL::text AS direction,
+              re.recovered_sol AS pnl_sol,
+              NULL::text AS thesis,
+              NULL::text AS conviction,
+              NULL::double precision AS call_market_cap,
+              NULL::double precision AS call_price_usd,
+              NULL::text AS thesis_title,
+              NULL::text AS sentiment,
+              re.created_at AS ts,
+              xi.user_id AS user_id,
+              xi.x_username AS x_username,
+              u.display_name AS x_display_name,
+              u.avatar_url AS x_avatar_url,
+              NULL::text AS badge_key
+         FROM recovery_events re
+         JOIN user_identities xi
+           ON xi.provider = 'x' AND xi.provider_user_id = re.x_user_id
+         JOIN users u ON u.id = xi.user_id
+        WHERE re.event_type = 'cleanup'
+              AND re.status = 'success'
+              AND re.x_user_id IS NOT NULL
+              AND re.accounts_closed > 0
+              ${followClauseUser.replace(/user_id/g, "xi.user_id")}
      )
      SELECT * FROM activity
       ORDER BY ts DESC
@@ -280,6 +322,7 @@ export async function getActivity(opts: {
 
   const items: FeedActivityItem[] = rows.map((r) => {
     const badgeDef = r.badge_key ? (badgeDefMap.get(r.badge_key) ?? null) : null;
+    const isRecovery = r.kind === "recovery";
     return {
       id: r.id,
       kind: r.kind,
@@ -290,9 +333,11 @@ export async function getActivity(opts: {
         name: r.token_name,
         logo: r.token_logo,
       },
-      leverage: r.leverage,
+      // For recovery rows leverage/pnl_sol carry accounts_closed/recovered_sol,
+      // surfaced via the dedicated fields below — keep the trade fields null.
+      leverage: isRecovery ? null : r.leverage,
       direction: r.direction,
-      pnlSol: r.pnl_sol,
+      pnlSol: isRecovery ? null : r.pnl_sol,
       // For achievements, repurpose thesis to carry the badge description.
       thesis: r.kind === "achievement" ? (badgeDef?.description ?? null) : r.thesis,
       conviction: r.conviction,
@@ -304,6 +349,8 @@ export async function getActivity(opts: {
       sentiment: r.sentiment,
       badgeKey: r.badge_key,
       badgeName: badgeDef?.name ?? null,
+      recoveredSol: isRecovery ? r.pnl_sol : null,
+      accountsClosed: isRecovery ? r.leverage : null,
       timestamp: r.ts,
       user: {
         user_id: r.user_id,

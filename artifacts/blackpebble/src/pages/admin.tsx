@@ -1019,13 +1019,16 @@ function RecoverySection() {
           </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
             <Stat label="Total scans" value={fmt(l?.scans)} />
-            <Stat label="Unique wallets" value={fmt(l?.unique_wallets)} />
+            <Stat label="Recovery users" value={fmt(l?.recovery_users)} />
             <Stat label="Accounts closed" value={fmt(l?.accounts_closed)} />
             <Stat label="SOL recovered" value={fmt(l?.sol_recovered, 3)} />
+            <Stat label="Net recovery" value={fmt(l?.total_net, 3)} />
+            <Stat label="Network fees" value={fmt(l?.total_network_fees, 4)} />
             <Stat label="Avg / cleanup" value={fmt(l?.avg_recovered, 4)} />
             <Stat label="Largest recovery" value={fmt(l?.largest_recovery, 4)} />
             <Stat label="Successful cleanups" value={fmt(l?.successful_cleanups)} />
             <Stat label="Failed cleanups" value={fmt(l?.failed_cleanups)} />
+            <Stat label="Unique wallets" value={fmt(l?.unique_wallets)} />
           </div>
         </div>
 

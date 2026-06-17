@@ -264,6 +264,7 @@ router.get(
       `SELECT
          count(*) FILTER (WHERE event_type = 'scan')::int AS scans,
          count(DISTINCT wallet) FILTER (WHERE event_type = 'scan')::int AS unique_wallets,
+         count(DISTINCT wallet) FILTER (WHERE event_type = 'cleanup' AND status = 'success')::int AS recovery_users,
          COALESCE(SUM(accounts_closed) FILTER (WHERE event_type = 'cleanup' AND status = 'success'), 0)::int AS accounts_closed,
          COALESCE(SUM(recovered_sol) FILTER (WHERE event_type = 'cleanup' AND status = 'success'), 0) AS sol_recovered,
          count(*) FILTER (WHERE event_type = 'cleanup' AND status = 'success')::int AS successful_cleanups,

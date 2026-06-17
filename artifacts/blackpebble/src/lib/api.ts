@@ -854,7 +854,7 @@ export interface JournalStats {
 
 export interface FeedActivityItem {
   id: string;
-  kind: "spot" | "leverage" | "callout" | "thesis" | "achievement";
+  kind: "spot" | "leverage" | "callout" | "thesis" | "achievement" | "recovery";
   action: string;
   token: {
     mint: string;
@@ -879,6 +879,10 @@ export interface FeedActivityItem {
   badgeKey?: string | null;
   /** Human-readable badge name, null for non-achievement items. */
   badgeName?: string | null;
+  /** Recovery only: SOL recovered in this cleanup, null otherwise. */
+  recoveredSol?: number | null;
+  /** Recovery only: rent accounts closed in this cleanup, null otherwise. */
+  accountsClosed?: number | null;
   timestamp: number;
   user: {
     user_id: number;
@@ -967,6 +971,8 @@ export interface RecoveryWindowStats {
 }
 
 export interface RecoveryLifetimeStats extends RecoveryWindowStats {
+  /** Distinct wallets with at least one successful cleanup. */
+  recovery_users: number;
   failed_cleanups: number;
   largest_recovery: number;
   avg_recovered: number;
