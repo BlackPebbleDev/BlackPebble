@@ -26,6 +26,7 @@ import {
   Trash2,
   Megaphone,
   Award,
+  BadgeCheck,
 } from "lucide-react";
 import { useAdmin } from "@/hooks/use-admin";
 import { useToast } from "@/hooks/use-toast";
@@ -43,8 +44,11 @@ import {
   type AdminCallout,
   type AdminThesis,
   type AdminJournalEntry,
+  type ProfileResponse,
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { UserIdentity } from "@/components/user-identity";
+import { tierMeta } from "@/lib/tiers";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -600,6 +604,98 @@ function BadgesSection() {
       {error && (
         <div className="mt-3 rounded-lg bg-red-950/40 border border-red-700/40 px-4 py-2 text-sm text-red-400">
           {error}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function VerificationSection() {
+  const [handle, setHandle] = useState("");
+  const [profile, setProfile] = useState<ProfileResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function verify() {
+    const h = handle.trim().replace(/^@/, "");
+    if (!h) return;
+    setError(null);
+    setProfile(null);
+    setBusy(true);
+    try {
+      setProfile(await api.profiles.get(h));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "User not found");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const badges = profile?.officialBadges ?? [];
+  const tier = profile ? tierMeta(profile.graduationTier) : null;
+
+  return (
+    <Card title="Reputation Verification" icon={BadgeCheck}>
+      <p className="mb-4 text-sm text-muted-foreground">
+        Look up any user by X handle to verify their official badges and tier
+        exactly as they render across the app. Read-only — no changes are made.
+      </p>
+      <div className="mb-3 flex flex-col gap-3 sm:flex-row">
+        <Input
+          placeholder="X handle (e.g. PumpGunna)"
+          value={handle}
+          onChange={(e) => setHandle(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") verify();
+          }}
+          className="flex-1"
+          data-testid="input-verify-handle"
+        />
+        <Button
+          onClick={verify}
+          disabled={busy || !handle.trim()}
+          size="sm"
+          className="bg-accent text-accent-foreground hover:bg-accent/90"
+          data-testid="button-verify-user"
+        >
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Verify"}
+        </Button>
+      </div>
+
+      {error && (
+        <div className="rounded-lg border border-red-700/40 bg-red-950/40 px-4 py-2 text-sm text-red-400">
+          {error}
+        </div>
+      )}
+
+      {profile && tier && (
+        <div
+          className="rounded-xl bg-surface-2 p-4 shadow-card"
+          data-testid="verify-result"
+        >
+          <UserIdentity
+            avatarUrl={profile.x_avatar_url}
+            displayName={profile.x_display_name}
+            handle={profile.x_username}
+            officialBadges={profile.officialBadges}
+            tier={profile.graduationTier}
+            size="lg"
+          />
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <Stat label="Tier" value={tier.name} />
+            <Stat
+              label="Founder"
+              value={badges.includes("founder") ? "Yes" : "No"}
+            />
+            <Stat
+              label="BP Team"
+              value={badges.includes("bp_team") ? "Yes" : "No"}
+            />
+            <Stat
+              label="Realized P&L"
+              value={`${fmt(profile.stats.realizedPnlSol, 2)} SOL`}
+            />
+          </div>
         </div>
       )}
     </Card>
@@ -1830,6 +1926,7 @@ export default function AdminPage() {
           Official Badges
         </div>
         <BadgesSection />
+        <VerificationSection />
 
         <div className="flex items-center gap-2 pt-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           <MessageSquare className="h-4 w-4 text-accent" />

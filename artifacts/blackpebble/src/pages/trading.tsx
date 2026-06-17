@@ -327,7 +327,7 @@ function TradeEstimate({
   if (!quote.ok) {
     return (
       <div
-        className="border border-red-500/40 bg-red-500/10 p-3 text-xs text-red-300 flex items-start gap-2"
+        className="rounded-xl border border-red-500/40 bg-red-500/10 p-3 text-xs text-red-300 flex items-start gap-2"
         data-testid="quote-error"
       >
         <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />

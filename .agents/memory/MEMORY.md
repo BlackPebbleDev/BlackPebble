@@ -21,3 +21,4 @@
 - [Universal search user lookup](universal-search-user-lookup.md) — search resolves users only for @handle queries; profiles.get is exact-lookup, firing on every word 404-spams.
 - [Rounded table wrappers](rounded-table-overflow.md) — table containers need overflow-x-auto (not overflow-hidden) when rounded, else wide columns clip; corners still clip via overflow-y auto.
 - [Shared UserIdentity component](shared-user-identity.md) — render every user via the one shared component; tier/badges are decoration only (never grade/rank); leaderboard tabs share one card, rank-accent only.
+- [Tier relabel display-only](tier-relabel-display-only.md) — tier names are a display-only map over legacy server keys; never touch thresholds/rank/trust to rename.

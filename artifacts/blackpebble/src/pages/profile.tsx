@@ -745,7 +745,7 @@ function NewCallForm({ profileKey }: { profileKey: string }) {
         type="button"
         onClick={() => setOpen(true)}
         data-testid="button-new-call"
-        className="mb-3 inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-accent text-accent-foreground hover:bg-accent/90 transition-colors"
+        className="mb-3 inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-2xl bg-accent text-accent-foreground hover:bg-accent/90 transition-colors"
       >
         <Plus className="w-4 h-4" />
         New call
@@ -823,7 +823,7 @@ function NewCallForm({ profileKey }: { profileKey: string }) {
         onClick={() => mutation.mutate()}
         disabled={!canSubmit}
         data-testid="button-submit-call"
-        className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium bg-accent text-accent-foreground hover:bg-accent/90 transition-colors disabled:opacity-50"
+        className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-2xl bg-accent text-accent-foreground hover:bg-accent/90 transition-colors disabled:opacity-50"
       >
         {mutation.isPending ? (
           <Loader2 className="w-4 h-4 animate-spin" />

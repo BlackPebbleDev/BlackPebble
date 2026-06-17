@@ -22,7 +22,7 @@ export function TradeWarningCard({ warning }: { warning: TradeWarning }) {
     <div
       data-testid={`trade-warning-${warning.id}`}
       className={cn(
-        "flex items-start gap-2 border px-3 py-2 text-xs",
+        "flex items-start gap-2 rounded-xl border px-3 py-2.5 text-xs",
         danger
           ? "border-red-500/40 bg-red-500/10 text-red-300"
           : "border-amber-500/40 bg-amber-500/10 text-amber-300",

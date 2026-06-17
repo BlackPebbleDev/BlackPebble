@@ -10,7 +10,8 @@ import { cn } from "@/lib/utils";
  * - "plain" — bare text with tier color only; no background, no border, no
  *   glow. Used in dense surfaces like feed cards where a pill would clutter.
  *
- * Returns null for Unranked users in both variants.
+ * Every account carries at least the base "Member" tier, so this never returns
+ * null — a tier is always shown.
  * Display order convention: Official badge(s) → TierBadge.
  */
 export function TierBadge({
@@ -26,7 +27,6 @@ export function TierBadge({
   className?: string;
 }) {
   const meta = tierMeta(tier);
-  if (meta.name === "Unranked") return null;
 
   if (variant === "plain") {
     return (

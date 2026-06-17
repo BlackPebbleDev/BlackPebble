@@ -418,7 +418,7 @@ export default function Markets() {
           disabled={isRefreshing}
           data-testid="button-refresh-markets"
           title="Refresh market data"
-          className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-border text-muted-foreground hover:text-foreground hover:border-accent/50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+          className="ml-auto inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs rounded-full border border-border text-muted-foreground hover:text-foreground hover:border-accent/50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
         >
           <RefreshCw
             className={cn("w-3.5 h-3.5", isRefreshing && "animate-spin")}

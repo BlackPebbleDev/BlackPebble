@@ -508,19 +508,25 @@ export default function Leaderboard() {
         How the BlackPebble community stacks up across trading and reputation.
       </p>
 
-      {/* Category tabs (only Top Traders is ranked today) */}
-      <div className="flex items-center gap-1 mb-5 border-b border-border overflow-x-auto">
+      {/* Category nav — wrapping pills (Markets-style), no horizontal scroll. */}
+      <div
+        role="tablist"
+        aria-label="Leaderboard category"
+        className="flex flex-wrap gap-2 mb-5"
+      >
         {categoryTabs.map((c) => (
           <button
             key={c.id}
             type="button"
+            role="tab"
+            aria-selected={category === c.id}
             onClick={() => setCategory(c.id)}
             data-testid={`category-${c.id}`}
             className={cn(
-              "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap",
+              "px-4 py-2 text-sm font-medium rounded-full border transition-colors whitespace-nowrap",
               category === c.id
-                ? "border-accent text-foreground"
-                : "border-transparent text-muted-foreground hover:text-foreground",
+                ? "border-accent text-accent bg-accent/10"
+                : "border-border text-muted-foreground hover:text-foreground hover:border-accent/40",
             )}
           >
             {c.label}
@@ -552,7 +558,7 @@ export default function Leaderboard() {
             </div>
           )}
 
-          <div className="flex items-center gap-1 mb-5 border-b border-border">
+          <div className="flex flex-wrap gap-2 mb-5">
             {tabs.map((t) => (
               <button
                 key={t.id}
@@ -560,10 +566,10 @@ export default function Leaderboard() {
                 onClick={() => setPeriod(t.id)}
                 data-testid={`tab-${t.id}`}
                 className={cn(
-                  "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
+                  "px-3.5 py-1.5 text-sm font-medium rounded-full border transition-colors",
                   period === t.id
-                    ? "border-accent text-foreground"
-                    : "border-transparent text-muted-foreground hover:text-foreground",
+                    ? "border-accent text-accent bg-accent/10"
+                    : "border-border text-muted-foreground hover:text-foreground hover:border-accent/40",
                 )}
               >
                 {t.label}
