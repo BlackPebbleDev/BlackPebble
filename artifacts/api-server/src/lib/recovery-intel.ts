@@ -22,7 +22,7 @@ import {
   getMintAuthoritiesBatch,
   getMutableFlagsBatch,
 } from "./helius.js";
-import { getTokenStatsBatch } from "./prices.js";
+import { getTokenStatsBatchWithStatus } from "./prices.js";
 import { getCacheValue, setCacheValue, isCacheFresh } from "./database.js";
 import { logger } from "./logger.js";
 
@@ -57,10 +57,15 @@ export interface TokenIntel {
   priceUsd: number | null;
   liquidityUsd: number | null;
   marketCapUsd: number | null;
-  /** A trusted-quote DexScreener market exists for this mint. */
-  hasMarket: boolean;
-  /** hasMarket AND liquidity is deep enough to realistically sell into. */
-  hasSellRoute: boolean;
+  /**
+   * Whether a trusted-quote DexScreener market exists. `true`/`false` are
+   * positive determinations from a SUCCESSFUL lookup; `null` means the market
+   * lookup itself failed (outage) so we genuinely don't know — the risk engine
+   * must treat null as UNKNOWN and never as "no market / junk".
+   */
+  hasMarket: boolean | null;
+  /** hasMarket AND liquidity is deep enough to realistically sell into; null when market is unknown. */
+  hasSellRoute: boolean | null;
   // ── On-chain authority signals (null = not resolvable) ──
   hasMintAuthority: boolean | null;
   hasFreezeAuthority: boolean | null;
@@ -109,8 +114,8 @@ function intelCacheKey(mint: string): string {
  */
 function classify(signals: {
   verified: boolean;
-  hasMarket: boolean;
-  hasSellRoute: boolean;
+  hasMarket: boolean | null;
+  hasSellRoute: boolean | null;
   liquidityUsd: number | null;
   priceUsd: number | null;
   hasMintAuthority: boolean | null;
@@ -121,16 +126,20 @@ function classify(signals: {
   const factors: RiskFactor[] = [];
 
   // ── Factor chips (always rendered, consistent order) ──
-  factors.push(
-    signals.hasMarket
-      ? { key: "market", level: "ok", label: "Tradable market" }
-      : { key: "market", level: "bad", label: "No trusted market" },
-  );
-  factors.push(
-    signals.hasSellRoute
-      ? { key: "sell-route", level: "ok", label: "Sell route" }
-      : { key: "sell-route", level: "bad", label: "No sell route" },
-  );
+  if (signals.hasMarket === true) {
+    factors.push({ key: "market", level: "ok", label: "Tradable market" });
+  } else if (signals.hasMarket === false) {
+    factors.push({ key: "market", level: "bad", label: "No trusted market" });
+  } else {
+    factors.push({ key: "market", level: "warn", label: "Market unknown" });
+  }
+  if (signals.hasSellRoute === true) {
+    factors.push({ key: "sell-route", level: "ok", label: "Sell route" });
+  } else if (signals.hasSellRoute === false) {
+    factors.push({ key: "sell-route", level: "bad", label: "No sell route" });
+  } else {
+    factors.push({ key: "sell-route", level: "warn", label: "Sell route unknown" });
+  }
   if (signals.hasFreezeAuthority === true) {
     factors.push({
       key: "freeze-auth",
@@ -180,15 +189,20 @@ function classify(signals: {
   if (signals.mutableMetadata === true) {
     reasons.push("Metadata is mutable — name, symbol or image can change.");
   }
-  if (!signals.hasMarket) {
+  if (signals.hasMarket === false) {
     reasons.push("No trusted market — this token cannot be priced or sold.");
-  } else if (!signals.hasSellRoute) {
+  } else if (signals.hasMarket === true && signals.hasSellRoute === false) {
     reasons.push("Liquidity is too thin to realistically sell into.");
   } else if (
+    signals.hasMarket === true &&
     signals.liquidityUsd != null &&
     signals.liquidityUsd < LOW_LIQUIDITY_USD
   ) {
     reasons.push("Low liquidity — selling may move the price sharply.");
+  } else if (signals.hasMarket == null) {
+    reasons.push(
+      "Market data is temporarily unavailable — we can't assess this token right now.",
+    );
   }
 
   // ── Classification (priority order: worst capability first) ──
@@ -199,23 +213,21 @@ function classify(signals: {
     // A live freeze authority is the single most dangerous capability.
     risk = "high_risk";
   } else if (
-    !signals.hasMarket &&
+    signals.hasMarket === false &&
     (signals.priceUsd == null || signals.priceUsd <= 0)
   ) {
-    // No market and no price — overwhelmingly airdropped spam / junk.
+    // CONFIRMED no market (successful lookup) and no price — overwhelmingly
+    // airdropped spam / junk. A failed lookup (hasMarket === null) never lands
+    // here: missing data must not manufacture a removable verdict.
     risk = "spam";
   } else if (
     (signals.hasMintAuthority === true && signals.mutableMetadata === true) ||
-    (signals.hasMarket && !signals.hasSellRoute)
+    (signals.hasMarket === true && signals.hasSellRoute === false)
   ) {
     // Inflatable + impersonatable, or a market with no realistic exit.
     risk = "suspicious";
-  } else if (
-    signals.hasMintAuthority == null &&
-    signals.hasFreezeAuthority == null &&
-    !signals.hasMarket
-  ) {
-    // Nothing resolvable at all — be honest that we just don't know.
+  } else if (signals.hasMarket == null) {
+    // Market lookup failed / unresolved — be honest that we just don't know.
     risk = "unknown";
   } else {
     risk = "normal";
@@ -227,8 +239,8 @@ function classify(signals: {
 /**
  * Build token intelligence for a batch of mints. Cached per-mint for 10 minutes
  * to keep repeat scans cheap. Mints we cannot resolve still get a row (with
- * null signals + an UNKNOWN/spam classification) so the UI can show every asset
- * the wallet holds without inventing data.
+ * null signals + an UNKNOWN classification, never spam) so the UI can show every
+ * asset the wallet holds without inventing data or flagging it as junk.
  */
 export async function getTokenIntelBatch(
   mints: string[],
@@ -258,10 +270,14 @@ export async function getTokenIntelBatch(
 
   // Fetch all three signal sources in parallel. Each is independently
   // best-effort and never throws, so a single outage degrades gracefully.
-  const [market, authorities, mutables] = await Promise.all([
-    getTokenStatsBatch(toCompute).catch((e) => {
+  // `marketOk` tracks whether the market lookup actually succeeded: on failure
+  // we must report market as UNKNOWN (null), never as "no market" (false),
+  // otherwise a transient outage would flag legitimate tokens as junk.
+  let marketOk = true;
+  const [marketResult, authorities, mutables] = await Promise.all([
+    getTokenStatsBatchWithStatus(toCompute).catch((e) => {
       logger.warn({ err: e }, "recovery-intel: market batch failed");
-      return new Map();
+      return { stats: new Map(), ok: false };
     }),
     getMintAuthoritiesBatch(toCompute).catch((e) => {
       logger.warn({ err: e }, "recovery-intel: authority batch failed");
@@ -273,6 +289,11 @@ export async function getTokenIntelBatch(
     }),
   ]);
 
+  // `getTokenStatsBatchWithStatus` swallows per-chunk failures internally but
+  // reports them via `ok`; propagate that so an outage degrades to UNKNOWN.
+  const market = marketResult.stats;
+  marketOk = marketResult.ok;
+
   for (const mint of toCompute) {
     const m = market.get(mint);
     const auth = authorities.get(mint) ?? null;
@@ -281,11 +302,17 @@ export async function getTokenIntelBatch(
     const liquidityUsd = m?.liquidityUsd ?? null;
     const priceUsd = m?.priceUsd ?? null;
     const marketCapUsd = m?.marketCapUsd ?? null;
-    const hasMarket = !!m;
-    const hasSellRoute =
-      hasMarket &&
-      liquidityUsd != null &&
-      liquidityUsd >= MIN_SELL_LIQUIDITY_USD;
+    // A resolved mint is always a confirmed market (true), even if a sibling
+    // chunk failed. An ABSENT mint is only a confirmed "no market" (false) when
+    // the whole lookup succeeded; under an outage (marketOk=false) it degrades
+    // to UNKNOWN (null) so we never treat missing data as junk.
+    const hasMarket: boolean | null = m ? true : marketOk ? false : null;
+    const hasSellRoute: boolean | null =
+      hasMarket === null
+        ? null
+        : hasMarket === false
+          ? false
+          : liquidityUsd != null && liquidityUsd >= MIN_SELL_LIQUIDITY_USD;
     const verified = VERIFIED_MINTS.has(mint);
 
     const { risk, reasons, factors } = classify({

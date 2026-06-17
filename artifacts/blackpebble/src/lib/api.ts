@@ -1071,8 +1071,9 @@ export interface TokenIntel {
   priceUsd: number | null;
   liquidityUsd: number | null;
   marketCapUsd: number | null;
-  hasMarket: boolean;
-  hasSellRoute: boolean;
+  /** true/false = positive verdict from a successful lookup; null = market lookup failed (UNKNOWN, never "no market"). */
+  hasMarket: boolean | null;
+  hasSellRoute: boolean | null;
   hasMintAuthority: boolean | null;
   hasFreezeAuthority: boolean | null;
   mutableMetadata: boolean | null;

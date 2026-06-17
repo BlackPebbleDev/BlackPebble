@@ -410,19 +410,33 @@ function pairToMarketToken(p: DexPair & { txns?: { h24?: { buys?: number; sells?
   };
 }
 
+/** Result of a status-aware token-stats batch lookup. */
+export interface TokenStatsBatchResult {
+  stats: Map<string, MarketToken>;
+  /**
+   * Whether EVERY upstream chunk request succeeded. When false, the batch hit a
+   * transport-level failure (outage/timeout) for at least one chunk, so a mint
+   * being absent from `stats` does NOT prove it has no market — callers that
+   * make trust decisions must treat absent mints as UNKNOWN, not "no market".
+   */
+  ok: boolean;
+}
+
 /**
  * Hydrate a set of mints into MarketToken stats (price, market cap, liquidity,
- * volume) via the DexScreener batch tokens endpoint. Used to enrich feeds that
- * only carry mints (e.g. recently migrated tokens). Best-effort: mints with no
- * DexScreener pair simply won't appear in the returned map.
+ * volume) via the DexScreener batch tokens endpoint, while reporting whether the
+ * upstream lookup actually succeeded. Best-effort for data, but `ok` lets
+ * trust-sensitive callers (e.g. wallet-cleanup risk classification) distinguish
+ * a genuine "no market" from a transient outage.
  */
-export async function getTokenStatsBatch(
+export async function getTokenStatsBatchWithStatus(
   mints: string[],
-): Promise<Map<string, MarketToken>> {
+): Promise<TokenStatsBatchResult> {
   const out = new Map<string, MarketToken>();
   const unique = [...new Set(mints.filter(Boolean))];
-  if (unique.length === 0) return out;
+  if (unique.length === 0) return { stats: out, ok: true };
 
+  let ok = true;
   // DexScreener allows up to 30 comma-separated addresses per request.
   for (let i = 0; i < unique.length; i += 30) {
     const chunk = unique.slice(i, i + 30);
@@ -447,10 +461,26 @@ export async function getTokenStatsBatch(
         if (!out.has(addr)) out.set(addr, pairToMarketToken(p));
       }
     } catch (e) {
+      // A swallowed chunk failure must still surface via `ok` so callers don't
+      // mistake an outage for an authoritative empty result.
+      ok = false;
       logger.warn({ err: e }, "Token stats batch fetch failed");
     }
   }
-  return out;
+  return { stats: out, ok };
+}
+
+/**
+ * Hydrate a set of mints into MarketToken stats (price, market cap, liquidity,
+ * volume) via the DexScreener batch tokens endpoint. Used to enrich feeds that
+ * only carry mints (e.g. recently migrated tokens). Best-effort: mints with no
+ * DexScreener pair simply won't appear in the returned map.
+ */
+export async function getTokenStatsBatch(
+  mints: string[],
+): Promise<Map<string, MarketToken>> {
+  const { stats } = await getTokenStatsBatchWithStatus(mints);
+  return stats;
 }
 
 /**

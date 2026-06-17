@@ -22,3 +22,11 @@ An asset may only be classified as removable (burn bucket) on POSITIVE evidence:
 NFTs/collectibles (0-decimal mints, Metaplex convention) are protected by default and stay out of the burn bucket even if a user removes that protection (NFT cleanup is "Coming Soon").
 
 **Why:** an intel outage or unknown token must not silently make assets burnable; burning is irreversible, so the safe failure is keep/review, never burn. A code review rejected the build when `!intel` mapped straight to burn and NFTs were unprotected.
+
+## "No market" must be a SUCCESSFUL-lookup verdict, not absence-of-data
+
+A market signal must be tri-state (`true` / `false` / `null`), and `false` ("no trusted market") may only be asserted when the upstream lookup actually succeeded. An absent mint under an outage is `null` (UNKNOWN), never `false`.
+
+The trap: a best-effort batch fetcher (e.g. `getTokenStatsBatch`) that swallows per-chunk errors internally and returns a possibly-empty Map will NOT throw, so a `.catch` around the call never fires — the outage is invisible to the caller. Surface success explicitly (e.g. `getTokenStatsBatchWithStatus` → `{ stats, ok }`, flip `ok=false` in the swallowed catch) and propagate it. Rule: resolved mint → `true`; absent + lookup ok → `false`; absent + lookup failed → `null`.
+
+**Why:** two review rounds rejected the build because a DexScreener outage made `hasMarket=!!m` false for legit tokens → classified spam → burn candidate. **How to apply:** any trust decision driven by a best-effort fetch needs the fetch to report whether it succeeded; don't infer "negative" from "missing".

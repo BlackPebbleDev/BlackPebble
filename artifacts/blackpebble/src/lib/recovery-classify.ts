@@ -161,20 +161,27 @@ export function enrichToken(
     // burn. The UI surfaces an explicit "analysis unavailable" reason.
     bucket = "keep";
   } else if (
-    !intel.hasMarket ||
     intel.risk === "spam" ||
     intel.risk === "high_risk" ||
-    intel.risk === "suspicious"
+    intel.risk === "suspicious" ||
+    intel.hasMarket === false
   ) {
+    // Burn ONLY on positive evidence: an explicit scam-risk verdict, or a
+    // CONFIRMED no-market result (hasMarket === false from a successful lookup).
     bucket = "burn";
+  } else if (intel.hasMarket === null) {
+    // Market lookup failed (outage) — we genuinely don't know, so never make it
+    // removable. Degrade to a non-selectable review state with an explicit note.
+    bucket = "keep";
   } else if (valueUsd == null || valueUsd < DUST_VALUE_USD) {
     bucket = "dust";
   } else {
     bucket = "keep";
   }
 
-  // Unresolved-intel assets in the keep bucket still warrant a "Review" nudge
-  // rather than a confident "Keep", since we lack the signals to vouch for them.
+  // Tokens we couldn't vouch for (no intel at all, or an unresolved market)
+  // warrant a "Review" nudge rather than a confident "Keep".
+  const marketUnresolved = !intel || intel.hasMarket === null;
   let suggestedAction: SuggestedAction;
   if (bucket === "protected") {
     suggestedAction = "Protected";
@@ -182,7 +189,7 @@ export function enrichToken(
     suggestedAction = "Burn candidate";
   } else if (bucket === "dust") {
     suggestedAction = "Review";
-  } else if (!intel && !isLikelyNft) {
+  } else if (marketUnresolved && !isLikelyNft) {
     suggestedAction = "Review";
   } else {
     suggestedAction = "Keep";

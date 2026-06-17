@@ -202,14 +202,20 @@ export function TokenCard({
       </div>
 
       {/* Always-visible market facts so liquidity + market cap are never hidden. */}
-      {intel ? (
+      {intel && intel.hasMarket !== null && (
         <div className="grid grid-cols-3 gap-2 mt-2.5">
           <Stat label="Price" value={formatUsd(intel.priceUsd)} />
           <Stat label="Liquidity" value={formatUsd(intel.liquidityUsd)} />
           <Stat label="Market cap" value={formatUsd(intel.marketCapUsd)} />
         </div>
-      ) : (
-        !token.isLikelyNft && (
+      )}
+
+      {/* Unresolved tokens (no intel at all, or a market-data outage) that we
+          kept for review carry an explicit, honest "can't assess" note so the
+          user understands why they aren't flagged for cleanup. */}
+      {(!intel || intel.hasMarket === null) &&
+        !token.isLikelyNft &&
+        token.bucket === "keep" && (
           <div
             className="mt-2 flex items-start gap-1.5 rounded-lg bg-secondary/40 p-2 text-[11px] text-muted-foreground leading-snug"
             data-testid={`analysis-unavailable-${asset.pubkey}`}
@@ -218,8 +224,7 @@ export function TokenCard({
             Analysis unavailable — we couldn't confirm a market or risk for this
             token, so it's kept for your review, never flagged for cleanup.
           </div>
-        )
-      )}
+        )}
 
       {/* Elevated-risk reasons surface inline — never buried behind a toggle. */}
       {elevated && intel.riskReasons.length > 0 && (
