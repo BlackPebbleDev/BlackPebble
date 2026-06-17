@@ -91,7 +91,12 @@ export function Watchlist({
               </div>
             </div>
             <div className="shrink-0">
-              <Sparkline points={spark[w.mint]} width={48} height={20} />
+              <Sparkline
+                points={spark[w.mint]}
+                fallbackPercent={w.priceChange24h}
+                width={48}
+                height={20}
+              />
             </div>
             <div
               className={cn(
@@ -156,7 +161,12 @@ export function Watchlist({
                 </td>
                 <td className="px-4 py-2.5">
                   <div className="flex justify-center">
-                    <Sparkline points={spark[w.mint]} width={72} height={24} />
+                    <Sparkline
+                      points={spark[w.mint]}
+                      fallbackPercent={w.priceChange24h}
+                      width={72}
+                      height={24}
+                    />
                   </div>
                 </td>
                 <td

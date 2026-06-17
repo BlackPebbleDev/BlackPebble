@@ -19,5 +19,15 @@ TTL; bounded fetch concurrency; request capped (~60 mints). No DB schema change.
 **How to apply:** any new sparkline window/UI must go through the existing
 `getSparklines(mints, window)` + `/markets/sparklines` path. Keep the react-query
 key on the SORTED unique mint set + window so cache identity is order-stable.
-Component states: `undefined`=loading, `null`/<2pts=unavailable(gray dashed),
-else green(last>first)/red(last<first)/gray(flat). Fixed SVG dims = no layout shift.
+
+**Coverage reality:** only ~20-30% of leaderboard tokens have GeckoTerminal
+OHLCV history; the rest are illiquid/new with no usable series. So a "draw real
+or nothing" policy leaves most cards blank — looks broken.
+
+**Fallback policy (current):** Sparkline component takes `fallbackPercent` and,
+when `points` is null/<2pts, synthesizes a shape from the % change
+(`fallbackSeries`): up=positive, down=negative, flat=|%|<0.5. Ripple is zero at
+both endpoints so the green/red/gray color rule still holds. Synthetic lines drawn
+at strokeOpacity 0.7 (testid `sparkline-fallback`) vs real at 1.0 (`sparkline`).
+`undefined`=loading shimmer (only non-line state). NO dashed placeholder anymore.
+Fixed SVG dims = no layout shift. Fallback is client-side only (card already has %).

@@ -112,7 +112,12 @@ function MarketTable({ tokens, navigate }: { tokens: TokenInfo[]; navigate: (p: 
                 {fmtMarketCap(t.marketCapUsd)}
                 <span className="text-[10px] text-muted-foreground ml-1">MC</span>
               </div>
-              <Sparkline points={spark[t.mint]} width={60} height={18} />
+              <Sparkline
+                points={spark[t.mint]}
+                fallbackPercent={t.priceChange24h}
+                width={60}
+                height={18}
+              />
               <div className={cn("font-mono text-xs", pnlColorSafe(t.priceChange24h))}>
                 {fmtPercentSafe(t.priceChange24h)}
               </div>
@@ -173,7 +178,12 @@ function MarketTable({ tokens, navigate }: { tokens: TokenInfo[]; navigate: (p: 
               </td>
               <td className="px-4 py-3">
                 <div className="flex justify-center">
-                  <Sparkline points={spark[t.mint]} width={72} height={24} />
+                  <Sparkline
+                    points={spark[t.mint]}
+                    fallbackPercent={t.priceChange24h}
+                    width={72}
+                    height={24}
+                  />
                 </div>
               </td>
               <td
