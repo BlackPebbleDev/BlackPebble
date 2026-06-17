@@ -94,6 +94,11 @@ export function TokenCard({
             <span className="text-sm font-medium text-foreground truncate max-w-[140px]">
               {primary}
             </span>
+            {token.isLikelyNft && (
+              <span className="inline-flex items-center rounded-md bg-secondary px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                NFT / Collectible
+              </span>
+            )}
             {intel && <RiskBadge risk={intel.risk} />}
           </div>
           <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
@@ -197,12 +202,23 @@ export function TokenCard({
       </div>
 
       {/* Always-visible market facts so liquidity + market cap are never hidden. */}
-      {intel && (
+      {intel ? (
         <div className="grid grid-cols-3 gap-2 mt-2.5">
           <Stat label="Price" value={formatUsd(intel.priceUsd)} />
           <Stat label="Liquidity" value={formatUsd(intel.liquidityUsd)} />
           <Stat label="Market cap" value={formatUsd(intel.marketCapUsd)} />
         </div>
+      ) : (
+        !token.isLikelyNft && (
+          <div
+            className="mt-2 flex items-start gap-1.5 rounded-lg bg-secondary/40 p-2 text-[11px] text-muted-foreground leading-snug"
+            data-testid={`analysis-unavailable-${asset.pubkey}`}
+          >
+            <Info className="w-3 h-3 flex-shrink-0 mt-0.5" />
+            Analysis unavailable — we couldn't confirm a market or risk for this
+            token, so it's kept for your review, never flagged for cleanup.
+          </div>
+        )
       )}
 
       {/* Elevated-risk reasons surface inline — never buried behind a toggle. */}

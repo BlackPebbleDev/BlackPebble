@@ -51,6 +51,8 @@ export interface EnrichedToken {
   protectedByUser: boolean;
   isProtected: boolean;
   suggestedAction: SuggestedAction;
+  /** Heuristic NFT/collectible (0 decimals). Never a burn candidate in V1. */
+  isLikelyNft: boolean;
 }
 
 /**
@@ -129,8 +131,14 @@ export function enrichToken(
     valueUsd >= DUST_VALUE_USD &&
     realizableUsd < valueUsd * 0.5;
 
+  // NFTs/collectibles use 0 decimals (Metaplex convention). NFT cleanup is
+  // "Coming Soon" in V1, so these are protected by default and never burnable.
+  const isLikelyNft = asset.decimals === 0;
+
   const protectedByDefault =
-    intel?.verified === true || realizableUsd >= MEANINGFUL_REALIZABLE_USD;
+    isLikelyNft ||
+    intel?.verified === true ||
+    realizableUsd >= MEANINGFUL_REALIZABLE_USD;
   const protectedByUser = userProtected;
   // A user can explicitly override default protection (userUnprotected) to make
   // a verified/valuable asset eligible for cleanup, or explicitly protect any
@@ -138,12 +146,21 @@ export function enrichToken(
   const isProtected =
     protectedByUser || (protectedByDefault && !userUnprotected);
 
-  // Bucket priority: protection always wins; then junk; then tiny leftovers.
+  // Bucket priority: protection always wins; NFTs and unresolved-intel assets
+  // are NEVER burn candidates; then concrete junk signals; then tiny leftovers.
+  // An asset is only ever made removable on POSITIVE evidence (real intel that
+  // shows no market or a scam-risk verdict) — never on missing information.
   let bucket: CleanupBucket;
   if (isProtected) {
     bucket = "protected";
+  } else if (isLikelyNft) {
+    // Even if a user removed NFT default-protection, NFTs stay out of burn in V1.
+    bucket = "keep";
+  } else if (!intel) {
+    // Intelligence unavailable — degrade to a non-removable review state, never
+    // burn. The UI surfaces an explicit "analysis unavailable" reason.
+    bucket = "keep";
   } else if (
-    !intel ||
     !intel.hasMarket ||
     intel.risk === "spam" ||
     intel.risk === "high_risk" ||
@@ -156,14 +173,20 @@ export function enrichToken(
     bucket = "keep";
   }
 
-  const suggestedAction: SuggestedAction =
-    bucket === "protected"
-      ? "Protected"
-      : bucket === "burn"
-        ? "Burn candidate"
-        : bucket === "dust"
-          ? "Review"
-          : "Keep";
+  // Unresolved-intel assets in the keep bucket still warrant a "Review" nudge
+  // rather than a confident "Keep", since we lack the signals to vouch for them.
+  let suggestedAction: SuggestedAction;
+  if (bucket === "protected") {
+    suggestedAction = "Protected";
+  } else if (bucket === "burn") {
+    suggestedAction = "Burn candidate";
+  } else if (bucket === "dust") {
+    suggestedAction = "Review";
+  } else if (!intel && !isLikelyNft) {
+    suggestedAction = "Review";
+  } else {
+    suggestedAction = "Keep";
+  }
 
   return {
     asset,
@@ -177,6 +200,7 @@ export function enrichToken(
     protectedByUser,
     isProtected,
     suggestedAction,
+    isLikelyNft,
   };
 }
 
