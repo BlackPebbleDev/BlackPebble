@@ -17,6 +17,20 @@
     <meta name="theme-color" content="#000000" />
     <link rel="canonical" href="https://blackpebble.fun" />
 
+    <!--
+      Hide the static crawler-visible fallback from JavaScript-enabled visitors
+      before first paint, so normal users never see it flash before React mounts.
+      Non-JS crawlers never run this script, so they still receive the full SEO
+      content below. The class is added synchronously during head parsing, so the
+      fallback is hidden on the very first paint.
+    -->
+    <style>
+      .js #bp-seo-fallback { display: none !important; }
+    </style>
+    <script>
+      document.documentElement.classList.add("js");
+    </script>
+
     <!-- Open Graph -->
     <meta property="og:site_name" content="BlackPebble" />
     <meta property="og:title" content="BlackPebble — Professional Solana Trading &amp; Utility Platform" />
@@ -194,7 +208,7 @@
         JavaScript. When the app loads, React (createRoot) replaces this content
         with the live single-page application. It does not affect the SPA.
       -->
-      <main style="max-width:880px;margin:0 auto;padding:48px 24px;font-family:Inter,system-ui,sans-serif;color:#e5e5e5;background:#050505;line-height:1.6;">
+      <main id="bp-seo-fallback" style="max-width:880px;margin:0 auto;padding:48px 24px;font-family:Inter,system-ui,sans-serif;color:#e5e5e5;background:#050505;line-height:1.6;">
         <header style="margin-bottom:40px;">
           <h1 style="font-size:30px;font-weight:700;color:#ffffff;margin:0 0 12px;">BlackPebble — Professional Solana Trading &amp; Utility Platform</h1>
           <p style="font-size:18px;color:#cfcfcf;margin:0;">

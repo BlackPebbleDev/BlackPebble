@@ -65,9 +65,13 @@ export function TokenCard({
   const primary = known ? symbol : pending ? shortMint : "Unknown Token";
 
   const elevated = !!intel && ELEVATED_RISK.includes(intel.risk);
+  // Defensive: treat reasons/factors as arrays even if a malformed/stale intel
+  // payload omits them, so a missing field can never crash the card.
+  const riskReasons = intel?.riskReasons ?? [];
+  const riskFactors = intel?.riskFactors ?? [];
   // Reasons surface inline for elevated-risk tokens; "Details" only adds the
   // structured factor pills (and reasons for non-elevated tokens, if any).
-  const hasDetails = !!intel && intel.riskFactors.length > 0;
+  const hasDetails = riskFactors.length > 0;
 
   return (
     <div
@@ -227,9 +231,9 @@ export function TokenCard({
         )}
 
       {/* Elevated-risk reasons surface inline — never buried behind a toggle. */}
-      {elevated && intel.riskReasons.length > 0 && (
+      {elevated && riskReasons.length > 0 && (
         <ul className="mt-2 space-y-1 rounded-lg bg-red-500/[0.06] p-2">
-          {intel.riskReasons.map((reason) => (
+          {riskReasons.map((reason) => (
             <li
               key={reason}
               className="flex items-start gap-1.5 text-[11px] text-red-400/90 leading-snug"
@@ -243,10 +247,10 @@ export function TokenCard({
 
       {expanded && intel && (
         <div className="mt-2.5 space-y-2 border-t border-border pt-2.5">
-          <RiskFactors factors={intel.riskFactors} />
-          {!elevated && intel.riskReasons.length > 0 && (
+          <RiskFactors factors={riskFactors} />
+          {!elevated && riskReasons.length > 0 && (
             <ul className="space-y-1">
-              {intel.riskReasons.map((reason) => (
+              {riskReasons.map((reason) => (
                 <li
                   key={reason}
                   className="flex items-start gap-1.5 text-[11px] text-muted-foreground leading-snug"

@@ -11,6 +11,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { useWalletCleaner, formatRentSol } from "@/hooks/use-wallet-cleaner";
 import { SafetyBanner } from "@/components/wallet-cleaner/safety-banner";
 import { WalletStatusCard } from "@/components/wallet-cleaner/wallet-status-card";
@@ -44,6 +45,7 @@ export default function WalletCleaner() {
     scan,
     closeSelected,
     executeBurn,
+    reset,
   } = cleaner;
 
   async function handleConfirmClose() {
@@ -96,6 +98,12 @@ export default function WalletCleaner() {
 
       <SafetyBanner />
 
+      <ErrorBoundary
+        onReset={reset}
+        title="Wallet Cleanup hit a snag"
+        description="Something went wrong while showing your scan results. Your wallet and funds are safe — nothing was changed. Try scanning again."
+        retryLabel="Try again"
+      >
       {!connected ? (
         <div className="rounded-3xl bg-card shadow-card p-8 text-center space-y-4">
           <Wallet className="w-8 h-8 text-muted-foreground mx-auto" />
@@ -242,6 +250,7 @@ export default function WalletCleaner() {
         onOpenChange={setBurnPreviewOpen}
         onConfirm={handleConfirmBurn}
       />
+      </ErrorBoundary>
     </div>
   );
 }

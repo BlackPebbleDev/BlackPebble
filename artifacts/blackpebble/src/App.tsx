@@ -14,6 +14,7 @@ import { clusterApiUrl } from "@solana/web3.js";
 import "@solana/wallet-adapter-react-ui/styles.css";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { AppShell } from "@/components/app-shell";
 import { RouteMeta } from "@/components/route-meta";
 import { AccountProvider } from "@/hooks/use-account";
@@ -102,26 +103,33 @@ function SolanaProviders({ children }: { children: React.ReactNode }) {
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <SolanaProviders>
-          <XAuthProvider>
-            <AccountProvider>
-              <RecoveryDiscoveryProvider>
-                <PnlCurrencyProvider>
-                  <WouterRouter
-                    base={import.meta.env.BASE_URL.replace(/\/$/, "")}
-                  >
-                    <Router />
-                  </WouterRouter>
-                </PnlCurrencyProvider>
-              </RecoveryDiscoveryProvider>
-            </AccountProvider>
-          </XAuthProvider>
-        </SolanaProviders>
-        <Toaster />
-      </TooltipProvider>
-    </QueryClientProvider>
+    <ErrorBoundary
+      fullScreen
+      retryLabel="Reload"
+      onReset={() => window.location.reload()}
+      description="An unexpected error interrupted BlackPebble. Your funds and data are safe — nothing was changed. Reloading should fix it."
+    >
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <SolanaProviders>
+            <XAuthProvider>
+              <AccountProvider>
+                <RecoveryDiscoveryProvider>
+                  <PnlCurrencyProvider>
+                    <WouterRouter
+                      base={import.meta.env.BASE_URL.replace(/\/$/, "")}
+                    >
+                      <Router />
+                    </WouterRouter>
+                  </PnlCurrencyProvider>
+                </RecoveryDiscoveryProvider>
+              </AccountProvider>
+            </XAuthProvider>
+          </SolanaProviders>
+          <Toaster />
+        </TooltipProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
 

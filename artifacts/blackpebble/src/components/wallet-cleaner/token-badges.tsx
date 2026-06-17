@@ -19,6 +19,14 @@ interface BadgeMeta {
   icon: React.ReactNode;
 }
 
+/** Fallback treatment for an unrecognized risk class (defensive — keeps the UI
+ *  rendering even if the server sends a value outside the known union). */
+const UNKNOWN_RISK_META: BadgeMeta = {
+  label: "Unknown",
+  className: "bg-amber-500/12 text-amber-400",
+  icon: <HelpCircle className="w-3 h-3" />,
+};
+
 /** Visual treatment for each conservative risk class (worst → best). */
 function riskMeta(risk: TokenRiskClass): BadgeMeta {
   switch (risk) {
@@ -58,6 +66,8 @@ function riskMeta(risk: TokenRiskClass): BadgeMeta {
         className: "bg-red-500/15 text-red-400",
         icon: <ShieldAlert className="w-3 h-3" />,
       };
+    default:
+      return UNKNOWN_RISK_META;
   }
 }
 
