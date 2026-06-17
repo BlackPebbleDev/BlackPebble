@@ -1027,6 +1027,59 @@ export interface RecoveryTrackBody {
   networkFeeSol?: number;
   /** Net SOL that landed in the wallet after the network fee (SOL). */
   netSol?: number;
+  /**
+   * Client-claimed count of SPL tokens burned in this cleanup. This is only a
+   * hint — the server independently proves burns on-chain before any value
+   * counts toward public/lifetime totals (see recovery-verify.ts).
+   */
+  tokensBurned?: number;
+}
+
+/** Conservative token risk classes, worst → best. Mirrors the backend engine. */
+export type TokenRiskClass =
+  | "verified"
+  | "normal"
+  | "unknown"
+  | "suspicious"
+  | "spam"
+  | "high_risk";
+
+export type TokenRiskFactorKey =
+  | "market"
+  | "sell-route"
+  | "mint-auth"
+  | "freeze-auth"
+  | "mutable-metadata"
+  | "low-liq";
+
+export interface TokenRiskFactor {
+  key: TokenRiskFactorKey;
+  /** "ok" = healthy, "warn" = caution, "bad" = serious red flag. */
+  level: "ok" | "warn" | "bad";
+  label: string;
+}
+
+/**
+ * Position-independent token intelligence for the wallet-cleanup suite. Every
+ * market/authority signal is nullable — a null means "not resolvable" and the
+ * client treats it as UNKNOWN, never silently safe. Sellability, USD value and
+ * realizable value are intentionally NOT here: they depend on the holder's
+ * balance and are derived client-side from these signals × the real balance.
+ */
+export interface TokenIntel {
+  mint: string;
+  priceUsd: number | null;
+  liquidityUsd: number | null;
+  marketCapUsd: number | null;
+  hasMarket: boolean;
+  hasSellRoute: boolean;
+  hasMintAuthority: boolean | null;
+  hasFreezeAuthority: boolean | null;
+  mutableMetadata: boolean | null;
+  verified: boolean;
+  risk: TokenRiskClass;
+  riskReasons: string[];
+  riskFactors: TokenRiskFactor[];
 }
 
 /**
@@ -1086,6 +1139,8 @@ export interface RecoveryTopUser {
 export interface RecoveryHistoryEvent {
   created_at: number;
   accounts_closed: number;
+  /** On-chain-proven count of SPL tokens burned in this cleanup. */
+  tokens_burned: number;
   recovered_sol: number;
   network_fee_sol: number;
   /** BlackPebble platform fee — always 0 today (SOL). */
@@ -1100,6 +1155,8 @@ export interface RecoveryHistoryEvent {
 export interface RecoveryHistoryLifetime {
   sol_recovered: number;
   accounts_closed: number;
+  /** On-chain-proven lifetime count of SPL tokens burned for this wallet. */
+  tokens_burned: number;
   largest_recovery: number;
   avg_recovered: number;
   successful_cleanups: number;
@@ -1496,6 +1553,11 @@ export const api = {
         "/recovery/token-metadata",
         { method: "POST", body: JSON.stringify({ mints }) },
       ),
+    tokenIntel: (mints: string[]) =>
+      request<{ intel: Record<string, TokenIntel> }>("/recovery/token-intel", {
+        method: "POST",
+        body: JSON.stringify({ mints }),
+      }),
     history: (wallet: string) =>
       request<RecoveryHistoryResponse>(
         `/recovery/history/${encodeURIComponent(wallet)}`,

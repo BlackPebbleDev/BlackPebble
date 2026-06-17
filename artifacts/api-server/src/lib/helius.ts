@@ -193,3 +193,184 @@ export async function getTokenMetadataBatch(
 
   return out;
 }
+
+/**
+ * On-chain mint authority signals for a single SPL / Token-2022 mint, read from
+ * the parsed mint account. `null` for a field means "not resolvable", which the
+ * risk engine treats as unknown rather than safe. Presence of a mint authority
+ * means supply can still be inflated; presence of a freeze authority means the
+ * holder's balance can be frozen — both are real, on-chain scam vectors.
+ */
+export interface MintAuthorityInfo {
+  /** True when the mint still has an active mint authority (supply inflatable). */
+  hasMintAuthority: boolean;
+  /** True when the mint has a freeze authority (balances can be frozen). */
+  hasFreezeAuthority: boolean;
+  decimals: number | null;
+}
+
+const MINT_AUTH_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+function mintAuthCacheKey(mint: string): string {
+  return `mintauth:${mint}`;
+}
+
+/**
+ * Batch-read mint authority + freeze authority presence for a set of mints via
+ * the Solana RPC `getMultipleAccounts` (jsonParsed). Per-mint results are cached
+ * for an hour; only uncached mints hit the network. Best-effort: any failure (or
+ * a missing Helius key) yields `null` for the affected mints rather than
+ * throwing, so the recovery flow is never blocked. A `null` result is treated as
+ * "unknown" by the risk engine — never silently assumed safe.
+ */
+export async function getMintAuthoritiesBatch(
+  mints: string[],
+): Promise<Map<string, MintAuthorityInfo | null>> {
+  const out = new Map<string, MintAuthorityInfo | null>();
+  const unique = [...new Set(mints.filter(Boolean))];
+  const toFetch: string[] = [];
+
+  for (const mint of unique) {
+    const key = mintAuthCacheKey(mint);
+    if (isCacheFresh(key, MINT_AUTH_TTL_MS)) {
+      const cached = getCacheValue(key);
+      if (cached) {
+        try {
+          out.set(mint, JSON.parse(cached) as MintAuthorityInfo);
+          continue;
+        } catch {
+          // fall through and refetch
+        }
+      }
+    }
+    toFetch.push(mint);
+  }
+
+  if (toFetch.length === 0) return out;
+
+  if (!HELIUS_API_KEY) {
+    for (const mint of toFetch) out.set(mint, null);
+    return out;
+  }
+
+  // getMultipleAccounts caps at 100 accounts per request.
+  const CHUNK = 100;
+  for (let i = 0; i < toFetch.length; i += CHUNK) {
+    const chunk = toFetch.slice(i, i + CHUNK);
+    try {
+      const res = await axios.post(
+        heliusRpcUrl(),
+        {
+          jsonrpc: "2.0",
+          id: "mint-auth-batch",
+          method: "getMultipleAccounts",
+          params: [chunk, { encoding: "jsonParsed", commitment: "confirmed" }],
+        },
+        { timeout: 10000 },
+      );
+      const values: any[] = Array.isArray(res.data?.result?.value)
+        ? res.data.result.value
+        : [];
+      for (let j = 0; j < chunk.length; j++) {
+        const mint = chunk[j]!;
+        const acc = values[j];
+        const info = acc?.data?.parsed?.info;
+        if (!info || acc?.data?.parsed?.type !== "mint") {
+          // Could not parse the mint account — leave unknown (null).
+          out.set(mint, null);
+          continue;
+        }
+        const result: MintAuthorityInfo = {
+          hasMintAuthority: Boolean(info.mintAuthority),
+          hasFreezeAuthority: Boolean(info.freezeAuthority),
+          decimals:
+            typeof info.decimals === "number" ? info.decimals : null,
+        };
+        out.set(mint, result);
+        setCacheValue(mintAuthCacheKey(mint), JSON.stringify(result));
+      }
+    } catch (e) {
+      logger.warn({ err: e }, "Helius mint authority batch fetch failed");
+      for (const mint of chunk) {
+        if (!out.has(mint)) out.set(mint, null);
+      }
+    }
+  }
+
+  return out;
+}
+
+const MUTABLE_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+function mutableCacheKey(mint: string): string {
+  return `assetmut:${mint}`;
+}
+
+/**
+ * Batch-read the `mutable` flag for a set of mints via the Helius DAS
+ * `getAssetBatch` method. Mutable metadata means a token's name/symbol/image can
+ * be changed after the fact — a common impersonation vector — so the risk engine
+ * surfaces it as a caution factor. Per-mint cached for an hour. Best-effort:
+ * failures yield `null` (unknown) rather than throwing.
+ */
+export async function getMutableFlagsBatch(
+  mints: string[],
+): Promise<Map<string, boolean | null>> {
+  const out = new Map<string, boolean | null>();
+  const unique = [...new Set(mints.filter(Boolean))];
+  const toFetch: string[] = [];
+
+  for (const mint of unique) {
+    const key = mutableCacheKey(mint);
+    if (isCacheFresh(key, MUTABLE_TTL_MS)) {
+      const cached = getCacheValue(key);
+      if (cached === "true" || cached === "false") {
+        out.set(mint, cached === "true");
+        continue;
+      }
+    }
+    toFetch.push(mint);
+  }
+
+  if (toFetch.length === 0) return out;
+
+  if (!HELIUS_API_KEY) {
+    for (const mint of toFetch) out.set(mint, null);
+    return out;
+  }
+
+  const CHUNK = 100;
+  for (let i = 0; i < toFetch.length; i += CHUNK) {
+    const chunk = toFetch.slice(i, i + CHUNK);
+    try {
+      const res = await axios.post(
+        heliusRpcUrl(),
+        {
+          jsonrpc: "2.0",
+          id: "mutable-batch",
+          method: "getAssetBatch",
+          params: { ids: chunk },
+        },
+        { timeout: 10000 },
+      );
+      const assets = Array.isArray(res.data?.result) ? res.data.result : [];
+      for (let j = 0; j < chunk.length; j++) {
+        const mint = chunk[j]!;
+        const asset = assets[j];
+        const mutable =
+          asset && typeof asset.mutable === "boolean" ? asset.mutable : null;
+        out.set(mint, mutable);
+        if (mutable != null) {
+          setCacheValue(mutableCacheKey(mint), mutable ? "true" : "false");
+        }
+      }
+    } catch (e) {
+      logger.warn({ err: e }, "Helius mutable flag batch fetch failed");
+      for (const mint of chunk) {
+        if (!out.has(mint)) out.set(mint, null);
+      }
+    }
+  }
+
+  return out;
+}

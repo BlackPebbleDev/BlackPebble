@@ -1,19 +1,13 @@
 import { useState, type ReactNode } from "react";
-import {
-  ChevronDown,
-  Sparkles,
-  Clock,
-  ShieldCheck,
-  Lock,
-} from "lucide-react";
+import { ChevronDown, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatRentSol, type UseWalletCleaner } from "@/hooks/use-wallet-cleaner";
 import { ScanResults } from "@/components/wallet-cleaner/scan-results";
 
 /**
- * A collapsible recovery category. The dashboard is organised into three of
- * these — Recover Now (live), Review (future) and Protected (informational) —
- * so new recovery modules can be added later without redesigning the page.
+ * A collapsible recovery category. "Recover Now" handles empty-account rent
+ * reclamation; the token cleanup buckets (Dust / Burn / Protected) live in the
+ * dedicated TokenCleanup component below this section.
  */
 function ExpandableSection({
   icon,
@@ -68,31 +62,9 @@ function ExpandableSection({
   );
 }
 
-function FutureList({ items }: { items: string[] }) {
-  return (
-    <ul className="space-y-2">
-      {items.map((item) => (
-        <li
-          key={item}
-          className="flex items-center justify-between gap-3 text-sm text-muted-foreground"
-        >
-          <span className="flex items-center gap-2.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/50 flex-shrink-0" />
-            {item}
-          </span>
-          <span className="inline-flex items-center gap-1 rounded-md bg-muted-foreground/10 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wider text-muted-foreground/60">
-            <Lock className="w-2.5 h-2.5" />
-            Soon
-          </span>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
 /**
- * The three recovery categories. Only "Recover Now" is interactive today; Review
- * and Protected are forward-looking and never fabricate counts or values.
+ * The "Recover Now" rent-reclamation category. Token cleanup buckets live in
+ * the dedicated TokenCleanup component. Never fabricates counts or values.
  */
 export function RecoverySections({ cleaner }: { cleaner: UseWalletCleaner }) {
   const { accounts, totalRecoverable } = cleaner;
@@ -118,51 +90,6 @@ export function RecoverySections({ cleaner }: { cleaner: UseWalletCleaner }) {
             No empty token accounts to recover right now.
           </p>
         )}
-      </ExpandableSection>
-
-      <ExpandableSection
-        icon={<Clock className="w-4 h-4" />}
-        title="Review"
-        subtitle="Items that need a closer look before cleanup"
-        testId="section-review"
-      >
-        <div className="space-y-3">
-          <p className="text-xs text-muted-foreground leading-relaxed">
-            Future recovery modules will surface here. These require a manual
-            review and are never closed or burned automatically.
-          </p>
-          <FutureList
-            items={[
-              "Dust tokens",
-              "Burn candidates",
-              "Small-balance accounts",
-            ]}
-          />
-        </div>
-      </ExpandableSection>
-
-      <ExpandableSection
-        icon={<ShieldCheck className="w-4 h-4" />}
-        title="Protected"
-        subtitle="Always kept safe — never selected or touched."
-        testId="section-protected"
-      >
-        <ul className="space-y-2">
-          {[
-            "Your SOL balance",
-            "Tokens & verified assets",
-            "NFTs & collectibles",
-            "Accounts with any balance",
-          ].map((item) => (
-            <li
-              key={item}
-              className="flex items-center gap-2.5 text-sm text-muted-foreground"
-            >
-              <ShieldCheck className="w-3.5 h-3.5 text-accent flex-shrink-0" />
-              {item}
-            </li>
-          ))}
-        </ul>
       </ExpandableSection>
     </div>
   );

@@ -385,10 +385,15 @@ export const recoveryEvents = pgTable(
     verification_status: text("verification_status").notNull().default("pending"),
     verification_error: text("verification_error"),
     verified_at: timestamp("verified_at"),
+    // Wallet Cleanup V1: count of SPL tokens burned in a cleanup. The canonical
+    // column is only ever written from on-chain-proven burns (see
+    // recovery-verify.ts); the client_* mirror keeps the unverified claim.
+    tokens_burned: integer("tokens_burned").default(0),
     // Unverified client-claimed telemetry, preserved only for admin/debug review
     // (never surfaced as public truth).
     client_accounts_closed: integer("client_accounts_closed"),
     client_recovered_sol: doublePrecision("client_recovered_sol"),
+    client_tokens_burned: integer("client_tokens_burned"),
   },
   (t) => [
     index("idx_recovery_events_type").on(t.event_type),

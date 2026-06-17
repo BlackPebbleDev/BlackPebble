@@ -1,9 +1,10 @@
 import { ShieldCheck } from "lucide-react";
 
 const RULES = [
-  "Only token accounts with a zero balance are ever shown — accounts holding tokens or NFTs are never touched.",
-  "Nothing is selected automatically. You choose exactly which accounts to close.",
-  "You always see a full preview before signing anything.",
+  "Every token in your wallet is shown with its real value, sellability, and risk — nothing is hidden from you.",
+  "Nothing is ever selected, burned, or closed automatically. You choose exactly what to clean up.",
+  "Verified and valuable tokens are protected by default. Removing that protection always takes an extra confirmation.",
+  "You always see a full preview — including your wallet health before and after — before signing anything.",
   "Recovered SOL is always returned to your connected wallet.",
 ];
 

@@ -20,21 +20,30 @@ import { RecoverySummary } from "@/components/wallet-cleaner/recovery-summary";
 import { RecoverySuccess } from "@/components/wallet-cleaner/recovery-success";
 import { RecoveryHistory } from "@/components/wallet-cleaner/recovery-history";
 import { ClosePreviewDialog } from "@/components/wallet-cleaner/close-preview-dialog";
+import {
+  TokenCleanup,
+  BurnSuccessBanner,
+} from "@/components/wallet-cleaner/token-cleanup";
+import { BurnPreviewDialog } from "@/components/wallet-cleaner/burn-preview-dialog";
 
 export default function WalletCleaner() {
   const { connected } = useWallet();
   const cleaner = useWalletCleaner();
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [burnPreviewOpen, setBurnPreviewOpen] = useState(false);
 
   const {
     status,
     error,
     owner,
     accounts,
+    tokens,
+    intelLoading,
     selectedAccounts,
     selectedRecoverable,
     scan,
     closeSelected,
+    executeBurn,
   } = cleaner;
 
   async function handleConfirmClose() {
@@ -42,6 +51,21 @@ export default function WalletCleaner() {
     // Keep the modal open on failure so the error and progress stay visible.
     if (ok) setPreviewOpen(false);
   }
+
+  async function handleConfirmBurn() {
+    const ok = await executeBurn();
+    // Keep the modal open on failure so the error stays visible.
+    if (ok) setBurnPreviewOpen(false);
+  }
+
+  const scannedView =
+    status === "scanned" || status === "closing" || status === "error";
+  const hasTokens = tokens.length > 0 || intelLoading;
+  const fullyClean =
+    status === "scanned" &&
+    accounts.length === 0 &&
+    tokens.length === 0 &&
+    !intelLoading;
 
   return (
     <div className="flex flex-col gap-6 px-4 py-6 sm:py-10 max-w-3xl mx-auto pb-28 sm:pb-10">
@@ -60,11 +84,11 @@ export default function WalletCleaner() {
           </div>
           <div className="space-y-1.5">
             <h1 className="text-2xl font-semibold leading-tight">
-              SOL Recovery
+              Wallet Cleanup
             </h1>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Recover trapped SOL from unused token accounts and reclaim locked
-              rent safely.
+              See every token you hold, spot scams and inflated value, reclaim
+              trapped SOL, and burn junk — safely and on your terms.
             </p>
           </div>
         </div>
@@ -78,8 +102,8 @@ export default function WalletCleaner() {
           <div className="space-y-1">
             <div className="font-semibold">Connect your wallet to begin</div>
             <p className="text-sm text-muted-foreground">
-              SOL Recovery reads your token accounts directly from the Solana
-              network. Nothing is signed until you choose to close accounts.
+              Wallet Cleanup reads your tokens directly from the Solana network.
+              Nothing is signed until you choose what to clean up.
             </p>
           </div>
           <div className="flex justify-center">
@@ -124,24 +148,29 @@ export default function WalletCleaner() {
             </div>
           )}
 
-          {(status === "scanned" ||
-            status === "closing" ||
-            status === "error") &&
-            accounts.length > 0 && (
-              <div className="space-y-5">
-                <RecoverySections cleaner={cleaner} />
-                {selectedAccounts.length > 0 && (
-                  <div className="space-y-2">
-                    <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
-                      Recovery summary
-                    </div>
-                    <RecoverySummary cleaner={cleaner} />
-                  </div>
-                )}
-              </div>
-            )}
+          {scannedView && (
+            <div className="space-y-5">
+              <BurnSuccessBanner cleaner={cleaner} />
 
-          {status === "scanned" && accounts.length === 0 && (
+              {accounts.length > 0 && (
+                <>
+                  <RecoverySections cleaner={cleaner} />
+                  {selectedAccounts.length > 0 && (
+                    <div className="space-y-2">
+                      <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
+                        Recovery summary
+                      </div>
+                      <RecoverySummary cleaner={cleaner} />
+                    </div>
+                  )}
+                </>
+              )}
+
+              {hasTokens && <TokenCleanup cleaner={cleaner} onRequestBurn={() => setBurnPreviewOpen(true)} />}
+            </div>
+          )}
+
+          {fullyClean && (
             <div
               className="rounded-3xl bg-card shadow-card p-10 text-center space-y-3"
               data-testid="wallet-clean"
@@ -150,8 +179,8 @@ export default function WalletCleaner() {
               <div className="space-y-1">
                 <div className="font-semibold">Wallet clean</div>
                 <p className="text-sm text-muted-foreground">
-                  No recoverable token accounts were found. Your current balance
-                  is shown above.
+                  No recoverable accounts or tokens were found. Your current
+                  balance is shown above.
                 </p>
               </div>
               <Button variant="outline" onClick={scan} className="rounded-2xl" data-testid="button-rescan">
@@ -205,6 +234,13 @@ export default function WalletCleaner() {
         open={previewOpen}
         onOpenChange={setPreviewOpen}
         onConfirm={handleConfirmClose}
+      />
+
+      <BurnPreviewDialog
+        cleaner={cleaner}
+        open={burnPreviewOpen}
+        onOpenChange={setBurnPreviewOpen}
+        onConfirm={handleConfirmBurn}
       />
     </div>
   );

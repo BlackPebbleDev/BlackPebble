@@ -3,6 +3,7 @@ import { asyncHandler } from "../lib/asyncHandler.js";
 import { requireAdmin, sessionFromRequest } from "../lib/auth.js";
 import { dbAll, dbGet, dbRun } from "../lib/database.js";
 import { getTokenMetadataBatch } from "../lib/helius.js";
+import { getTokenIntelBatch } from "../lib/recovery-intel.js";
 import {
   ensureRecoverySchema,
   verifyRecoveryEvent,
@@ -110,6 +111,7 @@ router.post(
     // client_* columns preserve the original claim for admin/debug review.
     const clientAccountsClosed = clampInt(body.accountsClosed);
     const clientRecoveredSol = clampNum(body.recoveredSol);
+    const clientTokensBurned = clampInt(body.tokensBurned);
 
     await ensureRecoverySchema();
 
@@ -118,9 +120,10 @@ router.post(
          (event_type, wallet, x_user_id, x_username, accounts_found,
           accounts_closed, recoverable_sol, recovered_sol, status, error_message,
           tx_signatures, network_fee_sol, bp_fee_sol, net_sol,
-          client_accounts_closed, client_recovered_sol, verification_status)
+          client_accounts_closed, client_recovered_sol, client_tokens_burned,
+          verification_status)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
-               $15, $16, $17)
+               $15, $16, $17, $18)
        RETURNING id`,
       [
         eventType,
@@ -139,6 +142,7 @@ router.post(
         netSol,
         clientAccountsClosed,
         clientRecoveredSol,
+        clientTokensBurned,
         eventType === "cleanup" && status === "success" ? "pending" : "n/a",
       ],
     );
@@ -199,6 +203,32 @@ router.post(
   }),
 );
 
+/**
+ * Batch token-intelligence lookup for the wallet-cleanup suite. Public (recovery
+ * works for guest wallets). Accepts a list of mints and returns a mint -> intel
+ * map carrying live market signals (price, liquidity, market cap, market/sell
+ * route) and on-chain authority signals (mint/freeze authority, mutable
+ * metadata) plus a conservative, position-independent risk classification. It is
+ * strictly read-only and never fabricates a signal it cannot resolve.
+ */
+router.post(
+  "/recovery/token-intel",
+  asyncHandler(async (req, res) => {
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const raw = Array.isArray(body.mints) ? body.mints : [];
+    const mints = raw
+      .filter((m): m is string => typeof m === "string")
+      .map((m) => m.trim())
+      .filter((m) => /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(m))
+      .slice(0, 100);
+
+    if (mints.length === 0) return res.json({ intel: {} });
+
+    const intel = await getTokenIntelBatch(mints);
+    return res.json({ intel });
+  }),
+);
+
 /** Parse the stored tx_signatures JSON column back into a string[] (best-effort). */
 function parseSignatures(v: unknown): string[] {
   if (typeof v !== "string" || v.length === 0) return [];
@@ -232,9 +262,9 @@ router.get(
 
     // History is public truth → only verified on-chain cleanups are returned.
     const rows = await dbAll<Record<string, unknown>>(
-      `SELECT created_at, accounts_closed, recovered_sol, network_fee_sol,
-              bp_fee_sol, net_sol, status, tx_signatures, error_message,
-              verification_status
+      `SELECT created_at, accounts_closed, tokens_burned, recovered_sol,
+              network_fee_sol, bp_fee_sol, net_sol, status, tx_signatures,
+              error_message, verification_status
        FROM recovery_events
        WHERE event_type = 'cleanup' AND wallet = $1 AND verified = true
        ORDER BY created_at DESC
@@ -245,6 +275,7 @@ router.get(
     const events = rows.map((r) => ({
       created_at: Number(r.created_at ?? 0),
       accounts_closed: Number(r.accounts_closed ?? 0),
+      tokens_burned: Number(r.tokens_burned ?? 0),
       recovered_sol: Number(r.recovered_sol ?? 0),
       network_fee_sol: Number(r.network_fee_sol ?? 0),
       // The BlackPebble fee is inert scaffolding — always 0, never charged.
@@ -260,6 +291,7 @@ router.get(
     const ltRow = await dbGet<Record<string, number>>(
       `SELECT
          COALESCE(SUM(accounts_closed) FILTER (WHERE status = 'success' AND verified), 0)::int AS accounts_closed,
+         COALESCE(SUM(tokens_burned) FILTER (WHERE status = 'success' AND verified), 0)::int AS tokens_burned,
          COALESCE(SUM(recovered_sol) FILTER (WHERE status = 'success' AND verified), 0) AS sol_recovered,
          COALESCE(SUM(network_fee_sol) FILTER (WHERE status = 'success' AND verified), 0) AS total_network_fees,
          COALESCE(SUM(net_sol) FILTER (WHERE status = 'success' AND verified), 0) AS total_net,
@@ -277,6 +309,7 @@ router.get(
     const lifetime = {
       sol_recovered: solRecovered,
       accounts_closed: Number(lt.accounts_closed ?? 0),
+      tokens_burned: Number(lt.tokens_burned ?? 0),
       largest_recovery: Number(lt.largest_recovery ?? 0),
       avg_recovered: successful > 0 ? solRecovered / successful : 0,
       successful_cleanups: successful,
@@ -301,6 +334,7 @@ async function windowStats(
        count(*) FILTER (WHERE event_type = 'scan')::int AS scans,
        count(DISTINCT wallet) FILTER (WHERE event_type = 'scan')::int AS unique_wallets,
        COALESCE(SUM(accounts_closed) FILTER (WHERE event_type = 'cleanup' AND status = 'success' AND verified), 0)::int AS accounts_closed,
+       COALESCE(SUM(tokens_burned) FILTER (WHERE event_type = 'cleanup' AND status = 'success' AND verified), 0)::int AS tokens_burned,
        COALESCE(SUM(recovered_sol) FILTER (WHERE event_type = 'cleanup' AND status = 'success' AND verified), 0) AS sol_recovered,
        count(*) FILTER (WHERE event_type = 'cleanup' AND status = 'success' AND verified)::int AS successful_cleanups
      FROM recovery_events ${where}`,
@@ -333,6 +367,7 @@ router.get(
          count(DISTINCT wallet) FILTER (WHERE event_type = 'scan')::int AS unique_wallets,
          count(DISTINCT wallet) FILTER (WHERE event_type = 'cleanup' AND status = 'success' AND verified)::int AS recovery_users,
          COALESCE(SUM(accounts_closed) FILTER (WHERE event_type = 'cleanup' AND status = 'success' AND verified), 0)::int AS accounts_closed,
+         COALESCE(SUM(tokens_burned) FILTER (WHERE event_type = 'cleanup' AND status = 'success' AND verified), 0)::int AS tokens_burned,
          COALESCE(SUM(recovered_sol) FILTER (WHERE event_type = 'cleanup' AND status = 'success' AND verified), 0) AS sol_recovered,
          count(*) FILTER (WHERE event_type = 'cleanup' AND status = 'success' AND verified)::int AS successful_cleanups,
          count(*) FILTER (WHERE event_type = 'cleanup' AND status = 'failed')::int AS failed_cleanups,

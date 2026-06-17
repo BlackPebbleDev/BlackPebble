@@ -97,6 +97,12 @@ function HistoryCard({ event }: { event: RecoveryHistoryEvent }) {
           label="Accounts closed"
           value={String(event.accounts_closed)}
         />
+        {event.tokens_burned > 0 && (
+          <EventStat
+            label="Tokens burned"
+            value={String(event.tokens_burned)}
+          />
+        )}
         <EventStat
           label="SOL recovered"
           value={`${formatRentSol(event.recovered_sol)} SOL`}
@@ -188,6 +194,10 @@ export function RecoveryHistory({ wallet }: { wallet: string }) {
             <MetricTile
               label="Accounts closed"
               value={String(data.lifetime.accounts_closed)}
+            />
+            <MetricTile
+              label="Tokens burned"
+              value={String(data.lifetime.tokens_burned ?? 0)}
             />
             <MetricTile
               label="Largest recovery"

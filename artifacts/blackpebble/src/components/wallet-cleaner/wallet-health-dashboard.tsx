@@ -92,7 +92,20 @@ export function WalletHealthDashboard({
   cleaner: UseWalletCleaner;
   wallet: string | null;
 }) {
-  const { status, accounts, totalRecoverable, walletHealth } = cleaner;
+  const {
+    status,
+    accounts,
+    totalRecoverable,
+    walletHealth,
+    healthExplanation,
+    tokens,
+    dustTokens,
+    burnCandidates,
+    protectedTokens,
+    intelLoading,
+  } = cleaner;
+
+  const fakeValueCount = tokens.filter((t) => t.fakeValue).length;
 
   const hasScanned =
     status === "scanned" ||
@@ -153,12 +166,8 @@ export function WalletHealthDashboard({
                 style={{ width: `${Math.max(0, Math.min(100, walletHealth))}%` }}
               />
             </div>
-            <p className="mt-2 text-[11px] text-muted-foreground leading-relaxed">
-              {emptyCount === 0
-                ? "No empty token accounts — nothing to clean up right now."
-                : `${emptyCount} empty ${
-                    emptyCount === 1 ? "account" : "accounts"
-                  } with reclaimable rent are lowering this score.`}
+            <p className="mt-2 text-[11px] text-muted-foreground leading-relaxed" data-testid="health-explanation">
+              {healthExplanation}
             </p>
           </>
         ) : (
@@ -186,44 +195,45 @@ export function WalletHealthDashboard({
             testId="health-recoverable-sol"
           />
           <Tile
-            label="Recoverable accounts"
-            value={hasScanned ? String(emptyCount) : "—"}
-            testId="health-recoverable-accounts"
-          />
-          <Tile
             label="Empty accounts"
             value={hasScanned ? String(emptyCount) : "—"}
             testId="health-empty-accounts"
           />
+          <Tile
+            label="Tokens held"
+            value={hasScanned ? String(tokens.length) : intelLoading ? "…" : "—"}
+            testId="health-tokens-held"
+          />
+          <Tile
+            label="Protected assets"
+            value={hasScanned ? String(protectedTokens.length) : "—"}
+            testId="health-protected-assets"
+          />
         </div>
       </div>
 
-      {/* Advanced modules not built yet — shown explicitly as coming soon. */}
+      {/* Cleanup opportunities — real, derived from token intelligence. */}
       <div className="space-y-2">
         <GroupLabel icon={<Clock className="w-3 h-3" />}>
-          Advanced cleanup
+          Cleanup opportunities
         </GroupLabel>
         <div className="grid grid-cols-2 gap-2">
           <Tile
             label="Dust tokens"
-            value="—"
-            sub="Coming soon"
-            soon
+            value={hasScanned ? String(dustTokens.length) : "—"}
             testId="health-dust-tokens"
           />
           <Tile
             label="Burn candidates"
-            value="—"
-            sub="Coming soon"
-            soon
+            value={hasScanned ? String(burnCandidates.length) : "—"}
+            accent={hasScanned && burnCandidates.length > 0}
             testId="health-burn-candidates"
           />
           <Tile
-            label="Small-balance accounts"
-            value="—"
-            sub="Coming soon"
-            soon
-            testId="health-small-balance"
+            label="Inflated-value tokens"
+            value={hasScanned ? String(fakeValueCount) : "—"}
+            sub={hasScanned && fakeValueCount > 0 ? "Shown value can't be sold" : undefined}
+            testId="health-fake-value"
           />
         </div>
       </div>
@@ -244,6 +254,11 @@ export function WalletHealthDashboard({
             label="Lifetime accounts closed"
             value={lifetime ? String(lifetime.accounts_closed) : "—"}
             testId="health-lifetime-accounts"
+          />
+          <Tile
+            label="Lifetime tokens burned"
+            value={lifetime ? String(lifetime.tokens_burned ?? 0) : "—"}
+            testId="health-lifetime-burned"
           />
         </div>
       </div>

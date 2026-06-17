@@ -47,6 +47,8 @@ export interface VerificationResult {
   verified: boolean;
   status: VerificationStatus;
   accountsClosed: number;
+  /** Number of SPL burn instructions signed by the wallet, proven on-chain. */
+  tokensBurned: number;
   recoveredSol: number;
   networkFeeSol: number;
   netSol: number;
@@ -106,6 +108,17 @@ export function ensureRecoverySchema(): Promise<void> {
       await dbRun(
         `ALTER TABLE recovery_events
            ADD COLUMN IF NOT EXISTS client_recovered_sol DOUBLE PRECISION`,
+      );
+      // Wallet Cleanup V1: count of SPL tokens burned in a cleanup. The
+      // canonical column is only ever written from on-chain-proven burns; the
+      // client_* mirror preserves the unverified client claim for debug review.
+      await dbRun(
+        `ALTER TABLE recovery_events
+           ADD COLUMN IF NOT EXISTS tokens_burned INTEGER DEFAULT 0`,
+      );
+      await dbRun(
+        `ALTER TABLE recovery_events
+           ADD COLUMN IF NOT EXISTS client_tokens_burned INTEGER`,
       );
       await dbRun(
         `CREATE INDEX IF NOT EXISTS idx_recovery_events_verified
@@ -227,6 +240,47 @@ function extractClosesForWallet(tx: any, wallet: string): ClosedAccount[] {
 }
 
 /**
+ * Count every SPL burn instruction (top-level + inner CPI) in a parsed
+ * transaction whose burn `authority` IS the claimed wallet. A burn is only
+ * credited when the wallet provably signed it as the token authority — burns by
+ * any other authority are ignored. Covers both `burn` and `burnChecked`.
+ */
+function extractBurnsForWallet(tx: any, wallet: string): number {
+  const message = tx?.transaction?.message;
+  const meta = tx?.meta;
+  if (!message || !meta) return 0;
+
+  const top: any[] = Array.isArray(message.instructions)
+    ? message.instructions
+    : [];
+  const inner: any[] = Array.isArray(meta.innerInstructions)
+    ? meta.innerInstructions.flatMap((g: any) =>
+        Array.isArray(g?.instructions) ? g.instructions : [],
+      )
+    : [];
+
+  let burns = 0;
+  for (const ix of [...top, ...inner]) {
+    const program = ix?.program;
+    const programId = ix?.programId;
+    const isSplToken =
+      program === "spl-token" ||
+      program === "spl-token-2022" ||
+      SPL_TOKEN_PROGRAMS.has(programId);
+    if (!isSplToken) continue;
+    const parsed = ix?.parsed;
+    if (!parsed || (parsed.type !== "burn" && parsed.type !== "burnChecked")) {
+      continue;
+    }
+    const info = parsed.info ?? {};
+    // Only credit burns the wallet itself authorized.
+    if (info.authority !== wallet) continue;
+    burns += 1;
+  }
+  return burns;
+}
+
+/**
  * Verify a recovery cleanup event against the chain and persist the verified,
  * recomputed figures. Idempotent per signature via recovery_credited_signatures.
  *
@@ -255,6 +309,7 @@ export async function verifyRecoveryEvent(
       verified: false,
       status: "failed",
       accountsClosed: 0,
+      tokensBurned: 0,
       recoveredSol: 0,
       networkFeeSol: 0,
       netSol: 0,
@@ -275,6 +330,7 @@ export async function verifyRecoveryEvent(
       verified: false,
       status: "pending",
       accountsClosed: 0,
+      tokensBurned: 0,
       recoveredSol: 0,
       networkFeeSol: 0,
       netSol: 0,
@@ -294,6 +350,7 @@ export async function verifyRecoveryEvent(
   interface ProvenSig {
     sig: string;
     closes: ClosedAccount[];
+    burns: number;
     feeLamports: number;
   }
   const proven: ProvenSig[] = [];
@@ -310,14 +367,16 @@ export async function verifyRecoveryEvent(
       continue;
     }
     const closes = extractClosesForWallet(tx, wallet);
-    if (closes.length === 0) {
-      problems.push(`${sig.slice(0, 8)}: no CloseAccount for wallet`);
+    const burns = extractBurnsForWallet(tx, wallet);
+    if (closes.length === 0 && burns === 0) {
+      problems.push(`${sig.slice(0, 8)}: no close/burn for wallet`);
       continue;
     }
     const txFee = Number(tx.meta?.fee ?? 0);
     proven.push({
       sig,
       closes,
+      burns,
       feeLamports: Number.isFinite(txFee) ? txFee : 0,
     });
   }
@@ -336,6 +395,7 @@ export async function verifyRecoveryEvent(
   // otherwise permanently block a legitimate retry).
   return withTx(async (client) => {
     let accountsClosed = 0;
+    let tokensBurned = 0;
     let recoveredLamports = 0;
     let feeLamports = 0;
     let anyCredited = false;
@@ -373,6 +433,7 @@ export async function verifyRecoveryEvent(
 
       anyCredited = anyCredited || mine;
       accountsClosed += p.closes.length;
+      tokensBurned += p.burns;
       for (const c of p.closes) {
         if (c.lamports == null) anyUnresolvedRent = true;
         else recoveredLamports += c.lamports;
@@ -398,6 +459,7 @@ export async function verifyRecoveryEvent(
         verified: false,
         status: "failed" as VerificationStatus,
         accountsClosed: 0,
+        tokensBurned: 0,
         recoveredSol: 0,
         networkFeeSol: 0,
         netSol: 0,
@@ -432,7 +494,8 @@ export async function verifyRecoveryEvent(
               accounts_closed = $4,
               recovered_sol = $5,
               network_fee_sol = $6,
-              net_sol = $7
+              net_sol = $7,
+              tokens_burned = $8
         WHERE id = $1`,
       [
         eventId,
@@ -442,6 +505,7 @@ export async function verifyRecoveryEvent(
         recoveredSol,
         networkFeeSol,
         netSol,
+        tokensBurned,
       ],
       client,
     );
@@ -450,6 +514,7 @@ export async function verifyRecoveryEvent(
       verified: true,
       status,
       accountsClosed,
+      tokensBurned,
       recoveredSol,
       networkFeeSol,
       netSol,

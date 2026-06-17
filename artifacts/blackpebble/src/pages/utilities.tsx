@@ -46,12 +46,12 @@ export default function Utilities() {
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between gap-2">
-              <div className="text-lg font-bold">SOL Recovery</div>
+              <div className="text-lg font-bold">Wallet Cleanup</div>
               <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-accent group-hover:translate-x-0.5 transition-all flex-shrink-0" />
             </div>
             <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
-              Recover trapped SOL from unused token accounts and reclaim locked
-              rent safely.
+              See every token, spot scams and inflated value, reclaim trapped
+              SOL, and burn junk — safely.
             </p>
           </div>
         </Link>
