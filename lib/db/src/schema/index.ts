@@ -7,6 +7,7 @@ import {
   doublePrecision,
   boolean,
   bigint,
+  timestamp,
   index,
   uniqueIndex,
   primaryKey,
@@ -377,12 +378,40 @@ export const recoveryEvents = pgTable(
     bp_fee_sol: doublePrecision("bp_fee_sol").default(0),
     // V2: net SOL that actually landed in the wallet (recovered − network fee).
     net_sol: doublePrecision("net_sol").default(0),
+    // Verification hardening: a recovery row only becomes public truth once its
+    // signatures are independently proven on-chain (see recovery-verify.ts).
+    verified: boolean("verified").notNull().default(false),
+    // 'pending' | 'verified' | 'verified_partial' | 'failed' | 'n/a'.
+    verification_status: text("verification_status").notNull().default("pending"),
+    verification_error: text("verification_error"),
+    verified_at: timestamp("verified_at"),
+    // Unverified client-claimed telemetry, preserved only for admin/debug review
+    // (never surfaced as public truth).
+    client_accounts_closed: integer("client_accounts_closed"),
+    client_recovered_sol: doublePrecision("client_recovered_sol"),
   },
   (t) => [
     index("idx_recovery_events_type").on(t.event_type),
     index("idx_recovery_events_created").on(t.created_at),
     index("idx_recovery_events_wallet").on(t.wallet),
+    index("idx_recovery_events_verified").on(
+      t.event_type,
+      t.status,
+      t.verified,
+    ),
   ],
+);
+
+// Replay / double-credit protection for recovery verification: each on-chain
+// close-tx signature can be credited to exactly one recovery_events row.
+export const recoveryCreditedSignatures = pgTable(
+  "recovery_credited_signatures",
+  {
+    signature: text("signature").primaryKey(),
+    event_id: integer("event_id").notNull(),
+    wallet: text("wallet").notNull(),
+    credited_at: bigint("credited_at", { mode: "number" }).default(epoch),
+  },
 );
 
 export const walletChallenges = pgTable(

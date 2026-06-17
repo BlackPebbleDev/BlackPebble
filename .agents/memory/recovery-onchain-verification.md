@@ -34,7 +34,12 @@ rows stay verified=false; never backfilled by fabrication — only via the admin
 re-verify-pending endpoint that re-runs the same on-chain proof. Verification is
 identity-independent (guests included); X identity only governs feed attribution.
 Schema self-heals at runtime via ensureRecoverySchema() (ADD COLUMN/CREATE TABLE IF NOT
-EXISTS), matching the codebase's read-path ensure*Schema convention.
+EXISTS), matching the codebase's read-path ensure*Schema convention. **Two-place rule:**
+every recovery_events column the POST/verify code writes (incl. V2 capture columns
+tx_signatures/network_fee_sol/bp_fee_sol/net_sol and the verification columns) AND the
+recovery_credited_signatures table must be (a) self-healed in ensureRecoverySchema and
+(b) mirrored in lib/db/src/schema/index.ts. Missing the mirror is what review flags as a
+"persistence/bootstrap gap" — a fresh/un-migrated env can fail inserts at runtime.
 
 **Recovery fee = DISABLED scaffolding (Phase G):** BlackPebble recovery is free. The
 fee policy lives in ONE frozen place (recovery-fee.ts RECOVERY_FEE_CONFIG, enabled:false,

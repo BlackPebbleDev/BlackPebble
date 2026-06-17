@@ -64,6 +64,25 @@ let schemaReady: Promise<void> | null = null;
 export function ensureRecoverySchema(): Promise<void> {
   if (!schemaReady) {
     schemaReady = (async () => {
+      // V2 capture columns that POST /recovery/events writes. Added here too
+      // (idempotently) so a fresh / un-migrated environment self-heals and the
+      // insert never fails on a missing column.
+      await dbRun(
+        `ALTER TABLE recovery_events
+           ADD COLUMN IF NOT EXISTS tx_signatures TEXT`,
+      );
+      await dbRun(
+        `ALTER TABLE recovery_events
+           ADD COLUMN IF NOT EXISTS network_fee_sol DOUBLE PRECISION DEFAULT 0`,
+      );
+      await dbRun(
+        `ALTER TABLE recovery_events
+           ADD COLUMN IF NOT EXISTS bp_fee_sol DOUBLE PRECISION DEFAULT 0`,
+      );
+      await dbRun(
+        `ALTER TABLE recovery_events
+           ADD COLUMN IF NOT EXISTS net_sol DOUBLE PRECISION DEFAULT 0`,
+      );
       await dbRun(
         `ALTER TABLE recovery_events
            ADD COLUMN IF NOT EXISTS verified BOOLEAN NOT NULL DEFAULT false`,
