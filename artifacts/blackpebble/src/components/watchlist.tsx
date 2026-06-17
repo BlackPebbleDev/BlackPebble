@@ -3,6 +3,8 @@ import { X } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAccount } from "@/hooks/use-account";
 import { useGuestWatchlist, guestWatchRemove } from "@/lib/guest-store";
+import { Sparkline } from "@/components/sparkline";
+import { useSparklines } from "@/hooks/use-sparklines";
 import {
   fmtPrice,
   fmtMarketCap,
@@ -42,6 +44,9 @@ export function Watchlist({
   });
 
   const items = isGuest ? guest.watchlist : data?.watchlist ?? [];
+
+  // One batched sparkline request for every watched mint.
+  const spark = useSparklines(items.map((w) => w.mint));
 
   const removeItem = (mint: string) => {
     if (isGuest) guestWatchRemove(mint);
@@ -85,6 +90,9 @@ export function Watchlist({
                 {fmtMarketCap(w.marketCapUsd)} MC
               </div>
             </div>
+            <div className="shrink-0">
+              <Sparkline points={spark[w.mint]} width={48} height={20} />
+            </div>
             <div
               className={cn(
                 "font-mono text-xs w-16 text-right shrink-0",
@@ -117,6 +125,7 @@ export function Watchlist({
               <th className="font-medium px-4 py-2.5">Token</th>
               <th className="font-medium px-4 py-2.5 text-right">Price</th>
               <th className="font-medium px-4 py-2.5 text-right">Market Cap</th>
+              <th className="font-medium px-4 py-2.5 text-center w-20">Last 24h</th>
               <th className="font-medium px-4 py-2.5 text-right">24h</th>
               <th className="font-medium px-2 py-2.5 w-10" />
             </tr>
@@ -144,6 +153,11 @@ export function Watchlist({
                 </td>
                 <td className="px-4 py-2.5 text-right font-mono">
                   {fmtMarketCap(w.marketCapUsd)}
+                </td>
+                <td className="px-4 py-2.5">
+                  <div className="flex justify-center">
+                    <Sparkline points={spark[w.mint]} width={72} height={24} />
+                  </div>
                 </td>
                 <td
                   className={cn(

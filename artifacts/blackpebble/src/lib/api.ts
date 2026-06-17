@@ -598,6 +598,15 @@ export interface WatchItem {
   marketCapUsd: number | null;
 }
 
+/** Sparkline history windows. 24h is the default the UI renders today. */
+export type SparklineWindow = "1h" | "6h" | "24h";
+
+export interface SparklineResponse {
+  window: SparklineWindow;
+  /** mint → chronological close-price series (oldest first), or null. */
+  sparklines: Record<string, number[] | null>;
+}
+
 export type LeaderboardPeriod = "daily" | "weekly" | "all";
 
 export interface LeaderboardEntry {
@@ -1365,6 +1374,13 @@ export const api = {
   trending: () => request<MarketFeedResponse>(`/markets/trending`),
   gainers: () => request<MarketFeedResponse>(`/markets/gainers`),
   volume: () => request<MarketFeedResponse>(`/markets/volume`),
+  // Batched sparkline history for token cards. Sends every visible mint in one
+  // request; returns a short chronological close-price series per mint (or null
+  // when no usable history exists). Window defaults to 24h server-side.
+  sparklines: (mints: string[], window: SparklineWindow = "24h") =>
+    request<SparklineResponse>(
+      `/markets/sparklines?mints=${encodeURIComponent(mints.join(","))}&window=${window}`,
+    ),
   // Manual force-refresh: bypasses the server feed caches, then the client
   // refetches the active feed. Returns the new market status.
   refreshMarkets: () =>

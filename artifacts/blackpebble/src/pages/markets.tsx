@@ -9,6 +9,8 @@ import { Loader2, TrendingUp, Sparkles, RefreshCw } from "lucide-react";
 import { LiveIndicator } from "@/components/live-indicator";
 import { Watchlist } from "@/components/watchlist";
 import { FilterPills } from "@/components/filter-pills";
+import { Sparkline } from "@/components/sparkline";
+import { useSparklines } from "@/hooks/use-sparklines";
 import { api, type TokenInfo, type MigratedToken } from "@/lib/api";
 import {
   fmtMarketCap,
@@ -65,6 +67,9 @@ function LoadMore({ onClick }: { onClick: () => void }) {
 }
 
 function MarketTable({ tokens, navigate }: { tokens: TokenInfo[]; navigate: (p: string) => void }) {
+  // One batched sparkline request for every visible row (server caches per mint).
+  const spark = useSparklines(tokens.map((t) => t.mint));
+
   if (tokens.length === 0) {
     return (
       <div className="text-center py-20 text-muted-foreground text-sm">
@@ -102,11 +107,12 @@ function MarketTable({ tokens, navigate }: { tokens: TokenInfo[]; navigate: (p: 
                 </div>
               )}
             </div>
-            <div className="text-right flex-shrink-0">
+            <div className="flex flex-col items-end flex-shrink-0 gap-0.5">
               <div className="font-mono text-sm text-foreground">
                 {fmtMarketCap(t.marketCapUsd)}
                 <span className="text-[10px] text-muted-foreground ml-1">MC</span>
               </div>
+              <Sparkline points={spark[t.mint]} width={60} height={18} />
               <div className={cn("font-mono text-xs", pnlColorSafe(t.priceChange24h))}>
                 {fmtPercentSafe(t.priceChange24h)}
               </div>
@@ -123,6 +129,7 @@ function MarketTable({ tokens, navigate }: { tokens: TokenInfo[]; navigate: (p: 
             <th className="font-medium px-4 py-3 w-8 text-center">#</th>
             <th className="font-medium px-4 py-3">Token</th>
             <th className="font-medium px-4 py-3 text-right">Market Cap</th>
+            <th className="font-medium px-4 py-3 text-center w-20">Last 24h</th>
             <th className="font-medium px-4 py-3 text-right">24h</th>
             <th className="font-medium px-4 py-3 text-right hidden sm:table-cell">
               Volume 24h
@@ -163,6 +170,11 @@ function MarketTable({ tokens, navigate }: { tokens: TokenInfo[]; navigate: (p: 
               </td>
               <td className="px-4 py-3 text-right font-mono">
                 {fmtMarketCap(t.marketCapUsd)}
+              </td>
+              <td className="px-4 py-3">
+                <div className="flex justify-center">
+                  <Sparkline points={spark[t.mint]} width={72} height={24} />
+                </div>
               </td>
               <td
                 className={cn(

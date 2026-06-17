@@ -9,6 +9,12 @@ import {
   PERCENT_SANITY_CEILING,
   type MarketToken,
 } from "../lib/prices.js";
+import {
+  getSparklines,
+  isSparklineWindow,
+  DEFAULT_WINDOW,
+  MAX_SPARKLINE_MINTS,
+} from "../lib/sparklines.js";
 import { pumpportal } from "../lib/pumpportal.js";
 import { getTokenIntelligence } from "../lib/tokenIntel.js";
 
@@ -180,6 +186,33 @@ router.get(
   "/markets/status",
   asyncHandler((_req, res) => {
     return res.json(getMarketStatus());
+  }),
+);
+
+/**
+ * Batched sparkline history for token cards. The client sends every visible
+ * mint in ONE request (`mints` = comma-separated) and an optional `window`
+ * (1h/6h/24h, default 24h). Returns `{ window, sparklines: { [mint]: number[] |
+ * null } }` — a short chronological close-price series per mint, or null when no
+ * usable history exists (the UI renders that as a neutral placeholder). Results
+ * are cached server-side per (mint, window); see lib/sparklines.ts.
+ */
+router.get(
+  "/markets/sparklines",
+  asyncHandler(async (req, res) => {
+    const raw = String(req.query.mints ?? "");
+    const mints = raw
+      .split(",")
+      .map((m) => m.trim())
+      .filter(Boolean)
+      .slice(0, MAX_SPARKLINE_MINTS);
+    const windowParam = req.query.window;
+    const window = isSparklineWindow(windowParam) ? windowParam : DEFAULT_WINDOW;
+    if (mints.length === 0) {
+      return res.json({ window, sparklines: {} });
+    }
+    const sparklines = await getSparklines(mints, window);
+    return res.json({ window, sparklines });
   }),
 );
 

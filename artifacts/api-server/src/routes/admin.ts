@@ -7,6 +7,7 @@ import {
 } from "../lib/auth.js";
 import { dbAll, dbGet, pool } from "../lib/database.js";
 import { getMarketStatus, forceRefreshTrending } from "../lib/prices.js";
+import { getSparklineDiagnostics } from "../lib/sparklines.js";
 import { pumpportal } from "../lib/pumpportal.js";
 import { getFeatureFlags, setFeatureFlag } from "../lib/featureFlags.js";
 import {
@@ -96,6 +97,20 @@ router.get(
       uniqueTraders: agg?.uniqueTraders ?? 0,
       topUsers,
     });
+  }),
+);
+
+/**
+ * Sparkline subsystem diagnostics (admin only): cache hit rate, OHLCV fetch
+ * counts, pool-resolve / OHLCV failures, missing-history counts and fetch
+ * timing (incl. how many fetches exceeded the slow threshold). Lets an admin
+ * see at a glance whether token-card sparklines are healthy without exposing
+ * any of it publicly.
+ */
+router.get(
+  "/admin/sparkline-diagnostics",
+  asyncHandler((_req, res) => {
+    return res.json(getSparklineDiagnostics());
   }),
 );
 

@@ -453,6 +453,49 @@ export async function getTokenStatsBatch(
   return out;
 }
 
+/**
+ * Resolve each mint to the address of its best (trusted-quote) DexScreener pool.
+ * On Solana a DexScreener `pairAddress` IS the on-chain AMM pool account, which
+ * is the same address GeckoTerminal uses for its OHLCV endpoint — so this lets
+ * the sparkline read its history from the SAME pool that prices/MC come from
+ * (via the shared `isBetterPair` selection), keeping them consistent. Best
+ * effort: mints with no usable Solana pair simply won't appear in the map.
+ */
+export async function getBestPairAddresses(
+  mints: string[],
+): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  const unique = [...new Set(mints.filter(Boolean))];
+  if (unique.length === 0) return out;
+
+  // DexScreener allows up to 30 comma-separated addresses per request.
+  for (let i = 0; i < unique.length; i += 30) {
+    const chunk = unique.slice(i, i + 30);
+    try {
+      const res = await axios.get(
+        `https://api.dexscreener.com/latest/dex/tokens/${chunk.join(",")}`,
+        { timeout: 8000 },
+      );
+      const pairs: DexPair[] = res.data?.pairs ?? [];
+      const bestPair = new Map<string, DexPair>();
+      for (const p of pairs) {
+        if (p.chainId !== "solana") continue;
+        const addr = p.baseToken?.address;
+        if (!addr || !p.pairAddress) continue;
+        if (isBetterPair(p, bestPair.get(addr))) {
+          bestPair.set(addr, p);
+        }
+      }
+      for (const [addr, p] of bestPair) {
+        if (!out.has(addr)) out.set(addr, p.pairAddress);
+      }
+    } catch (e) {
+      logger.warn({ err: e }, "Best-pair address batch fetch failed");
+    }
+  }
+  return out;
+}
+
 // ── Market status tracking ────────────────────────────────────────────────
 let lastTrendingUpdate: number | null = null;
 let trendingTokenCount = 0;
