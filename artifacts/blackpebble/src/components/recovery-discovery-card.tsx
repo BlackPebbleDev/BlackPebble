@@ -31,7 +31,7 @@ export function RecoveryDiscoveryCard() {
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-3">
             <div className="font-semibold">SOL Recovery</div>
-            <span className="text-[10px] uppercase tracking-wider text-muted-foreground border border-border px-1.5 py-0.5">
+            <span className="text-[10px] uppercase tracking-wider text-muted-foreground border border-border rounded px-1.5 py-0.5">
               Utility · not PnL
             </span>
           </div>
@@ -82,7 +82,7 @@ export function RecoveryDiscoveryCard() {
               </div>
               <Link
                 href={RECOVERY_PATH}
-                className="inline-flex items-center gap-1 text-sm font-medium text-accent border border-accent/40 hover:bg-accent/10 px-3 py-1.5 transition-colors flex-shrink-0"
+                className="inline-flex items-center gap-1 text-sm font-medium text-accent border border-accent/40 hover:bg-accent/10 px-3 py-1.5 rounded-xl transition-colors flex-shrink-0"
                 data-testid="button-recover"
               >
                 Recover

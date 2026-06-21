@@ -156,7 +156,7 @@ function BioSection({ profile }: { profile: ProfileResponse }) {
                 setEditing(false);
               }}
               data-testid="button-bio-cancel"
-              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs border border-border text-foreground hover:border-accent/60 transition-colors"
+              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs border border-border rounded-xl text-foreground hover:border-accent/60 transition-colors"
             >
               <CloseIcon className="w-3 h-3" />
               Cancel
@@ -166,7 +166,7 @@ function BioSection({ profile }: { profile: ProfileResponse }) {
               onClick={() => mutation.mutate(draft.trim())}
               disabled={mutation.isPending}
               data-testid="button-bio-save"
-              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs bg-accent text-accent-foreground hover:bg-accent/90 transition-colors disabled:opacity-60"
+              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs bg-accent text-accent-foreground rounded-xl hover:bg-accent/90 transition-colors disabled:opacity-60"
             >
               {mutation.isPending ? (
                 <Loader2 className="w-3 h-3 animate-spin" />
@@ -359,7 +359,7 @@ function FollowButton({ profile }: { profile: ProfileResponse }) {
         type="button"
         onClick={login}
         data-testid="button-profile-connect-x"
-        className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-accent text-accent-foreground hover:bg-accent/90 transition-colors"
+        className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-accent text-accent-foreground rounded-xl hover:bg-accent/90 transition-colors"
       >
         <UserPlus className="w-4 h-4" />
         Connect X to follow
@@ -374,7 +374,7 @@ function FollowButton({ profile }: { profile: ProfileResponse }) {
       disabled={mutation.isPending}
       data-testid="button-follow-toggle"
       className={cn(
-        "inline-flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors disabled:opacity-60",
+        "inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl transition-colors disabled:opacity-60",
         profile.isFollowing
           ? "border border-border text-foreground hover:border-accent/60"
           : "bg-accent text-accent-foreground hover:bg-accent/90",
