@@ -5,9 +5,7 @@ import {
   Activity,
   Award,
   Check,
-  Coins,
   Copy,
-  Gem,
   Globe,
   History,
   Loader2,
@@ -20,11 +18,9 @@ import {
   Send,
   Share2,
   ShieldCheck,
-  Swords,
   Trophy,
   UserPlus,
   UserCheck,
-  Wallet,
   X as CloseIcon,
 } from "lucide-react";
 import {
@@ -1372,82 +1368,6 @@ function PerfCallTile({
   );
 }
 
-/**
- * Forward-looking profile surfaces. These mirror the planned BlackPebble
- * reputation architecture (Recovery, Paper Trading, Campaigns, BlackPebble
- * Score) but carry NO logic yet — they render disabled "Coming soon" tiles so
- * the layout and information architecture are set ahead of the engines.
- */
-function ScaffoldTile({ label }: { label: string }) {
-  return (
-    <div className="rounded-xl bg-card/50 border border-dashed border-border p-4">
-      <div className="stat-label">{label}</div>
-      <div className="stat-value mt-1.5 text-lg text-muted-foreground/50">—</div>
-    </div>
-  );
-}
-
-function ScaffoldSection({
-  icon,
-  title,
-  fields,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  title: string;
-  fields: string[];
-}) {
-  return (
-    <>
-      <div className="flex items-center justify-between mb-2 mt-6">
-        <div className="flex items-center gap-2">
-          {(() => {
-            const Icon = icon;
-            return <Icon className="w-4 h-4 text-accent" />;
-          })()}
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground">
-            {title}
-          </h2>
-        </div>
-        <span className="text-[10px] uppercase tracking-[0.2em] text-accent/80">
-          Coming soon
-        </span>
-      </div>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-        {fields.map((f) => (
-          <ScaffoldTile key={f} label={f} />
-        ))}
-      </div>
-    </>
-  );
-}
-
-function FutureScaffolding() {
-  return (
-    <>
-      <ScaffoldSection
-        icon={Wallet}
-        title="SOL Recovery"
-        fields={["SOL Recovered", "Accounts Closed", "Recovery Rank", "Wallet Health"]}
-      />
-      <ScaffoldSection
-        icon={Coins}
-        title="Paper Trading"
-        fields={["ROI", "Trader Rank", "Best Trade", "Trade Count"]}
-      />
-      <ScaffoldSection
-        icon={Swords}
-        title="Campaigns"
-        fields={["Participation", "Raider Score", "Wins", "Rewards"]}
-      />
-      <ScaffoldSection
-        icon={Gem}
-        title="BlackPebble Score"
-        fields={["Overall Score", "Percentile", "Components", "Trend"]}
-      />
-    </>
-  );
-}
-
 /** Share this profile to X / Telegram, or copy a link. */
 function ShareCard({ profile }: { profile: ProfileResponse }) {
   const { toast } = useToast();
@@ -1474,6 +1394,7 @@ function ShareCard({ profile }: { profile: ProfileResponse }) {
 
   async function copy() {
     try {
+      if (!navigator.clipboard?.writeText) throw new Error("clipboard unavailable");
       await navigator.clipboard.writeText(url);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
@@ -1633,7 +1554,10 @@ export default function ProfilePage() {
         </UserIdentity>
       </div>
 
-      {/* Trader stats (real) */}
+      {/* Reputation — trust score, trading rank, call accuracy */}
+      <XReputationSection profile={profile} />
+
+      {/* Performance — trader stats grid */}
       <SectionHeader icon={Trophy} title="Trader Stats" />
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
         <StatTile
@@ -1664,26 +1588,18 @@ export default function ProfilePage() {
         <StatTile label="Tier" value={tierMeta(stats.graduationTier).name} />
       </div>
 
-      {/* Reputation card: real X account data + BlackPebble metric placeholders */}
-      <XReputationSection profile={profile} />
-
       {/* Caller Stats (real, derived from callouts) */}
       <CallerStatsSection profile={profile} />
 
       {/* Period-filtered call performance (30D / 90D / All) */}
       <PerformanceSection profile={profile} />
 
-      {/* Call History (real, immutable) */}
+      {/* Activity — call and thesis history */}
       <CallHistorySection profile={profile} />
-
-      {/* Thesis History (real, standalone research — not graded as calls) */}
       <ThesisHistorySection profile={profile} />
 
-      {/* Achievements & Badges (placeholder) */}
+      {/* Achievements & Badges */}
       <BadgesSection profile={profile} />
-
-      {/* Forward-looking reputation surfaces (no logic yet) */}
-      <FutureScaffolding />
 
       {/* Share this profile */}
       <ShareCard profile={profile} />
