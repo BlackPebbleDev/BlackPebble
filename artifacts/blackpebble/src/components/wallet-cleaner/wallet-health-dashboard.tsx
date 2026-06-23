@@ -88,9 +88,12 @@ function GroupLabel({
 export function WalletHealthDashboard({
   cleaner,
   wallet,
+  variant = "full",
 }: {
   cleaner: UseWalletCleaner;
   wallet: string | null;
+  /** "detail" omits the score hero (shown in the Section 1 hero) for Advanced. */
+  variant?: "full" | "detail";
 }) {
   const {
     status,
@@ -132,10 +135,14 @@ export function WalletHealthDashboard({
     >
       <div className="flex items-center gap-2">
         <Activity className="w-4 h-4 text-accent" />
-        <h2 className="text-sm font-semibold">Wallet health</h2>
+        <h2 className="text-sm font-semibold">
+          {variant === "detail" ? "Wallet metrics" : "Wallet health"}
+        </h2>
       </div>
 
-      {/* Health score hero — derived only from the real empty-account count. */}
+      {/* Health score hero — derived only from the real empty-account count.
+          Hidden in "detail" mode because Section 1 already shows the score. */}
+      {variant === "full" && (
       <div className="rounded-2xl border border-border bg-secondary/30 px-4 py-4">
         {hasScanned ? (
           <>
@@ -181,6 +188,7 @@ export function WalletHealthDashboard({
           </div>
         )}
       </div>
+      )}
 
       {/* Live scan breakdown — real on-chain figures, "—" until a scan runs. */}
       <div className="space-y-2">

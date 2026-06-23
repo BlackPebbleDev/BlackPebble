@@ -663,6 +663,18 @@ export interface TrustScore {
   label: TrustLabel;
 }
 
+/**
+ * Owner-editable off-platform links shown as compact icon pills. Each is
+ * nullable. Stored normalized server-side: `website` is a full http(s) URL;
+ * `telegram` is a bare handle (build t.me/<handle>); `discord` is a bare invite
+ * code (build discord.gg/<code>).
+ */
+export interface ProfileSocials {
+  website: string | null;
+  telegram: string | null;
+  discord: string | null;
+}
+
 export type OfficialBadgeType = "founder" | "bp_team";
 
 export type BadgeCategory = "trading" | "caller" | "thesis" | "community";
@@ -691,6 +703,8 @@ export interface ProfileResponse {
   /** Owner-editable plain-text bio (≤250 chars), or null when unset. */
   bio: string | null;
   xReputation: XReputation;
+  /** Owner-editable off-platform links (website / telegram / discord). */
+  socials: ProfileSocials;
   stats: ProfileStats;
   /** Computed trust score (0–100). Present on profile GET responses. */
   trustScore?: TrustScore;
@@ -1652,6 +1666,21 @@ export const api = {
         `/profiles/me/bio`,
         { method: "PUT", body: JSON.stringify({ bio }) },
       ),
+    // Owner-only socials update (session-scoped). Pass "" for any field to clear
+    // it. Server validates + normalizes each value.
+    setSocials: (socials: {
+      website?: string;
+      telegram?: string;
+      discord?: string;
+    }) =>
+      request<{
+        ok: boolean;
+        socials?: ProfileSocials;
+        error?: string;
+      }>(`/profiles/me/socials`, {
+        method: "PUT",
+        body: JSON.stringify(socials),
+      }),
     badges: (id: string | number) =>
       request<{ badges: BadgeEntry[]; earnedCount: number }>(
         `/profiles/${encodeURIComponent(String(id))}/badges`,

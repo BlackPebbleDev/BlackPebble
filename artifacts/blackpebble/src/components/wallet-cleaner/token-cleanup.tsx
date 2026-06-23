@@ -1,117 +1,36 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState } from "react";
 import {
-  ChevronDown,
   Coins,
-  Sparkles,
-  Flame,
   ShieldCheck,
   Loader2,
   CheckCircle2,
   Lock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
 import { type UseWalletCleaner, formatRentSol } from "@/hooks/use-wallet-cleaner";
 import { useTokenMetadata } from "@/hooks/use-token-metadata";
 import { TokenCard } from "@/components/wallet-cleaner/token-card";
-import { BurnPreviewDialog } from "@/components/wallet-cleaner/burn-preview-dialog";
 import { ProtectConfirmDialog } from "@/components/wallet-cleaner/protect-confirm-dialog";
-import {
-  formatUsd,
-  type CleanupBucket,
-  type EnrichedToken,
-} from "@/lib/recovery-classify";
+import { formatUsd, type EnrichedToken } from "@/lib/recovery-classify";
 
-function Section({
-  icon,
-  title,
-  subtitle,
-  badge,
-  defaultOpen = false,
-  testId,
-  children,
-}: {
-  icon: ReactNode;
-  title: string;
-  subtitle: string;
-  badge?: string;
-  defaultOpen?: boolean;
-  testId: string;
-  children: ReactNode;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <div className="rounded-3xl bg-card shadow-card overflow-hidden" data-testid={testId}>
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-secondary/50 transition-colors"
-        aria-expanded={open}
-        data-testid={`${testId}-toggle`}
-      >
-        <div className="w-9 h-9 rounded-full bg-accent/12 flex items-center justify-center flex-shrink-0 text-accent">
-          {icon}
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="font-semibold text-sm">{title}</div>
-          <div className="text-xs text-muted-foreground leading-snug">
-            {subtitle}
-          </div>
-        </div>
-        {badge && (
-          <span className="font-mono text-xs text-foreground flex-shrink-0">
-            {badge}
-          </span>
-        )}
-        <ChevronDown
-          className={cn(
-            "w-4 h-4 text-muted-foreground flex-shrink-0 transition-transform",
-            open && "rotate-180",
-          )}
-        />
-      </button>
-      {open && <div className="border-t border-border">{children}</div>}
-    </div>
-  );
+/** Sort priority for the unified holdings list — things needing attention first. */
+function reviewRank(t: EnrichedToken): number {
+  if (t.bucket === "burn") return 0;
+  if (t.bucket === "dust") return 1;
+  if (t.suggestedAction === "Review") return 2;
+  return 3;
 }
 
-export function TokenCleanup({
-  cleaner,
-  onRequestBurn,
-}: {
-  cleaner: UseWalletCleaner;
-  onRequestBurn: () => void;
-}) {
-  const {
-    tokens,
-    allTokens,
-    dustTokens,
-    burnCandidates,
-    protectedTokens,
-    walletValueUsd,
-    walletRealizableUsd,
-    intelLoading,
-    burnSelected,
-    burnSelectedTokens,
-    toggleBurn,
-    selectAllInBucket,
-    protectToken,
-    unprotectToken,
-  } = cleaner;
+/** Shared protect/unprotect handler used by every token list. */
+function useProtectToggle(cleaner: UseWalletCleaner) {
+  const { protectToken, unprotectToken } = cleaner;
+  const [pendingUnprotect, setPendingUnprotect] =
+    useState<EnrichedToken | null>(null);
 
-  const mints = useMemo(() => tokens.map((t) => t.asset.mint), [tokens]);
-  const { metaByMint, isLoading: metaLoading } = useTokenMetadata(mints);
-
-  // Confirm dialog state for removing default protection.
-  const [pendingUnprotect, setPendingUnprotect] = useState<EnrichedToken | null>(
-    null,
-  );
-
-  // Clicking the protect control toggles protection. Removing protection from a
-  // default-protected (verified/valuable) asset requires an extra confirm step;
-  // every other transition applies immediately.
   function handleProtectToggle(token: EnrichedToken) {
     if (token.isProtected) {
+      // Removing default (verified/valuable) protection needs an extra confirm;
+      // user-added protection toggles off immediately.
       if (token.protectedByDefault) {
         setPendingUnprotect(token);
         return;
@@ -127,220 +46,191 @@ export function TokenCleanup({
     setPendingUnprotect(null);
   }
 
-  if (tokens.length === 0) {
+  return { pendingUnprotect, setPendingUnprotect, handleProtectToggle, confirmUnprotect };
+}
+
+/**
+ * Displayed vs realizable wallet value — the core "is this value real?" signal.
+ * Lives inside Advanced Analysis in V2.
+ */
+export function ValueSummary({ cleaner }: { cleaner: UseWalletCleaner }) {
+  const { walletValueUsd, walletRealizableUsd } = cleaner;
+  return (
+    <div className="grid grid-cols-2 gap-3" data-testid="value-summary">
+      <div className="rounded-2xl border border-border bg-secondary/30 px-4 py-3">
+        <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">
+          Displayed value
+        </div>
+        <div
+          className="font-mono text-lg text-foreground"
+          data-testid="wallet-displayed-value"
+        >
+          {formatUsd(walletValueUsd)}
+        </div>
+      </div>
+      <div className="rounded-2xl border border-border bg-secondary/30 px-4 py-3">
+        <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">
+          Realizable value
+        </div>
+        <div
+          className={cn(
+            "font-mono text-lg",
+            walletRealizableUsd < walletValueUsd * 0.8
+              ? "text-amber-400"
+              : "text-accent",
+          )}
+          data-testid="wallet-realizable-value"
+        >
+          {formatUsd(walletRealizableUsd)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * SECTION 3 — Protected Assets. Always visible to build trust: verified or
+ * valuable tokens that can never be selected for cleanup. Each token appears
+ * here once and is excluded from the Advanced holdings list (no duplicates).
+ */
+export function ProtectedAssets({ cleaner }: { cleaner: UseWalletCleaner }) {
+  const { protectedTokens, intelLoading, burnSelected, toggleBurn } = cleaner;
+  const mints = useMemo(
+    () => protectedTokens.map((t) => t.asset.mint),
+    [protectedTokens],
+  );
+  const { metaByMint, isLoading: metaLoading } = useTokenMetadata(mints);
+  const { pendingUnprotect, setPendingUnprotect, handleProtectToggle, confirmUnprotect } =
+    useProtectToggle(cleaner);
+
+  return (
+    <section className="space-y-2.5" data-testid="protected-assets">
+      <div className="flex items-center justify-between px-1">
+        <h2 className="flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-muted-foreground">
+          <ShieldCheck className="w-3.5 h-3.5 text-accent" />
+          Protected assets
+        </h2>
+        <span className="font-mono text-[11px] text-muted-foreground">
+          {protectedTokens.length}
+        </span>
+      </div>
+      <div className="rounded-3xl bg-card shadow-card overflow-hidden">
+        {protectedTokens.length > 0 ? (
+          <div className="divide-y divide-border">
+            {protectedTokens.map((token) => (
+              <TokenCard
+                key={token.asset.pubkey}
+                token={token}
+                meta={metaByMint.get(token.asset.mint)}
+                metaLoading={metaLoading}
+                selectable={false}
+                checked={burnSelected.has(token.asset.pubkey)}
+                onToggle={() => toggleBurn(token.asset.pubkey)}
+                onProtectToggle={() => handleProtectToggle(token)}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="flex items-center gap-2.5 text-sm text-muted-foreground p-4">
+            <Lock className="w-4 h-4" />
+            {intelLoading
+              ? "Checking which assets to protect…"
+              : "No protected tokens yet. Verified or valuable tokens appear here automatically."}
+          </div>
+        )}
+      </div>
+
+      <ProtectConfirmDialog
+        token={pendingUnprotect}
+        open={pendingUnprotect !== null}
+        onOpenChange={(o) => !o && setPendingUnprotect(null)}
+        onConfirm={confirmUnprotect}
+      />
+    </section>
+  );
+}
+
+/**
+ * The single deduped holdings list shown inside Advanced Analysis. Every
+ * non-protected token appears exactly once (protected tokens live in their own
+ * Section 3), ordered with burn candidates and dust first. Burn selectability
+ * is per-token — only confirmed dust/burn rows are selectable, so a valuable
+ * "keep" token can never be staged for burning from here.
+ */
+export function AllTokensAnalysis({ cleaner }: { cleaner: UseWalletCleaner }) {
+  const {
+    allTokens,
+    burnCandidates,
+    intelLoading,
+    burnSelected,
+    toggleBurn,
+    selectAllInBucket,
+  } = cleaner;
+
+  const unprotected = useMemo(
+    () =>
+      allTokens
+        .filter((t) => !t.isProtected)
+        .sort((a, b) => reviewRank(a) - reviewRank(b)),
+    [allTokens],
+  );
+  const mints = useMemo(
+    () => unprotected.map((t) => t.asset.mint),
+    [unprotected],
+  );
+  const { metaByMint, isLoading: metaLoading } = useTokenMetadata(mints);
+  const { pendingUnprotect, setPendingUnprotect, handleProtectToggle, confirmUnprotect } =
+    useProtectToggle(cleaner);
+
+  const burnable = burnCandidates.length > 0;
+  const burnSelectedInList = burnCandidates.filter((t) =>
+    burnSelected.has(t.asset.pubkey),
+  ).length;
+  const allBurnSelected =
+    burnable && burnSelectedInList === burnCandidates.length;
+
+  if (unprotected.length === 0) {
     return (
-      <div
-        className="rounded-3xl bg-card shadow-card p-6 text-center space-y-2"
-        data-testid="no-tokens"
-      >
-        <Coins className="w-7 h-7 text-muted-foreground mx-auto" />
-        <p className="text-sm text-muted-foreground">
-          {intelLoading
-            ? "Analyzing your tokens…"
-            : "No SPL tokens are held in this wallet."}
-        </p>
+      <div className="p-4 text-center text-sm text-muted-foreground" data-testid="no-tokens">
+        {intelLoading
+          ? "Analyzing your tokens…"
+          : "No unprotected tokens — everything you hold is protected."}
       </div>
     );
   }
 
-  const renderList = (
-    list: EnrichedToken[],
-    opts: { selectable: boolean; bucket?: CleanupBucket },
-  ) => (
-    <div className="divide-y divide-border">
-      {list.map((token) => (
-        <TokenCard
-          key={token.asset.pubkey}
-          token={token}
-          meta={metaByMint.get(token.asset.mint)}
-          metaLoading={metaLoading}
-          selectable={opts.selectable}
-          checked={burnSelected.has(token.asset.pubkey)}
-          onToggle={() => toggleBurn(token.asset.pubkey)}
-          onProtectToggle={() => handleProtectToggle(token)}
-        />
-      ))}
-    </div>
-  );
-
-  // A small select-all / burn-selected footer for a burnable bucket.
-  const burnFooter = (bucket: CleanupBucket, list: EnrichedToken[]) => {
-    const selectablePubkeys = list
-      .filter((t) => !t.isProtected)
-      .map((t) => t.asset.pubkey);
-    const selectedInBucket = selectablePubkeys.filter((p) =>
-      burnSelected.has(p),
-    ).length;
-    const allSelected =
-      selectablePubkeys.length > 0 && selectedInBucket === selectablePubkeys.length;
-    return (
-      <div className="flex items-center justify-between gap-3 px-4 py-3 bg-secondary/30">
-        <button
-          type="button"
-          onClick={() => selectAllInBucket(bucket)}
-          className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-          data-testid={`button-select-all-${bucket}`}
-        >
-          {allSelected ? "Deselect all" : "Select all"}
-        </button>
-        <span className="text-[11px] text-muted-foreground">
-          {selectedInBucket} selected
-        </span>
-      </div>
-    );
-  };
-
   return (
-    <div className="space-y-3" data-testid="token-cleanup">
-      {/* Wallet value safety summary. */}
-      <div className="rounded-2xl border border-border bg-card px-4 py-3 grid grid-cols-2 gap-3">
-        <div>
-          <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">
-            Displayed value
-          </div>
-          <div className="font-mono text-lg text-foreground" data-testid="wallet-displayed-value">
-            {formatUsd(walletValueUsd)}
-          </div>
-        </div>
-        <div>
-          <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">
-            Realizable value
-          </div>
-          <div
-            className={cn(
-              "font-mono text-lg",
-              walletRealizableUsd < walletValueUsd * 0.8
-                ? "text-amber-400"
-                : "text-accent",
-            )}
-            data-testid="wallet-realizable-value"
+    <div data-testid="all-tokens-analysis">
+      {burnable && (
+        <div className="flex items-center justify-between gap-3 px-4 py-2.5 bg-secondary/30 border-b border-border">
+          <span className="text-[11px] text-muted-foreground">
+            {burnSelectedInList} of {burnCandidates.length} burn candidates
+            selected
+          </span>
+          <button
+            type="button"
+            onClick={() => selectAllInBucket("burn")}
+            className="text-xs text-red-400 hover:text-red-300 transition-colors"
+            data-testid="button-select-all-burn"
           >
-            {formatUsd(walletRealizableUsd)}
-          </div>
-        </div>
-      </div>
-
-      <Section
-        icon={<Coins className="w-4 h-4" />}
-        title="All tokens"
-        subtitle="Every token this wallet holds, with risk & sellability"
-        badge={String(allTokens.length)}
-        defaultOpen
-        testId="section-all-tokens"
-      >
-        {renderList(allTokens, { selectable: false })}
-      </Section>
-
-      <Section
-        icon={<Sparkles className="w-4 h-4" />}
-        title="Dust"
-        subtitle="Tiny-value leftovers with a real market"
-        badge={String(dustTokens.length)}
-        testId="section-dust"
-      >
-        {dustTokens.length > 0 ? (
-          <>
-            {renderList(dustTokens, { selectable: true, bucket: "dust" })}
-            {burnFooter("dust", dustTokens)}
-          </>
-        ) : (
-          <p className="text-sm text-muted-foreground p-4">No dust tokens found.</p>
-        )}
-      </Section>
-
-      <Section
-        icon={<Flame className="w-4 h-4" />}
-        title="Burn candidates"
-        subtitle="Spam, high-risk or unsellable tokens you may want to destroy"
-        badge={String(burnCandidates.length)}
-        testId="section-burn-candidates"
-      >
-        {burnCandidates.length > 0 ? (
-          <>
-            {renderList(burnCandidates, { selectable: true, bucket: "burn" })}
-            {burnFooter("burn", burnCandidates)}
-          </>
-        ) : (
-          <p className="text-sm text-muted-foreground p-4">
-            No burn candidates found.
-          </p>
-        )}
-      </Section>
-
-      <Section
-        icon={<ShieldCheck className="w-4 h-4" />}
-        title="Protected assets"
-        subtitle="Verified or valuable — never selectable for cleanup"
-        badge={String(protectedTokens.length)}
-        testId="section-protected-assets"
-      >
-        {protectedTokens.length > 0 ? (
-          renderList(protectedTokens, { selectable: false })
-        ) : (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground p-4">
-            <Lock className="w-4 h-4" />
-            No protected tokens yet.
-          </div>
-        )}
-      </Section>
-
-      {/* Coming-soon advanced cleanup modules — never fabricated counts. */}
-      <Section
-        icon={<Lock className="w-4 h-4" />}
-        title="Advanced cleanup"
-        subtitle="More cleanup modules are on the way"
-        testId="section-advanced-soon"
-      >
-        <ul className="space-y-2 p-4">
-          {[
-            "NFTs & collectibles",
-            "Compressed NFTs (cNFT)",
-            "LP positions",
-            "Advanced recovery",
-          ].map((item) => (
-            <li
-              key={item}
-              className="flex items-center justify-between gap-3 text-sm text-muted-foreground"
-            >
-              <span className="flex items-center gap-2.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/50 flex-shrink-0" />
-                {item}
-              </span>
-              <span className="inline-flex items-center gap-1 rounded-md bg-muted-foreground/10 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wider text-muted-foreground/60">
-                <Lock className="w-2.5 h-2.5" />
-                Soon
-              </span>
-            </li>
-          ))}
-        </ul>
-      </Section>
-
-      {/* Burn action — only when at least one token is selected. */}
-      {burnSelectedTokens.length > 0 && (
-        <div className="rounded-2xl border border-red-500/30 bg-red-500/5 px-4 py-3 flex items-center justify-between gap-3">
-          <div className="text-xs text-muted-foreground">
-            <span className="font-mono text-foreground">
-              {burnSelectedTokens.length}
-            </span>{" "}
-            selected ·{" "}
-            <span className="font-mono text-accent">
-              {formatRentSol(
-                burnSelectedTokens.reduce((s, t) => s + t.asset.sol, 0),
-              )}{" "}
-              SOL
-            </span>{" "}
-            rent
-          </div>
-          <Button
-            onClick={onRequestBurn}
-            className="rounded-2xl bg-red-500 hover:bg-red-600 text-white"
-            data-testid="button-open-burn-preview"
-          >
-            <Flame className="w-4 h-4" />
-            Burn selected
-          </Button>
+            {allBurnSelected ? "Deselect all" : "Select all"}
+          </button>
         </div>
       )}
+      <div className="divide-y divide-border">
+        {unprotected.map((token) => (
+          <TokenCard
+            key={token.asset.pubkey}
+            token={token}
+            meta={metaByMint.get(token.asset.mint)}
+            metaLoading={metaLoading}
+            selectable={token.bucket === "dust" || token.bucket === "burn"}
+            checked={burnSelected.has(token.asset.pubkey)}
+            onToggle={() => toggleBurn(token.asset.pubkey)}
+            onProtectToggle={() => handleProtectToggle(token)}
+          />
+        ))}
+      </div>
 
       <ProtectConfirmDialog
         token={pendingUnprotect}
@@ -349,6 +239,34 @@ export function TokenCleanup({
         onConfirm={confirmUnprotect}
       />
     </div>
+  );
+}
+
+/** Coming-soon advanced cleanup modules — never fabricated counts. */
+export function FutureCleanupModules() {
+  return (
+    <ul className="space-y-2 p-4" data-testid="future-cleanup-modules">
+      {[
+        "NFTs & collectibles",
+        "Compressed NFTs (cNFT)",
+        "LP positions",
+        "Advanced recovery",
+      ].map((item) => (
+        <li
+          key={item}
+          className="flex items-center justify-between gap-3 text-sm text-muted-foreground"
+        >
+          <span className="flex items-center gap-2.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/50 flex-shrink-0" />
+            {item}
+          </span>
+          <span className="inline-flex items-center gap-1 rounded-md bg-muted-foreground/10 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wider text-muted-foreground/60">
+            <Lock className="w-2.5 h-2.5" />
+            Soon
+          </span>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -363,8 +281,7 @@ export function BurnSuccessBanner({ cleaner }: { cleaner: UseWalletCleaner }) {
     >
       <CheckCircle2 className="w-5 h-5 text-accent flex-shrink-0" />
       <p className="text-sm text-foreground">
-        Burned{" "}
-        <span className="font-semibold">{burnedCount}</span>{" "}
+        Burned <span className="font-semibold">{burnedCount}</span>{" "}
         {burnedCount === 1 ? "token" : "tokens"} and reclaimed{" "}
         <span className="font-mono text-accent">
           {formatRentSol(burnRecoveredSol)} SOL
@@ -375,4 +292,4 @@ export function BurnSuccessBanner({ cleaner }: { cleaner: UseWalletCleaner }) {
   );
 }
 
-export { Loader2 };
+export { Loader2, Coins };

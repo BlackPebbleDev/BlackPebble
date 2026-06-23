@@ -92,6 +92,15 @@ const SIZES: Record<IdentitySize, SizeSpec> = {
   },
 };
 
+/**
+ * Bump an X (twitter) avatar to a higher-resolution variant. X serves profile
+ * images at `_normal` (48px) by default; swapping to `_400x400` gives a crisp
+ * image on large/retina surfaces. Non-X URLs pass through unchanged.
+ */
+function hiResAvatar(url: string): string {
+  return url.replace(/_normal(\.[a-zA-Z0-9]+)(\?.*)?$/, "_400x400$1$2");
+}
+
 function IdentityAvatar({
   url,
   name,
@@ -103,6 +112,8 @@ function IdentityAvatar({
 }) {
   const initial = name.replace(/^@+/, "").slice(0, 2).toUpperCase() || "?";
   if (url) {
+    // Use the hi-res variant only on the large (profile-header) avatar; dense
+    // surfaces keep the lightweight default to avoid extra bandwidth.
     return spec.avatarPx ? (
       <img
         src={url}
@@ -113,7 +124,7 @@ function IdentityAvatar({
       />
     ) : (
       <img
-        src={url}
+        src={hiResAvatar(url)}
         alt=""
         className={cn("rounded-full object-cover flex-shrink-0", spec.avatarClass)}
         onError={(e) => (e.currentTarget.style.visibility = "hidden")}

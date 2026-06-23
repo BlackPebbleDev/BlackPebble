@@ -60,6 +60,18 @@ export interface TrustScore {
   label: TrustLabel;
 }
 
+/**
+ * Owner-editable off-platform links, surfaced as compact icon pills on the
+ * profile. Each is nullable (unset). Stored normalized: `website` is a full
+ * http(s) URL; `telegram` is a bare handle (UI builds t.me/<handle>); `discord`
+ * is a bare invite code (UI builds discord.gg/<code>).
+ */
+export interface ProfileSocials {
+  website: string | null;
+  telegram: string | null;
+  discord: string | null;
+}
+
 export interface ProfileResponse extends ResolvedUser {
   /** All-time leaderboard rank, or null when unranked (below min trades). */
   rank: number | null;
@@ -74,6 +86,8 @@ export interface ProfileResponse extends ResolvedUser {
   bio: string | null;
   /** X account reputation (account age, verified, follower/following counts). */
   xReputation: XReputation;
+  /** Owner-editable off-platform links (website / telegram / discord). */
+  socials: ProfileSocials;
   stats: ProfileStats;
   /** Computed trust score (0–100). Augmented by the route handler. */
   trustScore?: TrustScore;
@@ -136,6 +150,13 @@ export async function ensureProfileSchema(): Promise<void> {
   await dbRun(`ALTER TABLE users ADD COLUMN IF NOT EXISTS x_verified BOOLEAN`);
   await dbRun(
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS x_account_created_at BIGINT`,
+  );
+  await dbRun(`ALTER TABLE users ADD COLUMN IF NOT EXISTS website_url TEXT`);
+  await dbRun(
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_handle TEXT`,
+  );
+  await dbRun(
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS discord_invite TEXT`,
   );
   await dbRun(
     `CREATE TABLE IF NOT EXISTS callouts (
@@ -326,9 +347,12 @@ export async function getProfile(
       x_following_count: number | null;
       x_verified: boolean | null;
       x_account_created_at: number | null;
+      website_url: string | null;
+      telegram_handle: string | null;
+      discord_invite: string | null;
     }>(
       `SELECT bio, x_followers_count, x_following_count, x_verified,
-              x_account_created_at
+              x_account_created_at, website_url, telegram_handle, discord_invite
          FROM users WHERE id = $1`,
       [u.user_id],
     ),
@@ -350,6 +374,11 @@ export async function getProfile(
       verified: extras?.x_verified ?? null,
       followers: extras?.x_followers_count ?? null,
       following: extras?.x_following_count ?? null,
+    },
+    socials: {
+      website: extras?.website_url ?? null,
+      telegram: extras?.telegram_handle ?? null,
+      discord: extras?.discord_invite ?? null,
     },
     stats,
   };
@@ -416,6 +445,120 @@ export async function setBio(
   const bio = v.value.length > 0 ? v.value : null;
   await dbRun(`UPDATE users SET bio = $1 WHERE id = $2`, [bio, viewerUserId]);
   return { ok: true, bio };
+}
+
+// ── Socials (owner-editable off-platform links) ─────────────────────────────
+const SOCIAL_MAX_LENGTH = 200;
+
+type SocialField =
+  | { ok: true; value: string | null }
+  | { ok: false; error: string };
+
+/** Normalize a website to a full http(s) URL, or null when blank. */
+function normalizeWebsite(raw: unknown): SocialField {
+  if (raw == null) return { ok: true, value: null };
+  if (typeof raw !== "string") return { ok: false, error: "Website must be text" };
+  let v = raw.trim();
+  if (!v) return { ok: true, value: null };
+  if (/[<>\s]/.test(v)) {
+    return { ok: false, error: "Website cannot contain spaces or HTML" };
+  }
+  if (!/^https?:\/\//i.test(v)) v = `https://${v}`;
+  let parsed: URL;
+  try {
+    parsed = new URL(v);
+  } catch {
+    return { ok: false, error: "Enter a valid website URL" };
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    return { ok: false, error: "Website must be an http or https link" };
+  }
+  if (!parsed.hostname.includes(".")) {
+    return { ok: false, error: "Enter a valid website URL" };
+  }
+  const out = parsed.toString();
+  if (out.length > SOCIAL_MAX_LENGTH) {
+    return { ok: false, error: "Website link is too long" };
+  }
+  return { ok: true, value: out };
+}
+
+/** Normalize a Telegram input to a bare handle, or null when blank. */
+function normalizeTelegram(raw: unknown): SocialField {
+  if (raw == null) return { ok: true, value: null };
+  if (typeof raw !== "string") {
+    return { ok: false, error: "Telegram must be text" };
+  }
+  let v = raw.trim();
+  if (!v) return { ok: true, value: null };
+  v = v
+    .replace(/^https?:\/\//i, "")
+    .replace(/^(t\.me|telegram\.me)\//i, "")
+    .replace(/^@/, "");
+  if (!/^[a-zA-Z0-9_]{4,32}$/.test(v)) {
+    return {
+      ok: false,
+      error: "Enter a valid Telegram username (4–32 letters, numbers, _)",
+    };
+  }
+  return { ok: true, value: v };
+}
+
+/** Normalize a Discord input to a bare invite code, or null when blank. */
+function normalizeDiscord(raw: unknown): SocialField {
+  if (raw == null) return { ok: true, value: null };
+  if (typeof raw !== "string") {
+    return { ok: false, error: "Discord must be text" };
+  }
+  let v = raw.trim();
+  if (!v) return { ok: true, value: null };
+  v = v
+    .replace(/^https?:\/\//i, "")
+    .replace(/^(discord\.gg|discord\.com\/invite|discordapp\.com\/invite)\//i, "");
+  if (!/^[a-zA-Z0-9-]{2,32}$/.test(v)) {
+    return {
+      ok: false,
+      error: "Enter a valid Discord invite (e.g. discord.gg/yourcode)",
+    };
+  }
+  return { ok: true, value: v };
+}
+
+export type SetSocialsResult =
+  | { ok: true; socials: ProfileSocials }
+  | { ok: false; status: number; error: string };
+
+/**
+ * Set (or clear) the owner's off-platform links. Each field is validated +
+ * normalized independently; an empty/blank value clears that link. Keyed to the
+ * authenticated user's id — there is no path to edit another user's socials.
+ */
+export async function setSocials(
+  viewerUserId: number,
+  body: { website?: unknown; telegram?: unknown; discord?: unknown },
+): Promise<SetSocialsResult> {
+  const website = normalizeWebsite(body?.website);
+  if (!website.ok) return { ok: false, status: 400, error: website.error };
+  const telegram = normalizeTelegram(body?.telegram);
+  if (!telegram.ok) return { ok: false, status: 400, error: telegram.error };
+  const discord = normalizeDiscord(body?.discord);
+  if (!discord.ok) return { ok: false, status: 400, error: discord.error };
+
+  await ensureProfileSchema();
+  await dbRun(
+    `UPDATE users
+        SET website_url = $1, telegram_handle = $2, discord_invite = $3
+      WHERE id = $4`,
+    [website.value, telegram.value, discord.value, viewerUserId],
+  );
+  return {
+    ok: true,
+    socials: {
+      website: website.value,
+      telegram: telegram.value,
+      discord: discord.value,
+    },
+  };
 }
 
 export type FollowResult =

@@ -8,10 +8,12 @@ import {
   Coins,
   Copy,
   Gem,
+  Globe,
   History,
   Loader2,
   Lock,
   Megaphone,
+  MessagesSquare,
   Pencil,
   Plus,
   ScrollText,
@@ -230,6 +232,171 @@ function BioSection({ profile }: { profile: ProfileResponse }) {
         >
           <Pencil className="w-3 h-3" />
           Add a bio
+        </button>
+      )}
+    </div>
+  );
+}
+
+const SOCIAL_DEFS = [
+  {
+    key: "website",
+    icon: Globe,
+    label: "Website",
+    placeholder: "yoursite.com",
+    href: (v: string) => v,
+  },
+  {
+    key: "telegram",
+    icon: Send,
+    label: "Telegram",
+    placeholder: "username",
+    href: (v: string) => `https://t.me/${v}`,
+  },
+  {
+    key: "discord",
+    icon: MessagesSquare,
+    label: "Discord",
+    placeholder: "discord.gg/yourcode",
+    href: (v: string) => `https://discord.gg/${v}`,
+  },
+] as const;
+
+/**
+ * Off-platform links rendered as compact icon pills. Only links that are set
+ * appear; the owner gets an inline editor (add/edit) that saves all three at
+ * once. Values are validated + normalized server-side.
+ */
+function SocialLinks({ profile }: { profile: ProfileResponse }) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [editing, setEditing] = useState(false);
+  const s = profile.socials;
+  const [draft, setDraft] = useState({
+    website: s.website ?? "",
+    telegram: s.telegram ?? "",
+    discord: s.discord ?? "",
+  });
+
+  const mutation = useMutation({
+    mutationFn: (vals: {
+      website: string;
+      telegram: string;
+      discord: string;
+    }) => api.profiles.setSocials(vals),
+    onSuccess: (res) => {
+      if (res && res.ok === false) {
+        toast({
+          title: "Couldn't save links",
+          description: res.error ?? "Please try again.",
+          variant: "destructive",
+        });
+        return;
+      }
+      queryClient.invalidateQueries({ queryKey: ["profile"] });
+      setEditing(false);
+    },
+    onError: (err: unknown) => {
+      toast({
+        title: "Couldn't save links",
+        description: err instanceof Error ? err.message : "Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const links = SOCIAL_DEFS.map((d) => ({
+    ...d,
+    value: s[d.key],
+  })).filter((d) => !!d.value);
+
+  if (editing) {
+    return (
+      <div className="mt-3 space-y-2">
+        {SOCIAL_DEFS.map((d) => (
+          <div key={d.key} className="flex items-center gap-2">
+            <d.icon className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+            <input
+              value={draft[d.key]}
+              onChange={(e) =>
+                setDraft((p) => ({ ...p, [d.key]: e.target.value }))
+              }
+              placeholder={d.placeholder}
+              data-testid={`input-social-${d.key}`}
+              className="flex-1 min-w-0 bg-secondary/40 border border-border rounded-lg px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-accent/60"
+            />
+          </div>
+        ))}
+        <div className="flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setDraft({
+                website: s.website ?? "",
+                telegram: s.telegram ?? "",
+                discord: s.discord ?? "",
+              });
+              setEditing(false);
+            }}
+            data-testid="button-socials-cancel"
+            className="inline-flex items-center gap-1 px-3 py-1.5 text-xs border border-border rounded-xl text-foreground hover:border-accent/60 transition-colors"
+          >
+            <CloseIcon className="w-3 h-3" />
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => mutation.mutate(draft)}
+            disabled={mutation.isPending}
+            data-testid="button-socials-save"
+            className="inline-flex items-center gap-1 px-3 py-1.5 text-xs bg-accent text-accent-foreground rounded-xl hover:bg-accent/90 transition-colors disabled:opacity-60"
+          >
+            {mutation.isPending ? (
+              <Loader2 className="w-3 h-3 animate-spin" />
+            ) : (
+              <Pencil className="w-3 h-3" />
+            )}
+            Save
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (links.length === 0 && !profile.isSelf) return null;
+
+  return (
+    <div className="mt-3 flex items-center gap-2 flex-wrap">
+      {links.map((d) => (
+        <a
+          key={d.key}
+          href={d.href(d.value as string)}
+          target="_blank"
+          rel="noopener noreferrer"
+          title={d.label}
+          data-testid={`link-social-${d.key}`}
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-secondary/60 border border-border text-xs text-foreground/90 hover:border-accent/60 hover:text-accent transition-colors"
+        >
+          <d.icon className="w-3.5 h-3.5" />
+          <span>{d.label}</span>
+        </a>
+      ))}
+      {profile.isSelf && (
+        <button
+          type="button"
+          onClick={() => {
+            setDraft({
+              website: s.website ?? "",
+              telegram: s.telegram ?? "",
+              discord: s.discord ?? "",
+            });
+            setEditing(true);
+          }}
+          data-testid="button-socials-edit"
+          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-dashed border-border text-xs text-muted-foreground hover:text-accent hover:border-accent/60 transition-colors"
+        >
+          <Pencil className="w-3 h-3" />
+          {links.length ? "Edit links" : "Add links"}
         </button>
       )}
     </div>
@@ -1437,6 +1604,9 @@ export default function ProfilePage() {
         >
           {/* Bio: directly under avatar/name/handle (owner can edit inline) */}
           <BioSection profile={profile} />
+
+          {/* Off-platform links as compact icon pills (owner can edit inline) */}
+          <SocialLinks profile={profile} />
 
           {/* Social: followers / following */}
           <div className="flex items-center gap-4 mt-3 text-sm">

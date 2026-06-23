@@ -13,6 +13,7 @@ import {
   listFollowing,
   resolveUser,
   setBio,
+  setSocials,
   unfollowUser,
   type Callout,
   type Conviction,
@@ -100,6 +101,29 @@ router.put(
       return res.status(result.status).json({ error: result.error });
     }
     return res.json({ ok: true, bio: result.bio });
+  }),
+);
+
+/**
+ * Owner-only socials update (website / telegram / discord). Keyed to the
+ * authenticated user's id; each field is validated + normalized server-side and
+ * a blank value clears that link. Declared before `/profiles/:id` so "me" is
+ * never read as a handle.
+ */
+router.put(
+  "/profiles/me/socials",
+  asyncHandler(async (req, res) => {
+    const session = await sessionFromRequest(req);
+    if (!session?.x_id) return res.status(401).json({ error: X_REQUIRED });
+    const result = await setSocials(Number(session.sub), {
+      website: req.body?.website,
+      telegram: req.body?.telegram,
+      discord: req.body?.discord,
+    });
+    if (!result.ok) {
+      return res.status(result.status).json({ error: result.error });
+    }
+    return res.json({ ok: true, socials: result.socials });
   }),
 );
 

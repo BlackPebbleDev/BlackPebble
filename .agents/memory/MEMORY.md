@@ -32,3 +32,4 @@
 - [DexScreener pair selection](dexscreener-pair-selection.md) — pick pools by TRUSTED quote (wSOL/USDC/USDT) first, not raw liquidity; junk-quote pools inflate price/MC/24h. Keep isBetterPair as the one selection primitive across all 4 per-mint paths.
 - [Sparkline data source](sparkline-data-source.md) — no stored time-series; token-card sparklines fetch GeckoTerminal OHLCV server-side (batched+cached), same trusted-quote pool as price/MC.
 - [SEO crawler visibility](seo-crawler-visibility.md) — pure Vite SPA: static crawler content in #root (createRoot replaces it), per-route SEO via seo.routes.json + post-build string-templating prerender + client RouteMeta; never headless-prerender (build OOMs).
+- [Clipboard copy success guard](clipboard-success-guard.md) — `navigator.clipboard?.writeText` resolves undefined (no throw) when unavailable, firing false "Copied" toasts; guard explicitly before success path.

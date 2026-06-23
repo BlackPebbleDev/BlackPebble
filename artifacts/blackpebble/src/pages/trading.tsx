@@ -47,6 +47,7 @@ import {
   THESIS_TITLE_MAX,
   THESIS_CONTENT_MAX,
 } from "@/lib/api";
+import { ShareToken } from "@/components/share-token";
 import { TradeList } from "@/components/trade-list";
 import { OpenPositions } from "@/components/open-positions";
 import { LeveragePanel } from "@/components/leverage-panel";
@@ -2700,7 +2701,8 @@ export default function TradingDesk() {
           <ThesisButton info={info} />
         </div>
         {/* Row 2 — secondary / external links */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <ShareToken info={info} />
           <MoreMenu info={info} />
           <a
             href={`https://dexscreener.com/solana/${info.pairAddress ?? info.mint}`}
