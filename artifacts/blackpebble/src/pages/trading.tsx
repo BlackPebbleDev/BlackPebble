@@ -2024,6 +2024,15 @@ function CallTokenButton({ info }: { info: TokenInfo }) {
   const [thesis, setThesis] = useState("");
   const [conviction, setConviction] = useState<Conviction | "">("");
 
+  const { data: myCallouts } = useQuery({
+    queryKey: ["myCallouts"],
+    queryFn: () => api.callouts.list("me"),
+    enabled: loggedIn,
+  });
+  const hasCalled = myCallouts?.callouts.some(
+    (c) => c.token_mint === info.mint,
+  ) ?? false;
+
   const mutation = useMutation({
     mutationFn: () =>
       api.callouts.create({
@@ -2036,6 +2045,7 @@ function CallTokenButton({ info }: { info: TokenInfo }) {
       setThesis("");
       setConviction("");
       qc.invalidateQueries({ queryKey: ["callouts"] });
+      qc.invalidateQueries({ queryKey: ["myCallouts"] });
       qc.invalidateQueries({ queryKey: ["feed"] });
       qc.invalidateQueries({ queryKey: ["leaderboard", "callers"] });
       toast({
@@ -2066,10 +2076,15 @@ function CallTokenButton({ info }: { info: TokenInfo }) {
       <button
         onClick={handleClick}
         data-testid="button-call-token"
-        className="flex items-center gap-2 px-4 h-10 rounded-full text-xs font-medium bg-accent/15 text-accent hover:bg-accent/25 transition-all"
+        className={cn(
+          "flex items-center gap-2 px-4 h-10 rounded-full text-xs font-medium transition-all",
+          hasCalled
+            ? "bg-accent/15 text-accent hover:bg-accent/25"
+            : "bg-secondary/60 text-muted-foreground hover:text-foreground hover:bg-secondary",
+        )}
       >
-        <Megaphone className="w-4 h-4" />
-        Call Token
+        <Megaphone className={cn("w-4 h-4", hasCalled && "text-accent")} />
+        {hasCalled ? "Called" : "Call"}
       </button>
 
       {open && (
@@ -2744,13 +2759,11 @@ export default function TradingDesk() {
           <CallTokenButton info={info} />
           <ThesisButton info={info} />
         </div>
-        {/* Row 2 — share / more / contract address */}
+        {/* Row 2 — share / more / contract address (tight utility row) */}
         <div className="flex items-center gap-2 flex-wrap">
           <ShareToken info={info} />
           <MoreMenu info={info} />
-          <div className="ml-auto">
-            <CopyContract mint={info.mint} />
-          </div>
+          <CopyContract mint={info.mint} />
         </div>
       </div>
 
