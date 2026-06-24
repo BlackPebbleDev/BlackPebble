@@ -306,6 +306,10 @@ export interface TokenInfo {
   pairCreatedAt?: number | null;
   volume6hUsd?: number | null;
   volume1hUsd?: number | null;
+  /** Token identity links surfaced from DexScreener (display-only). */
+  websiteUrl?: string | null;
+  twitterUrl?: string | null;
+  telegramUrl?: string | null;
 }
 
 /** ── Token Page V2 intelligence roll-up (read-only over existing tables) ── */

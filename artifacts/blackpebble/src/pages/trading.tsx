@@ -25,9 +25,11 @@ import {
   ChevronDown,
   Copy,
   Check,
+  Globe,
   Megaphone,
   Lock,
   MoreHorizontal,
+  Send,
   X as CloseIcon,
   ScrollText,
   TrendingUp,
@@ -155,79 +157,121 @@ function useTokenParam(): string | null {
   }, [search]);
 }
 
-function TokenHeader({ info }: { info: TokenInfo }) {
+/** Inline X (twitter) brand glyph — lucide has no brand mark for it. */
+function XGlyph({ className }: { className?: string }) {
   return (
-    <div className="rounded-xl bg-card shadow-card p-4 flex flex-wrap items-center gap-4">
-      <div className="flex items-center gap-3">
-        {info.logo ? (
-          <img
-            src={info.logo}
-            alt=""
-            className="w-10 h-10 rounded-full object-cover"
-            onError={(e) => (e.currentTarget.style.visibility = "hidden")}
-          />
-        ) : (
-          <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center text-xs text-muted-foreground">
-            {info.symbol?.slice(0, 2) ?? "?"}
+    <svg viewBox="0 0 24 24" aria-hidden className={className} fill="currentColor">
+      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24h-6.66l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231 5.45-6.231Zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77Z" />
+    </svg>
+  );
+}
+
+function TokenHeader({ info }: { info: TokenInfo }) {
+  const socialLinks = [
+    info.websiteUrl
+      ? { key: "website", href: info.websiteUrl, icon: <Globe className="w-3 h-3" />, label: "Website" }
+      : null,
+    info.twitterUrl
+      ? { key: "twitter", href: info.twitterUrl, icon: <XGlyph className="w-3 h-3" />, label: "X" }
+      : null,
+    info.telegramUrl
+      ? { key: "telegram", href: info.telegramUrl, icon: <Send className="w-3 h-3" />, label: "Telegram" }
+      : null,
+  ].filter(Boolean) as { key: string; href: string; icon: React.ReactNode; label: string }[];
+
+  return (
+    <div className="rounded-xl bg-card shadow-card p-4">
+      <div className="flex flex-wrap items-center gap-4">
+        <div className="flex items-center gap-3">
+          {info.logo ? (
+            <img
+              src={info.logo}
+              alt=""
+              className="w-10 h-10 rounded-full object-cover"
+              onError={(e) => (e.currentTarget.style.visibility = "hidden")}
+            />
+          ) : (
+            <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center text-xs text-muted-foreground">
+              {info.symbol?.slice(0, 2) ?? "?"}
+            </div>
+          )}
+          <div>
+            <div className="font-semibold flex items-center gap-2">
+              {info.symbol ?? "Unknown"}
+              {!info.isMigrated && (
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-accent bg-accent/12 rounded-full px-2 py-0.5">
+                  Bonding
+                </span>
+              )}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              {info.name ?? shortAddr(info.mint)}
+            </div>
           </div>
-        )}
-        <div>
-          <div className="font-semibold flex items-center gap-2">
-            {info.symbol ?? "Unknown"}
-            {!info.isMigrated && (
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-accent bg-accent/12 rounded-full px-2 py-0.5">
-                Bonding
-              </span>
-            )}
+        </div>
+
+        <div className="flex flex-wrap gap-x-6 gap-y-2 ml-auto text-right">
+          <div>
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+              Price
+            </div>
+            <div className="font-mono text-sm">{fmtPrice(info.priceUsd)}</div>
           </div>
-          <div className="text-xs text-muted-foreground">
-            {info.name ?? shortAddr(info.mint)}
+          <div>
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+              24h
+            </div>
+            <div className={cn("font-mono text-sm", pnlColorSafe(info.priceChange24h))}>
+              {fmtPercentSafe(info.priceChange24h)}
+            </div>
+          </div>
+          <div className="hidden sm:block">
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+              Volume 24h
+            </div>
+            <div className="font-mono text-sm">{fmtUsd(info.volume24hUsd)}</div>
+          </div>
+          <div className="hidden md:block">
+            <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted-foreground">
+              Liquidity
+              <HelpTip
+                label="Liquidity"
+                text="The pool of funds available to trade against. Higher liquidity means your orders fill closer to the listed price."
+              />
+            </div>
+            <div className="font-mono text-sm">{fmtUsd(info.liquidityUsd)}</div>
+          </div>
+          <div className="hidden lg:block">
+            <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted-foreground">
+              Market Cap
+              <HelpTip
+                label="Market Cap"
+                text="The total value of all tokens in circulation (price × supply). Often used as the trigger level for automated orders."
+              />
+            </div>
+            <div className="font-mono text-sm">{fmtUsd(info.marketCapUsd)}</div>
           </div>
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-x-6 gap-y-2 ml-auto text-right">
-        <div>
-          <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-            Price
-          </div>
-          <div className="font-mono text-sm">{fmtPrice(info.priceUsd)}</div>
+      {/* Token identity links — only rendered when at least one is present */}
+      {socialLinks.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap mt-3 pt-3 border-t border-border/40">
+          {socialLinks.map((l) => (
+            <a
+              key={l.key}
+              href={l.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              data-testid={`link-token-${l.key}`}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-secondary/60 border border-border text-xs text-foreground/80 hover:border-accent/60 hover:text-accent transition-colors"
+            >
+              {l.icon}
+              {l.label}
+            </a>
+          ))}
         </div>
-        <div>
-          <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-            24h
-          </div>
-          <div className={cn("font-mono text-sm", pnlColorSafe(info.priceChange24h))}>
-            {fmtPercentSafe(info.priceChange24h)}
-          </div>
-        </div>
-        <div className="hidden sm:block">
-          <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-            Volume 24h
-          </div>
-          <div className="font-mono text-sm">{fmtUsd(info.volume24hUsd)}</div>
-        </div>
-        <div className="hidden md:block">
-          <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted-foreground">
-            Liquidity
-            <HelpTip
-              label="Liquidity"
-              text="The pool of funds available to trade against. Higher liquidity means your orders fill closer to the listed price."
-            />
-          </div>
-          <div className="font-mono text-sm">{fmtUsd(info.liquidityUsd)}</div>
-        </div>
-        <div className="hidden lg:block">
-          <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted-foreground">
-            Market Cap
-            <HelpTip
-              label="Market Cap"
-              text="The total value of all tokens in circulation (price × supply). Often used as the trigger level for automated orders."
-            />
-          </div>
-          <div className="font-mono text-sm">{fmtUsd(info.marketCapUsd)}</div>
-        </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -2391,10 +2435,13 @@ function MoreMenu({ info }: { info: TokenInfo }) {
 
   const pairOrMint = info.pairAddress ?? info.mint;
   const links: { label: string; href: string }[] = [
+    { label: "DexScreener", href: `https://dexscreener.com/solana/${pairOrMint}` },
+    { label: "BubbleMaps", href: `https://app.bubblemaps.io/sol/token/${info.mint}` },
     { label: "Solscan", href: `https://solscan.io/token/${info.mint}` },
-    { label: "Jupiter", href: `https://jup.ag/swap/SOL-${info.mint}` },
     { label: "Birdeye", href: `https://birdeye.so/token/${info.mint}?chain=solana` },
+    { label: "RugCheck", href: `https://rugcheck.xyz/tokens/${info.mint}` },
     { label: "DEXTools", href: `https://www.dextools.io/app/en/solana/pair-explorer/${pairOrMint}` },
+    { label: "Jupiter", href: `https://jup.ag/swap/SOL-${info.mint}` },
   ];
 
   return (
@@ -2415,7 +2462,7 @@ function MoreMenu({ info }: { info: TokenInfo }) {
         More
       </button>
       {open && (
-        <div className="absolute right-0 z-40 mt-2 w-44 rounded-xl bg-card border border-border shadow-card py-1.5">
+        <div className="absolute right-0 z-40 mt-2 w-48 rounded-xl bg-card border border-border shadow-card py-1.5">
           {links.map((l) => (
             <a
               key={l.label}
@@ -2429,9 +2476,6 @@ function MoreMenu({ info }: { info: TokenInfo }) {
               <ExternalLink className="w-3 h-3" />
             </a>
           ))}
-          <div className="mt-1 border-t border-border/60 px-3 py-2 text-[10px] text-muted-foreground/60">
-            More actions coming soon
-          </div>
         </div>
       )}
     </div>
@@ -2694,25 +2738,16 @@ export default function TradingDesk() {
         </div>
       </div>
       <div className="space-y-2">
-        {/* Row 1 — primary actions */}
-        <div className="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap sm:items-center">
+        {/* Row 1 — primary actions (flex so buttons size to content) */}
+        <div className="flex flex-wrap items-center gap-2">
           <WatchButton info={info} />
           <CallTokenButton info={info} />
           <ThesisButton info={info} />
         </div>
-        {/* Row 2 — secondary / external links */}
+        {/* Row 2 — share / more / contract address */}
         <div className="flex items-center gap-2 flex-wrap">
           <ShareToken info={info} />
           <MoreMenu info={info} />
-          <a
-            href={`https://dexscreener.com/solana/${info.pairAddress ?? info.mint}`}
-            target="_blank"
-            rel="noreferrer"
-            className="flex items-center gap-2 px-4 h-10 rounded-full bg-secondary/60 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-all"
-          >
-            <ExternalLink className="w-4 h-4" />
-            DexScreener
-          </a>
           <div className="ml-auto">
             <CopyContract mint={info.mint} />
           </div>

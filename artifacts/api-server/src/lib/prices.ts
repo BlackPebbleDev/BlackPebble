@@ -33,6 +33,10 @@ export interface TokenInfo {
   pairCreatedAt?: number | null;
   volume6hUsd?: number | null;
   volume1hUsd?: number | null;
+  /** Token identity links from DexScreener (display-only). */
+  websiteUrl?: string | null;
+  twitterUrl?: string | null;
+  telegramUrl?: string | null;
 }
 
 interface DexPair {
@@ -54,7 +58,11 @@ interface DexPair {
   pairCreatedAt?: number;
   marketCap?: number;
   fdv?: number;
-  info?: { imageUrl?: string };
+  info?: {
+    imageUrl?: string;
+    websites?: { label: string; url: string }[];
+    socials?: { type: string; url: string }[];
+  };
 }
 
 function isLikelyMint(q: string): boolean {
@@ -202,6 +210,11 @@ export async function getTokenInfo(mint: string): Promise<TokenInfo | null> {
       pairCreatedAt: dex.pairCreatedAt ?? null,
       volume6hUsd: dex.volume?.h6 ?? null,
       volume1hUsd: dex.volume?.h1 ?? null,
+      websiteUrl: dex.info?.websites?.[0]?.url ?? null,
+      twitterUrl:
+        dex.info?.socials?.find((s) => s.type === "twitter")?.url ?? null,
+      telegramUrl:
+        dex.info?.socials?.find((s) => s.type === "telegram")?.url ?? null,
     };
   }
 
