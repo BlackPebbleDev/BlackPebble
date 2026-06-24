@@ -180,7 +180,8 @@ function TokenHeader({ info }: { info: TokenInfo }) {
   ].filter(Boolean) as { key: string; href: string; icon: React.ReactNode; label: string }[];
 
   return (
-    <div className="rounded-xl bg-card shadow-card p-4">
+    <div className="relative overflow-hidden rounded-xl bg-card shadow-card p-4">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/40 to-transparent" />
       <div className="flex flex-wrap items-center gap-4">
         <div className="flex items-center gap-3">
           {info.logo ? (

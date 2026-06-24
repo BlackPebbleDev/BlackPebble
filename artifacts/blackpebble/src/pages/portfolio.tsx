@@ -243,8 +243,9 @@ export default function Portfolio() {
       {!isGuest && selfHandle && (
         <div
           data-testid="portfolio-user-summary"
-          className="rounded-2xl bg-card shadow-card px-4 py-4 md:px-5 md:py-5 mb-6"
+          className="relative overflow-hidden rounded-2xl bg-card shadow-card px-4 py-4 md:px-5 md:py-5 mb-6"
         >
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/40 to-transparent" />
           <UserIdentity
             size="lg"
             avatarUrl={selfProfile?.x_avatar_url ?? xUser?.x_avatar_url}

@@ -1496,7 +1496,8 @@ export default function ProfilePage() {
   return (
     <div className="w-full max-w-3xl mx-auto px-4 md:px-6 py-6">
       {/* Header */}
-      <div className="rounded-2xl bg-card shadow-card p-5 md:p-6">
+      <div className="relative overflow-hidden rounded-2xl bg-card shadow-card p-5 md:p-6">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/40 to-transparent" />
         <UserIdentity
           size="lg"
           align="start"
