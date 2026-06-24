@@ -1728,7 +1728,7 @@ function TradePanel({
           return (
             <div
               data-testid="trade-summary"
-              className="border border-border bg-background/40 p-3 space-y-1.5 text-xs"
+              className="rounded-xl border border-border bg-background/40 p-3 space-y-1.5 text-xs"
             >
               <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
                 Trade Summary
@@ -1780,7 +1780,7 @@ function TradePanel({
         {confirmOpen && quote?.ok ? (
           <div
             className={cn(
-              "border p-3 space-y-3",
+              "rounded-xl border p-3 space-y-3",
               quote.warningLevel === "extreme"
                 ? "border-red-500/50 bg-red-500/10"
                 : "border-amber-500/50 bg-amber-500/10",
@@ -1814,7 +1814,7 @@ function TradePanel({
               <button
                 onClick={() => setConfirmOpen(false)}
                 data-testid="button-cancel-trade"
-                className="h-10 text-sm border border-border text-muted-foreground hover:text-foreground transition-colors"
+                className="h-10 rounded-xl text-sm border border-border text-muted-foreground hover:text-foreground transition-colors"
               >
                 Cancel
               </button>
@@ -1823,7 +1823,7 @@ function TradePanel({
                 disabled={mutation.isPending}
                 data-testid="button-confirm-trade"
                 className={cn(
-                  "h-10 text-sm font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-40",
+                  "h-10 rounded-xl text-sm font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-40",
                   side === "buy"
                     ? "bg-emerald-500 text-black hover:bg-emerald-400"
                     : "bg-red-500 text-white hover:bg-red-400",

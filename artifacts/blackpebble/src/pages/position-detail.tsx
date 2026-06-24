@@ -45,7 +45,7 @@ function Metric({
     <div
       data-testid={testId}
       className={cn(
-        "border bg-card px-3 py-2.5",
+        "rounded-xl border bg-card px-3 py-2.5",
         accent ? "border-accent/40" : "border-border",
       )}
     >
@@ -202,7 +202,7 @@ export default function PositionDetail() {
           <img
             src={p.token_logo}
             alt=""
-            className="w-10 h-10 object-cover border border-border"
+            className="w-10 h-10 rounded-full object-cover border border-border/60"
             onError={(e) => (e.currentTarget.style.visibility = "hidden")}
           />
         ) : (
@@ -221,7 +221,7 @@ export default function PositionDetail() {
           )}
         </div>
         {isGuest && (
-          <span className="ml-auto text-[11px] font-medium uppercase tracking-wider text-amber-400 border border-amber-500/30 bg-amber-500/10 px-2 py-1">
+          <span className="ml-auto text-[11px] font-medium uppercase tracking-wider text-amber-400 border border-amber-500/30 bg-amber-500/10 rounded-full px-2 py-1">
             Guest
           </span>
         )}
@@ -377,7 +377,7 @@ export default function PositionDetail() {
         type="button"
         onClick={() => navigate(`/?token=${p.token_mint}`)}
         data-testid={`button-open-${p.token_mint}`}
-        className="inline-flex items-center gap-1.5 h-10 px-4 text-sm font-medium border border-accent/50 text-accent hover:bg-accent/10 transition-colors"
+        className="inline-flex items-center gap-1.5 h-10 px-5 rounded-full text-sm font-medium border border-accent/50 text-accent hover:bg-accent/10 transition-colors"
       >
         Continue Trading
         <ArrowRight className="w-4 h-4" />
