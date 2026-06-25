@@ -82,12 +82,24 @@ export function mintBadgesAsync(
 }
 
 /**
- * Resolve the internal user id linked to a wallet address.
- * Intentionally checks ALL identity rows (not just provider='wallet') because
- * some users have wallet_address set only on their 'x' identity row when the
- * wallet-provider row was never created (e.g. early accounts or partial link).
+ * Resolve the internal user id linked to a wallet key.
+ * Handles two key formats the frontend can send:
+ *   "x:<x_provider_user_id>"  — X-authenticated users (most common signed-in path)
+ *   "<solana_address>"        — wallet-only users
+ * The x: prefix is NEVER stored in wallet_address, so it must be looked up via
+ * the X identity row's provider_user_id instead.
  */
 async function resolveUserIdByWallet(wallet: string): Promise<number | null> {
+  if (wallet.startsWith("x:")) {
+    const xId = wallet.slice(2);
+    const row = await dbGet<{ user_id: number }>(
+      `SELECT user_id FROM user_identities
+        WHERE provider = 'x' AND provider_user_id = $1
+        LIMIT 1`,
+      [xId],
+    ).catch(() => null);
+    return row?.user_id ?? null;
+  }
   const row = await dbGet<{ user_id: number }>(
     `SELECT user_id FROM user_identities
       WHERE wallet_address = $1

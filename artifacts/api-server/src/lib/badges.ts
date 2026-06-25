@@ -660,15 +660,22 @@ export async function getUserBadges(
         WHERE user_id = $1 AND is_hidden_by_admin = FALSE`,
       [userId],
     ).catch(() => ({ count: 0 })),
-    // Check ANY identity row with a matching wallet_address, not just
-    // provider='wallet', because some accounts have wallet_address only on
-    // their 'x' identity row (early accounts / partial wallet link).
+    // Match watchlist entries by every key format the frontend may have used:
+    //   "x:<x_id>"        — X-authenticated users (accountKey in frontend)
+    //   "<solana_addr>"   — wallet-only users
+    // The x: prefix is never stored in wallet_address, so it is reconstructed
+    // from the X identity row's provider_user_id.
     dbGet<{ count: number }>(
       `SELECT COUNT(DISTINCT w.token_mint)::int AS count
          FROM watchlist w
         WHERE w.wallet IN (
+          -- Solana wallet addresses (wallet-only or linked accounts)
           SELECT wallet_address FROM user_identities
            WHERE user_id = $1 AND wallet_address IS NOT NULL
+          UNION ALL
+          -- x: prefix format used by X-authenticated users
+          SELECT 'x:' || provider_user_id FROM user_identities
+           WHERE user_id = $1 AND provider = 'x'
         )`,
       [userId],
     ).catch(() => ({ count: 0 })),

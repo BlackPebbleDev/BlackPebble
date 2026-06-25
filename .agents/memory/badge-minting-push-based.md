@@ -31,13 +31,16 @@ fire the mint AFTER the transaction commits, not inside it. `watchlist_builder`
 and `profile_complete` are in `NON_FEED_BADGE_KEYS` (unlock but post no feed card)
 by design — keep them that way.
 
-**Critical wallet-identity bug (fixed):** The watchlist count query AND
-`resolveUserIdByWallet` both originally filtered `provider = 'wallet'`. Some
-accounts (especially early ones) have `wallet_address` only on their `provider='x'`
-identity row (no separate wallet-provider row). Both queries now use
-`wallet_address IS NOT NULL` without a provider filter. Same fix applies to the
-recovery event lookup. If you ever see a count-based wallet badge not firing,
-check which identity rows the user actually has.
+**Critical wallet key format bug (fixed):** X-authenticated users have `accountKey = "x:<x_id>"` in
+the frontend (see `use-account.tsx`). The watchlist and trade routes receive this key as `wallet`,
+so watchlist rows are stored with `wallet = "x:12345"` — NOT a Solana address. The badge query
+was doing `WHERE wallet IN (SELECT wallet_address FROM user_identities ...)` which ONLY matches
+Solana addresses — so X users always got watchlistCount=0. Same for `resolveUserIdByWallet("x:12345")`
+which was doing `WHERE wallet_address = 'x:12345'` → null.
+Fixes: (1) `resolveUserIdByWallet` branches on `x:` prefix → looks up by `provider='x' AND provider_user_id`
+instead. (2) watchlist count UNION-ALLs `'x:' || provider_user_id FROM user_identities WHERE provider='x'`
+so both key formats match. **This affects every wallet-keyed badge for X users (watchlist, trades, recovery).
+Always handle both "x:<id>" and bare Solana address formats in any wallet→userId or wallet→data lookup.**
 
 **Integrity check:** `GET /admin/achievements/audit` reports per-badge
 `hasUnlockPath` (definition↔evaluator consistency via zeroed BadgeMetrics →
