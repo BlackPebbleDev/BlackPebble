@@ -49,6 +49,7 @@ import {
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { UserIdentity } from "@/components/user-identity";
+import { ROLE_META, ROLE_ORDER } from "@/components/official-badge";
 import { tierMeta } from "@/lib/tiers";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -533,13 +534,12 @@ function BadgesSection() {
     setError(null);
     setBusy(true);
     try {
+      const label = ROLE_META[badgeType].label;
       if (action === "assign") {
         const res = await api.admin.assignOfficialBadge(h, badgeType);
-        const label = badgeType === "founder" ? "Founder" : "BlackPebble Team";
         setResult(`Assigned ${label} badge to @${res.x_username}`);
       } else {
         await api.admin.removeOfficialBadge(h, badgeType);
-        const label = badgeType === "founder" ? "Founder" : "BlackPebble Team";
         setResult(`Removed ${label} badge.`);
       }
     } catch (err) {
@@ -567,8 +567,11 @@ function BadgesSection() {
           onChange={(e) => setBadgeType(e.target.value as OfficialBadgeType)}
           className="h-10 rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
         >
-          <option value="bp_team">BlackPebble Team</option>
-          <option value="founder">Founder</option>
+          {ROLE_ORDER.map((t) => (
+            <option key={t} value={t}>
+              {ROLE_META[t].label}
+            </option>
+          ))}
         </select>
       </div>
       <div className="flex gap-2">
@@ -682,15 +685,17 @@ function VerificationSection() {
             tier={profile.graduationTier}
             size="lg"
           />
-          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
             <Stat label="Tier" value={tier.name} />
             <Stat
-              label="Founder"
-              value={badges.includes("founder") ? "Yes" : "No"}
-            />
-            <Stat
-              label="BP Team"
-              value={badges.includes("bp_team") ? "Yes" : "No"}
+              label="Roles"
+              value={
+                badges.length
+                  ? ROLE_ORDER.filter((t) => badges.includes(t))
+                      .map((t) => ROLE_META[t].label)
+                      .join(", ")
+                  : "None"
+              }
             />
             <Stat
               label="Realized P&L"

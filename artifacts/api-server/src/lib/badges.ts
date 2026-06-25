@@ -19,7 +19,21 @@
 
 import { dbAll, dbGet, dbRun } from "./database.js";
 
-export type BadgeCategory = "trading" | "caller" | "thesis" | "community";
+export type BadgeCategory =
+  | "trading"
+  | "caller"
+  | "thesis"
+  | "community"
+  | "milestone"
+  | "special";
+
+/**
+ * Achievement rarity — additive scaffolding for the collectible badge UI and the
+ * expanded catalog (Task #54). Existing badges are annotated below; new catalog
+ * entries supply their own. Defaults to "common" when absent.
+ */
+export type BadgeRarity = "common" | "rare" | "epic" | "legendary";
+
 export type TrustLabel = "New" | "Building" | "Established" | "Proven";
 
 export interface TrustScore {
@@ -34,11 +48,18 @@ export interface BadgeDefinition {
   category: BadgeCategory;
   /** Lucide icon name hint for the frontend. */
   icon: string;
+  /** Collectible rarity tier. Optional for forward-compat; defaults to common. */
+  rarity?: BadgeRarity;
 }
 
 export interface BadgeEntry extends BadgeDefinition {
   earned: boolean;
   earnedAt: number | null;
+  /**
+   * Optional progress toward unlocking (current / target). Additive scaffolding
+   * — populated by the expanded catalog in Task #54; null/absent until then.
+   */
+  progress?: { current: number; target: number } | null;
 }
 
 /** Pre-computed stats the caller must supply before computing badges. */
@@ -65,6 +86,7 @@ export const BADGE_DEFINITIONS: BadgeDefinition[] = [
     description: "Opened and closed your first paper trade.",
     category: "trading",
     icon: "TrendingUp",
+    rarity: "common",
   },
   {
     key: "ten_trades",
@@ -72,6 +94,7 @@ export const BADGE_DEFINITIONS: BadgeDefinition[] = [
     description: "Completed 10 paper trades.",
     category: "trading",
     icon: "BarChart2",
+    rarity: "common",
   },
   {
     key: "hundred_trades",
@@ -79,6 +102,7 @@ export const BADGE_DEFINITIONS: BadgeDefinition[] = [
     description: "Completed 100 paper trades.",
     category: "trading",
     icon: "BarChart3",
+    rarity: "epic",
   },
   {
     key: "first_profit",
@@ -86,6 +110,7 @@ export const BADGE_DEFINITIONS: BadgeDefinition[] = [
     description: "Closed a trade with positive realized P&L.",
     category: "trading",
     icon: "DollarSign",
+    rarity: "common",
   },
   {
     key: "positive_roi",
@@ -93,6 +118,7 @@ export const BADGE_DEFINITIONS: BadgeDefinition[] = [
     description: "Maintained a positive overall ROI across 5 or more trades.",
     category: "trading",
     icon: "TrendingUp",
+    rarity: "rare",
   },
   {
     key: "top_100_trader",
@@ -100,6 +126,7 @@ export const BADGE_DEFINITIONS: BadgeDefinition[] = [
     description: "Ranked in the top 100 on the all-time trader leaderboard.",
     category: "trading",
     icon: "Trophy",
+    rarity: "legendary",
   },
   // Caller
   {
@@ -108,6 +135,7 @@ export const BADGE_DEFINITIONS: BadgeDefinition[] = [
     description: "Made your first on-the-record public token call.",
     category: "caller",
     icon: "Megaphone",
+    rarity: "common",
   },
   {
     key: "five_calls",
@@ -115,6 +143,7 @@ export const BADGE_DEFINITIONS: BadgeDefinition[] = [
     description: "Logged 5 public token calls.",
     category: "caller",
     icon: "Megaphone",
+    rarity: "common",
   },
   {
     key: "ten_x_caller",
@@ -122,6 +151,7 @@ export const BADGE_DEFINITIONS: BadgeDefinition[] = [
     description: "Had a token call reach 10× or more.",
     category: "caller",
     icon: "Flame",
+    rarity: "epic",
   },
   {
     key: "top_caller",
@@ -129,6 +159,7 @@ export const BADGE_DEFINITIONS: BadgeDefinition[] = [
     description: "Ranked in the top 50 on the Top Callers board.",
     category: "caller",
     icon: "Star",
+    rarity: "legendary",
   },
   {
     key: "sharpshooter",
@@ -136,6 +167,7 @@ export const BADGE_DEFINITIONS: BadgeDefinition[] = [
     description: "Achieved a 60%+ hit rate across 5 or more graded calls.",
     category: "caller",
     icon: "Target",
+    rarity: "rare",
   },
   // Thesis
   {
@@ -144,6 +176,7 @@ export const BADGE_DEFINITIONS: BadgeDefinition[] = [
     description: "Published your first standalone research thesis.",
     category: "thesis",
     icon: "ScrollText",
+    rarity: "common",
   },
   {
     key: "researcher",
@@ -151,6 +184,7 @@ export const BADGE_DEFINITIONS: BadgeDefinition[] = [
     description: "Published 5 or more research theses.",
     category: "thesis",
     icon: "BookOpen",
+    rarity: "rare",
   },
   {
     key: "consistent_analyst",
@@ -158,6 +192,7 @@ export const BADGE_DEFINITIONS: BadgeDefinition[] = [
     description: "Published 10 or more research theses.",
     category: "thesis",
     icon: "BookOpen",
+    rarity: "epic",
   },
   // Community
   {
@@ -166,6 +201,7 @@ export const BADGE_DEFINITIONS: BadgeDefinition[] = [
     description: "One of the first 500 users to join BlackPebble.",
     category: "community",
     icon: "Star",
+    rarity: "rare",
   },
   {
     key: "profile_complete",
@@ -173,6 +209,7 @@ export const BADGE_DEFINITIONS: BadgeDefinition[] = [
     description: "Set a bio on a connected X account.",
     category: "community",
     icon: "UserCheck",
+    rarity: "common",
   },
   {
     key: "watchlist_builder",
@@ -180,6 +217,7 @@ export const BADGE_DEFINITIONS: BadgeDefinition[] = [
     description: "Added 3 or more tokens to your watchlist.",
     category: "community",
     icon: "Bookmark",
+    rarity: "common",
   },
 ];
 
@@ -356,9 +394,27 @@ export async function getEarnedBadgeCount(userId: number): Promise<number> {
 
 // ── Official Badges ───────────────────────────────────────────────────────────
 
-export type OfficialBadgeType = "founder" | "bp_team";
+/**
+ * Role badges — an independent identity axis. A user may hold ANY number of
+ * these simultaneously; they are admin-assigned and curated, never earned by
+ * activity (that is the achievement system). The set is extensible: adding a new
+ * role is just another entry here plus its display meta on the client. These
+ * names are deliberately distinct from progression tiers and account status.
+ */
+export type OfficialBadgeType =
+  | "founder"
+  | "bp_team"
+  | "early_user"
+  | "verified_trader"
+  | "ambassador";
 
-export const OFFICIAL_BADGE_TYPES: OfficialBadgeType[] = ["founder", "bp_team"];
+export const OFFICIAL_BADGE_TYPES: OfficialBadgeType[] = [
+  "founder",
+  "bp_team",
+  "early_user",
+  "verified_trader",
+  "ambassador",
+];
 
 export const OFFICIAL_BADGE_META: Record<
   OfficialBadgeType,
@@ -371,6 +427,18 @@ export const OFFICIAL_BADGE_META: Record<
   bp_team: {
     name: "BlackPebble Team",
     description: "Official BlackPebble team member.",
+  },
+  early_user: {
+    name: "Early User",
+    description: "Recognized early supporter of BlackPebble.",
+  },
+  verified_trader: {
+    name: "Verified Trader",
+    description: "Identity-verified trader.",
+  },
+  ambassador: {
+    name: "Ambassador",
+    description: "Official BlackPebble community ambassador.",
   },
 };
 

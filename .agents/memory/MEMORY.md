@@ -27,6 +27,7 @@
 - [Recovery on-chain verification](recovery-onchain-verification.md) — recovery public totals must be chain-proven (verified=true); credit close only when rent destination===wallet; credit+row update must be one tx.
 - [Generic FilterPills onChange inference](filterpills-generic-inference.md) — passing a useState setter directly to a generic onChange widens T to string; wrap in an arrow fn.
 - [Tier relabel display-only](tier-relabel-display-only.md) — tier names are a display-only label layer; renaming must never touch stored values, rank, or trust math.
+- [Identity three-axis model](identity-three-axis-model.md) — status(guest/member) / roles(ROLE_META+ROLE_ORDER) / progression(tiers.ts) are separate axes; label vocabularies must never collide; no "Premium".
 - [Recovery token-metadata enrichment](recovery-token-metadata.md) — batch Helius getAssetBatch; server returns nullable symbol/name/logo, UI owns "Unknown Token" fallback; separate cache namespace from getTokenMetadata.
 - [Intl fraction-digits crash](intl-fraction-digits.md) — toLocaleString throws RangeError when minFractionDigits > maxFractionDigits; data-dependent render crash → ErrorBoundary. Repro via renderToStaticMarkup + real fixture.
 - [DexScreener pair selection](dexscreener-pair-selection.md) — pick pools by TRUSTED quote (wSOL/USDC/USDT) first, not raw liquidity; junk-quote pools inflate price/MC/24h. Keep isBetterPair as the one selection primitive across all 4 per-mint paths.

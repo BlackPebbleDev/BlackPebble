@@ -688,9 +688,23 @@ export interface ProfileSocials {
   discord: string | null;
 }
 
-export type OfficialBadgeType = "founder" | "bp_team";
+export type OfficialBadgeType =
+  | "founder"
+  | "bp_team"
+  | "early_user"
+  | "verified_trader"
+  | "ambassador";
 
-export type BadgeCategory = "trading" | "caller" | "thesis" | "community";
+export type BadgeCategory =
+  | "trading"
+  | "caller"
+  | "thesis"
+  | "community"
+  | "milestone"
+  | "special";
+
+export type BadgeRarity = "common" | "rare" | "epic" | "legendary";
+
 export interface BadgeEntry {
   key: string;
   name: string;
@@ -699,6 +713,10 @@ export interface BadgeEntry {
   icon: string;
   earned: boolean;
   earnedAt: number | null;
+  /** Collectible rarity tier. Optional; defaults to "common" when absent. */
+  rarity?: BadgeRarity;
+  /** Optional progress toward unlocking (additive; null until Task #54). */
+  progress?: { current: number; target: number } | null;
 }
 
 export interface ProfileResponse {

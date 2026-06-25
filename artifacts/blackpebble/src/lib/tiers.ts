@@ -1,54 +1,62 @@
 /**
- * BlackPebble reputation tier system (display side).
+ * BlackPebble TRADING PROGRESSION tiers (display side).
+ *
+ * This is ONE of three separate identity axes and must never be conflated with
+ * the others:
+ *   1. Account status  — Guest | Member        (see lib/account-status.ts)
+ *   2. Role badges     — Founder, BP Team, …    (see components/official-badge.tsx)
+ *   3. Trading progression — THIS FILE           (earned by trading performance)
+ *
+ * The progression vocabulary below is deliberately distinct from account-status
+ * ("Member") and role names ("Verified Trader") so a progression label can never
+ * be mistaken for membership or a role. There is no "Premium" — paid membership
+ * does not exist on BlackPebble.
  *
  * IMPORTANT — this is a DISPLAY-ONLY relabel layer. The thresholds below mirror
  * the server's TIERS table in `artifacts/api-server/src/lib/trading.ts`
- * (graduationTier) and MUST stay in lockstep with it. The server is the source
- * of truth for an account's stored tier; these client thresholds exist only so
- * list views (e.g. the leaderboard) can render a tier badge directly from a
- * row's realized P&L without an extra round-trip.
+ * (graduationTier) and MUST stay in lockstep with it. The server is the single
+ * source of truth for an account's stored tier; these client thresholds exist
+ * only so list views can render a tier badge directly from a row's realized P&L
+ * without an extra round-trip. Changing a display name never changes any
+ * calculation, stored value, or rank.
  *
- * The server/DB still store the legacy keys ("Legend", "Diamond", "Gold",
- * "Silver", "Bronze"); those keys are mapped here to the official BlackPebble
- * display names. Changing a display name never changes any calculation.
- *
- *   legacy key   threshold (SOL)   official display name
- *   ----------   ---------------   --------------------
+ *   legacy key   threshold (SOL)   progression display name
+ *   ----------   ---------------   ------------------------
  *   legend       >= 1000           Black Label
  *   diamond      >= 300            Elite
- *   gold         >= 100            Premium
- *   silver       >= 25            Pro
- *   bronze       >= 5             Verified
- *   (none)       base              Member
+ *   gold         >= 100            Gold
+ *   silver       >= 25             Silver
+ *   bronze       >= 5              Bronze
+ *   (none)       base              Rookie
  *
- * "Member" is the base tier every account carries, so a tier is always present
- * and never disappears from a user's identity.
+ * "Rookie" is the base progression rank every account carries, so a progression
+ * badge is always present and never disappears from a user's identity.
  */
 
 export type TierName =
   | "Black Label"
   | "Elite"
-  | "Premium"
-  | "Pro"
-  | "Verified"
-  | "Member";
+  | "Gold"
+  | "Silver"
+  | "Bronze"
+  | "Rookie";
 
 const TIER_THRESHOLDS: { name: TierName; min: number }[] = [
   { name: "Black Label", min: 1000 },
   { name: "Elite", min: 300 },
-  { name: "Premium", min: 100 },
-  { name: "Pro", min: 25 },
-  { name: "Verified", min: 5 },
+  { name: "Gold", min: 100 },
+  { name: "Silver", min: 25 },
+  { name: "Bronze", min: 5 },
 ];
 
-/** Map an all-time realized P&L (in SOL) to a tier name. Base tier is Member. */
+/** Map an all-time realized P&L (in SOL) to a tier name. Base tier is Rookie. */
 export function tierFromRealizedPnl(realizedPnlSol: number): TierName {
   if (Number.isFinite(realizedPnlSol)) {
     for (const t of TIER_THRESHOLDS) {
       if (realizedPnlSol >= t.min) return t.name;
     }
   }
-  return "Member";
+  return "Rookie";
 }
 
 export interface TierMeta {
@@ -84,30 +92,30 @@ const ELITE_META: TierMeta = {
   glyph: "◈",
 };
 
-const PREMIUM_META: TierMeta = {
-  name: "Premium",
+const GOLD_META: TierMeta = {
+  name: "Gold",
   className:
     "text-amber-400 bg-amber-400/10 shadow-[0_0_6px_rgba(251,191,36,0.2)]",
   textClass: "text-amber-400/90",
   glyph: "◈",
 };
 
-const PRO_META: TierMeta = {
-  name: "Pro",
-  className: "text-sky-300 bg-sky-400/10 shadow-[0_0_6px_rgba(125,211,252,0.2)]",
-  textClass: "text-sky-300/90",
+const SILVER_META: TierMeta = {
+  name: "Silver",
+  className: "text-slate-200 bg-slate-300/10",
+  textClass: "text-slate-300/90",
   glyph: "◈",
 };
 
-const VERIFIED_META: TierMeta = {
-  name: "Verified",
-  className: "text-slate-300 bg-slate-300/10",
-  textClass: "text-slate-400",
+const BRONZE_META: TierMeta = {
+  name: "Bronze",
+  className: "text-orange-400 bg-orange-400/10",
+  textClass: "text-orange-400/90",
   glyph: "◈",
 };
 
-const MEMBER_META: TierMeta = {
-  name: "Member",
+const ROOKIE_META: TierMeta = {
+  name: "Rookie",
   className: "text-muted-foreground bg-muted/40",
   textClass: "text-muted-foreground/70",
   glyph: "◦",
@@ -115,31 +123,28 @@ const MEMBER_META: TierMeta = {
 
 /**
  * Resolve badge metadata for a tier name. Accepts both the legacy server keys
- * (legend/diamond/gold/silver/bronze) and the official display names
- * (case-insensitive). Anything unknown — including "none"/empty — resolves to
- * the base Member tier so a tier is always shown.
+ * (legend/diamond/gold/silver/bronze) and the progression display names
+ * (case-insensitive). Anything unknown — including "none"/"unranked"/empty —
+ * resolves to the base Rookie tier so a progression badge is always shown.
  */
 const TIER_META: Record<string, TierMeta> = {
   // Legacy server/DB keys
   legend: BLACK_LABEL_META,
   diamond: ELITE_META,
-  gold: PREMIUM_META,
-  silver: PRO_META,
-  bronze: VERIFIED_META,
-  none: MEMBER_META,
-  unranked: MEMBER_META,
-  // Official display-name keys (for client-derived tiers)
+  gold: GOLD_META,
+  silver: SILVER_META,
+  bronze: BRONZE_META,
+  none: ROOKIE_META,
+  unranked: ROOKIE_META,
+  // Progression display-name keys (for client-derived tiers)
   "black label": BLACK_LABEL_META,
   elite: ELITE_META,
-  premium: PREMIUM_META,
-  pro: PRO_META,
-  verified: VERIFIED_META,
-  member: MEMBER_META,
+  rookie: ROOKIE_META,
 };
 
 /** Resolve badge metadata for a tier name (case-insensitive). */
 export function tierMeta(tier: string | null | undefined): TierMeta {
   const key = (tier ?? "").toLowerCase().trim();
-  if (key === "") return MEMBER_META;
-  return TIER_META[key] ?? MEMBER_META;
+  if (key === "") return ROOKIE_META;
+  return TIER_META[key] ?? ROOKIE_META;
 }

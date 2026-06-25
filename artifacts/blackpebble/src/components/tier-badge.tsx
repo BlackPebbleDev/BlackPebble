@@ -10,8 +10,9 @@ import { cn } from "@/lib/utils";
  * - "plain" — bare text with tier color only; no background, no border, no
  *   glow. Used in dense surfaces like feed cards where a pill would clutter.
  *
- * Every account carries at least the base "Member" tier, so this never returns
- * null — a tier is always shown.
+ * Every account carries at least the base "Rookie" progression tier, so this
+ * never returns null — a tier is always shown. This is the trading-progression
+ * axis only; it is distinct from account status (Guest/Member) and role badges.
  * Display order convention: Official badge(s) → TierBadge.
  */
 export function TierBadge({

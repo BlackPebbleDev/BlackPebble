@@ -5,6 +5,7 @@ import {
   Activity,
   Award,
   Check,
+  ChevronDown,
   Copy,
   Globe,
   History,
@@ -29,6 +30,7 @@ import {
   CALLOUT_THESIS_MAX,
   CALLOUT_UPDATE_MAX,
   type BadgeEntry,
+  type BadgeRarity,
   type CalloutResult,
   type CalloutWithDetail,
   type Conviction,
@@ -37,6 +39,11 @@ import {
   type ThesisWithAuthor,
 } from "@/lib/api";
 import { UserIdentity } from "@/components/user-identity";
+import {
+  AchievementBadge,
+  RARITY_META,
+  rarityOf,
+} from "@/components/achievement-badge";
 import { TrustBadge, trustLabelFromScore } from "@/components/reputation-card";
 import { FilterPills } from "@/components/filter-pills";
 import { useXAuth } from "@/hooks/use-x-auth";
@@ -555,35 +562,17 @@ function FollowButton({ profile }: { profile: ProfileResponse }) {
   );
 }
 
-/** A single badge pill — gold-accented when earned, muted when locked. */
-function BadgePill({ badge }: { badge: BadgeEntry }) {
-  return (
-    <span
-      data-testid={`badge-${badge.key}`}
-      title={badge.description}
-      className={cn(
-        "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium",
-        badge.earned
-          ? "border border-accent/50 bg-accent/10 text-accent"
-          : "border border-border/40 bg-secondary/20 text-muted-foreground/50",
-      )}
-    >
-      {badge.earned ? (
-        <Award className="w-3 h-3 flex-shrink-0" />
-      ) : (
-        <Lock className="w-3 h-3 flex-shrink-0" />
-      )}
-      {badge.name}
-    </span>
-  );
-}
+const RARITY_ORDER: BadgeRarity[] = ["legendary", "epic", "rare", "common"];
 
 /**
- * Achievements & badges section — lazily fetches the full badge list for this
- * profile and renders earned (gold) / locked (muted) pills in two groups.
+ * Achievements section — lazily fetches the full badge list for this profile and
+ * renders a collectible-style view: a summary (progress + rarity breakdown), a
+ * grid of earned collectible tiles, and the locked set tucked behind an
+ * expandable toggle so the section stays compact by default.
  */
 function BadgesSection({ profile }: { profile: ProfileResponse }) {
   const profileKey = profile.x_username || String(profile.user_id);
+  const [showLocked, setShowLocked] = useState(false);
   const { data, isLoading } = useQuery({
     queryKey: ["badges", profileKey],
     queryFn: () =>
@@ -592,12 +581,25 @@ function BadgesSection({ profile }: { profile: ProfileResponse }) {
     staleTime: 60_000,
   });
 
-  const earnedBadges = (data?.badges ?? []).filter((b) => b.earned);
-  const lockedBadges = (data?.badges ?? []).filter((b) => !b.earned);
+  const allBadges = data?.badges ?? [];
+  const earnedBadges = allBadges.filter((b) => b.earned);
+  const lockedBadges = allBadges.filter((b) => !b.earned);
+  const total = allBadges.length;
+  const earnedCount = earnedBadges.length;
+  const pct = total > 0 ? Math.round((earnedCount / total) * 100) : 0;
+
+  const rarityCounts = earnedBadges.reduce<Record<BadgeRarity, number>>(
+    (acc, b) => {
+      const r = rarityOf(b);
+      acc[r] = (acc[r] ?? 0) + 1;
+      return acc;
+    },
+    { common: 0, rare: 0, epic: 0, legendary: 0 },
+  );
 
   return (
     <>
-      <SectionHeader icon={Award} title="Achievements & Badges" />
+      <SectionHeader icon={Award} title="Achievements" />
       <div
         data-testid="achievements-card"
         className="rounded-xl bg-card shadow-card p-5"
@@ -606,36 +608,88 @@ function BadgesSection({ profile }: { profile: ProfileResponse }) {
           <div className="flex items-center justify-center py-8">
             <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
           </div>
+        ) : total === 0 ? (
+          <p className="py-4 text-center text-sm text-muted-foreground">
+            No achievements available.
+          </p>
         ) : (
           <>
-            {earnedBadges.length > 0 && (
-              <div className="mb-5">
-                <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-                  Earned · {earnedBadges.length}
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {earnedBadges.map((b) => (
-                    <BadgePill key={b.key} badge={b} />
+            {/* Achievement summary */}
+            <div className="mb-5">
+              <div className="mb-2 flex items-baseline justify-between gap-3">
+                <span className="text-sm font-medium text-foreground">
+                  {earnedCount}
+                  <span className="text-muted-foreground">
+                    {" "}
+                    of {total} unlocked
+                  </span>
+                </span>
+                <span className="text-xs font-semibold text-muted-foreground">
+                  {pct}%
+                </span>
+              </div>
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary/40">
+                <div
+                  className="h-full rounded-full bg-accent transition-all"
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+              {earnedCount > 0 && (
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {RARITY_ORDER.filter((r) => rarityCounts[r] > 0).map((r) => (
+                    <span
+                      key={r}
+                      data-testid={`rarity-chip-${r}`}
+                      className={cn(
+                        "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+                        RARITY_META[r].chip,
+                      )}
+                    >
+                      {rarityCounts[r]} {RARITY_META[r].label}
+                    </span>
                   ))}
                 </div>
+              )}
+            </div>
+
+            {/* Earned collectible tiles */}
+            {earnedCount > 0 ? (
+              <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4 md:grid-cols-5">
+                {earnedBadges.map((b) => (
+                  <AchievementBadge key={b.key} badge={b} />
+                ))}
               </div>
-            )}
-            {lockedBadges.length > 0 && (
-              <div>
-                <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-                  Locked · {lockedBadges.length}
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {lockedBadges.map((b) => (
-                    <BadgePill key={b.key} badge={b} />
-                  ))}
-                </div>
-              </div>
-            )}
-            {earnedBadges.length === 0 && lockedBadges.length === 0 && (
-              <p className="py-4 text-center text-sm text-muted-foreground">
-                No badges available.
+            ) : (
+              <p className="py-2 text-center text-sm text-muted-foreground">
+                No achievements unlocked yet.
               </p>
+            )}
+
+            {/* Locked, behind an expandable toggle */}
+            {lockedBadges.length > 0 && (
+              <div className="mt-4 border-t border-border/40 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowLocked((v) => !v)}
+                  data-testid="toggle-locked-achievements"
+                  className="flex w-full items-center justify-between text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground/70 transition-colors hover:text-foreground"
+                >
+                  <span>Locked · {lockedBadges.length}</span>
+                  <ChevronDown
+                    className={cn(
+                      "h-4 w-4 transition-transform",
+                      showLocked && "rotate-180",
+                    )}
+                  />
+                </button>
+                {showLocked && (
+                  <div className="mt-3 grid grid-cols-3 gap-2.5 sm:grid-cols-4 md:grid-cols-5">
+                    {lockedBadges.map((b) => (
+                      <AchievementBadge key={b.key} badge={b} />
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
           </>
         )}
@@ -1508,6 +1562,7 @@ export default function ProfilePage() {
           handle={profile.x_username}
           officialBadges={profile.officialBadges}
           tier={profile.graduationTier}
+          accountStatus="member"
           tierPosition="inline"
           badgePosition="row"
           stopPropagation={false}

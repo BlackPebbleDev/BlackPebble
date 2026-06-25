@@ -1,8 +1,10 @@
 import type { ReactNode } from "react";
 import { Link } from "wouter";
 import { ExternalLink } from "lucide-react";
-import { OfficialBadge } from "@/components/official-badge";
+import { OfficialBadge, ROLE_ORDER } from "@/components/official-badge";
 import { TierBadge } from "@/components/tier-badge";
+import { AccountStatusChip } from "@/components/account-status-chip";
+import type { AccountStatus } from "@/lib/account-status";
 import type { OfficialBadgeType } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -16,24 +18,22 @@ import { cn } from "@/lib/utils";
  * @handle / subline. Only sizing and link behaviour vary by surface.
  */
 
-const BADGE_PRIORITY: Record<OfficialBadgeType, number> = {
-  founder: 0,
-  bp_team: 1,
-};
-
 /**
- * Official badges always render in a fixed priority order (Founder, then
- * BlackPebble Team, then any future event/achievement/seasonal badges) so the
+ * Official badges always render in a fixed priority order (see ROLE_ORDER:
+ * Founder, BlackPebble Team, Ambassador, Verified Trader, Early User) so the
  * highest-priority badges lead and are never dropped first when space is tight.
- * Unknown/future badge types sort after the known ones.
+ * Unknown/future badge types sort after the known ones. The order is shared with
+ * official-badge.tsx so roles render identically everywhere.
  */
 function orderBadges(
   badges: readonly OfficialBadgeType[] | null | undefined,
 ): OfficialBadgeType[] {
   if (!badges?.length) return [];
-  return [...badges].sort(
-    (a, b) => (BADGE_PRIORITY[a] ?? 99) - (BADGE_PRIORITY[b] ?? 99),
-  );
+  const rank = (t: OfficialBadgeType) => {
+    const i = ROLE_ORDER.indexOf(t);
+    return i === -1 ? 99 : i;
+  };
+  return [...badges].sort((a, b) => rank(a) - rank(b));
 }
 
 export type IdentitySize = "xs" | "sm" | "md" | "lg";
@@ -155,6 +155,8 @@ export interface UserIdentityProps {
   handle?: string | null;
   officialBadges?: readonly OfficialBadgeType[] | null;
   tier?: string | null;
+  /** Optional account-status chip (Guest/Member). Omit to hide on dense feeds. */
+  accountStatus?: AccountStatus | null;
   size?: IdentitySize;
   /** Override the official-badge size (e.g. icon-only "xs" on dense feeds). */
   badgeSize?: BadgeSize;
@@ -197,6 +199,7 @@ export function UserIdentity({
   handle,
   officialBadges,
   tier,
+  accountStatus,
   size = "md",
   badgeSize,
   tierVariant = "pill",
@@ -322,6 +325,10 @@ export function UserIdentity({
     <TierBadge tier={tier} size="sm" variant={tierVariant} />
   );
 
+  const statusChip = accountStatus ? (
+    <AccountStatusChip status={accountStatus} />
+  ) : null;
+
   const badgeEls = orderBadges(officialBadges).map((b) => (
     <OfficialBadge key={b} type={b} size={bSize} />
   ));
@@ -339,6 +346,7 @@ export function UserIdentity({
       <div className="min-w-0 flex-1 leading-tight">
         <div className="flex items-center gap-1.5 flex-wrap min-w-0">
           {nameEl}
+          {statusChip}
           {badgePosition === "inline" && badgeEls}
           {tierPosition === "inline" && tierBadge}
         </div>

@@ -24,6 +24,7 @@ import {
 import {
   assignOfficialBadge,
   removeOfficialBadge,
+  OFFICIAL_BADGE_TYPES,
   type OfficialBadgeType,
 } from "../lib/badges.js";
 import {
@@ -708,7 +709,8 @@ router.post(
   }),
 );
 
-const VALID_OFFICIAL_BADGE_TYPES: OfficialBadgeType[] = ["founder", "bp_team"];
+const VALID_OFFICIAL_BADGE_TYPES: OfficialBadgeType[] = OFFICIAL_BADGE_TYPES;
+const BADGE_TYPE_ERROR = `badge_type must be one of: ${OFFICIAL_BADGE_TYPES.join(", ")}`;
 
 router.post(
   "/admin/official-badges/assign",
@@ -719,7 +721,7 @@ router.post(
       return res.status(400).json({ error: "x_handle is required" });
     }
     if (!VALID_OFFICIAL_BADGE_TYPES.includes(badge_type as OfficialBadgeType)) {
-      return res.status(400).json({ error: "badge_type must be founder or bp_team" });
+      return res.status(400).json({ error: BADGE_TYPE_ERROR });
     }
     const handle = x_handle.trim().replace(/^@+/, "").toLowerCase();
     const user = await dbGet<{ user_id: number; x_username: string }>(
@@ -749,7 +751,7 @@ router.post(
       return res.status(400).json({ error: "x_handle is required" });
     }
     if (!VALID_OFFICIAL_BADGE_TYPES.includes(badge_type as OfficialBadgeType)) {
-      return res.status(400).json({ error: "badge_type must be founder or bp_team" });
+      return res.status(400).json({ error: BADGE_TYPE_ERROR });
     }
     const handle = x_handle.trim().replace(/^@+/, "").toLowerCase();
     const user = await dbGet<{ user_id: number; x_username: string }>(
