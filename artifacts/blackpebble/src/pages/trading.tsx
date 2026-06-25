@@ -2018,7 +2018,7 @@ function WatchButton({ info }: { info: TokenInfo }) {
  * connect X. Calls are immutable (no edit/delete) by design.
  */
 function CallTokenButton({ info }: { info: TokenInfo }) {
-  const { loggedIn, login } = useXAuth();
+  const { loggedIn, login, user: xUser } = useXAuth();
   const { toast } = useToast();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -2026,9 +2026,9 @@ function CallTokenButton({ info }: { info: TokenInfo }) {
   const [conviction, setConviction] = useState<Conviction | "">("");
 
   const { data: myCallouts } = useQuery({
-    queryKey: ["myCallouts"],
-    queryFn: () => api.callouts.list("me"),
-    enabled: loggedIn,
+    queryKey: ["myCallouts", xUser?.x_username],
+    queryFn: () => api.callouts.list(xUser!.x_username),
+    enabled: loggedIn && !!xUser?.x_username,
   });
   const hasCalled = myCallouts?.callouts.some(
     (c) => c.token_mint === info.mint,
