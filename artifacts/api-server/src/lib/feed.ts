@@ -3,7 +3,7 @@ import { ensureProfileSchema } from "./profiles.js";
 import { ensureThesesSchema } from "./theses.js";
 import { getTokenStatsBatch } from "./prices.js";
 import { getTokenPeaks, recordTokenPeaks, athMultipleFrom } from "./peaks.js";
-import { BADGE_DEFINITIONS, ensureBadgesSchema, getOfficialBadgesForUsers } from "./badges.js";
+import { BADGE_DEFINITIONS, NON_FEED_BADGE_KEYS, ensureBadgesSchema, getOfficialBadgesForUsers } from "./badges.js";
 import { ensureRecoverySchema } from "./recovery-verify.js";
 import { getUserTiers } from "./trading.js";
 import { computeReputationBoard } from "./reputation.js";
@@ -64,6 +64,8 @@ export interface FeedActivityItem {
   badgeKey: string | null;
   /** Human-readable badge name looked up from the catalogue. */
   badgeName: string | null;
+  /** Achievement rarity looked up from the catalogue (for premium tinting). */
+  badgeRarity: string | null;
   /** Recovery only: SOL recovered in this cleanup, null otherwise. */
   recoveredSol: number | null;
   /** Recovery only: rent accounts closed in this cleanup, null otherwise. */
@@ -136,6 +138,13 @@ export async function getActivity(opts: {
   }
   params.push(limit);
   const limitIdx = params.length;
+
+  // Trivial setup badges never post feed cards. Keys are code-controlled
+  // constants (alphanumeric/underscore), so inlining them is injection-safe.
+  const nonFeedBadgeClause =
+    NON_FEED_BADGE_KEYS.length > 0
+      ? `AND ua.badge_key NOT IN (${NON_FEED_BADGE_KEYS.map((k) => `'${k}'`).join(", ")})`
+      : "";
 
   const rows = await dbAll<ActivityRow>(
     `WITH ident AS (
@@ -279,7 +288,7 @@ export async function getActivity(opts: {
          JOIN user_identities xi
            ON xi.user_id = ua.user_id AND xi.provider = 'x'
          JOIN users u ON u.id = ua.user_id
-        WHERE TRUE ${followClauseUser.replace(/user_id/g, "ua.user_id")}
+        WHERE TRUE ${nonFeedBadgeClause} ${followClauseUser.replace(/user_id/g, "ua.user_id")}
        UNION ALL
        -- Recovery cleanups by X-authenticated users. Real recovery_events only:
        -- successful cleanups that actually closed accounts. We re-use the int
@@ -355,6 +364,7 @@ export async function getActivity(opts: {
       sentiment: r.sentiment,
       badgeKey: r.badge_key,
       badgeName: badgeDef?.name ?? null,
+      badgeRarity: badgeDef?.rarity ?? null,
       recoveredSol: isRecovery ? r.pnl_sol : null,
       accountsClosed: isRecovery ? r.leverage : null,
       timestamp: r.ts,

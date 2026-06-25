@@ -697,9 +697,12 @@ export type OfficialBadgeType =
 
 export type BadgeCategory =
   | "trading"
+  | "profit"
   | "caller"
   | "thesis"
+  | "wallet"
   | "community"
+  | "profile"
   | "milestone"
   | "special";
 
@@ -715,8 +718,12 @@ export interface BadgeEntry {
   earnedAt: number | null;
   /** Collectible rarity tier. Optional; defaults to "common" when absent. */
   rarity?: BadgeRarity;
-  /** Optional progress toward unlocking (additive; null until Task #54). */
+  /** Progress toward unlocking (current / target); null for boolean badges. */
   progress?: { current: number; target: number } | null;
+  /** Hidden achievements stay out of the locked catalogue until earned. */
+  hidden?: boolean;
+  /** % of registered users who hold this badge — share-card rarity signal. */
+  globalEarnedPercent?: number | null;
 }
 
 export interface ProfileResponse {
@@ -936,6 +943,8 @@ export interface FeedActivityItem {
   badgeKey?: string | null;
   /** Human-readable badge name, null for non-achievement items. */
   badgeName?: string | null;
+  /** Achievement rarity (for premium feed tinting), null otherwise. */
+  badgeRarity?: BadgeRarity | null;
   /** Recovery only: SOL recovered in this cleanup, null otherwise. */
   recoveredSol?: number | null;
   /** Recovery only: rent accounts closed in this cleanup, null otherwise. */

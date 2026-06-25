@@ -10,7 +10,7 @@ import {
   Trophy,
   Zap,
 } from "lucide-react";
-import type { FeedActivityItem } from "@/lib/api";
+import type { BadgeRarity, FeedActivityItem } from "@/lib/api";
 import {
   fmtMarketCap,
   fmtMultiple,
@@ -346,19 +346,69 @@ function ThesisActivityCard({ item }: { item: FeedActivityItem }) {
   );
 }
 
-/** An achievement feed item: a trader earning a badge or milestone. */
+/**
+ * Premium feed tint per achievement rarity. Higher rarities read richer (icon
+ * medallion, glow, chip) so a legendary unlock feels premium in the feed.
+ * Falls back to the neutral gold treatment when rarity is absent.
+ */
+const FEED_RARITY_TINT: Record<
+  BadgeRarity,
+  { icon: string; chip: string; card: string }
+> = {
+  common: {
+    icon: "bg-zinc-500/12 text-zinc-300",
+    chip: "bg-zinc-500/12 text-zinc-300",
+    card: "",
+  },
+  rare: {
+    icon: "bg-sky-500/12 text-sky-300",
+    chip: "bg-sky-500/12 text-sky-300",
+    card: "shadow-[0_0_12px_rgba(56,189,248,0.12)]",
+  },
+  epic: {
+    icon: "bg-violet-500/12 text-violet-300",
+    chip: "bg-violet-500/12 text-violet-300",
+    card: "shadow-[0_0_14px_rgba(167,139,250,0.16)]",
+  },
+  legendary: {
+    icon: "bg-amber-400/14 text-amber-300",
+    chip: "bg-amber-400/14 text-amber-300",
+    card: "shadow-[0_0_16px_rgba(251,191,36,0.2)]",
+  },
+};
+
+const FEED_RARITY_DEFAULT = {
+  icon: "bg-yellow-500/12 text-yellow-400",
+  chip: "bg-yellow-500/12 text-yellow-400",
+  card: "",
+};
+
 function AchievementActivityCard({ item }: { item: FeedActivityItem }) {
   const handle = item.user.x_username?.trim().replace(/^@+/, "") || null;
   const profileUrl = xProfileUrl(handle);
   const badgeName = item.badgeName || item.badgeKey || "Achievement";
   const description = item.thesis;
+  const tint = item.badgeRarity
+    ? FEED_RARITY_TINT[item.badgeRarity]
+    : FEED_RARITY_DEFAULT;
+  const rarityLabel = item.badgeRarity
+    ? item.badgeRarity.charAt(0).toUpperCase() + item.badgeRarity.slice(1)
+    : null;
 
   return (
     <div
       data-testid={`feed-card-${item.id}`}
-      className="rounded-xl bg-card shadow-card p-4 flex items-start gap-3 transition-colors hover:bg-surface-3"
+      className={cn(
+        "rounded-xl bg-card shadow-card p-4 flex items-start gap-3 transition-colors hover:bg-surface-3",
+        tint.card,
+      )}
     >
-      <div className="mt-0.5 flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-full bg-yellow-500/12 text-yellow-400">
+      <div
+        className={cn(
+          "mt-0.5 flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-full",
+          tint.icon,
+        )}
+      >
         <Medal className="w-[18px] h-[18px]" />
       </div>
 
@@ -383,8 +433,13 @@ function AchievementActivityCard({ item }: { item: FeedActivityItem }) {
         )}
 
         <div className="mt-1.5 flex items-center gap-3 text-xs flex-wrap">
-          <span className="uppercase tracking-wider text-[10px] font-semibold rounded-full px-2 py-0.5 bg-yellow-500/12 text-yellow-400">
-            Achievement
+          <span
+            className={cn(
+              "uppercase tracking-wider text-[10px] font-semibold rounded-full px-2 py-0.5",
+              tint.chip,
+            )}
+          >
+            {rarityLabel ?? "Achievement"}
           </span>
           {profileUrl && (
             <a

@@ -16,9 +16,11 @@ import {
   Pencil,
   Plus,
   ScrollText,
+  Search,
   Send,
   Share2,
   ShieldCheck,
+  SlidersHorizontal,
   Trophy,
   UserPlus,
   UserCheck,
@@ -567,21 +569,72 @@ const RARITY_ORDER: BadgeRarity[] = ["legendary", "epic", "rare", "common"];
 
 const CATEGORY_LABELS: Record<BadgeCategory, string> = {
   trading: "Trading",
+  profit: "Profit",
   caller: "Calls",
-  thesis: "Theses",
+  thesis: "Research",
+  wallet: "Wallet Utilities",
   community: "Community",
+  profile: "Profile",
   milestone: "Milestones",
   special: "Special",
 };
 
 const CATEGORY_ORDER: BadgeCategory[] = [
   "trading",
+  "profit",
   "caller",
   "thesis",
+  "wallet",
   "community",
+  "profile",
   "milestone",
   "special",
 ];
+
+type StatusFilter = "all" | "earned" | "locked";
+type RarityFilter = BadgeRarity | "all";
+type CategoryFilter = BadgeCategory | "all";
+type BadgeSort = "rarity" | "recent" | "progress" | "name";
+
+const STATUS_OPTIONS: { id: StatusFilter; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "earned", label: "Earned" },
+  { id: "locked", label: "Locked" },
+];
+
+const SORT_OPTIONS: { id: BadgeSort; label: string }[] = [
+  { id: "rarity", label: "Rarity" },
+  { id: "recent", label: "Recent" },
+  { id: "progress", label: "Progress" },
+  { id: "name", label: "Name" },
+];
+
+/** Sort comparator: earned tiles always precede locked, then by chosen key. */
+function compareBadges(a: BadgeEntry, b: BadgeEntry, sort: BadgeSort): number {
+  if (a.earned !== b.earned) return a.earned ? -1 : 1;
+  switch (sort) {
+    case "recent":
+      return (b.earnedAt ?? 0) - (a.earnedAt ?? 0);
+    case "name":
+      return a.name.localeCompare(b.name);
+    case "progress": {
+      const ratio = (x: BadgeEntry) =>
+        x.earned
+          ? 1
+          : x.progress && x.progress.target > 0
+            ? x.progress.current / x.progress.target
+            : 0;
+      return ratio(b) - ratio(a);
+    }
+    case "rarity":
+    default: {
+      const ra = RARITY_ORDER.indexOf(rarityOf(a));
+      const rb = RARITY_ORDER.indexOf(rarityOf(b));
+      if (ra !== rb) return ra - rb;
+      return (b.earnedAt ?? 0) - (a.earnedAt ?? 0);
+    }
+  }
+}
 
 /**
  * Achievements section — lazily fetches the full badge list for this profile and
@@ -591,7 +644,17 @@ const CATEGORY_ORDER: BadgeCategory[] = [
  */
 function BadgesSection({ profile }: { profile: ProfileResponse }) {
   const profileKey = profile.x_username || String(profile.user_id);
+  const { toast } = useToast();
   const [showLocked, setShowLocked] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  const [query, setQuery] = useState("");
+  const [category, setCategory] = useState<CategoryFilter>("all");
+  const [status, setStatus] = useState<StatusFilter>("all");
+  const [rarity, setRarity] = useState<RarityFilter>("all");
+  const [sort, setSort] = useState<BadgeSort>("rarity");
+  // Keys to briefly shimmer after a fresh unlock (self profile only).
+  const [justUnlocked, setJustUnlocked] = useState<Set<string>>(new Set());
+
   const { data, isLoading } = useQuery({
     queryKey: ["badges", profileKey],
     queryFn: () =>
@@ -601,11 +664,92 @@ function BadgesSection({ profile }: { profile: ProfileResponse }) {
   });
 
   const allBadges = data?.badges ?? [];
-  const earnedBadges = allBadges.filter((b) => b.earned);
-  const lockedBadges = allBadges.filter((b) => !b.earned);
-  const total = allBadges.length;
+  // Hidden achievements stay invisible until earned — never reveal the locked
+  // tile (no name, no hint). Everything else is part of the visible catalogue.
+  const visibleBadges = allBadges.filter((b) => b.earned || !b.hidden);
+  const earnedBadges = visibleBadges.filter((b) => b.earned);
+  const lockedBadges = visibleBadges.filter((b) => !b.earned);
+  const total = visibleBadges.length;
   const earnedCount = earnedBadges.length;
   const pct = total > 0 ? Math.round((earnedCount / total) * 100) : 0;
+
+  // Premium unlock celebration: diff the current earned set against what this
+  // device has already seen for this user. Self profile only; first-ever load
+  // seeds the baseline without celebrating the whole backlog.
+  useEffect(() => {
+    if (!profile.isSelf || !data) return;
+    const storageKey = `bp_seen_achievements_${profile.user_id}`;
+    const earnedKeys = (data.badges ?? [])
+      .filter((b) => b.earned)
+      .map((b) => b.key);
+    let seen: string[] = [];
+    try {
+      seen = JSON.parse(localStorage.getItem(storageKey) || "[]");
+    } catch {
+      seen = [];
+    }
+    if (seen.length === 0) {
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(earnedKeys));
+      } catch {
+        /* storage unavailable — skip celebration baseline */
+      }
+      return;
+    }
+    const fresh = earnedKeys.filter((k) => !seen.includes(k));
+    if (fresh.length === 0) return;
+    setJustUnlocked(new Set(fresh));
+    const firstName =
+      (data.badges ?? []).find((b) => b.key === fresh[0])?.name ?? "";
+    toast({
+      title:
+        fresh.length === 1
+          ? "Achievement unlocked!"
+          : `${fresh.length} achievements unlocked!`,
+      description: fresh.length === 1 ? firstName : undefined,
+    });
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(earnedKeys));
+    } catch {
+      /* storage unavailable */
+    }
+    const t = setTimeout(() => setJustUnlocked(new Set()), 6000);
+    return () => clearTimeout(t);
+  }, [data, profile.isSelf, profile.user_id, toast]);
+
+  // Share an earned achievement — copy a ready-to-post line to the clipboard.
+  // Self profile only (copy is first-person). Guards the clipboard explicitly:
+  // navigator.clipboard?.writeText resolves undefined when unavailable, so a
+  // naive await would fire a false "Copied" toast.
+  const handleShare = async (badge: BadgeEntry) => {
+    const rarePct =
+      badge.globalEarnedPercent != null
+        ? ` · held by ${
+            badge.globalEarnedPercent < 1
+              ? badge.globalEarnedPercent.toFixed(1)
+              : Math.round(badge.globalEarnedPercent)
+          }% of traders`
+        : "";
+    const line = `I unlocked "${badge.name}" (${
+      RARITY_META[rarityOf(badge)].label
+    }) on BlackPebble${rarePct}.`;
+    const url = `${window.location.origin}${window.location.pathname}`;
+    const payload = `${line} ${url}`;
+    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(payload);
+        toast({ title: "Copied", description: "Share text copied to clipboard." });
+        return;
+      } catch {
+        /* fall through to failure toast */
+      }
+    }
+    toast({
+      title: "Couldn't copy",
+      description: "Clipboard isn't available here.",
+      variant: "destructive",
+    });
+  };
 
   const rarityCounts = earnedBadges.reduce<Record<BadgeRarity, number>>(
     (acc, b) => {
@@ -640,6 +784,39 @@ function BadgesSection({ profile }: { profile: ProfileResponse }) {
     {},
   );
 
+  // Category pills are built from the collections actually present.
+  const presentCategories = CATEGORY_ORDER.filter((c) =>
+    visibleBadges.some((b) => b.category === c),
+  );
+  const categoryOptions = [
+    { id: "all" as CategoryFilter, label: "All" },
+    ...presentCategories.map((c) => ({
+      id: c as CategoryFilter,
+      label: CATEGORY_LABELS[c],
+    })),
+  ];
+
+  const q = query.trim().toLowerCase();
+  const filtersActive =
+    q !== "" || category !== "all" || status !== "all" || rarity !== "all";
+  const filtered = visibleBadges
+    .filter((b) => {
+      if (category !== "all" && b.category !== category) return false;
+      if (status === "earned" && !b.earned) return false;
+      if (status === "locked" && b.earned) return false;
+      if (rarity !== "all" && rarityOf(b) !== rarity) return false;
+      if (
+        q &&
+        !b.name.toLowerCase().includes(q) &&
+        !b.description.toLowerCase().includes(q)
+      )
+        return false;
+      return true;
+    })
+    .sort((a, b) => compareBadges(a, b, sort));
+
+  const onShare = profile.isSelf ? handleShare : undefined;
+
   return (
     <>
       <SectionHeader icon={Award} title="Achievements" />
@@ -667,9 +844,25 @@ function BadgesSection({ profile }: { profile: ProfileResponse }) {
                     of {total} unlocked
                   </span>
                 </span>
-                <span className="text-xs font-semibold text-muted-foreground">
-                  {pct}%
-                </span>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs font-semibold text-muted-foreground">
+                    {pct}%
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowFilters((v) => !v)}
+                    data-testid="toggle-achievement-filters"
+                    aria-label="Filter achievements"
+                    className={cn(
+                      "rounded-full p-1.5 transition-colors",
+                      showFilters || filtersActive
+                        ? "bg-accent/10 text-accent"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    <SlidersHorizontal className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               </div>
               <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary/40">
                 <div
@@ -733,55 +926,152 @@ function BadgesSection({ profile }: { profile: ProfileResponse }) {
               )}
             </div>
 
-            {/* Earned collectible tiles, grouped by collection */}
-            {earnedCount > 0 ? (
-              <div className="space-y-4">
-                {CATEGORY_ORDER.filter(
-                  (c) => earnedByCategory[c]?.length,
-                ).map((c) => (
-                  <div key={c}>
-                    <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-                      {CATEGORY_LABELS[c]}
-                    </div>
-                    <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4 md:grid-cols-5">
-                      {earnedByCategory[c].map((b) => (
-                        <AchievementBadge key={b.key} badge={b} />
-                      ))}
-                    </div>
-                  </div>
-                ))}
+            {/* Filter / search controls (collapsed by default for a clean view) */}
+            {showFilters && (
+              <div
+                data-testid="achievement-filters"
+                className="mb-5 space-y-3 rounded-xl border border-border/40 bg-secondary/10 p-3"
+              >
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/60" />
+                  <input
+                    type="text"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Search achievements"
+                    data-testid="input-achievement-search"
+                    className="w-full rounded-full border border-border bg-background py-1.5 pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-accent/50 focus:outline-none"
+                  />
+                </div>
+                <FilterPills
+                  options={categoryOptions}
+                  value={category}
+                  onChange={(id) => setCategory(id)}
+                  size="sm"
+                  ariaLabel="Filter by collection"
+                  testIdPrefix="filter-category"
+                />
+                <div className="flex flex-wrap items-center gap-2">
+                  <FilterPills
+                    options={STATUS_OPTIONS}
+                    value={status}
+                    onChange={(id) => setStatus(id)}
+                    size="sm"
+                    ariaLabel="Filter by status"
+                    testIdPrefix="filter-status"
+                  />
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <FilterPills
+                    options={[
+                      { id: "all" as RarityFilter, label: "All" },
+                      ...RARITY_ORDER.map((r) => ({
+                        id: r as RarityFilter,
+                        label: RARITY_META[r].label,
+                      })),
+                    ]}
+                    value={rarity}
+                    onChange={(id) => setRarity(id)}
+                    size="sm"
+                    ariaLabel="Filter by rarity"
+                    testIdPrefix="filter-rarity"
+                  />
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+                    Sort
+                  </span>
+                  <FilterPills
+                    options={SORT_OPTIONS}
+                    value={sort}
+                    onChange={(id) => setSort(id)}
+                    size="sm"
+                    ariaLabel="Sort achievements"
+                    testIdPrefix="sort"
+                  />
+                </div>
               </div>
-            ) : (
-              <p className="py-2 text-center text-sm text-muted-foreground">
-                No achievements unlocked yet.
-              </p>
             )}
 
-            {/* Locked, behind an expandable toggle */}
-            {lockedBadges.length > 0 && (
-              <div className="mt-4 border-t border-border/40 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setShowLocked((v) => !v)}
-                  data-testid="toggle-locked-achievements"
-                  className="flex w-full items-center justify-between text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground/70 transition-colors hover:text-foreground"
+            {filtersActive ? (
+              /* Flat filtered grid */
+              filtered.length > 0 ? (
+                <div
+                  data-testid="achievement-filtered-grid"
+                  className="grid grid-cols-3 gap-2.5 sm:grid-cols-4 md:grid-cols-5"
                 >
-                  <span>Locked · {lockedBadges.length}</span>
-                  <ChevronDown
-                    className={cn(
-                      "h-4 w-4 transition-transform",
-                      showLocked && "rotate-180",
-                    )}
-                  />
-                </button>
-                {showLocked && (
-                  <div className="mt-3 grid grid-cols-3 gap-2.5 sm:grid-cols-4 md:grid-cols-5">
-                    {lockedBadges.map((b) => (
-                      <AchievementBadge key={b.key} badge={b} />
+                  {filtered.map((b) => (
+                    <AchievementBadge
+                      key={b.key}
+                      badge={b}
+                      onShare={onShare}
+                      justUnlocked={justUnlocked.has(b.key)}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <p className="py-4 text-center text-sm text-muted-foreground">
+                  No achievements match these filters.
+                </p>
+              )
+            ) : (
+              <>
+                {/* Earned collectible tiles, grouped by collection */}
+                {earnedCount > 0 ? (
+                  <div className="space-y-4">
+                    {CATEGORY_ORDER.filter(
+                      (c) => earnedByCategory[c]?.length,
+                    ).map((c) => (
+                      <div key={c}>
+                        <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                          {CATEGORY_LABELS[c]}
+                        </div>
+                        <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4 md:grid-cols-5">
+                          {earnedByCategory[c].map((b) => (
+                            <AchievementBadge
+                              key={b.key}
+                              badge={b}
+                              onShare={onShare}
+                              justUnlocked={justUnlocked.has(b.key)}
+                            />
+                          ))}
+                        </div>
+                      </div>
                     ))}
                   </div>
+                ) : (
+                  <p className="py-2 text-center text-sm text-muted-foreground">
+                    No achievements unlocked yet.
+                  </p>
                 )}
-              </div>
+
+                {/* Locked, behind an expandable toggle */}
+                {lockedBadges.length > 0 && (
+                  <div className="mt-4 border-t border-border/40 pt-4">
+                    <button
+                      type="button"
+                      onClick={() => setShowLocked((v) => !v)}
+                      data-testid="toggle-locked-achievements"
+                      className="flex w-full items-center justify-between text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground/70 transition-colors hover:text-foreground"
+                    >
+                      <span>Locked · {lockedBadges.length}</span>
+                      <ChevronDown
+                        className={cn(
+                          "h-4 w-4 transition-transform",
+                          showLocked && "rotate-180",
+                        )}
+                      />
+                    </button>
+                    {showLocked && (
+                      <div className="mt-3 grid grid-cols-3 gap-2.5 sm:grid-cols-4 md:grid-cols-5">
+                        {lockedBadges.map((b) => (
+                          <AchievementBadge key={b.key} badge={b} />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
             )}
           </>
         )}

@@ -34,3 +34,4 @@
 - [Sparkline data source](sparkline-data-source.md) — no stored time-series; ordered real-data-first fallback (gecko→dexscreener-derived→birdeye→snapshot→client placeholder); L3/L5 reuse batched getBestPairs, no extra load; real always wins.
 - [SEO crawler visibility](seo-crawler-visibility.md) — pure Vite SPA: static crawler content in #root (createRoot replaces it), per-route SEO via seo.routes.json + post-build string-templating prerender + client RouteMeta; never headless-prerender (build OOMs).
 - [Clipboard copy success guard](clipboard-success-guard.md) — `navigator.clipboard?.writeText` resolves undefined (no throw) when unavailable, firing false "Copied" toasts; guard explicitly before success path.
+- [Workflow names are artifact-prefixed](workflow-names-prefixed.md) — restart_workflow needs full `artifacts/<dir>: <service>`; bare service name → RUN_COMMAND_NOT_FOUND. Use listWorkflows().

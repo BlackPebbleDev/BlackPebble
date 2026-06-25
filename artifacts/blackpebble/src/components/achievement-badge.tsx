@@ -14,6 +14,14 @@ import {
   BookOpen,
   UserCheck,
   Bookmark,
+  Coins,
+  Sparkles,
+  Eraser,
+  Wand2,
+  Users,
+  Rocket,
+  Crosshair,
+  Share2,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -41,6 +49,14 @@ const ICONS: Record<string, LucideIcon> = {
   BookOpen,
   UserCheck,
   Bookmark,
+  Coins,
+  Sparkles,
+  Eraser,
+  Wand2,
+  Users,
+  Rocket,
+  Crosshair,
+  Award,
 };
 
 interface RarityStyle {
@@ -99,13 +115,27 @@ export function rarityOf(badge: BadgeEntry): BadgeRarity {
 interface AchievementBadgeProps {
   badge: BadgeEntry;
   className?: string;
+  /** Briefly shimmer this tile to celebrate a fresh unlock (self profile). */
+  justUnlocked?: boolean;
+  /** When provided, an earned tile shows a share entry point. */
+  onShare?: (badge: BadgeEntry) => void;
 }
 
-export function AchievementBadge({ badge, className }: AchievementBadgeProps) {
+export function AchievementBadge({
+  badge,
+  className,
+  justUnlocked,
+  onShare,
+}: AchievementBadgeProps) {
   const rarity = rarityOf(badge);
   const meta = RARITY_META[rarity];
   const Icon = ICONS[badge.icon] ?? Award;
   const earned = badge.earned;
+  const progress = badge.progress;
+  // Show a progress bar only for unearned, count-based badges with a real
+  // target and some progress to display.
+  const showProgress =
+    !earned && !!progress && progress.target > 0 && progress.current > 0;
 
   return (
     <div
@@ -116,9 +146,22 @@ export function AchievementBadge({ badge, className }: AchievementBadgeProps) {
         earned
           ? cn("border-border/60 bg-card", meta.glow)
           : "border-border/30 bg-secondary/10",
+        justUnlocked &&
+          "animate-pulse ring-2 ring-amber-400/70 shadow-[0_0_18px_rgba(251,191,36,0.35)]",
         className,
       )}
     >
+      {earned && onShare && (
+        <button
+          type="button"
+          onClick={() => onShare(badge)}
+          data-testid={`share-achievement-${badge.key}`}
+          aria-label={`Share ${badge.name}`}
+          className="absolute right-1.5 top-1.5 rounded-full p-1 text-muted-foreground/60 opacity-0 transition-all hover:bg-secondary/60 hover:text-foreground group-hover:opacity-100"
+        >
+          <Share2 className="h-3.5 w-3.5" />
+        </button>
+      )}
       <div
         className={cn(
           "relative mb-2 flex h-12 w-12 items-center justify-center rounded-full ring-2",
@@ -155,6 +198,28 @@ export function AchievementBadge({ badge, className }: AchievementBadgeProps) {
       >
         {meta.label}
       </div>
+      {showProgress && (
+        <div className="mt-2 w-full">
+          <div className="h-1 w-full overflow-hidden rounded-full bg-secondary/40">
+            <div
+              className="h-full rounded-full bg-muted-foreground/50 transition-all"
+              style={{
+                width: `${Math.min(100, Math.round((progress!.current / progress!.target) * 100))}%`,
+              }}
+            />
+          </div>
+          <div className="mt-1 text-[9px] font-medium tabular-nums text-muted-foreground/50">
+            {formatProgress(progress!.current)} /{" "}
+            {formatProgress(progress!.target)}
+          </div>
+        </div>
+      )}
     </div>
   );
+}
+
+/** Compact progress numbers — strip noisy decimals, keep small fractions. */
+function formatProgress(n: number): string {
+  if (Number.isInteger(n)) return String(n);
+  return n >= 10 ? Math.round(n).toString() : n.toFixed(1);
 }

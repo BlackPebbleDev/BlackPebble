@@ -18,12 +18,16 @@
  */
 
 import { dbAll, dbGet, dbRun } from "./database.js";
+import { badgeTrustContribution } from "./progression.js";
 
 export type BadgeCategory =
   | "trading"
+  | "profit"
   | "caller"
   | "thesis"
+  | "wallet"
   | "community"
+  | "profile"
   | "milestone"
   | "special";
 
@@ -50,16 +54,33 @@ export interface BadgeDefinition {
   icon: string;
   /** Collectible rarity tier. Optional for forward-compat; defaults to common. */
   rarity?: BadgeRarity;
+  /**
+   * Hidden achievements stay invisible in the locked catalogue until earned,
+   * then reveal with a celebration. Once earned they render like any other.
+   */
+  hidden?: boolean;
+  /**
+   * Whether earning this badge posts an activity-feed card. Defaults to true;
+   * trivial setup badges (e.g. completing a profile) set this false so the feed
+   * only carries meaningful unlocks.
+   */
+  feed?: boolean;
 }
 
 export interface BadgeEntry extends BadgeDefinition {
   earned: boolean;
   earnedAt: number | null;
   /**
-   * Optional progress toward unlocking (current / target). Additive scaffolding
-   * — populated by the expanded catalog in Task #54; null/absent until then.
+   * Progress toward unlocking (current / target). Populated for count-based
+   * achievements so the UI can render a progress bar; null for boolean ones.
    */
   progress?: { current: number; target: number } | null;
+  /**
+   * Share-card readiness: the percentage of registered users who hold this
+   * badge (a rough rarity signal for future X / Telegram share cards). Null
+   * when it cannot be computed.
+   */
+  globalEarnedPercent?: number | null;
 }
 
 /** Pre-computed stats the caller must supply before computing badges. */
@@ -78,8 +99,19 @@ export interface BadgeStatsInput {
 
 // ── Catalogue ────────────────────────────────────────────────────────────────
 
-export const BADGE_DEFINITIONS: BadgeDefinition[] = [
-  // Trading
+/**
+ * The achievement catalogue, organised into collections. Each collection is a
+ * `BadgeDefinition[]` so adding a whole new collection (Legacy, Founder,
+ * Seasonal, …) is a one-array change. The flattened `BADGE_DEFINITIONS` is the
+ * single exported source the rest of the system consumes.
+ *
+ * Every unlock condition is derived from REAL platform activity in
+ * `evaluateBadges` below — nothing here is fabricated. Count-based badges expose
+ * a `target` there so the UI can render a progress bar.
+ */
+
+// Trading — paper-trade volume milestones.
+const TRADING_BADGES: BadgeDefinition[] = [
   {
     key: "first_trade",
     name: "First Trade",
@@ -97,28 +129,20 @@ export const BADGE_DEFINITIONS: BadgeDefinition[] = [
     rarity: "common",
   },
   {
+    key: "fifty_trades",
+    name: "50 Trades",
+    description: "Completed 50 paper trades.",
+    category: "trading",
+    icon: "BarChart2",
+    rarity: "rare",
+  },
+  {
     key: "hundred_trades",
     name: "100 Trades",
     description: "Completed 100 paper trades.",
     category: "trading",
     icon: "BarChart3",
     rarity: "epic",
-  },
-  {
-    key: "first_profit",
-    name: "First Profit",
-    description: "Closed a trade with positive realized P&L.",
-    category: "trading",
-    icon: "DollarSign",
-    rarity: "common",
-  },
-  {
-    key: "positive_roi",
-    name: "Positive ROI",
-    description: "Maintained a positive overall ROI across 5 or more trades.",
-    category: "trading",
-    icon: "TrendingUp",
-    rarity: "rare",
   },
   {
     key: "top_100_trader",
@@ -128,7 +152,54 @@ export const BADGE_DEFINITIONS: BadgeDefinition[] = [
     icon: "Trophy",
     rarity: "legendary",
   },
-  // Caller
+];
+
+// Profit — realized P&L and ROI milestones.
+const PROFIT_BADGES: BadgeDefinition[] = [
+  {
+    key: "first_profit",
+    name: "First Profit",
+    description: "Closed a trade with positive realized P&L.",
+    category: "profit",
+    icon: "DollarSign",
+    rarity: "common",
+  },
+  {
+    key: "positive_roi",
+    name: "Positive ROI",
+    description: "Maintained a positive overall ROI across 5 or more trades.",
+    category: "profit",
+    icon: "TrendingUp",
+    rarity: "rare",
+  },
+  {
+    key: "profit_10_sol",
+    name: "In the Green",
+    description: "Reached 10 SOL of cumulative realized profit.",
+    category: "profit",
+    icon: "Coins",
+    rarity: "rare",
+  },
+  {
+    key: "profit_100_sol",
+    name: "Profit Machine",
+    description: "Reached 100 SOL of cumulative realized profit.",
+    category: "profit",
+    icon: "Coins",
+    rarity: "epic",
+  },
+  {
+    key: "whale_pnl",
+    name: "Whale Status",
+    description: "Reached 1,000 SOL of cumulative realized profit.",
+    category: "profit",
+    icon: "Trophy",
+    rarity: "legendary",
+  },
+];
+
+// Calls — on-the-record public token calls.
+const CALL_BADGES: BadgeDefinition[] = [
   {
     key: "first_call",
     name: "First Call",
@@ -146,20 +217,20 @@ export const BADGE_DEFINITIONS: BadgeDefinition[] = [
     rarity: "common",
   },
   {
+    key: "twenty_calls",
+    name: "20 Calls",
+    description: "Logged 20 public token calls.",
+    category: "caller",
+    icon: "Megaphone",
+    rarity: "rare",
+  },
+  {
     key: "ten_x_caller",
     name: "10× Caller",
     description: "Had a token call reach 10× or more.",
     category: "caller",
     icon: "Flame",
     rarity: "epic",
-  },
-  {
-    key: "top_caller",
-    name: "Top Caller",
-    description: "Ranked in the top 50 on the Top Callers board.",
-    category: "caller",
-    icon: "Star",
-    rarity: "legendary",
   },
   {
     key: "sharpshooter",
@@ -169,7 +240,18 @@ export const BADGE_DEFINITIONS: BadgeDefinition[] = [
     icon: "Target",
     rarity: "rare",
   },
-  // Thesis
+  {
+    key: "top_caller",
+    name: "Top Caller",
+    description: "Ranked in the top 50 on the Top Callers board.",
+    category: "caller",
+    icon: "Star",
+    rarity: "legendary",
+  },
+];
+
+// Research — standalone token theses.
+const RESEARCH_BADGES: BadgeDefinition[] = [
   {
     key: "first_thesis",
     name: "First Thesis",
@@ -194,7 +276,83 @@ export const BADGE_DEFINITIONS: BadgeDefinition[] = [
     icon: "BookOpen",
     rarity: "epic",
   },
-  // Community
+];
+
+/**
+ * Wallet Utilities — the signature collection, derived entirely from REAL
+ * verified on-chain recovery events (rent reclaimed by cleaning up empty token
+ * accounts). Unverified telemetry never unlocks a badge. Thresholds mirror the
+ * recovery-badges scaffold so the two stay consistent.
+ */
+const WALLET_BADGES: BadgeDefinition[] = [
+  {
+    key: "first_recovery",
+    name: "First Recovery",
+    description: "Completed your first successful wallet cleanup.",
+    category: "wallet",
+    icon: "Sparkles",
+    rarity: "common",
+  },
+  {
+    key: "ten_accounts_closed",
+    name: "10 Accounts Closed",
+    description: "Closed 10 rent-bearing token accounts.",
+    category: "wallet",
+    icon: "Eraser",
+    rarity: "common",
+  },
+  {
+    key: "hundred_accounts_closed",
+    name: "100 Accounts Closed",
+    description: "Closed 100 rent-bearing token accounts.",
+    category: "wallet",
+    icon: "Eraser",
+    rarity: "epic",
+  },
+  {
+    key: "one_sol_recovered",
+    name: "1 SOL Recovered",
+    description: "Recovered a cumulative 1 SOL of rent.",
+    category: "wallet",
+    icon: "Coins",
+    rarity: "rare",
+  },
+  {
+    key: "ten_sol_recovered",
+    name: "10 SOL Recovered",
+    description: "Recovered a cumulative 10 SOL of rent.",
+    category: "wallet",
+    icon: "Coins",
+    rarity: "epic",
+  },
+  {
+    key: "wallet_cleaner",
+    name: "Wallet Cleaner",
+    description: "Ran 5 or more successful wallet cleanups.",
+    category: "wallet",
+    icon: "Wand2",
+    rarity: "rare",
+  },
+  {
+    key: "token_burner",
+    name: "Token Burner",
+    description: "Burned 10 or more junk tokens while cleaning up.",
+    category: "wallet",
+    icon: "Flame",
+    rarity: "rare",
+  },
+  {
+    key: "elite_cleaner",
+    name: "Elite Cleaner",
+    description: "Closed 50+ accounts and recovered 5+ SOL of rent.",
+    category: "wallet",
+    icon: "Trophy",
+    rarity: "legendary",
+  },
+];
+
+// Community — membership and network.
+const COMMUNITY_BADGES: BadgeDefinition[] = [
   {
     key: "early_user",
     name: "Early User",
@@ -204,22 +362,103 @@ export const BADGE_DEFINITIONS: BadgeDefinition[] = [
     rarity: "rare",
   },
   {
+    key: "networked",
+    name: "Networked",
+    description: "Reached 10 followers on your BlackPebble profile.",
+    category: "community",
+    icon: "Users",
+    rarity: "rare",
+  },
+];
+
+// Profile — personalising your presence. Setup badges; not feed-worthy.
+const PROFILE_BADGES: BadgeDefinition[] = [
+  {
     key: "profile_complete",
     name: "Profile Complete",
-    description: "Set a bio on a connected X account.",
-    category: "community",
+    description: "Set a bio and avatar on a connected X account.",
+    category: "profile",
     icon: "UserCheck",
     rarity: "common",
+    feed: false,
   },
   {
     key: "watchlist_builder",
     name: "Watchlist Builder",
     description: "Added 3 or more tokens to your watchlist.",
-    category: "community",
+    category: "profile",
     icon: "Bookmark",
     rarity: "common",
+    feed: false,
   },
 ];
+
+// Special — rare cross-cutting feats spanning multiple disciplines.
+const SPECIAL_BADGES: BadgeDefinition[] = [
+  {
+    key: "triple_threat",
+    name: "Triple Threat",
+    description: "Traded, made a call, and published a thesis.",
+    category: "special",
+    icon: "Award",
+    rarity: "epic",
+  },
+];
+
+/**
+ * Hidden — invisible in the locked catalogue until earned, then revealed with a
+ * celebration. Still derived from real activity; never fabricated.
+ */
+const HIDDEN_BADGES: BadgeDefinition[] = [
+  {
+    key: "moonshot",
+    name: "Moonshot",
+    description: "Had a token call reach 50× or more.",
+    category: "caller",
+    icon: "Rocket",
+    rarity: "legendary",
+    hidden: true,
+  },
+  {
+    key: "perfectionist",
+    name: "Perfectionist",
+    description: "Held a 90%+ hit rate across 10 or more graded calls.",
+    category: "caller",
+    icon: "Crosshair",
+    rarity: "legendary",
+    hidden: true,
+  },
+  {
+    key: "rent_reaper",
+    name: "Rent Reaper",
+    description: "Recovered a cumulative 25 SOL of rent.",
+    category: "wallet",
+    icon: "Coins",
+    rarity: "legendary",
+    hidden: true,
+  },
+];
+
+/**
+ * Flattened catalogue — the single source the API, feed and trust score consume.
+ * Collection order here is the display order on the profile.
+ */
+export const BADGE_DEFINITIONS: BadgeDefinition[] = [
+  ...TRADING_BADGES,
+  ...PROFIT_BADGES,
+  ...CALL_BADGES,
+  ...RESEARCH_BADGES,
+  ...WALLET_BADGES,
+  ...COMMUNITY_BADGES,
+  ...PROFILE_BADGES,
+  ...SPECIAL_BADGES,
+  ...HIDDEN_BADGES,
+];
+
+/** Badge keys that should NOT generate an activity-feed card (setup badges). */
+export const NON_FEED_BADGE_KEYS: string[] = BADGE_DEFINITIONS.filter(
+  (d) => d.feed === false,
+).map((d) => d.key);
 
 // ── Schema ───────────────────────────────────────────────────────────────────
 
@@ -264,7 +503,8 @@ export function computeTrustScore(
     stats.callsMade > 0
       ? (Math.min(stats.callerScore, 100) / 100) * 20
       : 0;
-  const badgeComp = (Math.min(earnedBadgeCount, 5) / 5) * 10;
+  // Centralized in progression.ts so every scoring surface shares one source.
+  const badgeComp = badgeTrustContribution(earnedBadgeCount);
 
   const score = Math.min(
     100,
@@ -292,92 +532,247 @@ export function computeTrustScore(
  * Returns the full badge list (earned + locked) and the earned count so the
  * caller can immediately compute the trust score without a second DB round-trip.
  */
+/**
+ * Everything an achievement can be derived from. All values come from REAL
+ * platform activity; recovery values are from VERIFIED on-chain events only.
+ */
+export interface BadgeMetrics {
+  userId: number;
+  closedTrades: number;
+  realizedPnlSol: number;
+  roiPercent: number;
+  traderRank: number | null;
+  callsMade: number;
+  bestMultiple: number | null;
+  callerRank: number | null;
+  hitRate: number;
+  gradedCalls: number;
+  thesisCount: number;
+  watchlistCount: number;
+  followers: number;
+  hasBio: boolean;
+  hasAvatar: boolean;
+  recoveryAccountsClosed: number;
+  recoverySolRecovered: number;
+  recoveryCleanups: number;
+  recoveryTokensBurned: number;
+}
+
+/** One badge's derived state: whether it is earned and (optionally) progress. */
+export interface BadgeEvaluation {
+  earned: boolean;
+  progress: { current: number; target: number } | null;
+}
+
+/**
+ * The single source of truth for every unlock threshold. Pure (no DB / IO) so it
+ * is trivially testable and so progress + earned can never drift apart. For
+ * count-based badges it returns `progress` (clamped to the target); boolean
+ * badges return null progress.
+ */
+export function evaluateBadges(
+  m: BadgeMetrics,
+): Record<string, BadgeEvaluation> {
+  const count = (current: number, target: number): BadgeEvaluation => ({
+    earned: current >= target,
+    progress: { current: Math.min(current, target), target },
+  });
+  const bool = (earned: boolean): BadgeEvaluation => ({
+    earned,
+    progress: null,
+  });
+
+  return {
+    // Trading
+    first_trade: count(m.closedTrades, 1),
+    ten_trades: count(m.closedTrades, 10),
+    fifty_trades: count(m.closedTrades, 50),
+    hundred_trades: count(m.closedTrades, 100),
+    top_100_trader: bool(m.traderRank != null && m.traderRank <= 100),
+    // Profit
+    first_profit: bool(m.realizedPnlSol > 0 && m.closedTrades >= 1),
+    positive_roi: bool(m.roiPercent > 0 && m.closedTrades >= 5),
+    profit_10_sol: count(Math.max(0, m.realizedPnlSol), 10),
+    profit_100_sol: count(Math.max(0, m.realizedPnlSol), 100),
+    whale_pnl: count(Math.max(0, m.realizedPnlSol), 1000),
+    // Calls
+    first_call: count(m.callsMade, 1),
+    five_calls: count(m.callsMade, 5),
+    twenty_calls: count(m.callsMade, 20),
+    ten_x_caller: bool(m.bestMultiple != null && m.bestMultiple >= 10),
+    sharpshooter: bool(m.hitRate >= 0.6 && m.gradedCalls >= 5),
+    top_caller: bool(m.callerRank != null && m.callerRank <= 50),
+    // Research
+    first_thesis: count(m.thesisCount, 1),
+    researcher: count(m.thesisCount, 5),
+    consistent_analyst: count(m.thesisCount, 10),
+    // Wallet Utilities (verified recovery only)
+    first_recovery: count(m.recoveryCleanups, 1),
+    ten_accounts_closed: count(m.recoveryAccountsClosed, 10),
+    hundred_accounts_closed: count(m.recoveryAccountsClosed, 100),
+    one_sol_recovered: count(m.recoverySolRecovered, 1),
+    ten_sol_recovered: count(m.recoverySolRecovered, 10),
+    wallet_cleaner: count(m.recoveryCleanups, 5),
+    token_burner: count(m.recoveryTokensBurned, 10),
+    elite_cleaner: bool(
+      m.recoveryAccountsClosed >= 50 && m.recoverySolRecovered >= 5,
+    ),
+    // Community
+    early_user: bool(m.userId <= 500),
+    networked: count(m.followers, 10),
+    // Profile
+    profile_complete: bool(m.hasBio && m.hasAvatar),
+    watchlist_builder: count(m.watchlistCount, 3),
+    // Special
+    triple_threat: bool(
+      m.closedTrades >= 1 && m.callsMade >= 1 && m.thesisCount >= 1,
+    ),
+    // Hidden
+    moonshot: bool(m.bestMultiple != null && m.bestMultiple >= 50),
+    perfectionist: bool(m.hitRate >= 0.9 && m.gradedCalls >= 10),
+    rent_reaper: count(m.recoverySolRecovered, 25),
+  };
+}
+
 export async function getUserBadges(
   userId: number,
   stats: BadgeStatsInput,
 ): Promise<{ badges: BadgeEntry[]; earnedCount: number }> {
   await ensureBadgesSchema();
 
-  const [userExtras, thesisRow, watchlistRow, existingAchievements] =
-    await Promise.all([
-      dbGet<{ bio: string | null; avatar: string | null }>(
-        `SELECT bio, avatar_url AS avatar FROM users WHERE id = $1`,
-        [userId],
-      ),
-      dbGet<{ count: number }>(
-        `SELECT COUNT(*)::int AS count
-           FROM token_theses
-          WHERE user_id = $1 AND is_hidden_by_admin = FALSE`,
-        [userId],
-      ).catch(() => ({ count: 0 })),
-      dbGet<{ count: number }>(
-        `SELECT COUNT(DISTINCT w.token_mint)::int AS count
-           FROM watchlist w
-           JOIN user_identities ui
-             ON ui.wallet_address = w.wallet AND ui.provider = 'wallet'
-          WHERE ui.user_id = $1`,
-        [userId],
-      ).catch(() => ({ count: 0 })),
-      dbAll<{ badge_key: string; earned_at: number }>(
-        `SELECT badge_key, earned_at
-           FROM user_achievements
-          WHERE user_id = $1`,
-        [userId],
-      ),
-    ]);
+  const [
+    userExtras,
+    thesisRow,
+    watchlistRow,
+    followerRow,
+    recoveryRow,
+    holderRows,
+    totalUsersRow,
+    existingAchievements,
+  ] = await Promise.all([
+    dbGet<{ bio: string | null; avatar: string | null }>(
+      `SELECT bio, avatar_url AS avatar FROM users WHERE id = $1`,
+      [userId],
+    ),
+    dbGet<{ count: number }>(
+      `SELECT COUNT(*)::int AS count
+         FROM token_theses
+        WHERE user_id = $1 AND is_hidden_by_admin = FALSE`,
+      [userId],
+    ).catch(() => ({ count: 0 })),
+    dbGet<{ count: number }>(
+      `SELECT COUNT(DISTINCT w.token_mint)::int AS count
+         FROM watchlist w
+         JOIN user_identities ui
+           ON ui.wallet_address = w.wallet AND ui.provider = 'wallet'
+        WHERE ui.user_id = $1`,
+      [userId],
+    ).catch(() => ({ count: 0 })),
+    dbGet<{ count: number }>(
+      `SELECT COUNT(*)::int AS count
+         FROM user_follows WHERE following_user_id = $1`,
+      [userId],
+    ).catch(() => ({ count: 0 })),
+    // Wallet Utilities: aggregate VERIFIED recovery across this user's linked
+    // wallets only. Read-only; guarded so a missing table never breaks badges.
+    dbGet<{
+      accounts_closed: number;
+      sol_recovered: number;
+      cleanups: number;
+      tokens_burned: number;
+    }>(
+      `SELECT
+         COALESCE(SUM(accounts_closed), 0)::int AS accounts_closed,
+         COALESCE(SUM(recovered_sol), 0) AS sol_recovered,
+         COUNT(*)::int AS cleanups,
+         COALESCE(SUM(tokens_burned), 0)::int AS tokens_burned
+       FROM recovery_events
+       WHERE event_type = 'cleanup' AND status = 'success' AND verified = true
+         AND wallet IN (
+           SELECT wallet_address FROM user_identities
+            WHERE user_id = $1 AND provider = 'wallet'
+         )`,
+      [userId],
+    ).catch(() => null),
+    // Share-card rarity: how many distinct users hold each badge.
+    dbAll<{ badge_key: string; holders: number }>(
+      `SELECT badge_key, COUNT(DISTINCT user_id)::int AS holders
+         FROM user_achievements GROUP BY badge_key`,
+    ).catch(() => []),
+    dbGet<{ count: number }>(
+      `SELECT COUNT(*)::int AS count FROM users`,
+    ).catch(() => ({ count: 0 })),
+    dbAll<{ badge_key: string; earned_at: number }>(
+      `SELECT badge_key, earned_at
+         FROM user_achievements
+        WHERE user_id = $1`,
+      [userId],
+    ),
+  ]);
 
-  const thesisCount = thesisRow?.count ?? 0;
-  const watchlistCount = watchlistRow?.count ?? 0;
-  const hasBio = !!(userExtras?.bio?.trim());
-  const hasAvatar = !!(userExtras?.avatar);
-
-  const conditions: Record<string, boolean> = {
-    first_trade: stats.closedTrades >= 1,
-    ten_trades: stats.closedTrades >= 10,
-    hundred_trades: stats.closedTrades >= 100,
-    first_profit: stats.realizedPnlSol > 0 && stats.closedTrades >= 1,
-    positive_roi: stats.roiPercent > 0 && stats.closedTrades >= 5,
-    top_100_trader: stats.traderRank != null && stats.traderRank <= 100,
-    first_call: stats.callsMade >= 1,
-    five_calls: stats.callsMade >= 5,
-    ten_x_caller: stats.bestMultiple != null && stats.bestMultiple >= 10,
-    top_caller: stats.callerRank != null && stats.callerRank <= 50,
-    sharpshooter: stats.hitRate >= 0.6 && stats.gradedCalls >= 5,
-    first_thesis: thesisCount >= 1,
-    researcher: thesisCount >= 5,
-    consistent_analyst: thesisCount >= 10,
-    early_user: userId <= 500,
-    profile_complete: hasBio && hasAvatar,
-    watchlist_builder: watchlistCount >= 3,
+  const metrics: BadgeMetrics = {
+    userId,
+    closedTrades: stats.closedTrades,
+    realizedPnlSol: stats.realizedPnlSol,
+    roiPercent: stats.roiPercent,
+    traderRank: stats.traderRank,
+    callsMade: stats.callsMade,
+    bestMultiple: stats.bestMultiple,
+    callerRank: stats.callerRank,
+    hitRate: stats.hitRate,
+    gradedCalls: stats.gradedCalls,
+    thesisCount: thesisRow?.count ?? 0,
+    watchlistCount: watchlistRow?.count ?? 0,
+    followers: followerRow?.count ?? 0,
+    hasBio: !!userExtras?.bio?.trim(),
+    hasAvatar: !!userExtras?.avatar,
+    recoveryAccountsClosed: Number(recoveryRow?.accounts_closed ?? 0),
+    recoverySolRecovered: Number(recoveryRow?.sol_recovered ?? 0),
+    recoveryCleanups: Number(recoveryRow?.cleanups ?? 0),
+    recoveryTokensBurned: Number(recoveryRow?.tokens_burned ?? 0),
   };
 
-  // Persist newly earned badges (upsert-safe, idempotent)
+  const evals = evaluateBadges(metrics);
+
+  // Persist newly earned badges (upsert-safe, idempotent).
   const prevEarnedMap = new Map<string, number>(
     existingAchievements.map((a) => [a.badge_key, a.earned_at]),
   );
   const now = Math.floor(Date.now() / 1000);
 
-  for (const [key, earned] of Object.entries(conditions)) {
-    if (earned && !prevEarnedMap.has(key)) {
+  for (const d of BADGE_DEFINITIONS) {
+    if (evals[d.key]?.earned && !prevEarnedMap.has(d.key)) {
       await dbRun(
         `INSERT INTO user_achievements (user_id, badge_key, earned_at)
          VALUES ($1, $2, $3)
          ON CONFLICT (user_id, badge_key) DO NOTHING`,
-        [userId, key, now],
+        [userId, d.key, now],
       );
-      prevEarnedMap.set(key, now);
+      prevEarnedMap.set(d.key, now);
     }
   }
 
-  const earnedCount = Object.values(conditions).filter(Boolean).length;
+  const totalUsers = totalUsersRow?.count ?? 0;
+  const holderMap = new Map<string, number>(
+    holderRows.map((r) => [r.badge_key, r.holders]),
+  );
 
-  const badges: BadgeEntry[] = BADGE_DEFINITIONS.map((d) => ({
-    ...d,
-    earned: !!(conditions[d.key]),
-    earnedAt: conditions[d.key]
-      ? (prevEarnedMap.get(d.key) ?? now)
-      : null,
-  }));
+  let earnedCount = 0;
+  const badges: BadgeEntry[] = BADGE_DEFINITIONS.map((d) => {
+    const ev = evals[d.key] ?? { earned: false, progress: null };
+    if (ev.earned) earnedCount += 1;
+    const holders = holderMap.get(d.key) ?? 0;
+    return {
+      ...d,
+      earned: ev.earned,
+      earnedAt: ev.earned ? (prevEarnedMap.get(d.key) ?? now) : null,
+      progress: ev.progress,
+      globalEarnedPercent:
+        totalUsers > 0
+          ? Math.round((holders / totalUsers) * 1000) / 10
+          : null,
+    };
+  });
 
   return { badges, earnedCount };
 }
