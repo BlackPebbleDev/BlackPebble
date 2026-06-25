@@ -24,10 +24,18 @@ key on the SORTED unique mint set + window so cache identity is order-stable.
 OHLCV history; the rest are illiquid/new with no usable series. So a "draw real
 or nothing" policy leaves most cards blank — looks broken.
 
-**Fallback policy (current):** Sparkline component takes `fallbackPercent` and,
-when `points` is null/<2pts, synthesizes a shape from the % change
-(`fallbackSeries`): up=positive, down=negative, flat=|%|<0.5. Ripple is zero at
-both endpoints so the green/red/gray color rule still holds. Synthetic lines drawn
-at strokeOpacity 0.7 (testid `sparkline-fallback`) vs real at 1.0 (`sparkline`).
-`undefined`=loading shimmer (only non-line state). NO dashed placeholder anymore.
-Fixed SVG dims = no layout shift. Fallback is client-side only (card already has %).
+**Fallback policy (current — Smart Sparkline Fallback System):** ordered
+real-data-first resolver in `getSparklines`, returning `{points, source}` per
+mint. Levels: L1 cache → L2 GeckoTerminal OHLCV → L3 series DERIVED from real
+DexScreener priceChange windows (`past = price/(1+pct/100)` for m5/h1/h6/h24, ≥3
+anchors) → L4 Birdeye (gated on `BIRDEYE_API_KEY`, inert without it) → L5 bounded
+in-memory snapshot store (`priceHistory.ts`, prices already fetched, ≥4 pts over
+≥3min) → L6 CLIENT artificial placeholder (`sparkline-placeholder.ts`,
+deterministic mulberry32 seeded by mint, ~10 templates).
+**Key trick:** L2 pool + L3 derived series come from ONE batched `getBestPairs`
+call (returns pool addr + price + priceChange) — L3/L5 add NO upstream load.
+Snapshots recorded in getTokenInfo, trending hydration, and getBestPairs.
+**Honesty rule (do not weaken):** real always wins; placeholder drawn at reduced
+opacity + dashed + testid `sparkline-placeholder` (real = `sparkline` w/
+`data-source`), never claims to be real. `undefined`=loading shimmer. Old
+`fallbackPercent`/`fallbackSeries` client-synth approach is GONE.

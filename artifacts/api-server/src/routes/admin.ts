@@ -8,6 +8,7 @@ import {
 import { dbAll, dbGet, pool } from "../lib/database.js";
 import { getMarketStatus, forceRefreshTrending } from "../lib/prices.js";
 import { getSparklineDiagnostics } from "../lib/sparklines.js";
+import { getPriceHistoryDiagnostics } from "../lib/priceHistory.js";
 import { pumpportal } from "../lib/pumpportal.js";
 import { getFeatureFlags, setFeatureFlag } from "../lib/featureFlags.js";
 import {
@@ -110,7 +111,10 @@ router.get(
 router.get(
   "/admin/sparkline-diagnostics",
   asyncHandler((_req, res) => {
-    return res.json(getSparklineDiagnostics());
+    return res.json({
+      ...getSparklineDiagnostics(),
+      snapshotStore: getPriceHistoryDiagnostics(),
+    });
   }),
 );
 

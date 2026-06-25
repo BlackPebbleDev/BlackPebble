@@ -6,6 +6,7 @@ import {
   deleteCacheValue,
 } from "./database.js";
 import { pumpportal } from "./pumpportal.js";
+import { recordPriceSnapshot } from "./priceHistory.js";
 import { logger } from "./logger.js";
 
 const SOL_MINT = "So11111111111111111111111111111111111111112";
@@ -48,7 +49,7 @@ interface DexPair {
   priceUsd?: string;
   liquidity?: { usd?: number };
   volume?: { h24?: number; h6?: number; h1?: number; m5?: number };
-  priceChange?: { h24?: number };
+  priceChange?: { m5?: number; h1?: number; h6?: number; h24?: number };
   txns?: {
     m5?: { buys?: number; sells?: number };
     h1?: { buys?: number; sells?: number };
@@ -230,6 +231,10 @@ export async function getTokenInfo(mint: string): Promise<TokenInfo | null> {
   if (dex) {
     const priceUsd = dex.priceUsd ? Number(dex.priceUsd) : null;
     const priceSol = Number(dex.priceNative) || (priceUsd && solUsd ? priceUsd / solUsd : 0);
+    // Feed the sparkline snapshot store (L5) from a price we already fetched.
+    if (priceUsd != null) {
+      recordPriceSnapshot(mint, priceUsd, dex.marketCap ?? dex.fdv ?? null);
+    }
     return {
       mint,
       name: dex.baseToken?.name || mint.slice(0, 6),
@@ -456,6 +461,10 @@ export interface MarketToken extends SearchResult {
 function pairToMarketToken(p: DexPair & { txns?: { h24?: { buys?: number; sells?: number } } }): MarketToken {
   const base = pairToSearchResult(p);
   const txns = p.txns?.h24;
+  // Feed the sparkline snapshot store (L5) from the trending price we already have.
+  if (base.priceUsd != null) {
+    recordPriceSnapshot(base.mint, base.priceUsd, base.marketCapUsd);
+  }
   return {
     ...base,
     txns24h: txns ? (txns.buys ?? 0) + (txns.sells ?? 0) : null,
@@ -543,10 +552,31 @@ export async function getTokenStatsBatch(
  * (via the shared `isBetterPair` selection), keeping them consistent. Best
  * effort: mints with no usable Solana pair simply won't appear in the map.
  */
-export async function getBestPairAddresses(
+/**
+ * The trusted-quote best pair for a mint, reduced to exactly what the sparkline
+ * resolver needs: the pool address (for GeckoTerminal OHLCV), the current price,
+ * the market cap, and the multi-window price-change percentages (for deriving a
+ * coarse real series). Exposed instead of the internal `DexPair` so callers
+ * don't depend on the full upstream shape.
+ */
+export interface MintPair {
+  poolAddress: string;
+  priceUsd: number | null;
+  marketCapUsd: number | null;
+  priceChange: { m5?: number; h1?: number; h6?: number; h24?: number };
+}
+
+/**
+ * Resolve a set of mints to their trusted-quote best pair (batched, 30/request).
+ * One DexScreener call per chunk yields the pool address AND the price/MC/change
+ * fields — so the sparkline resolver gets both its OHLCV pool (L2) and its
+ * DexScreener-derived series (L3) from a single batched lookup, adding no extra
+ * upstream load. Every observed price is also fed into the snapshot store (L5).
+ */
+export async function getBestPairs(
   mints: string[],
-): Promise<Map<string, string>> {
-  const out = new Map<string, string>();
+): Promise<Map<string, MintPair>> {
+  const out = new Map<string, MintPair>();
   const unique = [...new Set(mints.filter(Boolean))];
   if (unique.length === 0) return out;
 
@@ -569,13 +599,63 @@ export async function getBestPairAddresses(
         }
       }
       for (const [addr, p] of bestPair) {
-        if (!out.has(addr)) out.set(addr, p.pairAddress);
+        if (out.has(addr)) continue;
+        const priceUsd = p.priceUsd ? Number(p.priceUsd) : null;
+        const marketCapUsd = p.marketCap ?? p.fdv ?? null;
+        if (priceUsd != null && Number.isFinite(priceUsd)) {
+          recordPriceSnapshot(addr, priceUsd, marketCapUsd);
+        }
+        out.set(addr, {
+          poolAddress: p.pairAddress,
+          priceUsd: priceUsd != null && Number.isFinite(priceUsd) ? priceUsd : null,
+          marketCapUsd,
+          priceChange: p.priceChange ?? {},
+        });
       }
     } catch (e) {
-      logger.warn({ err: e }, "Best-pair address batch fetch failed");
+      logger.warn({ err: e }, "Best-pair batch fetch failed");
     }
   }
   return out;
+}
+
+/**
+ * Back-compat thin wrapper: mint → pool address only. Retained for callers that
+ * just need the OHLCV pool; new code should prefer `getBestPairs`.
+ */
+export async function getBestPairAddresses(
+  mints: string[],
+): Promise<Map<string, string>> {
+  const pairs = await getBestPairs(mints);
+  const out = new Map<string, string>();
+  for (const [mint, p] of pairs) out.set(mint, p.poolAddress);
+  return out;
+}
+
+/**
+ * Reconstruct a coarse but REAL close-price series from a pair's current price
+ * and its multi-window percentage changes (sparkline fallback level L3). For a
+ * window whose change is `pct`, the price `t` ago was `price / (1 + pct/100)`;
+ * stitched oldest→newest this yields anchors at ~24h, 6h, 1h, 5m ago and now.
+ * Returns null when fewer than three anchors are available (too thin to draw a
+ * meaningful shape — let the next fallback level handle it).
+ */
+export function deriveSeriesFromPair(pair: MintPair): number[] | null {
+  const price = pair.priceUsd;
+  if (price == null || !Number.isFinite(price) || price <= 0) return null;
+  const pc = pair.priceChange ?? {};
+  const series: number[] = [];
+  const anchor = (pct?: number) => {
+    if (typeof pct === "number" && Number.isFinite(pct) && 1 + pct / 100 > 0) {
+      series.push(price / (1 + pct / 100));
+    }
+  };
+  anchor(pc.h24);
+  anchor(pc.h6);
+  anchor(pc.h1);
+  anchor(pc.m5);
+  series.push(price);
+  return series.length >= 3 ? series : null;
 }
 
 // ── Market status tracking ────────────────────────────────────────────────

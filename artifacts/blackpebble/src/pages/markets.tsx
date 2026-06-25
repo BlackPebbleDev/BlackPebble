@@ -113,7 +113,8 @@ function MarketTable({ tokens, navigate }: { tokens: TokenInfo[]; navigate: (p: 
                 <span className="text-[10px] text-muted-foreground ml-1">MC</span>
               </div>
               <Sparkline
-                points={spark[t.mint]}
+                series={spark[t.mint]}
+                seed={t.mint}
                 width={60}
                 height={18}
               />
@@ -178,7 +179,8 @@ function MarketTable({ tokens, navigate }: { tokens: TokenInfo[]; navigate: (p: 
               <td className="px-4 py-3">
                 <div className="flex justify-center">
                   <Sparkline
-                    points={spark[t.mint]}
+                    series={spark[t.mint]}
+                    seed={t.mint}
                     width={72}
                     height={24}
                   />

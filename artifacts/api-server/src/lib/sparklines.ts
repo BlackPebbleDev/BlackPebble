@@ -1,6 +1,6 @@
 import axios from "axios";
-import { getBestPairAddresses } from "./prices.js";
-import { logger } from "./logger.js";
+import { getBestPairs, deriveSeriesFromPair } from "./prices.js";
+import { getSnapshotSeries } from "./priceHistory.js";
 
 /**
  * Token-card sparklines.
@@ -28,6 +28,24 @@ export const DEFAULT_WINDOW: SparklineWindow = "24h";
 
 /** A sparkline is a short chronological series of close prices, oldest first. */
 export type SparklinePoints = number[] | null;
+
+/**
+ * Which fallback level produced a series. `null` means no real data was found at
+ * any level — the client draws an honest artificial placeholder (L6), seeded by
+ * the mint, that never claims to be real. Real sources are ranked: a richer
+ * source always wins over a coarser one.
+ */
+export type SparklineSource =
+  | "gecko" // L2: GeckoTerminal OHLCV (premium real history)
+  | "dexscreener" // L3: derived from real DexScreener price-change windows
+  | "birdeye" // L4: Birdeye history (only when an API key is configured)
+  | "snapshot"; // L5: observed in-memory price snapshots accumulated this session
+
+/** A resolved sparkline: its points (null when only a placeholder is possible) and the source. */
+export interface SparklineEntry {
+  points: SparklinePoints;
+  source: SparklineSource | null;
+}
 
 interface WindowConfig {
   /** GeckoTerminal timeframe segment. */
@@ -57,6 +75,7 @@ export function isSparklineWindow(v: unknown): v is SparklineWindow {
 // ── In-memory cache ────────────────────────────────────────────────────────
 interface CacheEntry {
   points: SparklinePoints;
+  source: SparklineSource | null;
   at: number;
 }
 const cache = new Map<string, CacheEntry>();
@@ -81,7 +100,34 @@ const diagnostics = {
   slowFetches: 0,
   lastError: null as string | null,
   lastErrorAt: null as number | null,
+  // Per-source resolution counts (cumulative across requests). `placeholder` is
+  // the count of mints that fell all the way through to the client-side L6.
+  sourceGecko: 0,
+  sourceDexscreener: 0,
+  sourceBirdeye: 0,
+  sourceSnapshot: 0,
+  sourcePlaceholder: 0,
 };
+
+/** Tally a resolution against its source for the diagnostics endpoint. */
+function tallySource(source: SparklineSource | null): void {
+  switch (source) {
+    case "gecko":
+      diagnostics.sourceGecko += 1;
+      break;
+    case "dexscreener":
+      diagnostics.sourceDexscreener += 1;
+      break;
+    case "birdeye":
+      diagnostics.sourceBirdeye += 1;
+      break;
+    case "snapshot":
+      diagnostics.sourceSnapshot += 1;
+      break;
+    default:
+      diagnostics.sourcePlaceholder += 1;
+  }
+}
 
 /** A single OHLCV fetch slower than this is flagged as an excessive render. */
 const SLOW_FETCH_MS = 4000;
@@ -157,6 +203,60 @@ async function fetchPoolCloses(
   }
 }
 
+// ── Birdeye history (L4) ───────────────────────────────────────────────────
+/**
+ * Birdeye OHLCV history for a mint. ONLY attempted when a `BIRDEYE_API_KEY` is
+ * configured — otherwise this returns null instantly and the level is skipped
+ * cleanly (no key is set in this environment today, so L4 is inactive until one
+ * is provided). Read-only, oldest-first close prices.
+ */
+async function fetchBirdeyeCloses(
+  mint: string,
+  cfg: WindowConfig,
+): Promise<SparklinePoints> {
+  const apiKey = process.env.BIRDEYE_API_KEY;
+  if (!apiKey) return null;
+
+  // Map the sparkline window to a Birdeye candle type + lookback range.
+  const typeByTimeframe: Record<WindowConfig["timeframe"], string> = {
+    minute: cfg.aggregate >= 15 ? "15m" : "5m",
+    hour: "1H",
+    day: "1D",
+  };
+  const stepSec =
+    cfg.timeframe === "hour"
+      ? 3600
+      : cfg.timeframe === "day"
+        ? 86400
+        : cfg.aggregate * 60;
+  const nowSec = Math.floor(Date.now() / 1000);
+  const fromSec = nowSec - stepSec * (cfg.limit + 1);
+  const url =
+    `https://public-api.birdeye.so/defi/ohlcv?address=${mint}` +
+    `&type=${typeByTimeframe[cfg.timeframe]}&time_from=${fromSec}&time_to=${nowSec}`;
+  try {
+    const res = await axios.get(url, {
+      timeout: 8000,
+      headers: { accept: "application/json", "X-API-KEY": apiKey, "x-chain": "solana" },
+    });
+    const items: unknown = res.data?.data?.items;
+    if (!Array.isArray(items) || items.length < 2) {
+      diagnostics.emptyHistory += 1;
+      return null;
+    }
+    const closes: number[] = [];
+    for (const row of items) {
+      const c = row && typeof row === "object" ? Number((row as { c?: unknown }).c) : NaN;
+      if (Number.isFinite(c) && c > 0) closes.push(c);
+    }
+    return closes.length >= 2 ? closes : null;
+  } catch (e) {
+    diagnostics.lastError = e instanceof Error ? e.message : String(e);
+    diagnostics.lastErrorAt = Date.now();
+    return null;
+  }
+}
+
 /** Run an async mapper over items with a fixed concurrency ceiling. */
 async function mapWithConcurrency<T, R>(
   items: T[],
@@ -180,18 +280,29 @@ async function mapWithConcurrency<T, R>(
 }
 
 /**
- * Build sparkline point arrays for a set of mints in the given window.
- * Returns a map mint → close-price array (oldest first) or null when no usable
- * history exists. Cached per (mint, window); only cache-missing mints hit
- * upstream.
+ * Resolve sparklines for a set of mints in the given window through an ordered
+ * fallback chain, preferring the richest REAL source available:
+ *
+ *   L1  reuse a still-fresh cached resolution (no upstream call)
+ *   L2  GeckoTerminal OHLCV for the trusted-quote pool (premium real history)
+ *   L3  series derived from real DexScreener price-change windows (no extra call —
+ *       the pool batch already returned the price/change fields)
+ *   L4  Birdeye history (only when BIRDEYE_API_KEY is set; otherwise skipped)
+ *   L5  observed in-memory price snapshots accumulated this session
+ *
+ * When every real source comes up empty the entry's points are `null` with a
+ * `null` source; the CLIENT then draws an honest artificial placeholder (L6)
+ * seeded by the mint. Cached per (mint, window) — including `null` results — so
+ * only cache-missing mints do any work, and a later retry can promote a mint to
+ * a real source once snapshots accumulate or upstream recovers.
  */
 export async function getSparklines(
   mints: string[],
   window: SparklineWindow = DEFAULT_WINDOW,
-): Promise<Record<string, SparklinePoints>> {
+): Promise<Record<string, SparklineEntry>> {
   diagnostics.requests += 1;
   const cfg = WINDOW_CONFIG[window];
-  const result: Record<string, SparklinePoints> = {};
+  const result: Record<string, SparklineEntry> = {};
 
   const unique = [...new Set(mints.filter(Boolean))].slice(0, MAX_SPARKLINE_MINTS);
   diagnostics.mintsRequested += unique.length;
@@ -203,26 +314,62 @@ export async function getSparklines(
     const hit = cache.get(cacheKey(mint, window));
     if (hit && now - hit.at < cfg.ttlMs) {
       diagnostics.cacheHits += 1;
-      result[mint] = hit.points;
+      result[mint] = { points: hit.points, source: hit.source };
     } else {
       misses.push(mint);
     }
   }
 
   if (misses.length > 0) {
-    // Resolve each missing mint to its trusted-quote pool (batched), then fetch
-    // OHLCV per pool with a concurrency ceiling.
-    const pools = await getBestPairAddresses(misses);
+    // One batched DexScreener lookup yields BOTH the OHLCV pool (L2) and the
+    // price/change fields used for the derived series (L3) — no extra upstream load.
+    const pairs = await getBestPairs(misses);
     await mapWithConcurrency(misses, FETCH_CONCURRENCY, async (mint) => {
-      const pool = pools.get(mint);
+      const pair = pairs.get(mint);
       let points: SparklinePoints = null;
-      if (!pool) {
-        diagnostics.poolResolveFailures += 1;
+      let source: SparklineSource | null = null;
+
+      // L2: GeckoTerminal OHLCV (richest real history).
+      if (pair?.poolAddress) {
+        const gecko = await fetchPoolCloses(pair.poolAddress, cfg);
+        if (gecko) {
+          points = gecko;
+          source = "gecko";
+        }
       } else {
-        points = await fetchPoolCloses(pool, cfg);
+        diagnostics.poolResolveFailures += 1;
       }
-      cache.set(cacheKey(mint, window), { points, at: Date.now() });
-      result[mint] = points;
+
+      // L3: derive a coarse real series from DexScreener price-change windows.
+      if (!points && pair) {
+        const derived = deriveSeriesFromPair(pair);
+        if (derived) {
+          points = derived;
+          source = "dexscreener";
+        }
+      }
+
+      // L4: Birdeye history (only active when an API key is configured).
+      if (!points) {
+        const birdeye = await fetchBirdeyeCloses(mint, cfg);
+        if (birdeye) {
+          points = birdeye;
+          source = "birdeye";
+        }
+      }
+
+      // L5: observed in-memory snapshots accumulated this session.
+      if (!points) {
+        const snap = getSnapshotSeries(mint);
+        if (snap) {
+          points = snap;
+          source = "snapshot";
+        }
+      }
+
+      cache.set(cacheKey(mint, window), { points, source, at: Date.now() });
+      tallySource(source);
+      result[mint] = { points, source };
     });
   }
 

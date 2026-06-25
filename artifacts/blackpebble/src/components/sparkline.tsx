@@ -1,28 +1,35 @@
 import { memo, useMemo } from "react";
 import { cn } from "@/lib/utils";
+import type { SparklineEntry } from "@/lib/api";
+import { generatePlaceholderSeries } from "@/lib/sparkline-placeholder";
 
 /**
  * Compact, dependency-free SVG sparkline for token cards.
  *
- * Draws ONLY real market history (GeckoTerminal OHLCV close series). When no
- * usable history exists we render nothing (a same-sized empty box, so layout
- * never shifts) — we never synthesize or fake a line from a percentage. An
- * honest blank beats a fabricated trend.
+ * Real market history is always preferred and drawn at full strength. The server
+ * resolves the richest REAL source available (GeckoTerminal OHLCV → DexScreener-
+ * derived → Birdeye → observed snapshots) and hands us a {points, source} entry.
  *
- * Color rules, applied to the real series:
+ * When NO real data exists for a token (`points: null`), instead of leaving the
+ * card blank we draw a deterministic, market-shaped ARTIFICIAL placeholder (the
+ * last-resort L6 level) seeded by the mint — rendered at reduced opacity with its
+ * own test id so it is visibly secondary and never claims to be real movement.
+ * The moment real data arrives the line swaps in with a smooth opacity fade.
+ *
+ * Color rules (applied to whichever series is drawn):
  *   - green  → latest value > first value (uptrend)
  *   - red    → latest value < first value (downtrend)
  *   - gray   → flat
  *
  * Sizing is fixed via width/height so the chart never causes layout shift: the
- * loading and empty states occupy the exact same box as a drawn line.
+ * loading, real, and placeholder states all occupy the exact same box.
  */
 
-type SparklineState = number[] | null | undefined;
-
 interface SparklineProps {
-  /** Chronological close prices (oldest first), null (no history) or undefined (loading). */
-  points: SparklineState;
+  /** Resolved server entry, or undefined while loading. */
+  series: SparklineEntry | undefined;
+  /** Token mint — seeds the deterministic placeholder when no real data exists. */
+  seed?: string;
   width?: number;
   height?: number;
   className?: string;
@@ -58,8 +65,24 @@ function buildPath(
     .join(" ");
 }
 
+/** A finite series of at least two points is drawable. */
+function isDrawable(points: number[] | null | undefined): points is number[] {
+  return (
+    Array.isArray(points) &&
+    points.length >= 2 &&
+    points.every((v) => Number.isFinite(v))
+  );
+}
+
+function colorFor(series: number[]): string {
+  const first = series[0];
+  const last = series[series.length - 1];
+  return last > first ? GREEN : last < first ? RED : NEUTRAL;
+}
+
 function SparklineImpl({
-  points,
+  series,
+  seed,
   width = 64,
   height = 24,
   className,
@@ -67,23 +90,23 @@ function SparklineImpl({
 }: SparklineProps) {
   const pad = strokeWidth;
 
-  const computed = useMemo(() => {
-    // Real history only: every value finite and at least two points. A stray
-    // NaN/null disqualifies the series so we never draw a broken path.
-    const hasReal =
-      Array.isArray(points) &&
-      points.length >= 2 &&
-      points.every((v) => Number.isFinite(v));
-    if (!hasReal) return null;
-    const series = points as number[];
-    const first = series[0];
-    const last = series[series.length - 1];
-    const color = last > first ? GREEN : last < first ? RED : NEUTRAL;
-    return { d: buildPath(series, width, height, pad), color };
-  }, [points, width, height, pad]);
+  const real = useMemo(() => {
+    const points = series?.points;
+    if (!isDrawable(points)) return null;
+    return { d: buildPath(points, width, height, pad), color: colorFor(points) };
+  }, [series, width, height, pad]);
+
+  // Deterministic artificial placeholder (L6) — only computed when there is no
+  // real series to draw and we have a seed. Same footprint, reduced opacity.
+  const placeholder = useMemo(() => {
+    if (real || series === undefined || !seed) return null;
+    const points = generatePlaceholderSeries(seed);
+    if (!isDrawable(points)) return null;
+    return { d: buildPath(points, width, height, pad), color: colorFor(points) };
+  }, [real, series, seed, width, height, pad]);
 
   // Loading: subtle shimmering placeholder bar, same footprint (no layout jump).
-  if (points === undefined) {
+  if (series === undefined) {
     return (
       <div
         className={cn("animate-pulse rounded bg-muted-foreground/10", className)}
@@ -94,37 +117,63 @@ function SparklineImpl({
     );
   }
 
-  // No real history → render an empty box of the exact same footprint. We never
-  // fabricate a line; an honest blank keeps cards from lying about movement.
-  if (!computed) {
+  // Real history → draw at full strength.
+  if (real) {
     return (
-      <div
-        className={className}
-        style={{ width, height }}
+      <svg
+        width={width}
+        height={height}
+        viewBox={`0 0 ${width} ${height}`}
+        className={cn("overflow-visible transition-opacity duration-500", className)}
         aria-hidden="true"
-        data-testid="sparkline-empty"
-      />
+        data-testid="sparkline"
+        data-source={series.source ?? undefined}
+      >
+        <path
+          d={real.d}
+          fill="none"
+          stroke={real.color}
+          strokeWidth={strokeWidth}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
     );
   }
 
+  // No real data → deterministic artificial placeholder, clearly secondary.
+  if (placeholder) {
+    return (
+      <svg
+        width={width}
+        height={height}
+        viewBox={`0 0 ${width} ${height}`}
+        className={cn("overflow-visible transition-opacity duration-500", className)}
+        aria-hidden="true"
+        data-testid="sparkline-placeholder"
+      >
+        <path
+          d={placeholder.d}
+          fill="none"
+          stroke={placeholder.color}
+          strokeOpacity={0.45}
+          strokeWidth={strokeWidth}
+          strokeDasharray="2 2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    );
+  }
+
+  // No real data and no seed to synthesize from → honest empty box.
   return (
-    <svg
-      width={width}
-      height={height}
-      viewBox={`0 0 ${width} ${height}`}
-      className={cn("overflow-visible", className)}
+    <div
+      className={className}
+      style={{ width, height }}
       aria-hidden="true"
-      data-testid="sparkline"
-    >
-      <path
-        d={computed.d}
-        fill="none"
-        stroke={computed.color}
-        strokeWidth={strokeWidth}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
+      data-testid="sparkline-empty"
+    />
   );
 }
 

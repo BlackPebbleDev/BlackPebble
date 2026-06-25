@@ -608,10 +608,19 @@ export interface WatchItem {
 /** Sparkline history windows. 24h is the default the UI renders today. */
 export type SparklineWindow = "1h" | "6h" | "24h";
 
+/** Which fallback level produced a series; null → only an artificial placeholder is possible. */
+export type SparklineSource = "gecko" | "dexscreener" | "birdeye" | "snapshot";
+
+/** A resolved sparkline: its points (null when no real data) and the source that produced it. */
+export interface SparklineEntry {
+  points: number[] | null;
+  source: SparklineSource | null;
+}
+
 export interface SparklineResponse {
   window: SparklineWindow;
-  /** mint → chronological close-price series (oldest first), or null. */
-  sparklines: Record<string, number[] | null>;
+  /** mint → resolved entry: chronological close-price series (oldest first) + source. */
+  sparklines: Record<string, SparklineEntry>;
 }
 
 export type LeaderboardPeriod = "daily" | "weekly" | "all";

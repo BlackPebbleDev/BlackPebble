@@ -192,10 +192,13 @@ router.get(
 /**
  * Batched sparkline history for token cards. The client sends every visible
  * mint in ONE request (`mints` = comma-separated) and an optional `window`
- * (1h/6h/24h, default 24h). Returns `{ window, sparklines: { [mint]: number[] |
- * null } }` — a short chronological close-price series per mint, or null when no
- * usable history exists (the UI renders that as a neutral placeholder). Results
- * are cached server-side per (mint, window); see lib/sparklines.ts.
+ * (1h/6h/24h, default 24h). Returns `{ window, sparklines: { [mint]: { points,
+ * source } } }` — each entry carries a chronological close-price series (oldest
+ * first) plus the real source that produced it (`gecko|dexscreener|birdeye|
+ * snapshot`), or `points: null, source: null` when no real data exists and the
+ * client should draw an artificial placeholder. Resolved via an ordered
+ * real-data-first fallback chain and cached server-side per (mint, window); see
+ * lib/sparklines.ts.
  */
 router.get(
   "/markets/sparklines",
