@@ -31,6 +31,14 @@ fire the mint AFTER the transaction commits, not inside it. `watchlist_builder`
 and `profile_complete` are in `NON_FEED_BADGE_KEYS` (unlock but post no feed card)
 by design — keep them that way.
 
+**Critical wallet-identity bug (fixed):** The watchlist count query AND
+`resolveUserIdByWallet` both originally filtered `provider = 'wallet'`. Some
+accounts (especially early ones) have `wallet_address` only on their `provider='x'`
+identity row (no separate wallet-provider row). Both queries now use
+`wallet_address IS NOT NULL` without a provider filter. Same fix applies to the
+recovery event lookup. If you ever see a count-based wallet badge not firing,
+check which identity rows the user actually has.
+
 **Integrity check:** `GET /admin/achievements/audit` reports per-badge
 `hasUnlockPath` (definition↔evaluator consistency via zeroed BadgeMetrics →
 evaluateBadges keys), `feedEligible`, holders, and integrity violations.

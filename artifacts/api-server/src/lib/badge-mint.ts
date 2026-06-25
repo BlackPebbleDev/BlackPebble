@@ -81,11 +81,16 @@ export function mintBadgesAsync(
   );
 }
 
-/** Resolve the internal user id linked to a wallet address (provider='wallet'). */
+/**
+ * Resolve the internal user id linked to a wallet address.
+ * Intentionally checks ALL identity rows (not just provider='wallet') because
+ * some users have wallet_address set only on their 'x' identity row when the
+ * wallet-provider row was never created (e.g. early accounts or partial link).
+ */
 async function resolveUserIdByWallet(wallet: string): Promise<number | null> {
   const row = await dbGet<{ user_id: number }>(
     `SELECT user_id FROM user_identities
-      WHERE wallet_address = $1 AND provider = 'wallet'
+      WHERE wallet_address = $1
       LIMIT 1`,
     [wallet],
   ).catch(() => null);

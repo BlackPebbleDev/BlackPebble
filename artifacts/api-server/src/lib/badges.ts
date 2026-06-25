@@ -660,12 +660,16 @@ export async function getUserBadges(
         WHERE user_id = $1 AND is_hidden_by_admin = FALSE`,
       [userId],
     ).catch(() => ({ count: 0 })),
+    // Check ANY identity row with a matching wallet_address, not just
+    // provider='wallet', because some accounts have wallet_address only on
+    // their 'x' identity row (early accounts / partial wallet link).
     dbGet<{ count: number }>(
       `SELECT COUNT(DISTINCT w.token_mint)::int AS count
          FROM watchlist w
-         JOIN user_identities ui
-           ON ui.wallet_address = w.wallet AND ui.provider = 'wallet'
-        WHERE ui.user_id = $1`,
+        WHERE w.wallet IN (
+          SELECT wallet_address FROM user_identities
+           WHERE user_id = $1 AND wallet_address IS NOT NULL
+        )`,
       [userId],
     ).catch(() => ({ count: 0 })),
     dbGet<{ count: number }>(
@@ -690,7 +694,7 @@ export async function getUserBadges(
        WHERE event_type = 'cleanup' AND status = 'success' AND verified = true
          AND wallet IN (
            SELECT wallet_address FROM user_identities
-            WHERE user_id = $1 AND provider = 'wallet'
+            WHERE user_id = $1 AND wallet_address IS NOT NULL
          )`,
       [userId],
     ).catch(() => null),
