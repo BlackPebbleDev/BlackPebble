@@ -114,7 +114,6 @@ function MarketTable({ tokens, navigate }: { tokens: TokenInfo[]; navigate: (p: 
               </div>
               <Sparkline
                 points={spark[t.mint]}
-                fallbackPercent={t.priceChange24h}
                 width={60}
                 height={18}
               />
@@ -180,7 +179,6 @@ function MarketTable({ tokens, navigate }: { tokens: TokenInfo[]; navigate: (p: 
                 <div className="flex justify-center">
                   <Sparkline
                     points={spark[t.mint]}
-                    fallbackPercent={t.priceChange24h}
                     width={72}
                     height={24}
                   />

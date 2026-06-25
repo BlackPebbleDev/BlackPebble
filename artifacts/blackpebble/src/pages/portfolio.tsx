@@ -30,6 +30,8 @@ import { fmtSol, fmtPercent, pnlColor } from "@/lib/format";
 import { PnlAmount } from "@/components/pnl-amount";
 import { CurrencyAmount } from "@/components/currency-amount";
 import { useSolUsd } from "@/hooks/use-sol-usd";
+import { LIVE_MS } from "@/lib/live";
+import { LiveIndicator } from "@/components/live-indicator";
 import { RecoveryDiscoveryCard } from "@/components/recovery-discovery-card";
 import { cn } from "@/lib/utils";
 import {
@@ -111,18 +113,22 @@ export default function Portfolio() {
     trackPortfolioView();
   }, []);
 
-  const { data: serverStats, isLoading: serverStatsLoading } = useQuery({
+  const {
+    data: serverStats,
+    isLoading: serverStatsLoading,
+    dataUpdatedAt: statsUpdatedAt,
+  } = useQuery({
     queryKey: ["pf-stats", wallet],
     queryFn: () => api.portfolioStats(wallet!),
     enabled: !!wallet,
-    refetchInterval: 20_000,
+    refetchInterval: LIVE_MS.portfolio,
   });
 
   const { data: portfolio } = useQuery({
     queryKey: ["pf", wallet],
     queryFn: () => api.portfolio(wallet!),
     enabled: !!wallet,
-    refetchInterval: 20_000,
+    refetchInterval: LIVE_MS.portfolio,
   });
 
   const { data: chart } = useQuery({
@@ -299,6 +305,9 @@ export default function Portfolio() {
         </div>
       ) : (
         <>
+          <div className="flex justify-end mb-2">
+            <LiveIndicator dataUpdatedAt={statsUpdatedAt} />
+          </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
             <Stat
               label="Equity"

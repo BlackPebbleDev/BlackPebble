@@ -65,6 +65,8 @@ import { useTradeRate } from "@/hooks/use-sol-usd";
 import { useToast } from "@/hooks/use-toast";
 import { useFeatureFlags } from "@/hooks/use-feature-flags";
 import { useXAuth } from "@/hooks/use-x-auth";
+import { LIVE_MS } from "@/lib/live";
+import { LiveIndicator } from "@/components/live-indicator";
 import {
   useGuestStore,
   useGuestValuedPositions,
@@ -166,7 +168,13 @@ function XGlyph({ className }: { className?: string }) {
   );
 }
 
-function TokenHeader({ info }: { info: TokenInfo }) {
+function TokenHeader({
+  info,
+  dataUpdatedAt,
+}: {
+  info: TokenInfo;
+  dataUpdatedAt: number;
+}) {
   const socialLinks = [
     info.websiteUrl
       ? { key: "website", href: info.websiteUrl, icon: <Globe className="w-3 h-3" />, label: "Website" }
@@ -207,6 +215,9 @@ function TokenHeader({ info }: { info: TokenInfo }) {
             </div>
             <div className="text-xs text-muted-foreground">
               {info.name ?? shortAddr(info.mint)}
+            </div>
+            <div className="mt-1">
+              <LiveIndicator dataUpdatedAt={dataUpdatedAt} />
             </div>
           </div>
         </div>
@@ -281,7 +292,7 @@ function PriceChart({ info }: { info: TokenInfo }) {
   const { data } = useQuery({
     queryKey: ["live-trades", info.mint],
     queryFn: () => api.liveTrades(info.mint),
-    refetchInterval: 5_000,
+    refetchInterval: LIVE_MS.trades,
     enabled: !info.isMigrated,
   });
 
@@ -1053,7 +1064,7 @@ function TradePanel({
     queryKey: ["positions", wallet],
     queryFn: () => api.positions(wallet!),
     enabled: !!wallet,
-    refetchInterval: 15_000,
+    refetchInterval: LIVE_MS.positions,
   });
   const position = isGuest
     ? guestValued.positions.find((p) => p.token_mint === info.mint)
@@ -1065,7 +1076,7 @@ function TradePanel({
     queryKey: ["leverage-positions", wallet],
     queryFn: () => api.leverage.positions(wallet!),
     enabled: !!wallet && !isGuest && flags.leverage,
-    refetchInterval: 15_000,
+    refetchInterval: LIVE_MS.leverage,
   });
   const levPosition = levData?.positions.find((p) => p.token_mint === info.mint);
 
@@ -1106,7 +1117,7 @@ function TradePanel({
             : { wallet, mint: info.mint, side: "sell", percent: debouncedPct },
       ),
     enabled: quoteEnabled,
-    refetchInterval: 20_000,
+    refetchInterval: LIVE_MS.quote,
   });
 
   // Reset any pending confirmation whenever the order parameters change.
@@ -2507,7 +2518,7 @@ function ActivityTabs() {
     queryKey: ["positions", wallet],
     queryFn: () => api.positions(wallet!),
     enabled: !!wallet,
-    refetchInterval: 15_000,
+    refetchInterval: LIVE_MS.positions,
   });
   const { data: histData } = useQuery({
     queryKey: ["history", wallet],
@@ -2646,11 +2657,15 @@ export default function TradingDesk() {
     }
   }
 
-  const { data: info, isLoading } = useQuery({
+  const {
+    data: info,
+    isLoading,
+    dataUpdatedAt: tokenUpdatedAt,
+  } = useQuery({
     queryKey: ["token", mint, wallet],
     queryFn: () => api.getToken(mint!, wallet ?? undefined),
     enabled: !!mint,
-    refetchInterval: 15_000,
+    refetchInterval: LIVE_MS.activeToken,
   });
 
   const navigate = useNavigate();
@@ -2750,7 +2765,7 @@ export default function TradingDesk() {
       <BeginnerGuide />
       <div className="flex items-center gap-3">
         <div className="flex-1">
-          <TokenHeader info={info} />
+          <TokenHeader info={info} dataUpdatedAt={tokenUpdatedAt} />
         </div>
       </div>
       <div className="space-y-2">

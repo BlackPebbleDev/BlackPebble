@@ -152,17 +152,56 @@ function pickBestPair(pairs: DexPair[], mint: string): DexPair | null {
   return [...solanaPairs].sort(comparePairs)[0];
 }
 
+// Short in-memory cache for the per-mint DexScreener pair. This is the shared
+// "live market data layer": clients can poll active tokens aggressively (every
+// few seconds) while external API load stays bounded — concurrent reads for the
+// same mint within the TTL collapse to a single upstream fetch. On a fetch
+// failure we serve the last-known-good pair rather than null so position values
+// never wipe to zero on a transient blip.
+const DEX_PAIR_CACHE_MS = 3000;
+const DEX_PAIR_CACHE_MAX = 1000;
+const dexPairCache = new Map<string, { pair: DexPair | null; ts: number }>();
+// Singleflight: collapse concurrent cache-misses for the same mint into one
+// upstream request so a burst of aggressive client polls can't fan out into a
+// burst of DexScreener calls.
+const dexPairInflight = new Map<string, Promise<DexPair | null>>();
+
 async function fetchDexScreener(mint: string): Promise<DexPair | null> {
-  try {
-    const res = await axios.get(
-      `https://api.dexscreener.com/latest/dex/tokens/${mint}`,
-      { timeout: 8000 },
-    );
-    return pickBestPair(res.data?.pairs ?? [], mint);
-  } catch (e) {
-    logger.warn({ err: e, mint }, "DexScreener fetch failed");
-    return null;
+  const cached = dexPairCache.get(mint);
+  if (cached && Date.now() - cached.ts < DEX_PAIR_CACHE_MS) {
+    return cached.pair;
   }
+  // If a fetch for this mint is already in flight, await it instead of starting
+  // a second one.
+  const inflight = dexPairInflight.get(mint);
+  if (inflight) return inflight;
+
+  const fetchPromise = (async (): Promise<DexPair | null> => {
+    try {
+      const res = await axios.get(
+        `https://api.dexscreener.com/latest/dex/tokens/${mint}`,
+        { timeout: 8000 },
+      );
+      const pair = pickBestPair(res.data?.pairs ?? [], mint);
+      // Bound the map: drop the oldest insertion when we hit the cap.
+      if (dexPairCache.size >= DEX_PAIR_CACHE_MAX) {
+        const oldest = dexPairCache.keys().next().value;
+        if (oldest !== undefined) dexPairCache.delete(oldest);
+      }
+      dexPairCache.set(mint, { pair, ts: Date.now() });
+      return pair;
+    } catch (e) {
+      logger.warn({ err: e, mint }, "DexScreener fetch failed");
+      // Last-known-good on transient failure.
+      if (cached) return cached.pair;
+      return null;
+    } finally {
+      dexPairInflight.delete(mint);
+    }
+  })();
+
+  dexPairInflight.set(mint, fetchPromise);
+  return fetchPromise;
 }
 
 async function fetchJupiterUsd(mint: string): Promise<number | null> {

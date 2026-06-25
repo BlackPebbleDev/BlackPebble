@@ -4,6 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, Loader2, Wallet } from "lucide-react";
 import { useAccount } from "@/hooks/use-account";
 import { api, type Position, type Trade } from "@/lib/api";
+import { LIVE_MS } from "@/lib/live";
+import { LiveIndicator } from "@/components/live-indicator";
 import { TradeList } from "@/components/trade-list";
 import { PnlAmount } from "@/components/pnl-amount";
 import {
@@ -82,11 +84,15 @@ export default function PositionDetail() {
   const mint = params?.mint ?? "";
   const { wallet, isGuest } = useAccount();
 
-  const { data: portfolio, isLoading: pfLoading } = useQuery({
+  const {
+    data: portfolio,
+    isLoading: pfLoading,
+    dataUpdatedAt: pfUpdatedAt,
+  } = useQuery({
     queryKey: ["pf", wallet],
     queryFn: () => api.portfolio(wallet!),
     enabled: !!wallet,
-    refetchInterval: 20_000,
+    refetchInterval: LIVE_MS.positionDetail,
   });
 
   const { data: serverHistory } = useQuery({
@@ -226,8 +232,11 @@ export default function PositionDetail() {
           </span>
         )}
       </div>
-      <div className="text-[11px] font-mono text-muted-foreground mb-6">
-        {shortAddr(p.token_mint, 6)}
+      <div className="flex items-center justify-between gap-2 mb-6">
+        <div className="text-[11px] font-mono text-muted-foreground">
+          {shortAddr(p.token_mint, 6)}
+        </div>
+        <LiveIndicator dataUpdatedAt={pfUpdatedAt} />
       </div>
 
       {/* ── Market Cap Analytics — the signature view ──────────────────── */}

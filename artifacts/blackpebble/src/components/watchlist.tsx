@@ -93,7 +93,6 @@ export function Watchlist({
             <div className="shrink-0">
               <Sparkline
                 points={spark[w.mint]}
-                fallbackPercent={w.priceChange24h}
                 width={48}
                 height={20}
               />
@@ -163,7 +162,6 @@ export function Watchlist({
                   <div className="flex justify-center">
                     <Sparkline
                       points={spark[w.mint]}
-                      fallbackPercent={w.priceChange24h}
                       width={72}
                       height={24}
                     />
