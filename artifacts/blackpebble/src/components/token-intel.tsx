@@ -324,6 +324,7 @@ function RecentThesesCard({
                   displayName={t.x_display_name}
                   handle={t.x_username}
                   tier={t.graduation_tier}
+                  accountStatus="member"
                   tierPosition="inline"
                   showHandle={false}
                   fallbackName="Anonymous"
@@ -423,6 +424,7 @@ function RecentCalloutsCard({
                       displayName={c.x_display_name}
                       handle={c.x_username}
                       tier={c.graduation_tier}
+                      accountStatus="member"
                       tierPosition="inline"
                       showHandle={false}
                       fallbackName="Anonymous"

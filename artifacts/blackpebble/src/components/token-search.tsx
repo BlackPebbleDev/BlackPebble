@@ -312,6 +312,7 @@ export function TokenSearch({
                       displayName={user.display}
                       handle={user.handle}
                       officialBadges={user.officialBadges}
+                      accountStatus="member"
                       tier={user.tier}
                     />
                     {user.rank != null && (

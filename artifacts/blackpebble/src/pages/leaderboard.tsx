@@ -140,6 +140,7 @@ function TopCallers({
                   displayName={c.x_display_name}
                   handle={c.x_username}
                   officialBadges={c.officialBadges}
+                  accountStatus="member"
                   tier={c.graduation_tier}
                   fallbackName={`User ${c.user_id}`}
                 />
@@ -221,6 +222,7 @@ function TopCallers({
                       displayName={c.x_display_name}
                       handle={c.x_username}
                       officialBadges={c.officialBadges}
+                      accountStatus="member"
                       tier={c.graduation_tier}
                       fallbackName={`User ${c.user_id}`}
                       subline={
@@ -327,6 +329,7 @@ function MostFollowed({
                   displayName={e.x_display_name}
                   handle={e.x_username}
                   officialBadges={e.officialBadges}
+                  accountStatus="member"
                   tier={e.graduation_tier}
                 />
                 <div className="text-right flex-shrink-0">
@@ -376,6 +379,7 @@ function MostFollowed({
                       displayName={e.x_display_name}
                       handle={e.x_username}
                       officialBadges={e.officialBadges}
+                      accountStatus="member"
                       tier={e.graduation_tier}
                     />
                   </td>
@@ -504,6 +508,7 @@ function Trader({
       displayName={entry.x_display_name}
       handle={handle}
       officialBadges={entry.officialBadges}
+      accountStatus="member"
       tier={entry.graduation_tier}
       fallbackName={fallback}
     />

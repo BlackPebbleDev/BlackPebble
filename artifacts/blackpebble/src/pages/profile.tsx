@@ -29,6 +29,7 @@ import {
   BIO_MAX_LENGTH,
   CALLOUT_THESIS_MAX,
   CALLOUT_UPDATE_MAX,
+  type BadgeCategory,
   type BadgeEntry,
   type BadgeRarity,
   type CalloutResult,
@@ -564,6 +565,24 @@ function FollowButton({ profile }: { profile: ProfileResponse }) {
 
 const RARITY_ORDER: BadgeRarity[] = ["legendary", "epic", "rare", "common"];
 
+const CATEGORY_LABELS: Record<BadgeCategory, string> = {
+  trading: "Trading",
+  caller: "Calls",
+  thesis: "Theses",
+  community: "Community",
+  milestone: "Milestones",
+  special: "Special",
+};
+
+const CATEGORY_ORDER: BadgeCategory[] = [
+  "trading",
+  "caller",
+  "thesis",
+  "community",
+  "milestone",
+  "special",
+];
+
 /**
  * Achievements section — lazily fetches the full badge list for this profile and
  * renders a collectible-style view: a summary (progress + rarity breakdown), a
@@ -595,6 +614,30 @@ function BadgesSection({ profile }: { profile: ProfileResponse }) {
       return acc;
     },
     { common: 0, rare: 0, epic: 0, legendary: 0 },
+  );
+
+  // "Most recent unlock" — the earned badge with the latest timestamp.
+  const mostRecent = earnedBadges.reduce<BadgeEntry | null>(
+    (best, b) => ((b.earnedAt ?? 0) > (best?.earnedAt ?? -1) ? b : best),
+    null,
+  );
+  // "Rarest" — lowest index in RARITY_ORDER wins (legendary first); ties are
+  // broken by most-recently earned.
+  const rarestRank = (b: BadgeEntry) => RARITY_ORDER.indexOf(rarityOf(b));
+  const rarest = earnedBadges.reduce<BadgeEntry | null>((best, b) => {
+    if (!best) return b;
+    const rb = rarestRank(b);
+    const rBest = rarestRank(best);
+    if (rb !== rBest) return rb < rBest ? b : best;
+    return (b.earnedAt ?? 0) > (best.earnedAt ?? 0) ? b : best;
+  }, null);
+  // Group earned badges into their collections for display.
+  const earnedByCategory = earnedBadges.reduce<Record<string, BadgeEntry[]>>(
+    (acc, b) => {
+      (acc[b.category] ??= []).push(b);
+      return acc;
+    },
+    {},
   );
 
   return (
@@ -650,13 +693,62 @@ function BadgesSection({ profile }: { profile: ProfileResponse }) {
                   ))}
                 </div>
               )}
+              {earnedCount > 0 && (mostRecent || rarest) && (
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <div className="rounded-lg bg-secondary/30 px-3 py-2">
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground/70">
+                      Latest unlock
+                    </div>
+                    <div
+                      data-testid="achievement-latest"
+                      className="mt-0.5 truncate text-xs font-semibold text-foreground"
+                    >
+                      {mostRecent?.name ?? "—"}
+                    </div>
+                  </div>
+                  <div className="rounded-lg bg-secondary/30 px-3 py-2">
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground/70">
+                      Rarest
+                    </div>
+                    <div
+                      data-testid="achievement-rarest"
+                      className="mt-0.5 flex items-center gap-1.5"
+                    >
+                      <span className="truncate text-xs font-semibold text-foreground">
+                        {rarest?.name ?? "—"}
+                      </span>
+                      {rarest && (
+                        <span
+                          className={cn(
+                            "flex-shrink-0 rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide",
+                            RARITY_META[rarityOf(rarest)].chip,
+                          )}
+                        >
+                          {RARITY_META[rarityOf(rarest)].label}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* Earned collectible tiles */}
+            {/* Earned collectible tiles, grouped by collection */}
             {earnedCount > 0 ? (
-              <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4 md:grid-cols-5">
-                {earnedBadges.map((b) => (
-                  <AchievementBadge key={b.key} badge={b} />
+              <div className="space-y-4">
+                {CATEGORY_ORDER.filter(
+                  (c) => earnedByCategory[c]?.length,
+                ).map((c) => (
+                  <div key={c}>
+                    <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                      {CATEGORY_LABELS[c]}
+                    </div>
+                    <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4 md:grid-cols-5">
+                      {earnedByCategory[c].map((b) => (
+                        <AchievementBadge key={b.key} badge={b} />
+                      ))}
+                    </div>
+                  </div>
                 ))}
               </div>
             ) : (

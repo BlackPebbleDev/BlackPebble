@@ -13,12 +13,17 @@ const sortTabs: { id: TraderSort; label: string }[] = [
   { id: "calls", label: "Calls" },
 ];
 
+// Progression tiers. The `id` is the stored graduation_tier key (the server
+// filters on an exact, case-insensitive match against that column); the label
+// is the display-only progression name from lib/tiers.ts. No membership words
+// ("Premium"/"Verified") appear here — progression has its own vocabulary.
 const tierTabs: { id: string; label: string }[] = [
   { id: "", label: "Any tier" },
-  { id: "verified", label: "Verified+" },
-  { id: "pro", label: "Pro+" },
-  { id: "premium", label: "Premium+" },
-  { id: "elite", label: "Elite+" },
+  { id: "bronze", label: "Bronze" },
+  { id: "silver", label: "Silver" },
+  { id: "gold", label: "Gold" },
+  { id: "diamond", label: "Elite" },
+  { id: "legend", label: "Black Label" },
 ];
 
 /** Debounce a fast-changing value so search doesn't fire on every keystroke. */

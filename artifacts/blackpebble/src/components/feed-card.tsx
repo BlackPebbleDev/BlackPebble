@@ -129,6 +129,7 @@ export function FeedUserLink({
       displayName={user.x_display_name}
       handle={user.x_username}
       officialBadges={user.official_badges}
+      accountStatus="member"
       tier={user.graduation_tier}
       size="md"
       badgeSize="xs"

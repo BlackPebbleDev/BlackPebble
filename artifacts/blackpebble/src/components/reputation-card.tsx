@@ -143,6 +143,7 @@ export function ReputationCard({
           displayName={entry.x_display_name}
           handle={handle}
           officialBadges={entry.officialBadges}
+          accountStatus="member"
           tier={entry.graduation_tier}
           fallbackName={`User ${entry.user_id}`}
         />

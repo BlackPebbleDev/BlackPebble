@@ -14,6 +14,7 @@ import {
 } from "chart.js";
 import { Wallet, Loader2, Sparkles } from "lucide-react";
 import { useAccount } from "@/hooks/use-account";
+import { accountStatusFromGuest } from "@/lib/account-status";
 import { useXAuth } from "@/hooks/use-x-auth";
 import { UserIdentity } from "@/components/user-identity";
 import { api, type PortfolioStats } from "@/lib/api";
@@ -258,6 +259,7 @@ export default function Portfolio() {
             displayName={selfProfile?.x_display_name ?? xUser?.x_display_name}
             handle={selfHandle}
             officialBadges={selfProfile?.officialBadges}
+            accountStatus={accountStatusFromGuest(isGuest)}
             tier={stats?.graduationTier ?? selfProfile?.graduationTier}
             tierPosition="inline"
             badgePosition="row"

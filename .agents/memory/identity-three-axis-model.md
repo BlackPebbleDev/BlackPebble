@@ -32,3 +32,15 @@ union + `ROLE_META`/`ROLE_ORDER`; admin route validates against the shared
 Achievement axis is separate again: `BadgeRarity` (common/rare/epic/legendary) +
 optional `progress` are additive optional fields; the collectible tile is
 `components/achievement-badge.tsx` (rarity tint + lock overlay).
+
+**Consistency rule:** every identity surface routes through `UserIdentity` and
+passes `accountStatus`. Any public user shown (feed, leaderboard, reputation/
+discover, callouts/theses, search) necessarily has a registered profile, so they
+are `"member"` — this is canonical, not a guess. Only the viewer's own surfaces
+(profile/portfolio headers) derive status from `useAccount().isGuest` via
+`accountStatusFromGuest`, since the viewer can be a guest.
+
+**Progression filter rule:** any tier filter (e.g. the discover page) must use the
+stored `graduation_tier` keys (Legend/Diamond/Gold/Silver/Bronze/Unranked, server
+`trading.ts` TIERS) as option ids and the progression display names as labels —
+never the old membership vocabulary.
