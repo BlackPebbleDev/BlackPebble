@@ -26,6 +26,11 @@ import {
   removeOfficialBadge,
   OFFICIAL_BADGE_TYPES,
   type OfficialBadgeType,
+  BADGE_DEFINITIONS,
+  NON_FEED_BADGE_KEYS,
+  evaluateBadges,
+  ensureBadgesSchema,
+  type BadgeMetrics,
 } from "../lib/badges.js";
 import {
   bulkTagTest,
@@ -115,6 +120,109 @@ router.get(
     return res.json({
       ...getSparklineDiagnostics(),
       snapshotStore: getPriceHistoryDiagnostics(),
+    });
+  }),
+);
+
+/**
+ * Achievement integrity audit. Read-only. Confirms the badge catalogue is sound:
+ *   • every defined badge has an evaluator (an unlock path) — no orphans;
+ *   • every evaluator key maps to a defined badge — no dangling logic;
+ *   • each badge's feed eligibility, rarity, hidden flag and live holder count.
+ * This is the machine-checkable backbone of the Task #55 integrity report.
+ */
+router.get(
+  "/admin/achievements/audit",
+  asyncHandler(async (_req, res) => {
+    await ensureBadgesSchema();
+
+    // evaluateBadges is pure and returns the same key set regardless of inputs,
+    // so a zeroed metrics object enumerates every reachable unlock path.
+    const zeroMetrics: BadgeMetrics = {
+      userId: 0,
+      closedTrades: 0,
+      realizedPnlSol: 0,
+      roiPercent: 0,
+      traderRank: null,
+      callsMade: 0,
+      bestMultiple: null,
+      callerRank: null,
+      hitRate: 0,
+      gradedCalls: 0,
+      thesisCount: 0,
+      watchlistCount: 0,
+      followers: 0,
+      hasBio: false,
+      hasAvatar: false,
+      recoveryAccountsClosed: 0,
+      recoverySolRecovered: 0,
+      recoveryCleanups: 0,
+      recoveryTokensBurned: 0,
+    };
+    const evaluatorKeys = new Set(Object.keys(evaluateBadges(zeroMetrics)));
+    const definedKeys = new Set(BADGE_DEFINITIONS.map((d) => d.key));
+
+    const [holderRows, totalUsersRow] = await Promise.all([
+      dbAll<{ badge_key: string; holders: number; first_earned: number }>(
+        `SELECT badge_key,
+                COUNT(DISTINCT user_id)::int AS holders,
+                MIN(earned_at)::bigint AS first_earned
+           FROM user_achievements GROUP BY badge_key`,
+      ).catch(() => []),
+      dbGet<{ count: number }>(`SELECT COUNT(*)::int AS count FROM users`).catch(
+        () => ({ count: 0 }),
+      ),
+    ]);
+    const holderMap = new Map(
+      holderRows.map((r) => [r.badge_key, r]),
+    );
+    const totalUsers = totalUsersRow?.count ?? 0;
+
+    const badges = BADGE_DEFINITIONS.map((d) => {
+      const h = holderMap.get(d.key);
+      const holders = h?.holders ?? 0;
+      return {
+        key: d.key,
+        name: d.name,
+        category: d.category,
+        rarity: d.rarity ?? "common",
+        hidden: d.hidden === true,
+        feedEligible: !NON_FEED_BADGE_KEYS.includes(d.key),
+        hasUnlockPath: evaluatorKeys.has(d.key),
+        holders,
+        globalEarnedPercent:
+          totalUsers > 0 ? Math.round((holders / totalUsers) * 1000) / 10 : null,
+        firstEarnedAt: h?.first_earned ?? null,
+      };
+    });
+
+    // Integrity violations — both should always be empty in a healthy catalogue.
+    const definitionsWithoutPath = badges
+      .filter((b) => !b.hasUnlockPath)
+      .map((b) => b.key);
+    const evaluatorsWithoutDefinition = [...evaluatorKeys].filter(
+      (k) => !definedKeys.has(k),
+    );
+
+    return res.json({
+      generatedAt: Math.floor(Date.now() / 1000),
+      totalUsers,
+      summary: {
+        totalBadges: BADGE_DEFINITIONS.length,
+        feedEligible: badges.filter((b) => b.feedEligible).length,
+        nonFeed: NON_FEED_BADGE_KEYS.length,
+        hidden: badges.filter((b) => b.hidden).length,
+        everEarned: badges.filter((b) => b.holders > 0).length,
+        neverEarned: badges.filter((b) => b.holders === 0).length,
+      },
+      integrity: {
+        ok:
+          definitionsWithoutPath.length === 0 &&
+          evaluatorsWithoutDefinition.length === 0,
+        definitionsWithoutPath,
+        evaluatorsWithoutDefinition,
+      },
+      badges,
     });
   }),
 );

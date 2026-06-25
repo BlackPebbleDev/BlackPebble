@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { asyncHandler } from "../lib/asyncHandler.js";
 import { sessionFromRequest } from "../lib/auth.js";
+import { mintBadgesAsync } from "../lib/badge-mint.js";
 import { resolveUser } from "../lib/profiles.js";
 import {
   createThesis,
@@ -99,6 +100,9 @@ router.post(
       sentiment: parsed.value.sentiment,
       conviction: parsed.value.conviction,
     });
+    // Mint achievements immediately so the unlock (e.g. First Thesis) persists at
+    // publish time and surfaces in the activity feed without a profile view.
+    mintBadgesAsync(Number(session.sub));
     return res.status(201).json({ thesis });
   }),
 );

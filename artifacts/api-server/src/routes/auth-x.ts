@@ -5,6 +5,7 @@ import { PublicKey } from "@solana/web3.js";
 import { asyncHandler } from "../lib/asyncHandler.js";
 import { dbGet, dbRun, withTx } from "../lib/database.js";
 import { ensureProfileSchema } from "../lib/profiles.js";
+import { mintBadgesAsync } from "../lib/badge-mint.js";
 import { logger } from "../lib/logger.js";
 
 const CLIENT_ID = process.env["X_CLIENT_ID"];
@@ -225,7 +226,7 @@ async function upsertXUser(user: XUser): Promise<XSessionPayload> {
   // Make sure the bio + x_* reputation columns exist before we write to them.
   await ensureProfileSchema();
 
-  return await withTx(async (c) => {
+  const payload = await withTx(async (c) => {
     // Check if this X user already exists
     const existing = await dbGet<{ user_id: number; wallet_address: string | null }>(
       `SELECT ui.user_id, ui.wallet_address
@@ -311,6 +312,12 @@ async function upsertXUser(user: XUser): Promise<XSessionPayload> {
       wallet: wallet || undefined,
     };
   });
+
+  // After commit, mint any newly-qualifying badges (e.g. profile_complete once
+  // avatar + bio are present). Fire-and-forget so login is never blocked.
+  mintBadgesAsync(Number(payload.sub));
+
+  return payload;
 }
 
 // ── Build the redirect URI ──────────────────────────────────────────────────

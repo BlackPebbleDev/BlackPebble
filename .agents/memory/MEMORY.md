@@ -35,3 +35,4 @@
 - [SEO crawler visibility](seo-crawler-visibility.md) — pure Vite SPA: static crawler content in #root (createRoot replaces it), per-route SEO via seo.routes.json + post-build string-templating prerender + client RouteMeta; never headless-prerender (build OOMs).
 - [Clipboard copy success guard](clipboard-success-guard.md) — `navigator.clipboard?.writeText` resolves undefined (no throw) when unavailable, firing false "Copied" toasts; guard explicitly before success path.
 - [Workflow names are artifact-prefixed](workflow-names-prefixed.md) — restart_workflow needs full `artifacts/<dir>: <service>`; bare service name → RUN_COMMAND_NOT_FOUND. Use listWorkflows().
+- [Badge minting is push-based](badge-minting-push-based.md) — feed is a live UNION over user_achievements; mint at action time (badge-mint.ts) or no feed card. Idempotent via ON CONFLICT; fire-and-forget; post-commit for profile_complete.

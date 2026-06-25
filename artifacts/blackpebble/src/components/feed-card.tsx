@@ -2,7 +2,9 @@ import { Link } from "wouter";
 import {
   ArrowDownRight,
   ArrowUpRight,
+  Crown,
   ExternalLink,
+  Gem,
   Megaphone,
   Medal,
   ScrollText,
@@ -383,6 +385,14 @@ const FEED_RARITY_DEFAULT = {
   card: "",
 };
 
+/** Rarity-flavored medallion icon so a legendary unlock reads richer in feed. */
+const FEED_RARITY_ICON: Record<BadgeRarity, typeof Medal> = {
+  common: Medal,
+  rare: Medal,
+  epic: Gem,
+  legendary: Crown,
+};
+
 function AchievementActivityCard({ item }: { item: FeedActivityItem }) {
   const handle = item.user.x_username?.trim().replace(/^@+/, "") || null;
   const profileUrl = xProfileUrl(handle);
@@ -394,6 +404,9 @@ function AchievementActivityCard({ item }: { item: FeedActivityItem }) {
   const rarityLabel = item.badgeRarity
     ? item.badgeRarity.charAt(0).toUpperCase() + item.badgeRarity.slice(1)
     : null;
+  const RarityIcon = item.badgeRarity
+    ? FEED_RARITY_ICON[item.badgeRarity]
+    : Medal;
 
   return (
     <div
@@ -409,7 +422,7 @@ function AchievementActivityCard({ item }: { item: FeedActivityItem }) {
           tint.icon,
         )}
       >
-        <Medal className="w-[18px] h-[18px]" />
+        <RarityIcon className="w-[18px] h-[18px]" />
       </div>
 
       <div className="min-w-0 flex-1">

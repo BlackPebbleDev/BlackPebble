@@ -149,7 +149,7 @@ const TRADING_BADGES: BadgeDefinition[] = [
     name: "Top 100 Trader",
     description: "Ranked in the top 100 on the all-time trader leaderboard.",
     category: "trading",
-    icon: "Trophy",
+    icon: "Crown",
     rarity: "legendary",
   },
 ];
@@ -193,7 +193,7 @@ const PROFIT_BADGES: BadgeDefinition[] = [
     name: "Whale Status",
     description: "Reached 1,000 SOL of cumulative realized profit.",
     category: "profit",
-    icon: "Trophy",
+    icon: "Gem",
     rarity: "legendary",
   },
 ];

@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { asyncHandler } from "../lib/asyncHandler.js";
 import { requireOwnership } from "../lib/auth.js";
+import { mintBadgesForWalletAsync } from "../lib/badge-mint.js";
 import { dbAll, dbRun } from "../lib/database.js";
 import {
   searchTokens,
@@ -87,6 +88,10 @@ router.post(
         solAmount = usd / solPrice;
       }
       const result = await executeBuy(wallet, mint, solAmount, meta);
+      // Trading milestones unlock on closed trades/P&L; mint after a successful
+      // execution so unlocks surface immediately. Additive — never touches the
+      // trade accounting above.
+      if (result.ok) mintBadgesForWalletAsync(wallet);
       return res.status(result.ok ? 200 : 400).json(result);
     }
     if (side === "sell") {
@@ -94,6 +99,7 @@ router.post(
         tokenAmount: b.tokenAmount != null ? Number(b.tokenAmount) : undefined,
         percent: b.percent != null ? Number(b.percent) : undefined,
       });
+      if (result.ok) mintBadgesForWalletAsync(wallet);
       return res.status(result.ok ? 200 : 400).json(result);
     }
     return res.status(400).json({ error: "side must be 'buy' or 'sell'" });
@@ -256,6 +262,9 @@ router.post(
          added_at = EXCLUDED.added_at`,
       [wallet, mint, b.name ?? null, b.symbol ?? null, b.logo ?? null],
     );
+    // Watchlist Builder unlocks at 3 distinct mints — mint here so it actually
+    // unlocks at add time (previously only on a profile view).
+    mintBadgesForWalletAsync(wallet);
     return res.json({ ok: true });
   }),
 );

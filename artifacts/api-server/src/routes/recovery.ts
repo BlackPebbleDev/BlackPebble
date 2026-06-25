@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { asyncHandler } from "../lib/asyncHandler.js";
 import { requireAdmin, sessionFromRequest } from "../lib/auth.js";
+import { mintBadgesForWalletAsync } from "../lib/badge-mint.js";
 import { dbAll, dbGet, dbRun } from "../lib/database.js";
 import { getTokenMetadataBatch } from "../lib/helius.js";
 import { getTokenIntelBatch } from "../lib/recovery-intel.js";
@@ -173,6 +174,10 @@ router.post(
         verification = { verified: false, status: "failed" };
       }
     }
+
+    // A verified on-chain cleanup can unlock Wallet Utilities badges. Mint by
+    // wallet so the unlock persists immediately (no profile view required).
+    if (verification?.verified) mintBadgesForWalletAsync(wallet);
 
     return res.json({ ok: true, verification });
   }),

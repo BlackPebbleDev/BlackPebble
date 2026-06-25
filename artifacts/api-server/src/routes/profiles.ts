@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { asyncHandler } from "../lib/asyncHandler.js";
 import { sessionFromRequest } from "../lib/auth.js";
+import { mintBadgesAsync } from "../lib/badge-mint.js";
 import {
   addCalloutUpdate,
   createCallout,
@@ -100,6 +101,8 @@ router.put(
     if (!result.ok) {
       return res.status(result.status).json({ error: result.error });
     }
+    // Setting a bio can complete the profile (bio + avatar) → mint immediately.
+    mintBadgesAsync(Number(session.sub));
     return res.json({ ok: true, bio: result.bio });
   }),
 );
@@ -235,6 +238,10 @@ router.post(
     if (!result.ok) {
       return res.status(result.status).json({ error: result.error });
     }
+    // The FOLLOWED user just gained a follower → re-evaluate their badges
+    // (Networked) immediately. `:id` may be a numeric id or handle; the mint
+    // helper resolves either.
+    mintBadgesAsync(String(req.params.id));
     return res.json({ ok: true });
   }),
 );
@@ -405,6 +412,9 @@ router.post(
       thesis,
       conviction,
     });
+    // Mint achievements at call time (First Call / Triple Threat / …) so the feed
+    // card appears immediately rather than only after a profile view.
+    mintBadgesAsync(Number(session.sub));
     return res.status(201).json({ callout });
   }),
 );
