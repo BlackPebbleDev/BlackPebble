@@ -18,7 +18,6 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   ArrowRight,
-  ExternalLink,
   AlertTriangle,
   Info,
   RefreshCw,
@@ -28,7 +27,6 @@ import {
   Globe,
   Megaphone,
   Lock,
-  MoreHorizontal,
   Send,
   X as CloseIcon,
   ScrollText,
@@ -49,6 +47,7 @@ import {
   THESIS_TITLE_MAX,
   THESIS_CONTENT_MAX,
 } from "@/lib/api";
+import { MoreMenu } from "@/components/more-menu";
 import { ShareToken } from "@/components/share-token";
 import { TradeList } from "@/components/trade-list";
 import { OpenPositions } from "@/components/open-positions";
@@ -2440,129 +2439,6 @@ function CopyContract({ mint }: { mint: string }) {
   );
 }
 
-/**
- * "More" overflow menu for the token action bar — external research & trading
- * links. All links open in a new tab. To add a new provider, append an entry
- * to the EXTERNAL_LINKS array below following the existing pattern.
- */
-
-/** URL patterns for each external provider. pairOrMint = pairAddress ?? mint. */
-function buildExternalLinks(mint: string, pairOrMint: string) {
-  return [
-    {
-      label: "DexScreener",
-      href: `https://dexscreener.com/solana/${pairOrMint}`,
-    },
-    {
-      label: "Axiom",
-      href: `https://axiom.trade/t/${mint}`,
-    },
-    {
-      label: "GMGN",
-      href: `https://gmgn.ai/sol/token/${mint}`,
-    },
-    {
-      label: "Photon",
-      href: `https://photon-sol.tinyastro.io/en/lp/${pairOrMint}`,
-    },
-    {
-      // Pump.fun Terminal has no token-specific deep link (catch-all SPA shell).
-      // Safe fallback to the sign-in landing page.
-      label: "Terminal",
-      href: "https://terminal.pump.fun/sign-in",
-    },
-    {
-      // Verified: Next.js route with dedicated layout/loading chunks + SSR OG.
-      label: "Phantom",
-      href: `https://trade.phantom.com/token/${mint}`,
-    },
-    {
-      label: "Birdeye",
-      href: `https://birdeye.so/token/${mint}?chain=solana`,
-    },
-    {
-      label: "GeckoTerminal",
-      href: `https://www.geckoterminal.com/solana/pools/${pairOrMint}`,
-    },
-    {
-      label: "BubbleMaps",
-      href: `https://app.bubblemaps.io/sol/token/${mint}`,
-    },
-    {
-      label: "RugCheck",
-      href: `https://rugcheck.xyz/tokens/${mint}`,
-    },
-    {
-      label: "DEXTools",
-      href: `https://www.dextools.io/app/en/solana/pair-explorer/${pairOrMint}`,
-    },
-    {
-      label: "Solscan",
-      href: `https://solscan.io/token/${mint}`,
-    },
-    {
-      label: "Jupiter",
-      href: `https://jup.ag/swap/SOL-${mint}`,
-    },
-  ] as const;
-}
-
-function MoreMenu({ info }: { info: TokenInfo }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    function onDown(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
-  }, [open]);
-
-  const pairOrMint = info.pairAddress ?? info.mint;
-  const links = buildExternalLinks(info.mint, pairOrMint);
-
-  return (
-    <div className="relative" ref={ref}>
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        data-testid="button-token-more"
-        title="More"
-        className={cn(
-          "flex items-center gap-2 px-4 h-10 rounded-full text-xs font-medium transition-all",
-          open
-            ? "bg-secondary text-foreground"
-            : "bg-secondary/60 text-muted-foreground hover:text-foreground hover:bg-secondary",
-        )}
-      >
-        <MoreHorizontal className="w-4 h-4" />
-        More
-      </button>
-      {open && (
-        <div className="absolute right-0 z-40 mt-2 w-48 rounded-xl bg-card border border-border shadow-card py-1.5 max-h-[min(420px,80vh)] overflow-y-auto">
-          {links.map((l) => (
-            <a
-              key={l.label}
-              href={l.href}
-              target="_blank"
-              rel="noreferrer"
-              onClick={() => setOpen(false)}
-              className="flex items-center justify-between gap-2 px-3 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-secondary/60 transition-colors"
-            >
-              {l.label}
-              <ExternalLink className="w-3 h-3 shrink-0" />
-            </a>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function ActivityTabs() {
   const { wallet, isGuest } = useAccount();
   const navigate = useNavigate();
@@ -2832,7 +2708,7 @@ export default function TradingDesk() {
         {/* Row 2 — share / more / contract address (tight utility row) */}
         <div className="flex items-center gap-2 flex-wrap">
           <ShareToken info={info} />
-          <MoreMenu info={info} />
+          <MoreMenu mint={info.mint} pairAddress={info.pairAddress} />
           <CopyContract mint={info.mint} />
         </div>
       </div>
