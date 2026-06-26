@@ -2466,8 +2466,15 @@ function buildExternalLinks(mint: string, pairOrMint: string) {
       href: `https://photon-sol.tinyastro.io/en/lp/${pairOrMint}`,
     },
     {
+      // Pump.fun Terminal has no token-specific deep link (catch-all SPA shell).
+      // Safe fallback to the sign-in landing page.
       label: "Terminal",
-      href: `https://neo.bullx.io/terminal?chainId=1399811149&address=${mint}`,
+      href: "https://terminal.pump.fun/sign-in",
+    },
+    {
+      // Verified: Next.js route with dedicated layout/loading chunks + SSR OG.
+      label: "Phantom",
+      href: `https://trade.phantom.com/token/${mint}`,
     },
     {
       label: "Birdeye",
