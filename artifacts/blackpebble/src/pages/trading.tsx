@@ -2441,10 +2441,65 @@ function CopyContract({ mint }: { mint: string }) {
 }
 
 /**
- * "More" overflow menu for the token action bar — secondary external links
- * (Solscan, Jupiter, Birdeye, DEXTools). Purely navigational; no trading
- * behaviour. Built to host future in-app actions (alerts, share) as well.
+ * "More" overflow menu for the token action bar — external research & trading
+ * links. All links open in a new tab. To add a new provider, append an entry
+ * to the EXTERNAL_LINKS array below following the existing pattern.
  */
+
+/** URL patterns for each external provider. pairOrMint = pairAddress ?? mint. */
+function buildExternalLinks(mint: string, pairOrMint: string) {
+  return [
+    {
+      label: "DexScreener",
+      href: `https://dexscreener.com/solana/${pairOrMint}`,
+    },
+    {
+      label: "Axiom",
+      href: `https://axiom.trade/t/${mint}`,
+    },
+    {
+      label: "GMGN",
+      href: `https://gmgn.ai/sol/token/${mint}`,
+    },
+    {
+      label: "Photon",
+      href: `https://photon-sol.tinyastro.io/en/lp/${pairOrMint}`,
+    },
+    {
+      label: "Terminal",
+      href: `https://neo.bullx.io/terminal?chainId=1399811149&address=${mint}`,
+    },
+    {
+      label: "Birdeye",
+      href: `https://birdeye.so/token/${mint}?chain=solana`,
+    },
+    {
+      label: "GeckoTerminal",
+      href: `https://www.geckoterminal.com/solana/pools/${pairOrMint}`,
+    },
+    {
+      label: "BubbleMaps",
+      href: `https://app.bubblemaps.io/sol/token/${mint}`,
+    },
+    {
+      label: "RugCheck",
+      href: `https://rugcheck.xyz/tokens/${mint}`,
+    },
+    {
+      label: "DEXTools",
+      href: `https://www.dextools.io/app/en/solana/pair-explorer/${pairOrMint}`,
+    },
+    {
+      label: "Solscan",
+      href: `https://solscan.io/token/${mint}`,
+    },
+    {
+      label: "Jupiter",
+      href: `https://jup.ag/swap/SOL-${mint}`,
+    },
+  ] as const;
+}
+
 function MoreMenu({ info }: { info: TokenInfo }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
@@ -2461,15 +2516,7 @@ function MoreMenu({ info }: { info: TokenInfo }) {
   }, [open]);
 
   const pairOrMint = info.pairAddress ?? info.mint;
-  const links: { label: string; href: string }[] = [
-    { label: "DexScreener", href: `https://dexscreener.com/solana/${pairOrMint}` },
-    { label: "BubbleMaps", href: `https://app.bubblemaps.io/sol/token/${info.mint}` },
-    { label: "Solscan", href: `https://solscan.io/token/${info.mint}` },
-    { label: "Birdeye", href: `https://birdeye.so/token/${info.mint}?chain=solana` },
-    { label: "RugCheck", href: `https://rugcheck.xyz/tokens/${info.mint}` },
-    { label: "DEXTools", href: `https://www.dextools.io/app/en/solana/pair-explorer/${pairOrMint}` },
-    { label: "Jupiter", href: `https://jup.ag/swap/SOL-${info.mint}` },
-  ];
+  const links = buildExternalLinks(info.mint, pairOrMint);
 
   return (
     <div className="relative" ref={ref}>
@@ -2489,7 +2536,7 @@ function MoreMenu({ info }: { info: TokenInfo }) {
         More
       </button>
       {open && (
-        <div className="absolute right-0 z-40 mt-2 w-48 rounded-xl bg-card border border-border shadow-card py-1.5">
+        <div className="absolute right-0 z-40 mt-2 w-48 rounded-xl bg-card border border-border shadow-card py-1.5 max-h-[min(420px,80vh)] overflow-y-auto">
           {links.map((l) => (
             <a
               key={l.label}
@@ -2500,7 +2547,7 @@ function MoreMenu({ info }: { info: TokenInfo }) {
               className="flex items-center justify-between gap-2 px-3 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-secondary/60 transition-colors"
             >
               {l.label}
-              <ExternalLink className="w-3 h-3" />
+              <ExternalLink className="w-3 h-3 shrink-0" />
             </a>
           ))}
         </div>
