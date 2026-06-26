@@ -189,22 +189,45 @@ function TokenHeader({
   const hasBanner = !!info.bannerUrl;
 
   return (
-    <div
-      className="relative overflow-hidden rounded-xl bg-card shadow-card p-4"
-      style={
-        hasBanner
-          ? {
-              backgroundImage: `url(${info.bannerUrl})`,
-              backgroundSize: "cover",
-              backgroundPosition: "center",
-              backgroundRepeat: "no-repeat",
-            }
-          : undefined
-      }
-    >
-      {/* Heavy overlay so text stays 100% readable regardless of banner brightness */}
+    <div className="relative overflow-hidden rounded-xl bg-card shadow-card p-4">
       {hasBanner && (
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-black/90 via-black/85 to-black/80 rounded-xl" />
+        <>
+          {/*
+           * Layer 1 — blurred cover fill.
+           * Fills every pixel of the card so no letterbox gaps show behind Layer 2.
+           * GIFs animate naturally in <img> (CSS background-image also animated, same behaviour).
+           */}
+          <img
+            src={info.bannerUrl!}
+            alt=""
+            aria-hidden
+            loading="lazy"
+            className="pointer-events-none absolute inset-0 w-full h-full object-cover scale-110 blur-[6px] opacity-55 select-none"
+          />
+          {/*
+           * Layer 2 — natural aspect ratio, centered.
+           * Shows significantly more of wide/complex banners without cropping.
+           * GIFs continue looping here exactly as in the original CSS approach.
+           */}
+          <img
+            src={info.bannerUrl!}
+            alt=""
+            aria-hidden
+            loading="lazy"
+            className="pointer-events-none absolute inset-0 w-full h-full object-contain opacity-85 select-none"
+          />
+          {/*
+           * Overlay A — left-to-right gradient.
+           * Strong dark on the LEFT where logo / name / price live;
+           * lighter on the RIGHT so more artwork breathes through.
+           */}
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-black/92 via-black/78 to-black/50" />
+          {/*
+           * Overlay B — bottom-to-top gradient.
+           * Anchors the social-links row and pulls down slightly for the bottom edge.
+           */}
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/90 via-black/35 to-transparent" />
+        </>
       )}
       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/40 to-transparent" />
       <div className="relative flex flex-wrap items-center gap-4">
@@ -584,6 +607,64 @@ function fmtUnitPnl(solValue: number, unit: Unit, solUsd: number | null): string
   }
   return `${fmtSol(solValue)} SOL`;
 }
+
+// ── Quick Stats Strip ─────────────────────────────────────────────────────────
+
+/** Format an epoch-ms timestamp as a human age: "4m", "7h", "14d". */
+function fmtAge(createdAtMs: number): string {
+  const ageMs = Math.max(0, Date.now() - createdAtMs);
+  const mins = Math.floor(ageMs / 60_000);
+  if (mins < 60) return `${mins}m`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h`;
+  return `${Math.floor(hours / 24)}d`;
+}
+
+/**
+ * Slim premium stats strip — sits between the action buttons and the chart.
+ * Only renders stats for values that are actually present in the data.
+ * No placeholders, no N/A, no horizontal scroll.
+ */
+function QuickStatsStrip({ info }: { info: TokenInfo }) {
+  const stats: Array<{ label: string; value: string }> = [];
+
+  if (info.liquidityUsd != null && info.liquidityUsd > 0)
+    stats.push({ label: "Liquidity", value: fmtUsd(info.liquidityUsd) });
+
+  if (info.volume24hUsd != null && info.volume24hUsd > 0)
+    stats.push({ label: "Vol 24h", value: fmtUsd(info.volume24hUsd) });
+
+  if (info.marketCapUsd != null && info.marketCapUsd > 0)
+    stats.push({ label: "Mkt Cap", value: fmtUsd(info.marketCapUsd) });
+
+  if (info.pairCreatedAt != null && info.pairCreatedAt > 0)
+    stats.push({ label: "Age", value: fmtAge(info.pairCreatedAt) });
+
+  if (stats.length === 0) return null;
+
+  return (
+    <div className="flex items-center gap-px rounded-lg overflow-hidden border border-border/50 shadow-sm bg-card/80 backdrop-blur-sm">
+      {stats.map((s, i) => (
+        <div
+          key={s.label}
+          className={cn(
+            "flex-1 min-w-0 flex flex-col items-center justify-center py-2 px-3 transition-colors hover:bg-white/[0.04] cursor-default select-none",
+            i < stats.length - 1 && "border-r border-border/40",
+          )}
+        >
+          <span className="text-[9px] uppercase tracking-widest text-muted-foreground/70 leading-none mb-0.5 truncate">
+            {s.label}
+          </span>
+          <span className="font-mono text-[11px] font-medium text-foreground leading-none truncate">
+            {s.value}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 type QuickOrder = { enabled: boolean; mcValue: string; percent: number };
 const QUICK_ORDER_DEFAULT: QuickOrder = { enabled: false, mcValue: "", percent: 100 };
@@ -2730,6 +2811,9 @@ export default function TradingDesk() {
           <CopyContract mint={info.mint} />
         </div>
       </div>
+
+      {/* Quick Stats strip — sits between action buttons and chart; only shows real data */}
+      <QuickStatsStrip info={info} />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 space-y-4">
