@@ -38,6 +38,8 @@ export interface TokenInfo {
   websiteUrl?: string | null;
   twitterUrl?: string | null;
   telegramUrl?: string | null;
+  /** Banner / header image URL from DexScreener (display-only, optional). */
+  bannerUrl?: string | null;
 }
 
 interface DexPair {
@@ -61,6 +63,8 @@ interface DexPair {
   fdv?: number;
   info?: {
     imageUrl?: string;
+    /** Banner / header image URL — shown as background art on the token card. */
+    header?: string;
     websites?: { label: string; url: string }[];
     socials?: { type: string; url: string }[];
   };
@@ -259,6 +263,7 @@ export async function getTokenInfo(mint: string): Promise<TokenInfo | null> {
         dex.info?.socials?.find((s) => s.type === "twitter")?.url ?? null,
       telegramUrl:
         dex.info?.socials?.find((s) => s.type === "telegram")?.url ?? null,
+      bannerUrl: dex.info?.header ?? null,
     };
   }
 

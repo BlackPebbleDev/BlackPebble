@@ -310,6 +310,8 @@ export interface TokenInfo {
   websiteUrl?: string | null;
   twitterUrl?: string | null;
   telegramUrl?: string | null;
+  /** Banner / header image from DexScreener — background artwork for the token card. */
+  bannerUrl?: string | null;
 }
 
 /** ── Token Page V2 intelligence roll-up (read-only over existing tables) ── */

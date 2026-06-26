@@ -186,10 +186,28 @@ function TokenHeader({
       : null,
   ].filter(Boolean) as { key: string; href: string; icon: React.ReactNode; label: string }[];
 
+  const hasBanner = !!info.bannerUrl;
+
   return (
-    <div className="relative overflow-hidden rounded-xl bg-card shadow-card p-4">
+    <div
+      className="relative overflow-hidden rounded-xl bg-card shadow-card p-4"
+      style={
+        hasBanner
+          ? {
+              backgroundImage: `url(${info.bannerUrl})`,
+              backgroundSize: "cover",
+              backgroundPosition: "center",
+              backgroundRepeat: "no-repeat",
+            }
+          : undefined
+      }
+    >
+      {/* Heavy overlay so text stays 100% readable regardless of banner brightness */}
+      {hasBanner && (
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-black/90 via-black/85 to-black/80 rounded-xl" />
+      )}
       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/40 to-transparent" />
-      <div className="flex flex-wrap items-center gap-4">
+      <div className="relative flex flex-wrap items-center gap-4">
         <div className="flex items-center gap-3">
           {info.logo ? (
             <img
@@ -267,7 +285,7 @@ function TokenHeader({
 
       {/* Token identity links — only rendered when at least one is present */}
       {socialLinks.length > 0 && (
-        <div className="flex items-center gap-2 flex-wrap mt-3 pt-3 border-t border-border/40">
+        <div className="relative flex items-center gap-2 flex-wrap mt-3 pt-3 border-t border-border/40">
           {socialLinks.map((l) => (
             <a
               key={l.key}
