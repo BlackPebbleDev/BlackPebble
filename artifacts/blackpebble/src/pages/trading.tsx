@@ -217,16 +217,18 @@ function TokenHeader({
             className="pointer-events-none absolute inset-0 w-full h-full object-contain opacity-85 select-none"
           />
           {/*
-           * Overlay A — left-to-right gradient.
-           * Strong dark on the LEFT where logo / name / price live;
-           * lighter on the RIGHT so more artwork breathes through.
+           * Overlay A — vertical (top → bottom).
+           * Spec target: top ~8%, middle ~18%, bottom ~48%.
+           * Keeps the artwork vibrant while anchoring the social-links row.
            */}
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-black/92 via-black/78 to-black/50" />
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/8 via-black/18 to-black/48" />
           {/*
-           * Overlay B — bottom-to-top gradient.
-           * Anchors the social-links row and pulls down slightly for the bottom edge.
+           * Overlay B — left text-protection only.
+           * A subtle scrim behind the logo / name / price area so white text
+           * remains legible even on very bright banners. Fades to nothing on
+           * the right so the artwork is fully visible there.
            */}
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/90 via-black/35 to-transparent" />
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-black/30 via-black/12 to-transparent" />
         </>
       )}
       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/40 to-transparent" />
