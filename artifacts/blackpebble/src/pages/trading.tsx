@@ -188,24 +188,6 @@ function TokenHeader({
 
   const hasBanner = !!info.bannerUrl;
 
-  /*
-   * Glass pill style — applied to both identity and price pills.
-   * Smoked glass: semi-transparent dark, backdrop blur, white rim, soft shadow.
-   * Typography inside always uses white hierarchy (primary .98, secondary .78)
-   * since the pill background is always dark regardless of banner presence.
-   */
-  const pillStyle: React.CSSProperties = {
-    borderRadius: 999,
-    background: "rgba(0,0,0,0.48)",
-    backdropFilter: "blur(12px)",
-    WebkitBackdropFilter: "blur(12px)",
-    boxShadow:
-      "0 4px 14px rgba(0,0,0,0.24), inset 0 1px 0 rgba(255,255,255,0.12)",
-    border: "1px solid rgba(255,255,255,0.12)",
-    padding: "5px 12px",
-    textShadow: "0 1px 2px rgba(0,0,0,.55)",
-  };
-
   return (
     <div className="space-y-3">
       {/*
@@ -233,106 +215,76 @@ function TokenHeader({
       <div className="relative rounded-xl bg-card shadow-card px-3 py-2 space-y-2">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/40 to-transparent rounded-t-xl" />
 
-        {/* Pills row */}
-        <div className="flex flex-wrap items-center gap-2">
-
-          {/* ── PILL 1: token identity ── */}
-          <div className="flex items-center gap-2" style={pillStyle}>
-            {info.logo ? (
-              <img
-                src={info.logo}
-                alt=""
-                className="w-7 h-7 rounded-full object-cover shrink-0"
-                onError={(e) => (e.currentTarget.style.visibility = "hidden")}
-              />
-            ) : (
-              <div className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-[10px] shrink-0"
-                style={{ color: "rgba(255,255,255,0.78)" }}>
-                {info.symbol?.slice(0, 2) ?? "?"}
+        {/*
+         * ── UNIFIED CAPSULE ─────────────────────────────────────────────────────
+         * One horizontal pill spanning ~90% of card width, centered.
+         * Left: logo · name · ticker · LIVE
+         * Right: Price · 24h
+         * No glass/blur — clean dark premium surface (Apple Wallet feel).
+         */}
+        <div className="flex justify-center">
+          <div
+            className="flex items-center justify-between w-full max-w-[92%]"
+            style={{
+              borderRadius: 9999,
+              background: "hsl(var(--card-elevated, var(--card))) ",
+              backgroundColor: "rgba(255,255,255,0.05)",
+              border: "1px solid rgba(255,255,255,0.10)",
+              boxShadow: "0 2px 12px rgba(0,0,0,0.20)",
+              padding: "7px 14px",
+            }}
+          >
+            {/* LEFT — token identity */}
+            <div className="flex items-center gap-2 min-w-0">
+              {info.logo ? (
+                <img
+                  src={info.logo}
+                  alt=""
+                  className="w-7 h-7 rounded-full object-cover shrink-0"
+                  onError={(e) => (e.currentTarget.style.visibility = "hidden")}
+                />
+              ) : (
+                <div className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-[10px] shrink-0 text-foreground/60">
+                  {info.symbol?.slice(0, 2) ?? "?"}
+                </div>
+              )}
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 text-sm font-bold leading-tight truncate">
+                  {info.symbol ?? "Unknown"}
+                  {!info.isMigrated && (
+                    <span className="text-[9px] font-semibold uppercase tracking-wider text-accent bg-accent/12 rounded-full px-1.5 py-px shrink-0">
+                      Bonding
+                    </span>
+                  )}
+                </div>
+                <div className="text-[11px] leading-tight text-muted-foreground truncate">
+                  {info.name ?? shortAddr(info.mint)}
+                </div>
+                <LiveIndicator dataUpdatedAt={dataUpdatedAt} />
               </div>
-            )}
-            <div>
-              <div
-                className="flex items-center gap-1.5 text-sm leading-tight"
-                style={{ color: "rgba(255,255,255,0.98)", fontWeight: 700 }}
-              >
-                {info.symbol ?? "Unknown"}
-                {!info.isMigrated && (
-                  <span className="text-[9px] font-semibold uppercase tracking-wider text-accent bg-accent/12 rounded-full px-1.5 py-px">
-                    Bonding
-                  </span>
-                )}
-              </div>
-              <div
-                className="text-[11px] leading-tight"
-                style={{ color: "rgba(255,255,255,0.78)" }}
-              >
-                {info.name ?? shortAddr(info.mint)}
-              </div>
-              <LiveIndicator dataUpdatedAt={dataUpdatedAt} />
             </div>
-          </div>
 
-          {/* ── Right side: price pill + floating extras ── */}
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 ml-auto text-right">
+            {/* Divider */}
+            <div className="mx-3 self-stretch w-px bg-border/40 shrink-0" />
 
-            {/* PILL 2: price + 24h only */}
-            <div className="flex gap-x-4" style={pillStyle}>
+            {/* RIGHT — price + 24h */}
+            <div className="flex items-center gap-4 shrink-0 text-right">
               <div>
-                <div
-                  className="text-[10px] uppercase tracking-wider leading-tight"
-                  style={{ color: "rgba(255,255,255,0.78)" }}
-                >
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground leading-tight">
                   Price
                 </div>
-                <div
-                  className="font-mono text-sm font-semibold leading-snug"
-                  style={{ color: "rgba(255,255,255,0.98)" }}
-                >
+                <div className="font-mono text-sm font-semibold leading-snug">
                   {fmtPrice(info.priceUsd)}
                 </div>
               </div>
               <div>
-                <div
-                  className="text-[10px] uppercase tracking-wider leading-tight"
-                  style={{ color: "rgba(255,255,255,0.78)" }}
-                >
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground leading-tight">
                   24h
                 </div>
-                <div
-                  className={cn("font-mono text-sm font-semibold leading-snug", pnlColorSafe(info.priceChange24h))}
-                >
+                <div className={cn("font-mono text-sm font-semibold leading-snug", pnlColorSafe(info.priceChange24h))}>
                   {fmtPercentSafe(info.priceChange24h)}
                 </div>
               </div>
-            </div>
-
-            {/* Floating stats — no pill, rendered over card bg */}
-            <div className="hidden sm:block text-right">
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                Volume 24h
-              </div>
-              <div className="font-mono text-sm">{fmtUsd(info.volume24hUsd)}</div>
-            </div>
-            <div className="hidden md:block text-right">
-              <div className="flex items-center justify-end gap-1 text-[10px] uppercase tracking-wider text-muted-foreground">
-                Liquidity
-                <HelpTip
-                  label="Liquidity"
-                  text="The pool of funds available to trade against. Higher liquidity means your orders fill closer to the listed price."
-                />
-              </div>
-              <div className="font-mono text-sm">{fmtUsd(info.liquidityUsd)}</div>
-            </div>
-            <div className="hidden lg:block text-right">
-              <div className="flex items-center justify-end gap-1 text-[10px] uppercase tracking-wider text-muted-foreground">
-                Market Cap
-                <HelpTip
-                  label="Market Cap"
-                  text="The total value of all tokens in circulation (price × supply). Often used as the trigger level for automated orders."
-                />
-              </div>
-              <div className="font-mono text-sm">{fmtUsd(info.marketCapUsd)}</div>
             </div>
           </div>
         </div>
