@@ -222,117 +222,126 @@ function TokenHeader({
       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/40 to-transparent" />
       <div className="relative flex flex-wrap items-center gap-4">
         {/*
-         * Panel 1 — floating glass behind token identity (logo, name, symbol, LIVE).
-         * Only applied when a banner is active; renders as plain flex row otherwise.
-         * backdrop-blur-sm blurs the banner layers behind this region only.
+         * Shared pill style — applied to both glass pills when a banner is active.
+         * Soft rounded pill (20px radius), smoked glass, white inset highlight,
+         * drop shadow. Hugs content tightly so it feels lightweight, not boxy.
          */}
-        <div
-          className={cn(
-            "flex items-center gap-3",
-            hasBanner && "rounded-xl px-3 py-2",
-          )}
-          style={
-            hasBanner
-              ? {
-                  background: "rgba(0,0,0,0.32)",
-                  backdropFilter: "blur(8px)",
-                  WebkitBackdropFilter: "blur(8px)",
-                  textShadow: "0 1px 2px rgba(0,0,0,.55)",
-                }
-              : undefined
-          }
-        >
-          {info.logo ? (
-            <img
-              src={info.logo}
-              alt=""
-              className="w-10 h-10 rounded-full object-cover"
-              onError={(e) => (e.currentTarget.style.visibility = "hidden")}
-            />
-          ) : (
-            <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center text-xs text-muted-foreground">
-              {info.symbol?.slice(0, 2) ?? "?"}
-            </div>
-          )}
-          <div>
-            <div className="font-semibold flex items-center gap-2">
-              {info.symbol ?? "Unknown"}
-              {!info.isMigrated && (
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-accent bg-accent/12 rounded-full px-2 py-0.5">
-                  Bonding
-                </span>
-              )}
-            </div>
-            <div className="text-xs text-muted-foreground">
-              {info.name ?? shortAddr(info.mint)}
-            </div>
-            <div className="mt-1">
-              <LiveIndicator dataUpdatedAt={dataUpdatedAt} />
-            </div>
-          </div>
-        </div>
+        {(() => {
+          const pillStyle: React.CSSProperties = hasBanner
+            ? {
+                borderRadius: 20,
+                background: "rgba(6,6,14,0.40)",
+                backdropFilter: "blur(14px)",
+                WebkitBackdropFilter: "blur(14px)",
+                boxShadow:
+                  "0 4px 20px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.10)",
+                border: "1px solid rgba(255,255,255,0.08)",
+                textShadow: "0 1px 2px rgba(0,0,0,.55)",
+              }
+            : {};
+          const floatStyle: React.CSSProperties = hasBanner
+            ? { textShadow: "0 1px 3px rgba(0,0,0,.75), 0 0 8px rgba(0,0,0,.35)" }
+            : {};
 
-        {/*
-         * Panel 2 — floating glass behind price metrics (Price, 24h, Volume, Liquidity, MC).
-         * Same treatment as Panel 1 — only active when a banner is present.
-         */}
-        <div
-          className={cn(
-            "flex flex-wrap gap-x-6 gap-y-2 ml-auto text-right",
-            hasBanner && "rounded-xl px-3 py-2",
-          )}
-          style={
-            hasBanner
-              ? {
-                  background: "rgba(0,0,0,0.32)",
-                  backdropFilter: "blur(8px)",
-                  WebkitBackdropFilter: "blur(8px)",
-                  textShadow: "0 1px 2px rgba(0,0,0,.55)",
+          return (
+            <>
+              {/* ── PILL 1: token identity (logo · name · ticker · LIVE) ── */}
+              <div
+                className="flex items-center gap-3"
+                style={
+                  hasBanner
+                    ? { ...pillStyle, padding: "8px 14px" }
+                    : undefined
                 }
-              : undefined
-          }
-        >
-          <div>
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-              Price
-            </div>
-            <div className="font-mono text-sm">{fmtPrice(info.priceUsd)}</div>
-          </div>
-          <div>
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-              24h
-            </div>
-            <div className={cn("font-mono text-sm", pnlColorSafe(info.priceChange24h))}>
-              {fmtPercentSafe(info.priceChange24h)}
-            </div>
-          </div>
-          <div className="hidden sm:block">
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-              Volume 24h
-            </div>
-            <div className="font-mono text-sm">{fmtUsd(info.volume24hUsd)}</div>
-          </div>
-          <div className="hidden md:block">
-            <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted-foreground">
-              Liquidity
-              <HelpTip
-                label="Liquidity"
-                text="The pool of funds available to trade against. Higher liquidity means your orders fill closer to the listed price."
-              />
-            </div>
-            <div className="font-mono text-sm">{fmtUsd(info.liquidityUsd)}</div>
-          </div>
-          <div className="hidden lg:block">
-            <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted-foreground">
-              Market Cap
-              <HelpTip
-                label="Market Cap"
-                text="The total value of all tokens in circulation (price × supply). Often used as the trigger level for automated orders."
-              />
-            </div>
-            <div className="font-mono text-sm">{fmtUsd(info.marketCapUsd)}</div>
-          </div>
-        </div>
+              >
+                {info.logo ? (
+                  <img
+                    src={info.logo}
+                    alt=""
+                    className="w-10 h-10 rounded-full object-cover"
+                    onError={(e) => (e.currentTarget.style.visibility = "hidden")}
+                  />
+                ) : (
+                  <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center text-xs text-muted-foreground">
+                    {info.symbol?.slice(0, 2) ?? "?"}
+                  </div>
+                )}
+                <div>
+                  <div className="font-semibold flex items-center gap-2">
+                    {info.symbol ?? "Unknown"}
+                    {!info.isMigrated && (
+                      <span className="text-[10px] font-semibold uppercase tracking-wider text-accent bg-accent/12 rounded-full px-2 py-0.5">
+                        Bonding
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {info.name ?? shortAddr(info.mint)}
+                  </div>
+                  <div className="mt-1">
+                    <LiveIndicator dataUpdatedAt={dataUpdatedAt} />
+                  </div>
+                </div>
+              </div>
+
+              {/* ── Right cluster: pill (price · 24h) + floating extras ── */}
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 ml-auto text-right">
+                {/* PILL 2: price + 24h only */}
+                <div
+                  className="flex gap-x-6"
+                  style={
+                    hasBanner
+                      ? { ...pillStyle, padding: "8px 14px" }
+                      : undefined
+                  }
+                >
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                      Price
+                    </div>
+                    <div className="font-mono text-sm">{fmtPrice(info.priceUsd)}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                      24h
+                    </div>
+                    <div className={cn("font-mono text-sm", pnlColorSafe(info.priceChange24h))}>
+                      {fmtPercentSafe(info.priceChange24h)}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Floating extras — no pill, just text-shadow for readability */}
+                <div className="hidden sm:block" style={floatStyle}>
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Volume 24h
+                  </div>
+                  <div className="font-mono text-sm">{fmtUsd(info.volume24hUsd)}</div>
+                </div>
+                <div className="hidden md:block" style={floatStyle}>
+                  <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Liquidity
+                    <HelpTip
+                      label="Liquidity"
+                      text="The pool of funds available to trade against. Higher liquidity means your orders fill closer to the listed price."
+                    />
+                  </div>
+                  <div className="font-mono text-sm">{fmtUsd(info.liquidityUsd)}</div>
+                </div>
+                <div className="hidden lg:block" style={floatStyle}>
+                  <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Market Cap
+                    <HelpTip
+                      label="Market Cap"
+                      text="The total value of all tokens in circulation (price × supply). Often used as the trigger level for automated orders."
+                    />
+                  </div>
+                  <div className="font-mono text-sm">{fmtUsd(info.marketCapUsd)}</div>
+                </div>
+              </div>
+            </>
+          );
+        })()}
       </div>
 
       {/* Token identity links — only rendered when at least one is present */}
