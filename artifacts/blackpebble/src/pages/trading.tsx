@@ -217,22 +217,19 @@ function TokenHeader({
             className="pointer-events-none absolute inset-0 w-full h-full object-contain opacity-85 select-none"
           />
           {/*
-           * Overlay A — vertical (top → bottom).
-           * Spec target: top ~8%, middle ~18%, bottom ~48%.
-           * Keeps the artwork vibrant while anchoring the social-links row.
+           * Single uniform overlay — one consistent smoked-glass panel across
+           * the entire card. No gradients, no zones, no visible transitions.
+           * Text readability is handled via text-shadow on the elements below.
            */}
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/8 via-black/18 to-black/48" />
-          {/*
-           * Overlay B — left text-protection only.
-           * A subtle scrim behind the logo / name / price area so white text
-           * remains legible even on very bright banners. Fades to nothing on
-           * the right so the artwork is fully visible there.
-           */}
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-black/30 via-black/12 to-transparent" />
+          <div className="pointer-events-none absolute inset-0" style={{ background: "rgba(0,0,0,0.28)" }} />
         </>
       )}
       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/40 to-transparent" />
-      <div className="relative flex flex-wrap items-center gap-4">
+      {/* text-shadow applied to the wrapper so all labels/values inherit it when a banner is active */}
+      <div
+        className="relative flex flex-wrap items-center gap-4"
+        style={hasBanner ? { textShadow: "0 1px 2px rgba(0,0,0,.55)" } : undefined}
+      >
         <div className="flex items-center gap-3">
           {info.logo ? (
             <img
