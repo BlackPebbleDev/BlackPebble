@@ -191,33 +191,18 @@ function TokenHeader({
   return (
     <div className="relative overflow-hidden rounded-xl bg-card shadow-card p-4">
       {hasBanner && (
-        <>
-          {/*
-           * Layer 1 — blurred cover fill.
-           * Fills every pixel of the card so no letterbox gaps show behind Layer 2.
-           * GIFs animate naturally in <img> (CSS background-image also animated, same behaviour).
-           */}
-          <img
-            src={info.bannerUrl!}
-            alt=""
-            aria-hidden
-            loading="lazy"
-            className="pointer-events-none absolute inset-0 w-full h-full object-cover scale-110 blur-[6px] opacity-55 select-none"
-          />
-          {/*
-           * Layer 2 — natural aspect ratio, centered.
-           * Shows significantly more of wide/complex banners without cropping.
-           * GIFs continue looping here exactly as in the original CSS approach.
-           */}
-          <img
-            src={info.bannerUrl!}
-            alt=""
-            aria-hidden
-            loading="lazy"
-            className="pointer-events-none absolute inset-0 w-full h-full object-contain opacity-85 select-none"
-          />
-          {/* No full-card overlay — banner is the hero. Glass panels below protect only the text. */}
-        </>
+        /*
+         * Single cover-fill layer — object-cover fills the card cleanly with no
+         * letterbox bands. GIFs animate naturally in an <img> element.
+         * No overlay — glass pills below handle all readability.
+         */
+        <img
+          src={info.bannerUrl!}
+          alt=""
+          aria-hidden
+          loading="lazy"
+          className="pointer-events-none absolute inset-0 w-full h-full object-cover object-center select-none"
+        />
       )}
       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/40 to-transparent" />
       <div className="relative flex flex-wrap items-center gap-4">
@@ -229,18 +214,18 @@ function TokenHeader({
         {(() => {
           const pillStyle: React.CSSProperties = hasBanner
             ? {
-                borderRadius: 20,
-                background: "rgba(6,6,14,0.40)",
-                backdropFilter: "blur(14px)",
-                WebkitBackdropFilter: "blur(14px)",
+                borderRadius: 999,
+                background: "rgba(0,0,0,0.48)",
+                backdropFilter: "blur(12px)",
+                WebkitBackdropFilter: "blur(12px)",
                 boxShadow:
-                  "0 4px 20px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.10)",
-                border: "1px solid rgba(255,255,255,0.08)",
-                textShadow: "0 1px 2px rgba(0,0,0,.55)",
+                  "0 6px 18px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.12)",
+                border: "1px solid rgba(255,255,255,0.12)",
+                textShadow: "0 1px 2px rgba(0,0,0,.65)",
               }
             : {};
           const floatStyle: React.CSSProperties = hasBanner
-            ? { textShadow: "0 1px 3px rgba(0,0,0,.75), 0 0 8px rgba(0,0,0,.35)" }
+            ? { textShadow: "0 1px 3px rgba(0,0,0,.80), 0 0 10px rgba(0,0,0,.40)" }
             : {};
 
           return (
