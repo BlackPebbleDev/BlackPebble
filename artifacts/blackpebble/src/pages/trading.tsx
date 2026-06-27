@@ -188,165 +188,176 @@ function TokenHeader({
 
   const hasBanner = !!info.bannerUrl;
 
+  /*
+   * Glass pill style — applied to both identity and price pills.
+   * Smoked glass: semi-transparent dark, backdrop blur, white rim, soft shadow.
+   * Typography inside always uses white hierarchy (primary .98, secondary .78)
+   * since the pill background is always dark regardless of banner presence.
+   */
+  const pillStyle: React.CSSProperties = {
+    borderRadius: 999,
+    background: "rgba(0,0,0,0.48)",
+    backdropFilter: "blur(12px)",
+    WebkitBackdropFilter: "blur(12px)",
+    boxShadow:
+      "0 6px 18px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.12)",
+    border: "1px solid rgba(255,255,255,0.12)",
+    padding: "8px 14px",
+    textShadow: "0 1px 2px rgba(0,0,0,.55)",
+  };
+
   return (
-    <div className="relative overflow-hidden rounded-xl bg-card shadow-card p-4">
+    <div className="space-y-3">
+      {/*
+       * ── BANNER CARD ──────────────────────────────────────────────────────────
+       * Standalone rounded card — no UI overlay of any kind.
+       * <img> with natural dimensions (w-full h-auto) shows the full artwork
+       * at its correct aspect ratio. GIFs animate; WebP animates. Never canvas.
+       */}
       {hasBanner && (
-        /*
-         * Single cover-fill layer — object-cover fills the card cleanly with no
-         * letterbox bands. GIFs animate naturally in an <img> element.
-         * No overlay — glass pills below handle all readability.
-         */
-        <img
-          src={info.bannerUrl!}
-          alt=""
-          aria-hidden
-          loading="lazy"
-          className="pointer-events-none absolute inset-0 w-full h-full object-cover object-center select-none"
-        />
-      )}
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/40 to-transparent" />
-      <div className="relative flex flex-wrap items-center gap-4">
-        {/*
-         * Shared pill style — applied to both glass pills when a banner is active.
-         * Soft rounded pill (20px radius), smoked glass, white inset highlight,
-         * drop shadow. Hugs content tightly so it feels lightweight, not boxy.
-         */}
-        {(() => {
-          const pillStyle: React.CSSProperties = hasBanner
-            ? {
-                borderRadius: 999,
-                background: "rgba(0,0,0,0.48)",
-                backdropFilter: "blur(12px)",
-                WebkitBackdropFilter: "blur(12px)",
-                boxShadow:
-                  "0 6px 18px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.12)",
-                border: "1px solid rgba(255,255,255,0.12)",
-                textShadow: "0 1px 2px rgba(0,0,0,.65)",
-              }
-            : {};
-          const floatStyle: React.CSSProperties = hasBanner
-            ? { textShadow: "0 1px 3px rgba(0,0,0,.80), 0 0 10px rgba(0,0,0,.40)" }
-            : {};
-
-          return (
-            <>
-              {/* ── PILL 1: token identity (logo · name · ticker · LIVE) ── */}
-              <div
-                className="flex items-center gap-3"
-                style={
-                  hasBanner
-                    ? { ...pillStyle, padding: "8px 14px" }
-                    : undefined
-                }
-              >
-                {info.logo ? (
-                  <img
-                    src={info.logo}
-                    alt=""
-                    className="w-10 h-10 rounded-full object-cover"
-                    onError={(e) => (e.currentTarget.style.visibility = "hidden")}
-                  />
-                ) : (
-                  <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center text-xs text-muted-foreground">
-                    {info.symbol?.slice(0, 2) ?? "?"}
-                  </div>
-                )}
-                <div>
-                  <div className="font-semibold flex items-center gap-2">
-                    {info.symbol ?? "Unknown"}
-                    {!info.isMigrated && (
-                      <span className="text-[10px] font-semibold uppercase tracking-wider text-accent bg-accent/12 rounded-full px-2 py-0.5">
-                        Bonding
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {info.name ?? shortAddr(info.mint)}
-                  </div>
-                  <div className="mt-1">
-                    <LiveIndicator dataUpdatedAt={dataUpdatedAt} />
-                  </div>
-                </div>
-              </div>
-
-              {/* ── Right cluster: pill (price · 24h) + floating extras ── */}
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 ml-auto text-right">
-                {/* PILL 2: price + 24h only */}
-                <div
-                  className="flex gap-x-6"
-                  style={
-                    hasBanner
-                      ? { ...pillStyle, padding: "8px 14px" }
-                      : undefined
-                  }
-                >
-                  <div>
-                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                      Price
-                    </div>
-                    <div className="font-mono text-sm">{fmtPrice(info.priceUsd)}</div>
-                  </div>
-                  <div>
-                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                      24h
-                    </div>
-                    <div className={cn("font-mono text-sm", pnlColorSafe(info.priceChange24h))}>
-                      {fmtPercentSafe(info.priceChange24h)}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Floating extras — no pill, just text-shadow for readability */}
-                <div className="hidden sm:block" style={floatStyle}>
-                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                    Volume 24h
-                  </div>
-                  <div className="font-mono text-sm">{fmtUsd(info.volume24hUsd)}</div>
-                </div>
-                <div className="hidden md:block" style={floatStyle}>
-                  <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted-foreground">
-                    Liquidity
-                    <HelpTip
-                      label="Liquidity"
-                      text="The pool of funds available to trade against. Higher liquidity means your orders fill closer to the listed price."
-                    />
-                  </div>
-                  <div className="font-mono text-sm">{fmtUsd(info.liquidityUsd)}</div>
-                </div>
-                <div className="hidden lg:block" style={floatStyle}>
-                  <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted-foreground">
-                    Market Cap
-                    <HelpTip
-                      label="Market Cap"
-                      text="The total value of all tokens in circulation (price × supply). Often used as the trigger level for automated orders."
-                    />
-                  </div>
-                  <div className="font-mono text-sm">{fmtUsd(info.marketCapUsd)}</div>
-                </div>
-              </div>
-            </>
-          );
-        })()}
-      </div>
-
-      {/* Token identity links — only rendered when at least one is present */}
-      {socialLinks.length > 0 && (
-        <div className="relative flex items-center gap-2 flex-wrap mt-3 pt-3 border-t border-border/40">
-          {socialLinks.map((l) => (
-            <a
-              key={l.key}
-              href={l.href}
-              target="_blank"
-              rel="noopener noreferrer"
-              data-testid={`link-token-${l.key}`}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-secondary/60 border border-border text-xs text-foreground/80 hover:border-accent/60 hover:text-accent transition-colors"
-            >
-              {l.icon}
-              {l.label}
-            </a>
-          ))}
+        <div className="rounded-xl overflow-hidden bg-card shadow-card">
+          <img
+            src={info.bannerUrl!}
+            alt={`${info.symbol ?? "Token"} banner`}
+            loading="lazy"
+            className="w-full h-auto block select-none"
+          />
         </div>
       )}
+
+      {/*
+       * ── INFO + SOCIAL CARD ───────────────────────────────────────────────────
+       * Lives below the banner. Contains two glass pills (identity + price)
+       * and the social links row.
+       */}
+      <div className="relative rounded-xl bg-card shadow-card p-3 space-y-3">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/40 to-transparent rounded-t-xl" />
+
+        {/* Pills row */}
+        <div className="flex flex-wrap items-center gap-3">
+
+          {/* ── PILL 1: token identity ── */}
+          <div className="flex items-center gap-3" style={pillStyle}>
+            {info.logo ? (
+              <img
+                src={info.logo}
+                alt=""
+                className="w-9 h-9 rounded-full object-cover shrink-0"
+                onError={(e) => (e.currentTarget.style.visibility = "hidden")}
+              />
+            ) : (
+              <div className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-xs shrink-0"
+                style={{ color: "rgba(255,255,255,0.78)" }}>
+                {info.symbol?.slice(0, 2) ?? "?"}
+              </div>
+            )}
+            <div>
+              <div
+                className="font-semibold flex items-center gap-2 text-sm leading-tight"
+                style={{ color: "rgba(255,255,255,0.98)", fontWeight: 700 }}
+              >
+                {info.symbol ?? "Unknown"}
+                {!info.isMigrated && (
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-accent bg-accent/12 rounded-full px-2 py-0.5">
+                    Bonding
+                  </span>
+                )}
+              </div>
+              <div
+                className="text-xs leading-tight mt-0.5"
+                style={{ color: "rgba(255,255,255,0.78)" }}
+              >
+                {info.name ?? shortAddr(info.mint)}
+              </div>
+              <div className="mt-1">
+                <LiveIndicator dataUpdatedAt={dataUpdatedAt} />
+              </div>
+            </div>
+          </div>
+
+          {/* ── Right side: price pill + floating extras ── */}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 ml-auto text-right">
+
+            {/* PILL 2: price + 24h only */}
+            <div className="flex gap-x-5" style={pillStyle}>
+              <div>
+                <div
+                  className="text-[10px] uppercase tracking-wider leading-tight"
+                  style={{ color: "rgba(255,255,255,0.78)" }}
+                >
+                  Price
+                </div>
+                <div
+                  className="font-mono text-sm font-semibold leading-snug"
+                  style={{ color: "rgba(255,255,255,0.98)" }}
+                >
+                  {fmtPrice(info.priceUsd)}
+                </div>
+              </div>
+              <div>
+                <div
+                  className="text-[10px] uppercase tracking-wider leading-tight"
+                  style={{ color: "rgba(255,255,255,0.78)" }}
+                >
+                  24h
+                </div>
+                <div
+                  className={cn("font-mono text-sm font-semibold leading-snug", pnlColorSafe(info.priceChange24h))}
+                >
+                  {fmtPercentSafe(info.priceChange24h)}
+                </div>
+              </div>
+            </div>
+
+            {/* Floating stats — no pill, rendered over card bg */}
+            <div className="hidden sm:block text-right">
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                Volume 24h
+              </div>
+              <div className="font-mono text-sm">{fmtUsd(info.volume24hUsd)}</div>
+            </div>
+            <div className="hidden md:block text-right">
+              <div className="flex items-center justify-end gap-1 text-[10px] uppercase tracking-wider text-muted-foreground">
+                Liquidity
+                <HelpTip
+                  label="Liquidity"
+                  text="The pool of funds available to trade against. Higher liquidity means your orders fill closer to the listed price."
+                />
+              </div>
+              <div className="font-mono text-sm">{fmtUsd(info.liquidityUsd)}</div>
+            </div>
+            <div className="hidden lg:block text-right">
+              <div className="flex items-center justify-end gap-1 text-[10px] uppercase tracking-wider text-muted-foreground">
+                Market Cap
+                <HelpTip
+                  label="Market Cap"
+                  text="The total value of all tokens in circulation (price × supply). Often used as the trigger level for automated orders."
+                />
+              </div>
+              <div className="font-mono text-sm">{fmtUsd(info.marketCapUsd)}</div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Social links row ── */}
+        {socialLinks.length > 0 && (
+          <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-border/40">
+            {socialLinks.map((l) => (
+              <a
+                key={l.key}
+                href={l.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                data-testid={`link-token-${l.key}`}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-secondary/60 border border-border text-xs text-foreground/80 hover:border-accent/60 hover:text-accent transition-colors"
+              >
+                {l.icon}
+                {l.label}
+              </a>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
