@@ -200,9 +200,9 @@ function TokenHeader({
     backdropFilter: "blur(12px)",
     WebkitBackdropFilter: "blur(12px)",
     boxShadow:
-      "0 6px 18px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.12)",
+      "0 4px 14px rgba(0,0,0,0.24), inset 0 1px 0 rgba(255,255,255,0.12)",
     border: "1px solid rgba(255,255,255,0.12)",
-    padding: "8px 14px",
+    padding: "5px 12px",
     textShadow: "0 1px 2px rgba(0,0,0,.55)",
   };
 
@@ -230,56 +230,54 @@ function TokenHeader({
        * Lives below the banner. Contains two glass pills (identity + price)
        * and the social links row.
        */}
-      <div className="relative rounded-xl bg-card shadow-card p-3 space-y-3">
+      <div className="relative rounded-xl bg-card shadow-card px-3 py-2 space-y-2">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/40 to-transparent rounded-t-xl" />
 
         {/* Pills row */}
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2">
 
           {/* ── PILL 1: token identity ── */}
-          <div className="flex items-center gap-3" style={pillStyle}>
+          <div className="flex items-center gap-2" style={pillStyle}>
             {info.logo ? (
               <img
                 src={info.logo}
                 alt=""
-                className="w-9 h-9 rounded-full object-cover shrink-0"
+                className="w-7 h-7 rounded-full object-cover shrink-0"
                 onError={(e) => (e.currentTarget.style.visibility = "hidden")}
               />
             ) : (
-              <div className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-xs shrink-0"
+              <div className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-[10px] shrink-0"
                 style={{ color: "rgba(255,255,255,0.78)" }}>
                 {info.symbol?.slice(0, 2) ?? "?"}
               </div>
             )}
             <div>
               <div
-                className="font-semibold flex items-center gap-2 text-sm leading-tight"
+                className="flex items-center gap-1.5 text-sm leading-tight"
                 style={{ color: "rgba(255,255,255,0.98)", fontWeight: 700 }}
               >
                 {info.symbol ?? "Unknown"}
                 {!info.isMigrated && (
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-accent bg-accent/12 rounded-full px-2 py-0.5">
+                  <span className="text-[9px] font-semibold uppercase tracking-wider text-accent bg-accent/12 rounded-full px-1.5 py-px">
                     Bonding
                   </span>
                 )}
               </div>
               <div
-                className="text-xs leading-tight mt-0.5"
+                className="text-[11px] leading-tight"
                 style={{ color: "rgba(255,255,255,0.78)" }}
               >
                 {info.name ?? shortAddr(info.mint)}
               </div>
-              <div className="mt-1">
-                <LiveIndicator dataUpdatedAt={dataUpdatedAt} />
-              </div>
+              <LiveIndicator dataUpdatedAt={dataUpdatedAt} />
             </div>
           </div>
 
           {/* ── Right side: price pill + floating extras ── */}
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 ml-auto text-right">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 ml-auto text-right">
 
             {/* PILL 2: price + 24h only */}
-            <div className="flex gap-x-5" style={pillStyle}>
+            <div className="flex gap-x-4" style={pillStyle}>
               <div>
                 <div
                   className="text-[10px] uppercase tracking-wider leading-tight"
@@ -341,7 +339,7 @@ function TokenHeader({
 
         {/* ── Social links row ── */}
         {socialLinks.length > 0 && (
-          <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-border/40">
+          <div className="flex items-center gap-1.5 flex-wrap pt-1.5 border-t border-border/40">
             {socialLinks.map((l) => (
               <a
                 key={l.key}
