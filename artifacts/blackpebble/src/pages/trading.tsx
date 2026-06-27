@@ -216,21 +216,32 @@ function TokenHeader({
             loading="lazy"
             className="pointer-events-none absolute inset-0 w-full h-full object-contain opacity-85 select-none"
           />
-          {/*
-           * Single uniform overlay — one consistent smoked-glass panel across
-           * the entire card. No gradients, no zones, no visible transitions.
-           * Text readability is handled via text-shadow on the elements below.
-           */}
-          <div className="pointer-events-none absolute inset-0" style={{ background: "rgba(0,0,0,0.28)" }} />
+          {/* No full-card overlay — banner is the hero. Glass panels below protect only the text. */}
         </>
       )}
       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/40 to-transparent" />
-      {/* text-shadow applied to the wrapper so all labels/values inherit it when a banner is active */}
-      <div
-        className="relative flex flex-wrap items-center gap-4"
-        style={hasBanner ? { textShadow: "0 1px 2px rgba(0,0,0,.55)" } : undefined}
-      >
-        <div className="flex items-center gap-3">
+      <div className="relative flex flex-wrap items-center gap-4">
+        {/*
+         * Panel 1 — floating glass behind token identity (logo, name, symbol, LIVE).
+         * Only applied when a banner is active; renders as plain flex row otherwise.
+         * backdrop-blur-sm blurs the banner layers behind this region only.
+         */}
+        <div
+          className={cn(
+            "flex items-center gap-3",
+            hasBanner && "rounded-xl px-3 py-2",
+          )}
+          style={
+            hasBanner
+              ? {
+                  background: "rgba(0,0,0,0.32)",
+                  backdropFilter: "blur(8px)",
+                  WebkitBackdropFilter: "blur(8px)",
+                  textShadow: "0 1px 2px rgba(0,0,0,.55)",
+                }
+              : undefined
+          }
+        >
           {info.logo ? (
             <img
               src={info.logo}
@@ -261,7 +272,26 @@ function TokenHeader({
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-x-6 gap-y-2 ml-auto text-right">
+        {/*
+         * Panel 2 — floating glass behind price metrics (Price, 24h, Volume, Liquidity, MC).
+         * Same treatment as Panel 1 — only active when a banner is present.
+         */}
+        <div
+          className={cn(
+            "flex flex-wrap gap-x-6 gap-y-2 ml-auto text-right",
+            hasBanner && "rounded-xl px-3 py-2",
+          )}
+          style={
+            hasBanner
+              ? {
+                  background: "rgba(0,0,0,0.32)",
+                  backdropFilter: "blur(8px)",
+                  WebkitBackdropFilter: "blur(8px)",
+                  textShadow: "0 1px 2px rgba(0,0,0,.55)",
+                }
+              : undefined
+          }
+        >
           <div>
             <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
               Price
