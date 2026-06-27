@@ -209,81 +209,63 @@ function TokenHeader({
 
       {/*
        * ── INFO + SOCIAL CARD ───────────────────────────────────────────────────
-       * Lives below the banner. Contains two glass pills (identity + price)
-       * and the social links row.
+       * Information sits directly on the card surface — no nested containers,
+       * no pill, no capsule. Clean two-column row (left: identity, right: price).
        */}
-      <div className="relative rounded-xl bg-card shadow-card px-3 py-2 space-y-2">
+      <div className="relative rounded-xl bg-card shadow-card px-3 py-2.5 space-y-2">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/40 to-transparent rounded-t-xl" />
 
-        {/*
-         * ── UNIFIED CAPSULE ─────────────────────────────────────────────────────
-         * One horizontal pill spanning ~90% of card width, centered.
-         * Left: logo · name · ticker · LIVE
-         * Right: Price · 24h
-         * No glass/blur — clean dark premium surface (Apple Wallet feel).
-         */}
-        <div className="flex justify-center">
-          <div
-            className="flex items-center justify-between w-full max-w-[92%]"
-            style={{
-              borderRadius: 9999,
-              background: "hsl(var(--card-elevated, var(--card))) ",
-              backgroundColor: "rgba(255,255,255,0.05)",
-              border: "1px solid rgba(255,255,255,0.10)",
-              boxShadow: "0 2px 12px rgba(0,0,0,0.20)",
-              padding: "7px 14px",
-            }}
-          >
-            {/* LEFT — token identity */}
-            <div className="flex items-center gap-2 min-w-0">
-              {info.logo ? (
-                <img
-                  src={info.logo}
-                  alt=""
-                  className="w-7 h-7 rounded-full object-cover shrink-0"
-                  onError={(e) => (e.currentTarget.style.visibility = "hidden")}
-                />
-              ) : (
-                <div className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-[10px] shrink-0 text-foreground/60">
-                  {info.symbol?.slice(0, 2) ?? "?"}
-                </div>
-              )}
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5 text-sm font-bold leading-tight truncate">
+        {/* ── Two-column info row ── */}
+        <div className="flex items-center justify-between gap-3">
+
+          {/* LEFT — logo + name + ticker + LIVE */}
+          <div className="flex items-center gap-2.5 min-w-0">
+            {info.logo ? (
+              <img
+                src={info.logo}
+                alt=""
+                className="w-8 h-8 rounded-full object-cover shrink-0"
+                onError={(e) => (e.currentTarget.style.visibility = "hidden")}
+              />
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-[10px] shrink-0 text-muted-foreground">
+                {info.symbol?.slice(0, 2) ?? "?"}
+              </div>
+            )}
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 leading-tight">
+                <span className="text-[15px] font-bold tracking-tight truncate">
                   {info.symbol ?? "Unknown"}
-                  {!info.isMigrated && (
-                    <span className="text-[9px] font-semibold uppercase tracking-wider text-accent bg-accent/12 rounded-full px-1.5 py-px shrink-0">
-                      Bonding
-                    </span>
-                  )}
-                </div>
-                <div className="text-[11px] leading-tight text-muted-foreground truncate">
-                  {info.name ?? shortAddr(info.mint)}
-                </div>
-                <LiveIndicator dataUpdatedAt={dataUpdatedAt} />
+                </span>
+                {!info.isMigrated && (
+                  <span className="text-[9px] font-semibold uppercase tracking-wider text-accent bg-accent/12 rounded-full px-1.5 py-px shrink-0">
+                    Bonding
+                  </span>
+                )}
+              </div>
+              <div className="text-[11px] text-muted-foreground leading-tight truncate">
+                {info.name ?? shortAddr(info.mint)}
+              </div>
+              <LiveIndicator dataUpdatedAt={dataUpdatedAt} />
+            </div>
+          </div>
+
+          {/* RIGHT — price + 24h, no container */}
+          <div className="flex items-center gap-4 shrink-0 text-right">
+            <div>
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground leading-tight">
+                Price
+              </div>
+              <div className="font-mono text-[13px] font-semibold leading-snug">
+                {fmtPrice(info.priceUsd)}
               </div>
             </div>
-
-            {/* Divider */}
-            <div className="mx-3 self-stretch w-px bg-border/40 shrink-0" />
-
-            {/* RIGHT — price + 24h */}
-            <div className="flex items-center gap-4 shrink-0 text-right">
-              <div>
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground leading-tight">
-                  Price
-                </div>
-                <div className="font-mono text-sm font-semibold leading-snug">
-                  {fmtPrice(info.priceUsd)}
-                </div>
+            <div>
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground leading-tight">
+                24h
               </div>
-              <div>
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground leading-tight">
-                  24h
-                </div>
-                <div className={cn("font-mono text-sm font-semibold leading-snug", pnlColorSafe(info.priceChange24h))}>
-                  {fmtPercentSafe(info.priceChange24h)}
-                </div>
+              <div className={cn("font-mono text-[13px] font-semibold leading-snug", pnlColorSafe(info.priceChange24h))}>
+                {fmtPercentSafe(info.priceChange24h)}
               </div>
             </div>
           </div>
@@ -291,7 +273,7 @@ function TokenHeader({
 
         {/* ── Social links row ── */}
         {socialLinks.length > 0 && (
-          <div className="flex items-center gap-1.5 flex-wrap pt-1.5 border-t border-border/40">
+          <div className="flex items-center gap-1.5 flex-wrap pt-2 border-t border-border/40">
             {socialLinks.map((l) => (
               <a
                 key={l.key}
