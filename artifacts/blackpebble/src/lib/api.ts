@@ -312,6 +312,8 @@ export interface TokenInfo {
   telegramUrl?: string | null;
   /** Banner / header image from DexScreener — background artwork for the token card. */
   bannerUrl?: string | null;
+  /** DEX identifier from DexScreener (e.g. "raydium", "meteora", "orca") — display-only. */
+  dexId?: string | null;
 }
 
 /** ── Token Page V2 intelligence roll-up (read-only over existing tables) ── */

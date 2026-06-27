@@ -608,7 +608,7 @@ function fmtUnitPnl(solValue: number, unit: Unit, solUsd: number | null): string
   return `${fmtSol(solValue)} SOL`;
 }
 
-// ── Quick Stats Strip ─────────────────────────────────────────────────────────
+// ── Token Meta Strip ──────────────────────────────────────────────────────────
 
 /** Format an epoch-ms timestamp as a human age: "4m", "7h", "14d". */
 function fmtAge(createdAtMs: number): string {
@@ -620,46 +620,65 @@ function fmtAge(createdAtMs: number): string {
   return `${Math.floor(hours / 24)}d`;
 }
 
+/** Map a raw DexScreener dexId to a display-friendly platform name. */
+function dexLabel(dexId: string): string {
+  const map: Record<string, string> = {
+    raydium: "Raydium",
+    meteora: "Meteora",
+    orca: "Orca",
+    pumpfun: "Pump.fun",
+    "pump-fun": "Pump.fun",
+    phoenix: "Phoenix",
+    lifinity: "Lifinity",
+    aldrin: "Aldrin",
+    crema: "Crema",
+    cropper: "Cropper",
+    fluxbeam: "FluxBeam",
+    saber: "Saber",
+    serum: "Serum",
+    step: "Step",
+    saros: "Saros",
+  };
+  return map[dexId.toLowerCase()] ?? dexId;
+}
+
 /**
- * Slim premium stats strip — sits between the action buttons and the chart.
- * Only renders stats for values that are actually present in the data.
- * No placeholders, no N/A, no horizontal scroll.
+ * Lightweight metadata strip — shows identity metadata (age, platform, status)
+ * that is NOT duplicated in the Token Intelligence section below the chart.
+ * Styled as inline muted text with bullet separators, not a card/pill/box.
  */
 function QuickStatsStrip({ info }: { info: TokenInfo }) {
-  const stats: Array<{ label: string; value: string }> = [];
-
-  if (info.liquidityUsd != null && info.liquidityUsd > 0)
-    stats.push({ label: "Liquidity", value: fmtUsd(info.liquidityUsd) });
-
-  if (info.volume24hUsd != null && info.volume24hUsd > 0)
-    stats.push({ label: "Vol 24h", value: fmtUsd(info.volume24hUsd) });
-
-  if (info.marketCapUsd != null && info.marketCapUsd > 0)
-    stats.push({ label: "Mkt Cap", value: fmtUsd(info.marketCapUsd) });
+  const items: string[] = [];
 
   if (info.pairCreatedAt != null && info.pairCreatedAt > 0)
-    stats.push({ label: "Age", value: fmtAge(info.pairCreatedAt) });
+    items.push(fmtAge(info.pairCreatedAt));
 
-  if (stats.length === 0) return null;
+  // Platform label: prefer dexId from DexScreener; fall back to source hint
+  if (info.dexId) {
+    items.push(dexLabel(info.dexId));
+  } else if (info.source === "pumpportal") {
+    items.push("Pump.fun");
+  }
+
+  // Mint / migration status
+  if (!info.isMigrated) {
+    items.push("Bonding Curve");
+  } else {
+    items.push("Graduated");
+  }
+
+  if (items.length === 0) return null;
 
   return (
-    <div className="flex items-center gap-px rounded-lg overflow-hidden border border-border/50 shadow-sm bg-card/80 backdrop-blur-sm">
-      {stats.map((s, i) => (
-        <div
-          key={s.label}
-          className={cn(
-            "flex-1 min-w-0 flex flex-col items-center justify-center py-2 px-3 transition-colors hover:bg-white/[0.04] cursor-default select-none",
-            i < stats.length - 1 && "border-r border-border/40",
-          )}
-        >
-          <span className="text-[9px] uppercase tracking-widest text-muted-foreground/70 leading-none mb-0.5 truncate">
-            {s.label}
+    <div className="overflow-x-auto scrollbar-none">
+      <div className="flex items-center gap-2 whitespace-nowrap text-xs text-muted-foreground/60 select-none px-0.5">
+        {items.map((item, i) => (
+          <span key={item} className="flex items-center gap-2">
+            {i > 0 && <span className="text-muted-foreground/30">•</span>}
+            {item}
           </span>
-          <span className="font-mono text-[11px] font-medium text-foreground leading-none truncate">
-            {s.value}
-          </span>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }

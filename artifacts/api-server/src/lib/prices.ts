@@ -40,10 +40,13 @@ export interface TokenInfo {
   telegramUrl?: string | null;
   /** Banner / header image URL from DexScreener (display-only, optional). */
   bannerUrl?: string | null;
+  /** DEX identifier from DexScreener (e.g. "raydium", "meteora", "orca") — display-only. */
+  dexId?: string | null;
 }
 
 interface DexPair {
   chainId: string;
+  dexId?: string;
   pairAddress: string;
   baseToken: { address: string; name: string; symbol: string };
   quoteToken?: { address: string; name?: string; symbol?: string };
@@ -264,6 +267,7 @@ export async function getTokenInfo(mint: string): Promise<TokenInfo | null> {
       telegramUrl:
         dex.info?.socials?.find((s) => s.type === "telegram")?.url ?? null,
       bannerUrl: dex.info?.header ?? null,
+      dexId: dex.dexId ?? null,
     };
   }
 
