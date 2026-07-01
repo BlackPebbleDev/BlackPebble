@@ -2864,15 +2864,25 @@ export default function TradingDesk() {
             group moves to the LEFT (lg:order-1) so More's dropdown opens
             into open space instead of over the trade panel; mobile visual
             order is unaffected by this reorder (this group stays
-            second/bottom on mobile, same as before). */}
+            second/bottom on mobile, same as before).
+            Within the group, desktop-only order is reversed (Copy Contract |
+            Share | More) so the More dropdown expands toward the page
+            center instead of under the sidebar; mobile DOM order (More,
+            Share, Copy Contract) is untouched. */}
         <div className="flex items-center gap-2 flex-wrap lg:order-1">
-          <MoreMenu
-            mint={info.mint}
-            pairAddress={info.pairAddress}
-            isPumpFun={isPumpFunToken(info)}
-          />
-          <ShareToken info={info} />
-          <CopyContract mint={info.mint} />
+          <div className="lg:order-3">
+            <MoreMenu
+              mint={info.mint}
+              pairAddress={info.pairAddress}
+              isPumpFun={isPumpFunToken(info)}
+            />
+          </div>
+          <div className="lg:order-2">
+            <ShareToken info={info} />
+          </div>
+          <div className="lg:order-1">
+            <CopyContract mint={info.mint} />
+          </div>
         </div>
       </div>
 
