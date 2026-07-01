@@ -292,22 +292,30 @@ export function TokenLeverageActivity({
 
   return (
     <div className="mt-8 rounded-2xl bg-card shadow-card overflow-hidden" data-testid="leverage-activity">
-      <div className="flex border-b border-border">
-        {tabs.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            data-testid={`tab-leverage-${t.id}`}
-            className={cn(
-              "px-4 py-3 text-sm transition-colors border-b-2 -mb-px",
-              tab === t.id
-                ? "border-accent text-accent"
-                : "border-transparent text-muted-foreground hover:text-foreground",
-            )}
-          >
-            {t.label}
-          </button>
-        ))}
+      <div className="p-3 pb-0">
+        <div
+          role="tablist"
+          aria-label="Leverage activity"
+          className="flex border border-border rounded-md p-0.5"
+        >
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              role="tab"
+              aria-selected={tab === t.id}
+              onClick={() => setTab(t.id)}
+              data-testid={`tab-leverage-${t.id}`}
+              className={cn(
+                "flex-1 py-2 rounded-md text-sm font-medium transition-colors",
+                tab === t.id
+                  ? "bg-accent/15 text-accent"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {tab === "positions" && (

@@ -765,7 +765,7 @@ function QuickOrderToggle({
             onChange({ enabled, mcValue: e.target.value, percent: 100 })
           }
           placeholder={tone === "profit" ? "Take Profit MC" : "Stop Loss MC"}
-          className="flex-1 h-7 bg-background border border-border px-2 font-mono text-[11px] focus:outline-none focus:border-accent"
+          className="flex-1 h-7 rounded-md bg-background border border-border px-2 font-mono text-[11px] focus:outline-none focus:border-accent"
         />
       </div>
       {enabled && (
@@ -855,7 +855,7 @@ function TpLadder({
                 onChange={(e) => patchRung(i, { mcValue: e.target.value })}
                 placeholder="MC ≥"
                 data-testid={`input-tp-mc-${i}`}
-                className="flex-1 h-7 bg-background border border-border px-2 font-mono text-[11px] focus:outline-none focus:border-accent"
+                className="flex-1 h-7 rounded-md bg-background border border-border px-2 font-mono text-[11px] focus:outline-none focus:border-accent"
               />
               <div className="flex w-[88px] shrink-0 items-center">
                 <input
@@ -866,7 +866,7 @@ function TpLadder({
                   onChange={(e) => setPercent(i, e.target.value)}
                   placeholder="%"
                   data-testid={`input-tp-pct-${i}`}
-                  className="w-full h-7 bg-background border border-border px-2 font-mono text-[11px] focus:outline-none focus:border-accent"
+                  className="w-full h-7 rounded-md bg-background border border-border px-2 font-mono text-[11px] focus:outline-none focus:border-accent"
                 />
                 <span className="px-1 text-[11px] text-muted-foreground">%</span>
               </div>
@@ -876,7 +876,7 @@ function TpLadder({
                   onClick={() => removeRung(i)}
                   aria-label={`Remove target ${i + 1}`}
                   data-testid={`button-tp-remove-${i}`}
-                  className="h-7 w-7 shrink-0 border border-border text-muted-foreground hover:text-red-400 hover:border-red-400/50 transition-colors"
+                  className="h-7 w-7 shrink-0 rounded-md border border-border text-muted-foreground hover:text-red-400 hover:border-red-400/50 transition-colors"
                 >
                   ×
                 </button>
@@ -888,7 +888,7 @@ function TpLadder({
               type="button"
               onClick={addRung}
               data-testid="button-tp-add"
-              className="h-7 px-2.5 text-[11px] border border-border text-muted-foreground hover:text-accent hover:border-accent/50 transition-colors"
+              className="h-7 px-2.5 rounded-md text-[11px] border border-border text-muted-foreground hover:text-accent hover:border-accent/50 transition-colors"
             >
               + Add Target
             </button>
@@ -956,7 +956,7 @@ function BuyLimitRow({
           onChange={(e) => onChange({ enabled, mcValue: e.target.value })}
           placeholder="Buy when MC ≤"
           data-testid="input-quick-buy-limit-mc"
-          className="flex-1 h-7 bg-background border border-border px-2 font-mono text-[11px] focus:outline-none focus:border-accent"
+          className="flex-1 h-7 rounded-md bg-background border border-border px-2 font-mono text-[11px] focus:outline-none focus:border-accent"
         />
       </div>
       {enabled && (
@@ -973,7 +973,7 @@ function BuyLimitRow({
             onClick={onCreate}
             disabled={!ready}
             data-testid="button-quick-buy-limit-set"
-            className="h-6 px-2.5 text-[11px] border border-accent text-accent hover:bg-accent/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="h-6 px-2.5 rounded-md text-[11px] border border-accent text-accent hover:bg-accent/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             Set Buy Limit
           </button>
@@ -1574,23 +1574,31 @@ function TradePanel({
       )}
 
       {flags.leverage && (
-        <div className="flex border-b border-border">
-          {(["spot", "leverage"] as const).map((m) => (
-            <button
-              key={m}
-              type="button"
-              onClick={() => setTradeMode(m)}
-              data-testid={`button-mode-${m}`}
-              className={cn(
-                "flex-1 py-2.5 text-xs font-medium uppercase tracking-wider transition-colors",
-                tradeMode === m
-                  ? "text-accent border-b-2 border-accent -mb-px"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {m === "spot" ? "Spot" : "Leverage"}
-            </button>
-          ))}
+        <div className="p-3 pb-0">
+          <div
+            role="tablist"
+            aria-label="Trade mode"
+            className="flex border border-border rounded-md p-0.5"
+          >
+            {(["spot", "leverage"] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                role="tab"
+                aria-selected={tradeMode === m}
+                onClick={() => setTradeMode(m)}
+                data-testid={`button-mode-${m}`}
+                className={cn(
+                  "flex-1 py-2 rounded-md text-xs font-medium uppercase tracking-wider transition-colors",
+                  tradeMode === m
+                    ? "bg-accent/15 text-accent"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {m === "spot" ? "Spot" : "Leverage"}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
@@ -1742,7 +1750,7 @@ function TradePanel({
         {/* Automated orders — available on both Buy and Sell tabs. On Buy they
             attach after the next fill; on Sell they're created immediately
             against the held position. Buy Limit is buy-only. */}
-        <div className="border border-border/60">
+        <div className="rounded-xl border border-border/60 overflow-hidden">
           <button
             type="button"
             onClick={() => setExitOrdersOpen((o) => !o)}
@@ -2026,7 +2034,7 @@ function TradePanel({
           </p>
         )}
 
-        <div className="border border-border/60 bg-background/40">
+        <div className="rounded-xl border border-border/60 bg-background/40 overflow-hidden">
           <button
             type="button"
             onClick={() => setRulesOpen((o) => !o)}
@@ -2607,22 +2615,30 @@ function ActivityTabs() {
 
   return (
     <div className="rounded-xl bg-card shadow-card overflow-hidden">
-      <div className="flex border-b border-border">
-        {tabs.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            data-testid={`tab-activity-${t.id}`}
-            className={cn(
-              "px-4 py-3 text-sm transition-colors border-b-2 -mb-px",
-              tab === t.id
-                ? "border-accent text-accent"
-                : "border-transparent text-muted-foreground hover:text-foreground",
-            )}
-          >
-            {t.label}
-          </button>
-        ))}
+      <div className="p-3 pb-0">
+        <div
+          role="tablist"
+          aria-label="Activity"
+          className="flex border border-border rounded-md p-0.5"
+        >
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              role="tab"
+              aria-selected={tab === t.id}
+              onClick={() => setTab(t.id)}
+              data-testid={`tab-activity-${t.id}`}
+              className={cn(
+                "flex-1 py-2 rounded-md text-sm font-medium transition-colors",
+                tab === t.id
+                  ? "bg-accent/15 text-accent"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className={cn(tab === "positions" && "p-3 md:p-0")}>

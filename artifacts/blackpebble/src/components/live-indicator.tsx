@@ -100,7 +100,7 @@ export function LiveIndicator({ dataUpdatedAt }: Props) {
             onClick={() => setOpen(false)}
           />
           {/* Status panel */}
-          <div className="absolute top-6 left-0 z-50 w-52 bg-card border border-border p-4 shadow-lg text-xs">
+          <div className="absolute top-6 left-0 z-50 w-52 rounded-xl bg-card border border-border p-4 shadow-card text-xs">
             <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-3 font-semibold">
               Market Feed Status
             </div>

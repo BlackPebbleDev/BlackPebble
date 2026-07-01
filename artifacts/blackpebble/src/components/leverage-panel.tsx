@@ -290,7 +290,7 @@ export function LeveragePanel({ info }: { info: TokenInfo }) {
           min={unit === "SOL" ? MIN_MARGIN_SOL : 1}
           step={unit === "SOL" ? 0.1 : 1}
           data-testid="input-leverage-margin"
-          className="w-full h-11 bg-background border border-border px-3 font-mono text-sm focus:outline-none focus:border-accent"
+          className="w-full h-11 rounded-2xl bg-background border border-border px-3 font-mono text-sm focus:outline-none focus:border-accent"
         />
         <div className="mt-2 grid grid-cols-4 gap-2">
           {(unit === "SOL" ? SOL_MARGIN_PRESETS : USD_MARGIN_PRESETS).map((p) => (
@@ -299,7 +299,7 @@ export function LeveragePanel({ info }: { info: TokenInfo }) {
               type="button"
               onClick={() => setMargin(String(p))}
               data-testid={`preset-leverage-margin-${p}`}
-              className="py-2 text-xs border border-border hover:border-accent hover:text-accent transition-colors font-mono rounded-md"
+              className="py-2 text-xs border border-border hover:border-accent hover:text-accent transition-colors font-mono rounded-xl"
             >
               {unit === "USD" ? `$${p}` : p}
             </button>
@@ -329,7 +329,7 @@ export function LeveragePanel({ info }: { info: TokenInfo }) {
               onClick={() => setLeverage(lv)}
               data-testid={`button-leverage-${lv}x`}
               className={cn(
-                "h-10 text-sm font-medium border transition-colors rounded-md",
+                "h-10 text-sm font-medium border transition-colors rounded-xl",
                 leverage === lv
                   ? "border-accent bg-accent/15 text-accent"
                   : "border-border text-muted-foreground hover:text-foreground",
@@ -343,7 +343,7 @@ export function LeveragePanel({ info }: { info: TokenInfo }) {
 
       {/* Optional Take Profit / Stop Loss — collapsed by default to keep the
           panel compact. Both are market-cap triggers evaluated server-side. */}
-      <div className="border border-border/60 rounded-md">
+      <div className="rounded-xl border border-border/60 overflow-hidden">
         <button
           type="button"
           onClick={() => setExitOpen((o) => !o)}
@@ -428,7 +428,7 @@ export function LeveragePanel({ info }: { info: TokenInfo }) {
         )}
       </div>
 
-      <div className="space-y-1.5 border border-border bg-background/50 p-3 rounded-md text-xs">
+      <div className="space-y-1.5 rounded-xl border border-border bg-background/50 p-3 text-xs">
         <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
           <PreviewRow label="Margin used" value={marginValid ? unitAmt(marginSol, unit, solUsd) : "—"} />
           <PreviewRow label="Position size" value={marginValid ? unitAmt(notionalSol, unit, solUsd) : "—"} />
@@ -482,7 +482,7 @@ export function LeveragePanel({ info }: { info: TokenInfo }) {
               return (
                 <div
                   key={mv}
-                  className="border border-border/60 bg-background/40 px-2 py-1.5 rounded-md text-center"
+                  className="rounded-lg border border-border/60 bg-background/40 px-2 py-1.5 text-center"
                   data-testid={`roi-preview-${mv}`}
                 >
                   <div className="text-[11px] text-muted-foreground">
@@ -507,7 +507,7 @@ export function LeveragePanel({ info }: { info: TokenInfo }) {
         onClick={() => mutation.mutate()}
         data-testid="button-leverage-open"
         className={cn(
-          "w-full h-11 text-sm font-medium transition-colors rounded-md flex items-center justify-center gap-2",
+          "w-full h-11 text-sm font-medium transition-colors rounded-xl flex items-center justify-center gap-2",
           canSubmit
             ? "bg-emerald-500/15 text-emerald-400 border border-emerald-400/40 hover:bg-emerald-500/25"
             : "bg-muted text-muted-foreground cursor-not-allowed",

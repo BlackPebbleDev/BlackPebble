@@ -58,7 +58,7 @@ export function SegmentedToggle<T extends string>({
     <div
       role="tablist"
       aria-label={ariaLabel}
-      className="inline-flex w-full border border-border bg-background p-0.5 rounded-md"
+      className="inline-flex w-full border border-border rounded-md p-0.5"
     >
       {options.map((opt) => {
         const active = opt.value === value;
@@ -70,10 +70,10 @@ export function SegmentedToggle<T extends string>({
             aria-selected={active}
             onClick={() => onChange(opt.value)}
             className={cn(
-              "flex-1 min-h-9 px-3 text-sm font-medium rounded-[5px] transition-colors",
+              "flex-1 min-h-9 px-3 text-sm font-medium rounded-md transition-colors",
               active
-                ? "bg-accent/15 text-accent border border-accent/40"
-                : "text-muted-foreground border border-transparent hover:text-foreground",
+                ? "bg-accent/15 text-accent"
+                : "text-muted-foreground hover:text-foreground",
             )}
             data-testid={`toggle-${opt.value}`}
           >

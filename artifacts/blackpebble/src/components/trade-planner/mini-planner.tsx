@@ -444,7 +444,7 @@ export function MiniPlanner({
             <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
               Buy Limit (optional)
             </div>
-            <div className="border border-border bg-background/40 p-3">
+            <div className="rounded-xl border border-border bg-background/40 p-3">
               <div className="flex items-center justify-between gap-2">
                 <label className="flex items-center gap-2 text-sm">
                   <input
@@ -603,7 +603,7 @@ function AttachRow({
 }) {
   const active = enabled && canEnable;
   return (
-    <div className="border border-border bg-background/40 p-3">
+    <div className="rounded-xl border border-border bg-background/40 p-3">
       <div className="flex items-center justify-between gap-2">
         <label className="flex items-center gap-2 text-sm">
           <input
@@ -654,7 +654,7 @@ function AttachRow({
                 onClick={() => onPercent(p)}
                 data-testid={`button-attach-pct-${label.toLowerCase().replace(/\s/g, "-")}-${p}`}
                 className={cn(
-                  "h-7 px-2.5 text-xs font-medium border transition-colors",
+                  "h-7 px-2.5 rounded-md text-xs font-medium border transition-colors",
                   percent === p
                     ? "border-accent text-accent bg-accent/10"
                     : "border-border text-muted-foreground hover:text-foreground",
