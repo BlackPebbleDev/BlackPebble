@@ -47,21 +47,21 @@ const PROVIDERS: ExternalProvider[] = [
   {
     label: "Axiom",
     category: "trading",
-    logo: "/provider-logos/axiom.jpg",
+    logo: "/provider-logos/axiom.png",
     requiresPair: false,
     buildHref: (mint) => `https://axiom.trade/t/${mint}`,
   },
   {
     label: "GMGN",
     category: "trading",
-    logo: "/provider-logos/gmgn.png",
+    logo: "/provider-logos/gmgn.svg",
     requiresPair: false,
     buildHref: (mint) => `https://gmgn.ai/sol/token/${mint}`,
   },
   {
     label: "Photon",
     category: "trading",
-    logo: "/provider-logos/photon.png",
+    logo: "/provider-logos/photon.svg",
     requiresPair: true,
     buildHref: (_, pairOrMint) =>
       `https://photon-sol.tinyastro.io/en/lp/${pairOrMint}`,
@@ -85,7 +85,7 @@ const PROVIDERS: ExternalProvider[] = [
   {
     label: "Jupiter",
     category: "trading",
-    logo: "/provider-logos/jupiter.png",
+    logo: "/provider-logos/jupiter.svg",
     requiresPair: false,
     buildHref: (mint) => `https://jup.ag/swap/SOL-${mint}`,
   },

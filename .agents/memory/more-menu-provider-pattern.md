@@ -29,3 +29,18 @@ explore/web-search subagent to check before hardcoding — confirm via
 possible, fetch a real static asset (SPA sites often return the app shell
 HTML for guessed asset paths like `/favicon.svg` — try alternate static
 paths like `/apple-touch-icon.png` on the canonical brand domain).
+
+**Cloudflare-protected brand asset domains (e.g. gmgn.ai, photon-sol.tinyastro.io):**
+direct `fetch`/curl of their static SVG/PNG paths returns a "Just a moment..."
+403 challenge page even with Referer/User-Agent headers. Workaround: fetch the
+exact same asset URL via `https://web.archive.org/web/2024/<url>` (Wayback
+Machine mirrors bypass the live challenge). Also useful: a live site's inline
+`<img>`/data-URI logo returned by `extractBranding` can itself be the exact
+official vector (e.g. Jupiter's header logo is an inline SVG data URI = their
+real icon). For combined wordmark+icon SVGs (icon glyph + text in one file,
+common pattern: icon paths at low x-coordinates, text path(s) at higher
+x-coordinates), crop to just the icon's `<path>`/`<circle>` elements and a
+tightened `viewBox` to get a true vector square mark instead of using a raster
+screenshot crop — render with local ImageMagick (`magick -background <color>
+-density 300 in.svg out.png`, no `sharp`/`rsvg-convert` in this environment)
+to visually confirm the crop isolates the icon correctly before adopting it.
