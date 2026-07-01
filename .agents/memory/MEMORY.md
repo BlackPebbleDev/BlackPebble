@@ -37,3 +37,4 @@
 - [Workflow names are artifact-prefixed](workflow-names-prefixed.md) — restart_workflow needs full `artifacts/<dir>: <service>`; bare service name → RUN_COMMAND_NOT_FOUND. Use listWorkflows().
 - [Badge minting is push-based](badge-minting-push-based.md) — feed is a live UNION over user_achievements; mint at action time (badge-mint.ts) or no feed card. Idempotent via ON CONFLICT; fire-and-forget; post-commit for profile_complete.
 - [More menu provider pattern](more-menu-provider-pattern.md) — conditional `isVisible` rows, dropdown z-index must stay below sticky header + scroll-close, verify unconfirmed 3rd-party URLs/logos via fetch before hardcoding.
+- [Lightbox click-outside testing quirk](lightbox-clickoutside-test.md) — Playwright clicks a backdrop testid's bounding-box center, which is where a centered modal image sits; test "click outside" with an explicit corner coordinate.

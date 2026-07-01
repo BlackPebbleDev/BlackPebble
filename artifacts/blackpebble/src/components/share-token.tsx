@@ -123,7 +123,7 @@ export function ShareToken({ info }: { info: TokenInfo }) {
         Share
       </button>
       {open && !canNativeShare && (
-        <div className="absolute left-0 z-40 mt-2 w-48 rounded-xl bg-card border border-border shadow-card py-1.5">
+        <div className="absolute left-0 z-40 mt-2 w-48 rounded-xl bg-card border border-border shadow-card py-1.5 animate-in fade-in zoom-in-95 duration-200 origin-top-left">
           <a
             href={xHref}
             target="_blank"

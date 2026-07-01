@@ -109,6 +109,7 @@ import { AllOrders } from "@/components/position-orders";
 import { TradingViewChart } from "@/components/tradingview-chart";
 import { TokenIntelligenceSection } from "@/components/token-intel";
 import { BeginnerGuide } from "@/components/beginner-guide";
+import { ImageLightbox } from "@/components/image-lightbox";
 import {
   Tooltip as UITooltip,
   TooltipTrigger,
@@ -187,6 +188,8 @@ function TokenHeader({
   ].filter(Boolean) as { key: string; href: string; icon: React.ReactNode; label: string }[];
 
   const hasBanner = !!info.bannerUrl;
+  const [bannerExpanded, setBannerExpanded] = useState(false);
+  const [logoExpanded, setLogoExpanded] = useState(false);
 
   return (
     <div className="space-y-3">
@@ -194,47 +197,67 @@ function TokenHeader({
        * ── BANNER CARD ──────────────────────────────────────────────────────────
        * Standalone rounded card — no UI overlay of any kind.
        * <img> with natural dimensions (w-full h-auto) shows the full artwork
-       * at its correct aspect ratio. GIFs animate; WebP animates. Never canvas.
+       * at its correct aspect ratio on mobile; on desktop the height is capped
+       * via aspect-ratio + object-cover so wide monitors don't get an
+       * oversized hero. Click anywhere to expand fullscreen. GIFs/WebP still
+       * animate; never canvas.
        */}
       {hasBanner && (
-        <div className="rounded-xl overflow-hidden bg-card shadow-card">
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => setBannerExpanded(true)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") setBannerExpanded(true);
+          }}
+          data-testid="button-expand-banner"
+          aria-label="Expand banner image"
+          className="group relative rounded-xl overflow-hidden bg-card shadow-card cursor-zoom-in lg:aspect-[16/5]"
+        >
           <img
             src={info.bannerUrl!}
             alt={`${info.symbol ?? "Token"} banner`}
             loading="lazy"
-            className="w-full h-auto block select-none"
+            className="w-full h-auto lg:h-full lg:w-full lg:object-cover block select-none transition-transform duration-200 group-hover:scale-[1.015]"
           />
+          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-200" />
         </div>
       )}
 
       {/*
        * ── INFO + SOCIAL CARD ───────────────────────────────────────────────────
        * Information sits directly on the card surface — no nested containers,
-       * no pill, no capsule. Clean two-column row (left: identity, right: price).
+       * no pill, no capsule. Two-column row (left: identity, right: price),
+       * with more generous spacing/typography on desktop for better hierarchy.
        */}
-      <div className="relative rounded-xl bg-card shadow-card px-3 py-2.5 space-y-2">
+      <div className="relative rounded-xl bg-card shadow-card px-3 py-2.5 lg:px-5 lg:py-4 space-y-2 lg:space-y-3">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/40 to-transparent rounded-t-xl" />
 
         {/* ── Two-column info row ── */}
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-3 lg:gap-6">
 
           {/* LEFT — logo + name + ticker + LIVE */}
-          <div className="flex items-center gap-2.5 min-w-0">
+          <div className="flex items-center gap-2.5 lg:gap-3 min-w-0">
             {info.logo ? (
               <img
                 src={info.logo}
                 alt=""
-                className="w-8 h-8 rounded-full object-cover shrink-0"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setLogoExpanded(true);
+                }}
+                data-testid="button-expand-logo"
+                className="w-8 h-8 lg:w-11 lg:h-11 rounded-full object-cover shrink-0 cursor-zoom-in transition-transform duration-200 hover:scale-105"
                 onError={(e) => (e.currentTarget.style.visibility = "hidden")}
               />
             ) : (
-              <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-[10px] shrink-0 text-muted-foreground">
+              <div className="w-8 h-8 lg:w-11 lg:h-11 rounded-full bg-secondary flex items-center justify-center text-[10px] lg:text-xs shrink-0 text-muted-foreground">
                 {info.symbol?.slice(0, 2) ?? "?"}
               </div>
             )}
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 leading-tight">
-                <span className="text-[15px] font-bold tracking-tight truncate">
+                <span className="text-[15px] lg:text-lg font-bold tracking-tight truncate">
                   {info.symbol ?? "Unknown"}
                 </span>
                 {!info.isMigrated && (
@@ -243,7 +266,7 @@ function TokenHeader({
                   </span>
                 )}
               </div>
-              <div className="text-[11px] text-muted-foreground leading-tight truncate">
+              <div className="text-[11px] lg:text-xs text-muted-foreground leading-tight truncate">
                 {info.name ?? shortAddr(info.mint)}
               </div>
               <LiveIndicator dataUpdatedAt={dataUpdatedAt} />
@@ -251,12 +274,12 @@ function TokenHeader({
           </div>
 
           {/* RIGHT — price + 24h, no container */}
-          <div className="flex items-center gap-4 shrink-0 text-right">
+          <div className="flex items-center gap-4 lg:gap-8 shrink-0 text-right">
             <div>
               <div className="text-[10px] uppercase tracking-wider text-muted-foreground leading-tight">
                 Price
               </div>
-              <div className="font-mono text-[13px] font-semibold leading-snug">
+              <div className="font-mono text-[13px] lg:text-base font-semibold leading-snug">
                 {fmtPrice(info.priceUsd)}
               </div>
             </div>
@@ -264,7 +287,7 @@ function TokenHeader({
               <div className="text-[10px] uppercase tracking-wider text-muted-foreground leading-tight">
                 24h
               </div>
-              <div className={cn("font-mono text-[13px] font-semibold leading-snug", pnlColorSafe(info.priceChange24h))}>
+              <div className={cn("font-mono text-[13px] lg:text-base font-semibold leading-snug", pnlColorSafe(info.priceChange24h))}>
                 {fmtPercentSafe(info.priceChange24h)}
               </div>
             </div>
@@ -273,7 +296,7 @@ function TokenHeader({
 
         {/* ── Social links row ── */}
         {socialLinks.length > 0 && (
-          <div className="flex items-center gap-1.5 flex-wrap pt-2 border-t border-border/40">
+          <div className="flex items-center gap-1.5 lg:gap-2 flex-wrap pt-2 lg:pt-3 border-t border-border/40">
             {socialLinks.map((l) => (
               <a
                 key={l.key}
@@ -281,7 +304,7 @@ function TokenHeader({
                 target="_blank"
                 rel="noopener noreferrer"
                 data-testid={`link-token-${l.key}`}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-secondary/60 border border-border text-xs text-foreground/80 hover:border-accent/60 hover:text-accent transition-colors"
+                className="inline-flex items-center gap-1.5 px-2.5 lg:px-3 py-1 lg:py-1.5 rounded-full bg-secondary/60 border border-border text-xs lg:text-[13px] text-foreground/80 hover:border-accent/60 hover:text-accent transition-colors"
               >
                 {l.icon}
                 {l.label}
@@ -290,6 +313,23 @@ function TokenHeader({
           </div>
         )}
       </div>
+
+      {hasBanner && (
+        <ImageLightbox
+          src={info.bannerUrl!}
+          alt={`${info.symbol ?? "Token"} banner`}
+          open={bannerExpanded}
+          onClose={() => setBannerExpanded(false)}
+        />
+      )}
+      {info.logo && (
+        <ImageLightbox
+          src={info.logo}
+          alt={`${info.symbol ?? "Token"} logo`}
+          open={logoExpanded}
+          onClose={() => setLogoExpanded(false)}
+        />
+      )}
     </div>
   );
 }
@@ -2795,14 +2835,14 @@ export default function TradingDesk() {
           <TokenHeader info={info} dataUpdatedAt={tokenUpdatedAt} />
         </div>
       </div>
-      <div className="space-y-2">
-        {/* Row 1 — primary actions (flex so buttons size to content) */}
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2">
+        {/* Primary actions — flex so buttons size to content, never stretched */}
         <div className="flex flex-wrap items-center gap-2">
           <WatchButton info={info} />
           <CallTokenButton info={info} />
           <ThesisButton info={info} />
         </div>
-        {/* Row 2 — share / more / contract address (tight utility row) */}
+        {/* Utility row — share / more / contract address */}
         <div className="flex items-center gap-2 flex-wrap">
           <ShareToken info={info} />
           <MoreMenu
@@ -2817,7 +2857,7 @@ export default function TradingDesk() {
       {/* Quick Stats strip — sits between action buttons and chart; only shows real data */}
       <QuickStatsStrip info={info} />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
         <div className="lg:col-span-2 space-y-4">
           <PriceChart key={info.mint} info={info} />
         </div>
