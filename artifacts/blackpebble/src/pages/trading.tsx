@@ -192,7 +192,7 @@ function TokenHeader({
   const [logoExpanded, setLogoExpanded] = useState(false);
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 lg:space-y-[26px]">
       {/*
        * ── BANNER CARD ──────────────────────────────────────────────────────────
        * Standalone rounded card — no UI overlay of any kind.
@@ -212,7 +212,7 @@ function TokenHeader({
           }}
           data-testid="button-expand-banner"
           aria-label="Expand banner image"
-          className="group relative rounded-xl overflow-hidden bg-card shadow-card cursor-zoom-in lg:aspect-[16/5]"
+          className="group relative rounded-xl overflow-hidden bg-card shadow-card cursor-zoom-in lg:aspect-[17/5]"
         >
           <img
             src={info.bannerUrl!}
@@ -230,7 +230,7 @@ function TokenHeader({
        * no pill, no capsule. Two-column row (left: identity, right: price),
        * with more generous spacing/typography on desktop for better hierarchy.
        */}
-      <div className="relative rounded-xl bg-card shadow-card px-3 py-2.5 lg:px-5 lg:py-4 space-y-2 lg:space-y-3">
+      <div className="relative rounded-xl bg-card shadow-card px-3 py-2.5 lg:px-5 lg:py-[23px] space-y-2 lg:space-y-3">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/40 to-transparent rounded-t-xl" />
 
         {/* ── Two-column info row ── */}
@@ -2842,14 +2842,16 @@ export default function TradingDesk() {
           <CallTokenButton info={info} />
           <ThesisButton info={info} />
         </div>
-        {/* Utility row — share / more / contract address */}
+        {/* Utility row — more / share / contract address (More placed first on
+            desktop so its dropdown opens into open space instead of over the
+            trade panel; mobile visual order is unaffected by this DOM order) */}
         <div className="flex items-center gap-2 flex-wrap">
-          <ShareToken info={info} />
           <MoreMenu
             mint={info.mint}
             pairAddress={info.pairAddress}
             isPumpFun={isPumpFunToken(info)}
           />
+          <ShareToken info={info} />
           <CopyContract mint={info.mint} />
         </div>
       </div>
