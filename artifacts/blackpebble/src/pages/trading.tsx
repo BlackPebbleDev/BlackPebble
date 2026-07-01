@@ -594,6 +594,7 @@ function dexLabel(dexId: string): string {
     orca: "Orca",
     pumpfun: "Pump.fun",
     "pump-fun": "Pump.fun",
+    pumpswap: "Pump.fun",
     phoenix: "Phoenix",
     lifinity: "Lifinity",
     aldrin: "Aldrin",
@@ -606,6 +607,18 @@ function dexLabel(dexId: string): string {
     saros: "Saros",
   };
   return map[dexId.toLowerCase()] ?? dexId;
+}
+
+/**
+ * True when a token actually originates on Pump.fun — either still on the
+ * bonding curve (source is always "pumpportal", Pump.fun's live trade feed)
+ * or migrated to a PumpSwap/Pump.fun pool post-graduation. Used to gate the
+ * Pump.fun row in the More menu so it never shows for unrelated tokens.
+ */
+function isPumpFunToken(info: TokenInfo): boolean {
+  if (!info.isMigrated) return true;
+  const dex = info.dexId?.toLowerCase();
+  return dex === "pumpfun" || dex === "pump-fun" || dex === "pumpswap";
 }
 
 /**
@@ -2792,7 +2805,11 @@ export default function TradingDesk() {
         {/* Row 2 — share / more / contract address (tight utility row) */}
         <div className="flex items-center gap-2 flex-wrap">
           <ShareToken info={info} />
-          <MoreMenu mint={info.mint} pairAddress={info.pairAddress} />
+          <MoreMenu
+            mint={info.mint}
+            pairAddress={info.pairAddress}
+            isPumpFun={isPumpFunToken(info)}
+          />
           <CopyContract mint={info.mint} />
         </div>
       </div>

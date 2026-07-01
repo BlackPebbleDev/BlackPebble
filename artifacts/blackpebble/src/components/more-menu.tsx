@@ -21,6 +21,11 @@ interface ExternalProvider {
    * Return null to disable the link (e.g. when pair is unavailable).
    */
   buildHref: (mint: string, pairOrMint: string) => string | null;
+  /**
+   * If provided, the row is only rendered when this returns true.
+   * Omit for providers that should always be shown.
+   */
+  isVisible?: (ctx: { isPumpFun: boolean }) => boolean;
 }
 
 /**
@@ -83,6 +88,24 @@ const PROVIDERS: ExternalProvider[] = [
     logo: "/provider-logos/jupiter.png",
     requiresPair: false,
     buildHref: (mint) => `https://jup.ag/swap/SOL-${mint}`,
+  },
+  {
+    label: "Pump.fun",
+    category: "trading",
+    logo: "/provider-logos/pumpfun.svg",
+    requiresPair: false,
+    // Official token page format: pump.fun/coin/{mint}. Only shown for tokens
+    // that actually originate on Pump.fun (bonding curve or PumpSwap pool) —
+    // see isVisible below.
+    buildHref: (mint) => `https://pump.fun/coin/${mint}`,
+    isVisible: ({ isPumpFun }) => isPumpFun,
+  },
+  {
+    label: "Fomo",
+    category: "trading",
+    logo: "/provider-logos/fomo.png",
+    requiresPair: false,
+    buildHref: (mint) => `https://fomo.trade/token/${mint}`,
   },
 
   // ── ANALYTICS ──────────────────────────────────────────────────────────────
@@ -182,9 +205,15 @@ function ProviderLogo({ src, label }: ProviderLogoProps) {
 interface MoreMenuProps {
   mint: string;
   pairAddress: string | null;
+  /**
+   * True when the token actually originates on Pump.fun (bonding curve or a
+   * migrated PumpSwap pool). Drives visibility of the Pump.fun row — never
+   * show it for tokens that never touched Pump.fun.
+   */
+  isPumpFun?: boolean;
 }
 
-export function MoreMenu({ mint, pairAddress }: MoreMenuProps) {
+export function MoreMenu({ mint, pairAddress, isPumpFun = false }: MoreMenuProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
 
@@ -195,8 +224,18 @@ export function MoreMenu({ mint, pairAddress }: MoreMenuProps) {
         setOpen(false);
       }
     }
+    // Close on outside click, and also close the moment the page scrolls so
+    // the dropdown never drifts out of alignment with its anchor button or
+    // ends up overlapping the sticky header/nav while the user scrolls.
+    function onScroll() {
+      setOpen(false);
+    }
     document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
+    window.addEventListener("scroll", onScroll, { capture: true, passive: true });
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      window.removeEventListener("scroll", onScroll, { capture: true } as EventListenerOptions);
+    };
   }, [open]);
 
   const pairOrMint = pairAddress ?? mint;
@@ -204,8 +243,10 @@ export function MoreMenu({ mint, pairAddress }: MoreMenuProps) {
   const grouped = CATEGORY_ORDER.map((cat) => ({
     category: cat,
     label: CATEGORY_LABELS[cat],
-    providers: PROVIDERS.filter((p) => p.category === cat),
-  }));
+    providers: PROVIDERS.filter(
+      (p) => p.category === cat && (!p.isVisible || p.isVisible({ isPumpFun })),
+    ),
+  })).filter((group) => group.providers.length > 0);
 
   return (
     <div className="relative" ref={ref}>
@@ -226,7 +267,7 @@ export function MoreMenu({ mint, pairAddress }: MoreMenuProps) {
       </button>
 
       {open && (
-        <div className="absolute right-0 z-40 mt-2 w-48 rounded-xl bg-card border border-border shadow-card overflow-hidden">
+        <div className="absolute right-0 z-20 mt-2 w-48 rounded-xl bg-card border border-border shadow-card overflow-hidden">
           <div className="max-h-[min(440px,78vh)] overflow-y-auto py-1">
             {grouped.map((group, gi) => (
               <div key={group.category}>
