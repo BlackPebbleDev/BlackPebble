@@ -266,7 +266,7 @@ export function MoreMenu({ mint, pairAddress, isPumpFun = false }: MoreMenuProps
       </button>
 
       {open && (
-        <div className="absolute right-0 z-20 mt-2 w-48 rounded-xl bg-card border border-border shadow-card overflow-hidden animate-in fade-in zoom-in-95 duration-200 origin-top-right">
+        <div className="absolute left-0 right-auto lg:left-auto lg:right-0 z-20 mt-2 w-48 max-w-[calc(100vw-2rem)] rounded-xl bg-card border border-border shadow-card overflow-hidden animate-in fade-in zoom-in-95 duration-200 origin-top-left lg:origin-top-right">
           <div className="max-h-[min(440px,78vh)] overflow-y-auto py-1">
             {grouped.map((group, gi) => (
               <div key={group.category}>
