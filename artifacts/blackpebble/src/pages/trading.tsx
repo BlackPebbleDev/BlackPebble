@@ -2836,16 +2836,20 @@ export default function TradingDesk() {
         </div>
       </div>
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2">
-        {/* Primary actions — flex so buttons size to content, never stretched */}
-        <div className="flex flex-wrap items-center gap-2">
+        {/* Primary actions — flex so buttons size to content, never stretched.
+            On desktop this group moves to the RIGHT (lg:order-2); mobile keeps
+            its natural DOM order (this group stays first/top on mobile). */}
+        <div className="flex flex-wrap items-center gap-2 lg:order-2">
           <WatchButton info={info} />
           <CallTokenButton info={info} />
           <ThesisButton info={info} />
         </div>
-        {/* Utility row — more / share / contract address (More placed first on
-            desktop so its dropdown opens into open space instead of over the
-            trade panel; mobile visual order is unaffected by this DOM order) */}
-        <div className="flex items-center gap-2 flex-wrap">
+        {/* Utility row — more / share / contract address. On desktop this
+            group moves to the LEFT (lg:order-1) so More's dropdown opens
+            into open space instead of over the trade panel; mobile visual
+            order is unaffected by this reorder (this group stays
+            second/bottom on mobile, same as before). */}
+        <div className="flex items-center gap-2 flex-wrap lg:order-1">
           <MoreMenu
             mint={info.mint}
             pairAddress={info.pairAddress}
