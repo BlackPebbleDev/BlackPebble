@@ -224,17 +224,16 @@ export function MoreMenu({ mint, pairAddress, isPumpFun = false }: MoreMenuProps
         setOpen(false);
       }
     }
-    // Close on outside click, and also close the moment the page scrolls so
-    // the dropdown never drifts out of alignment with its anchor button or
-    // ends up overlapping the sticky header/nav while the user scrolls.
-    function onScroll() {
-      setOpen(false);
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setOpen(false);
+      }
     }
     document.addEventListener("mousedown", onDown);
-    window.addEventListener("scroll", onScroll, { capture: true, passive: true });
+    document.addEventListener("keydown", onKeyDown);
     return () => {
       document.removeEventListener("mousedown", onDown);
-      window.removeEventListener("scroll", onScroll, { capture: true } as EventListenerOptions);
+      document.removeEventListener("keydown", onKeyDown);
     };
   }, [open]);
 
