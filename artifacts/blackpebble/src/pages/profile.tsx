@@ -118,44 +118,69 @@ function SectionHeader({
  * Falls back to a subtle premium gradient when the user has no X banner set
  * (most accounts), so the page never shows empty/broken space.
  */
+function ProfileBannerFallback() {
+  return (
+    <div
+      aria-hidden="true"
+      data-testid="profile-banner-fallback"
+      className="rounded-xl h-28 md:h-36 bg-gradient-to-r from-accent/10 via-card to-accent/5 border border-border/50"
+    />
+  );
+}
+
 function ProfileBanner({ profile }: { profile: ProfileResponse }) {
   const [expanded, setExpanded] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [failed, setFailed] = useState(false);
   const banner = profile.x_banner_url;
 
-  if (!banner) {
-    return (
-      <div
-        aria-hidden="true"
-        className="rounded-xl h-24 md:h-32 bg-gradient-to-r from-accent/10 via-card to-accent/5 border border-border/50"
-      />
-    );
+  // No banner at all, or the image failed to load (dead/expired URL,
+  // hotlink block, etc.) — show the premium fallback hero instead of a
+  // blank or broken image. The page should never look broken.
+  if (!banner || failed) {
+    return <ProfileBannerFallback />;
   }
+
+  const label = `${profile.x_display_name ?? profile.x_username}'s profile banner`;
 
   return (
     <>
       <div
         role="button"
         tabIndex={0}
-        onClick={() => setExpanded(true)}
+        onClick={() => loaded && setExpanded(true)}
         onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") setExpanded(true);
+          if (loaded && (e.key === "Enter" || e.key === " ")) setExpanded(true);
         }}
         data-testid="button-expand-profile-banner"
         aria-label="Expand profile banner image"
         className="group relative rounded-xl overflow-hidden bg-card shadow-card cursor-zoom-in aspect-[3/1] md:aspect-[17/5]"
       >
+        {/* Shimmer skeleton while the image loads, faded out once ready. */}
+        <div
+          aria-hidden="true"
+          className={cn(
+            "absolute inset-0 bg-gradient-to-r from-secondary/40 via-secondary/70 to-secondary/40 animate-pulse transition-opacity duration-300",
+            loaded ? "opacity-0" : "opacity-100",
+          )}
+        />
         <img
           src={banner}
-          alt={`${profile.x_display_name ?? profile.x_username}'s profile banner`}
+          alt={label}
           loading="lazy"
-          className="w-full h-full object-cover block select-none transition-transform duration-200 group-hover:scale-[1.015]"
-          onError={(e) => (e.currentTarget.style.visibility = "hidden")}
+          onLoad={() => setLoaded(true)}
+          onError={() => setFailed(true)}
+          className={cn(
+            "w-full h-full object-cover block select-none transition-opacity duration-300 group-hover:scale-[1.015]",
+            loaded ? "opacity-100" : "opacity-0",
+          )}
+          style={{ transitionProperty: "opacity, transform" }}
         />
         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-200" />
       </div>
       <ImageLightbox
         src={banner}
-        alt={`${profile.x_display_name ?? profile.x_username}'s profile banner`}
+        alt={label}
         open={expanded}
         onClose={() => setExpanded(false)}
       />

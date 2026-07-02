@@ -16,8 +16,19 @@ const FRONTEND_URL = process.env["FRONTEND_URL"] || "/";
 
 const TOKEN_URL = "https://api.x.com/2/oauth2/token";
 const AUTHORIZE_URL = "https://x.com/i/oauth2/authorize";
+// NOTE: X API v2's user lookup (`/2/users/me`) does not expose a banner/header
+// image field at all — `profile_banner_url` is silently ignored by v2 (it's
+// only present on the legacy v1.1 `users/show.json` response). We still ask
+// v2 for everything else here, and fetch the banner separately via
+// `fetchXBannerImage()` below using an app-only bearer token.
 const USER_URL =
-  "https://api.x.com/2/users/me?user.fields=profile_image_url,profile_banner_url,public_metrics,created_at,verified";
+  "https://api.x.com/2/users/me?user.fields=profile_image_url,public_metrics,created_at,verified";
+// Legacy v1.1 endpoint — the only place X still returns `profile_banner_url`.
+// Works with an app-only (client_credentials) bearer token for read-only
+// lookups; degrades gracefully (returns null) if the app's access tier
+// doesn't allow it.
+const APP_TOKEN_URL = "https://api.x.com/oauth2/token";
+const USER_SHOW_URL = "https://api.x.com/1.1/users/show.json";
 
 // X OAuth 2.0 scopes needed for basic profile + username
 const SCOPES = ["users.read", "tweet.read"].join(" ");
@@ -33,8 +44,6 @@ interface XUser {
   username: string;
   name?: string;
   profile_image_url?: string;
-  // Header/banner image (when X returns it — not all accounts have one set).
-  profile_banner_url?: string;
   // Reputation fields (when X returns them). created_at is an ISO timestamp.
   created_at?: string;
   verified?: boolean;
@@ -211,6 +220,111 @@ async function exchangeCode(
   }
 }
 
+// ── App-only bearer token (client_credentials) ──────────────────────────────
+// Cached in-memory for the process lifetime — client_credentials app tokens
+// for X don't expire on a fixed schedule, so we only refetch on a 401/403.
+let appBearerToken: string | null = null;
+// Once we've confirmed the app-only token endpoint rejects our credentials
+// (see the DIAGNOSED note below), stop retrying it on every single login —
+// that would add a doomed network round-trip + log noise to every X sign-in
+// for no benefit. Reset only on process restart, so this self-heals the
+// moment the underlying credentials/access are fixed.
+let appTokenKnownUnavailable = false;
+
+async function getAppBearerToken(forceRefresh = false): Promise<string | null> {
+  if (appTokenKnownUnavailable) return null;
+  if (appBearerToken && !forceRefresh) return appBearerToken;
+  if (!CLIENT_ID || !CLIENT_SECRET) return null;
+  try {
+    const res = await fetch(APP_TOKEN_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Authorization:
+          "Basic " +
+          Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString("base64"),
+      },
+      body: "grant_type=client_credentials",
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      // DIAGNOSED (confirmed via a live request, not assumed): this endpoint
+      // expects the classic OAuth 1.0a "Consumer Key/Secret" pair, not the
+      // OAuth 2.0 Client ID/Secret (X_CLIENT_ID/X_CLIENT_SECRET) this app
+      // uses for the PKCE user-login flow. With the current credentials it
+      // reliably returns 403 "Unable to verify your credentials" — so we
+      // mark it unavailable for this process rather than retry per login.
+      logger.warn(
+        { status: res.status, body: text },
+        "X app-only token fetch failed — banner fetch disabled for this process (wrong credential type or access tier for the v1.1 endpoint)",
+      );
+      if (res.status === 401 || res.status === 403) {
+        appTokenKnownUnavailable = true;
+      }
+      return null;
+    }
+    const data = (await res.json()) as { access_token?: string };
+    appBearerToken = data.access_token ?? null;
+    return appBearerToken;
+  } catch (err) {
+    logger.warn({ err }, "X app-only token fetch exception");
+    return null;
+  }
+}
+
+/**
+ * Fetch the X profile banner (header) image URL for a username.
+ *
+ * X API v2 has no banner field at all — this data only exists on the legacy
+ * v1.1 `users/show.json` response, which we call here with an app-only
+ * bearer token (read-only, no user context needed). Degrades gracefully to
+ * null on any failure (unsupported access tier, rate limit, no banner set,
+ * etc.) so the profile page always falls back to the premium hero gradient
+ * instead of a broken/blank banner.
+ */
+async function fetchXBannerImage(username: string): Promise<string | null> {
+  let token = await getAppBearerToken();
+  if (!token) return null;
+
+  const call = (bearer: string) =>
+    fetch(
+      `${USER_SHOW_URL}?screen_name=${encodeURIComponent(username)}&include_entities=false`,
+      {
+        headers: {
+          Authorization: `Bearer ${bearer}`,
+          "User-Agent": "BlackPebble/1.0",
+        },
+      },
+    );
+
+  try {
+    let res = await call(token);
+    if (res.status === 401 || res.status === 403) {
+      // Token may have been revoked/rotated — refresh once and retry.
+      token = await getAppBearerToken(true);
+      if (!token) return null;
+      res = await call(token);
+    }
+    if (!res.ok) {
+      const text = await res.text();
+      logger.warn(
+        { status: res.status, body: text, username },
+        "X banner fetch failed (falling back to hero gradient)",
+      );
+      return null;
+    }
+    const data = (await res.json()) as { profile_banner_url?: string };
+    if (!data.profile_banner_url) return null;
+    // Request the highest-quality variant X serves (1500x500) while
+    // preserving the native aspect ratio — the base URL alone points at a
+    // smaller default size.
+    return `${data.profile_banner_url}/1500x500`;
+  } catch (err) {
+    logger.warn({ err, username }, "X banner fetch exception");
+    return null;
+  }
+}
+
 // ── Upsert user + identity from X profile ───────────────────────────────────
 async function upsertXUser(user: XUser): Promise<XSessionPayload> {
   const now = Math.floor(Date.now() / 1000);
@@ -224,6 +338,12 @@ async function upsertXUser(user: XUser): Promise<XSessionPayload> {
     : null;
   const xCreatedAtValid =
     xCreatedAt != null && Number.isFinite(xCreatedAt) ? xCreatedAt : null;
+
+  // Best-effort banner fetch (see fetchXBannerImage — v2 has no banner field
+  // at all, so this hits the legacy v1.1 endpoint separately). Never blocks
+  // login: resolves to null on any failure and the profile page falls back
+  // to the hero gradient.
+  const bannerUrl = await fetchXBannerImage(user.username);
 
   // Make sure the bio + x_* reputation columns exist before we write to them.
   await ensureProfileSchema();
@@ -266,7 +386,7 @@ async function upsertXUser(user: XUser): Promise<XSessionPayload> {
           following,
           verified,
           xCreatedAtValid,
-          user.profile_banner_url || null,
+          bannerUrl,
         ],
         c,
       );
@@ -294,7 +414,7 @@ async function upsertXUser(user: XUser): Promise<XSessionPayload> {
           following,
           verified,
           xCreatedAtValid,
-          user.profile_banner_url || null,
+          bannerUrl,
         ],
         c,
       );
