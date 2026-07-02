@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Line } from "react-chartjs-2";
 import {
@@ -253,35 +253,52 @@ export default function Portfolio() {
           className="relative overflow-hidden rounded-2xl bg-card shadow-card px-4 py-4 md:px-5 md:py-5 mb-6"
         >
           <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/40 to-transparent" />
-          <UserIdentity
-            size="lg"
-            avatarUrl={selfProfile?.x_avatar_url ?? xUser?.x_avatar_url}
-            displayName={selfProfile?.x_display_name ?? xUser?.x_display_name}
-            handle={selfHandle}
-            officialBadges={selfProfile?.officialBadges}
-            accountStatus={accountStatusFromGuest(isGuest)}
-            tier={stats?.graduationTier ?? selfProfile?.graduationTier}
-            tierPosition="inline"
-            badgePosition="row"
-            handleLink={{
-              type: "internal",
-              href: `/u/${encodeURIComponent(selfHandle)}`,
-            }}
-            handleTrailing={
-              rank != null ? (
-                <span className="text-sm text-accent font-mono">#{rank}</span>
-              ) : undefined
-            }
+          <div className="flex items-start justify-between gap-3">
+            <UserIdentity
+              size="lg"
+              avatarUrl={selfProfile?.x_avatar_url ?? xUser?.x_avatar_url}
+              avatarExpandable
+              displayName={selfProfile?.x_display_name ?? xUser?.x_display_name}
+              handle={selfHandle}
+              officialBadges={selfProfile?.officialBadges}
+              accountStatus={accountStatusFromGuest(isGuest)}
+              tier={stats?.graduationTier ?? selfProfile?.graduationTier}
+              tierPosition="inline"
+              badgePosition="row"
+              handleLink={{
+                type: "internal",
+                href: `/u/${encodeURIComponent(selfHandle)}`,
+              }}
+              handleTrailing={
+                rank != null ? (
+                  <span className="text-sm text-accent font-mono">#{rank}</span>
+                ) : undefined
+              }
+            >
+              {selfProfile?.bio && (
+                <p
+                  data-testid="text-portfolio-bio"
+                  className="mt-3 text-sm text-foreground/90 whitespace-pre-wrap break-words"
+                >
+                  {selfProfile.bio}
+                </p>
+              )}
+            </UserIdentity>
+            <Link
+              href={`/u/${encodeURIComponent(selfHandle)}`}
+              data-testid="link-view-public-profile"
+              className="hidden sm:inline-flex shrink-0 items-center gap-1.5 h-8 px-3 rounded-full border border-border text-xs font-medium text-foreground hover:bg-secondary transition-colors"
+            >
+              View Public Profile
+            </Link>
+          </div>
+          <Link
+            href={`/u/${encodeURIComponent(selfHandle)}`}
+            data-testid="link-view-public-profile-mobile"
+            className="sm:hidden mt-3 inline-flex items-center justify-center gap-1.5 w-full h-9 rounded-xl border border-border text-xs font-medium text-foreground hover:bg-secondary transition-colors"
           >
-            {selfProfile?.bio && (
-              <p
-                data-testid="text-portfolio-bio"
-                className="mt-3 text-sm text-foreground/90 whitespace-pre-wrap break-words"
-              >
-                {selfProfile.bio}
-              </p>
-            )}
-          </UserIdentity>
+            View Public Profile
+          </Link>
         </div>
       )}
 

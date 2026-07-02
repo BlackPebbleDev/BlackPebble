@@ -1940,6 +1940,7 @@ export default function ProfilePage() {
           nameAs="h1"
           testIdName="text-profile-name"
           avatarUrl={profile.x_avatar_url}
+          avatarExpandable
           displayName={profile.x_display_name}
           handle={profile.x_username}
           officialBadges={profile.officialBadges}

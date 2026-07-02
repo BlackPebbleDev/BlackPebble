@@ -14,6 +14,40 @@ import {
 } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
+/** Small round token image with an initials fallback — kept purely for quick
+ * visual recognition, never the focus of the row. Not expandable. */
+function WatchTokenLogo({
+  logo,
+  symbol,
+  sizeClass,
+}: {
+  logo: string | null | undefined;
+  symbol: string | null | undefined;
+  sizeClass: string;
+}) {
+  const initial = (symbol ?? "?").slice(0, 2).toUpperCase();
+  if (logo) {
+    return (
+      <img
+        src={logo}
+        alt=""
+        className={cn("rounded-full object-cover shrink-0", sizeClass)}
+        onError={(e) => (e.currentTarget.style.visibility = "hidden")}
+      />
+    );
+  }
+  return (
+    <div
+      className={cn(
+        "rounded-full bg-secondary flex items-center justify-center text-muted-foreground shrink-0 font-mono text-[9px]",
+        sizeClass,
+      )}
+    >
+      {initial}
+    </div>
+  );
+}
+
 /**
  * Shared watchlist used on both the Trading desk (account-context tabs) and the
  * Portfolio page. Each row shows symbol/name, price, market cap and 24h change,
@@ -72,6 +106,7 @@ export function Watchlist({
             data-testid={`watch-card-${w.mint}`}
             className="rounded-xl bg-card shadow-card p-3.5 flex items-center gap-3 cursor-pointer transition-colors hover:bg-surface-3 active:bg-accent/5"
           >
+            <WatchTokenLogo logo={w.logo} symbol={w.symbol} sizeClass="w-8 h-8" />
             <div className="min-w-0 flex-1">
               <div className="font-medium text-foreground truncate">
                 {w.symbol ?? shortAddr(w.mint)}
@@ -144,14 +179,19 @@ export function Watchlist({
                 className="border-b border-border/50 last:border-0 hover:bg-accent/5 cursor-pointer transition-colors"
               >
                 <td className="px-4 py-2.5">
-                  <div className="font-medium text-foreground">
-                    {w.symbol ?? shortAddr(w.mint)}
-                  </div>
-                  {w.name && (
-                    <div className="text-xs text-muted-foreground truncate max-w-[220px]">
-                      {w.name}
+                  <div className="flex items-center gap-2.5">
+                    <WatchTokenLogo logo={w.logo} symbol={w.symbol} sizeClass="w-7 h-7" />
+                    <div className="min-w-0">
+                      <div className="font-medium text-foreground">
+                        {w.symbol ?? shortAddr(w.mint)}
+                      </div>
+                      {w.name && (
+                        <div className="text-xs text-muted-foreground truncate max-w-[220px]">
+                          {w.name}
+                        </div>
+                      )}
                     </div>
-                  )}
+                  </div>
                 </td>
                 <td className="px-4 py-2.5 text-right font-mono">
                   {fmtPrice(w.priceUsd)}

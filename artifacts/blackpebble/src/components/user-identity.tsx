@@ -1,9 +1,10 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Link } from "wouter";
 import { ExternalLink } from "lucide-react";
 import { OfficialBadge, ROLE_ORDER } from "@/components/official-badge";
 import { TierBadge } from "@/components/tier-badge";
 import { AccountStatusChip } from "@/components/account-status-chip";
+import { ImageLightbox } from "@/components/image-lightbox";
 import type { AccountStatus } from "@/lib/account-status";
 import type { OfficialBadgeType } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -105,16 +106,21 @@ function IdentityAvatar({
   url,
   name,
   spec,
+  expandable,
 }: {
   url?: string | null;
   name: string;
   spec: SizeSpec;
+  /** Tap-to-expand into a fullscreen preview (profile-header surfaces only). */
+  expandable?: boolean;
 }) {
+  const [previewOpen, setPreviewOpen] = useState(false);
   const initial = name.replace(/^@+/, "").slice(0, 2).toUpperCase() || "?";
   if (url) {
     // Use the hi-res variant only on the large (profile-header) avatar; dense
     // surfaces keep the lightweight default to avoid extra bandwidth.
-    return spec.avatarPx ? (
+    const hiRes = hiResAvatar(url);
+    const img = spec.avatarPx ? (
       <img
         src={url}
         alt=""
@@ -124,11 +130,34 @@ function IdentityAvatar({
       />
     ) : (
       <img
-        src={hiResAvatar(url)}
+        src={hiRes}
         alt=""
         className={cn("rounded-full object-cover flex-shrink-0", spec.avatarClass)}
         onError={(e) => (e.currentTarget.style.visibility = "hidden")}
       />
+    );
+    if (!expandable) return img;
+    return (
+      <>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setPreviewOpen(true);
+          }}
+          data-testid="button-expand-avatar"
+          aria-label={`View ${name}'s profile picture`}
+          className="flex-shrink-0 rounded-full cursor-zoom-in"
+        >
+          {img}
+        </button>
+        <ImageLightbox
+          src={hiRes}
+          alt={`${name}'s profile picture`}
+          open={previewOpen}
+          onClose={() => setPreviewOpen(false)}
+        />
+      </>
     );
   }
   const fallback =
@@ -149,6 +178,10 @@ type LinkSpec = { type: "internal" | "external"; href: string };
 
 export interface UserIdentityProps {
   avatarUrl?: string | null;
+  /** Let the avatar be tapped to open a fullscreen preview (profile-header
+   * surfaces only — Portfolio and Public Profile). Defaults to false so
+   * dense surfaces (feed, leaderboard) are unaffected. */
+  avatarExpandable?: boolean;
   /** Trimmed display name; falls back to @handle then `fallbackName`. */
   displayName?: string | null;
   /** X handle (with or without a leading @). */
@@ -195,6 +228,7 @@ export interface UserIdentityProps {
 
 export function UserIdentity({
   avatarUrl,
+  avatarExpandable = false,
   displayName,
   handle,
   officialBadges,
@@ -342,7 +376,12 @@ export function UserIdentity({
         className,
       )}
     >
-      <IdentityAvatar url={avatarUrl} name={avatarName} spec={spec} />
+      <IdentityAvatar
+        url={avatarUrl}
+        name={avatarName}
+        spec={spec}
+        expandable={avatarExpandable}
+      />
       <div className="min-w-0 flex-1 leading-tight">
         <div className="flex items-center gap-1.5 flex-wrap min-w-0">
           {nameEl}

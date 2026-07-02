@@ -17,6 +17,41 @@ import {
 } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
+/** Small round token image with an initials fallback, matching the styling
+ * used for leverage positions and the watchlist — purely for quick visual
+ * recognition, not clickable/expandable. */
+function PositionTokenLogo({
+  logo,
+  symbol,
+  sizeClass,
+}: {
+  logo: string | null | undefined;
+  symbol: string | null | undefined;
+  sizeClass: string;
+}) {
+  const initial = (symbol ?? "?").slice(0, 2).toUpperCase();
+  if (logo) {
+    return (
+      <img
+        src={logo}
+        alt=""
+        className={cn("rounded-full object-cover shrink-0", sizeClass)}
+        onError={(e) => (e.currentTarget.style.visibility = "hidden")}
+      />
+    );
+  }
+  return (
+    <div
+      className={cn(
+        "rounded-full bg-secondary flex items-center justify-center text-muted-foreground shrink-0 font-mono text-[9px]",
+        sizeClass,
+      )}
+    >
+      {initial}
+    </div>
+  );
+}
+
 /**
  * Open positions as a 3-level information hierarchy so a trader can scan many
  * positions without endless scrolling:
@@ -145,14 +180,21 @@ function PositionTableRow({
               onNavigate(p.token_mint);
             }}
             data-testid={`token-link-${p.token_mint}`}
-            className="text-left group"
+            className="flex items-center gap-2.5 text-left group"
           >
-            <div className="text-foreground font-medium group-hover:text-accent group-hover:underline">
-              {p.token_symbol ?? shortAddr(p.token_mint)}
+            <PositionTokenLogo
+              logo={p.token_logo}
+              symbol={p.token_symbol}
+              sizeClass="w-7 h-7"
+            />
+            <div className="min-w-0">
+              <div className="text-foreground font-medium group-hover:text-accent group-hover:underline">
+                {p.token_symbol ?? shortAddr(p.token_mint)}
+              </div>
+              {p.token_name && (
+                <div className="text-xs text-muted-foreground">{p.token_name}</div>
+              )}
             </div>
-            {p.token_name && (
-              <div className="text-xs text-muted-foreground">{p.token_name}</div>
-            )}
           </button>
         </td>
         <td className="px-4 py-3 text-right font-mono text-muted-foreground">
@@ -230,7 +272,7 @@ function PositionCard({
       data-testid={`card-position-${p.token_mint}`}
     >
       {/* L1 header: tap anywhere to expand/collapse. Token + Unrealized P&L /
-          ROI% + chevron. Navigation moves into the expanded "Continue Trading". */}
+          ROI% + chevron. Navigation moves into the expanded "View Token". */}
       <button
         type="button"
         onClick={onToggle}
@@ -239,15 +281,22 @@ function PositionCard({
         aria-label={open ? "Collapse position" : "Expand position"}
         className="flex w-full items-stretch text-left"
       >
-        <div className="min-w-0 flex-1 px-4 py-2.5">
-          <div className="font-medium text-foreground truncate">
-            {p.token_symbol ?? shortAddr(p.token_mint)}
-          </div>
-          {p.token_name && (
-            <div className="text-xs text-muted-foreground truncate">
-              {p.token_name}
+        <div className="flex min-w-0 flex-1 items-center gap-2.5 px-4 py-2.5">
+          <PositionTokenLogo
+            logo={p.token_logo}
+            symbol={p.token_symbol}
+            sizeClass="w-8 h-8"
+          />
+          <div className="min-w-0 flex-1">
+            <div className="font-medium text-foreground truncate">
+              {p.token_symbol ?? shortAddr(p.token_mint)}
             </div>
-          )}
+            {p.token_name && (
+              <div className="text-xs text-muted-foreground truncate">
+                {p.token_name}
+              </div>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-2 px-4 py-2.5">
           <div className="text-right">
@@ -421,7 +470,7 @@ function ExpandedAnalytics({
           data-testid={`button-open-${p.token_mint}`}
           className="inline-flex items-center gap-1.5 h-9 px-3 text-xs font-medium rounded-xl border border-border text-foreground hover:bg-secondary transition-colors"
         >
-          Continue Trading
+          View Token
           <ArrowRight className="w-3.5 h-3.5" />
         </button>
       </div>

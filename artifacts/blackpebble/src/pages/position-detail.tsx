@@ -388,7 +388,7 @@ export default function PositionDetail() {
         data-testid={`button-open-${p.token_mint}`}
         className="inline-flex items-center gap-1.5 h-10 px-5 rounded-full text-sm font-medium border border-accent/50 text-accent hover:bg-accent/10 transition-colors"
       >
-        Continue Trading
+        View Token
         <ArrowRight className="w-4 h-4" />
       </button>
     </div>
