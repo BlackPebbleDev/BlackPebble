@@ -744,6 +744,8 @@ export interface ProfileResponse {
   isSelf: boolean;
   /** Owner-editable plain-text bio (≤250 chars), or null when unset. */
   bio: string | null;
+  /** X profile banner (header) image URL, or null when unavailable. */
+  x_banner_url: string | null;
   xReputation: XReputation;
   /** Owner-editable off-platform links (website / telegram / discord). */
   socials: ProfileSocials;

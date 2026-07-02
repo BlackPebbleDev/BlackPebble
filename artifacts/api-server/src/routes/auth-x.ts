@@ -17,7 +17,7 @@ const FRONTEND_URL = process.env["FRONTEND_URL"] || "/";
 const TOKEN_URL = "https://api.x.com/2/oauth2/token";
 const AUTHORIZE_URL = "https://x.com/i/oauth2/authorize";
 const USER_URL =
-  "https://api.x.com/2/users/me?user.fields=profile_image_url,public_metrics,created_at,verified";
+  "https://api.x.com/2/users/me?user.fields=profile_image_url,profile_banner_url,public_metrics,created_at,verified";
 
 // X OAuth 2.0 scopes needed for basic profile + username
 const SCOPES = ["users.read", "tweet.read"].join(" ");
@@ -33,6 +33,8 @@ interface XUser {
   username: string;
   name?: string;
   profile_image_url?: string;
+  // Header/banner image (when X returns it — not all accounts have one set).
+  profile_banner_url?: string;
   // Reputation fields (when X returns them). created_at is an ISO timestamp.
   created_at?: string;
   verified?: boolean;
@@ -252,7 +254,8 @@ async function upsertXUser(user: XUser): Promise<XSessionPayload> {
            x_followers_count = COALESCE($5, x_followers_count),
            x_following_count = COALESCE($6, x_following_count),
            x_verified = COALESCE($7, x_verified),
-           x_account_created_at = COALESCE($8, x_account_created_at)
+           x_account_created_at = COALESCE($8, x_account_created_at),
+           x_banner_url = COALESCE($9, x_banner_url)
          WHERE id = $4`,
         [
           user.name || user.username,
@@ -263,6 +266,7 @@ async function upsertXUser(user: XUser): Promise<XSessionPayload> {
           following,
           verified,
           xCreatedAtValid,
+          user.profile_banner_url || null,
         ],
         c,
       );
@@ -277,9 +281,10 @@ async function upsertXUser(user: XUser): Promise<XSessionPayload> {
       const newUser = await dbGet<{ id: number }>(
         `INSERT INTO users (
            display_name, avatar_url, created_at, last_active,
-           x_followers_count, x_following_count, x_verified, x_account_created_at
+           x_followers_count, x_following_count, x_verified, x_account_created_at,
+           x_banner_url
          )
-         VALUES ($1, $2, $3, $3, $4, $5, $6, $7)
+         VALUES ($1, $2, $3, $3, $4, $5, $6, $7, $8)
          RETURNING id`,
         [
           user.name || user.username,
@@ -289,6 +294,7 @@ async function upsertXUser(user: XUser): Promise<XSessionPayload> {
           following,
           verified,
           xCreatedAtValid,
+          user.profile_banner_url || null,
         ],
         c,
       );

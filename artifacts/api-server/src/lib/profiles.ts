@@ -84,6 +84,8 @@ export interface ProfileResponse extends ResolvedUser {
   isSelf: boolean;
   /** Owner-editable plain-text bio (≤250 chars), or null when unset. */
   bio: string | null;
+  /** X profile banner (header) image URL, or null when unavailable. */
+  x_banner_url: string | null;
   /** X account reputation (account age, verified, follower/following counts). */
   xReputation: XReputation;
   /** Owner-editable off-platform links (website / telegram / discord). */
@@ -155,6 +157,7 @@ export async function ensureProfileSchema(): Promise<void> {
   await dbRun(
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_handle TEXT`,
   );
+  await dbRun(`ALTER TABLE users ADD COLUMN IF NOT EXISTS x_banner_url TEXT`);
   await dbRun(
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS discord_invite TEXT`,
   );
@@ -350,9 +353,11 @@ export async function getProfile(
       website_url: string | null;
       telegram_handle: string | null;
       discord_invite: string | null;
+      x_banner_url: string | null;
     }>(
       `SELECT bio, x_followers_count, x_following_count, x_verified,
-              x_account_created_at, website_url, telegram_handle, discord_invite
+              x_account_created_at, website_url, telegram_handle, discord_invite,
+              x_banner_url
          FROM users WHERE id = $1`,
       [u.user_id],
     ),
@@ -369,6 +374,7 @@ export async function getProfile(
     isFollowing: !!follows,
     isSelf: viewerUserId != null && viewerUserId === u.user_id,
     bio: extras?.bio ?? null,
+    x_banner_url: extras?.x_banner_url ?? null,
     xReputation: {
       accountCreatedAt: extras?.x_account_created_at ?? null,
       verified: extras?.x_verified ?? null,

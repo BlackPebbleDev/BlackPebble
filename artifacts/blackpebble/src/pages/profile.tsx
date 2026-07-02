@@ -42,6 +42,7 @@ import {
   type ThesisWithAuthor,
 } from "@/lib/api";
 import { UserIdentity } from "@/components/user-identity";
+import { ImageLightbox } from "@/components/image-lightbox";
 import {
   AchievementBadge,
   RARITY_META,
@@ -108,6 +109,57 @@ function SectionHeader({
         {title}
       </h2>
     </div>
+  );
+}
+
+/**
+ * X profile banner hero — same click-to-expand treatment as the Token Page
+ * banner (rounded card, hover overlay, fullscreen ImageLightbox on tap).
+ * Falls back to a subtle premium gradient when the user has no X banner set
+ * (most accounts), so the page never shows empty/broken space.
+ */
+function ProfileBanner({ profile }: { profile: ProfileResponse }) {
+  const [expanded, setExpanded] = useState(false);
+  const banner = profile.x_banner_url;
+
+  if (!banner) {
+    return (
+      <div
+        aria-hidden="true"
+        className="rounded-xl h-24 md:h-32 bg-gradient-to-r from-accent/10 via-card to-accent/5 border border-border/50"
+      />
+    );
+  }
+
+  return (
+    <>
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => setExpanded(true)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") setExpanded(true);
+        }}
+        data-testid="button-expand-profile-banner"
+        aria-label="Expand profile banner image"
+        className="group relative rounded-xl overflow-hidden bg-card shadow-card cursor-zoom-in aspect-[3/1] md:aspect-[17/5]"
+      >
+        <img
+          src={banner}
+          alt={`${profile.x_display_name ?? profile.x_username}'s profile banner`}
+          loading="lazy"
+          className="w-full h-full object-cover block select-none transition-transform duration-200 group-hover:scale-[1.015]"
+          onError={(e) => (e.currentTarget.style.visibility = "hidden")}
+        />
+        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-200" />
+      </div>
+      <ImageLightbox
+        src={banner}
+        alt={`${profile.x_display_name ?? profile.x_username}'s profile banner`}
+        open={expanded}
+        onClose={() => setExpanded(false)}
+      />
+    </>
   );
 }
 
@@ -1930,9 +1982,13 @@ export default function ProfilePage() {
   const stats = profile.stats;
 
   return (
-    <div className="w-full max-w-3xl mx-auto px-4 md:px-6 py-6">
+    <div className="w-full max-w-5xl mx-auto px-4 md:px-6 py-6">
+      {/* X banner hero — same treatment as the Token Page banner: rounded card,
+          click-to-expand fullscreen, subtle premium fallback when unset. */}
+      <ProfileBanner profile={profile} />
+
       {/* Header */}
-      <div className="relative overflow-hidden rounded-2xl bg-card shadow-card p-5 md:p-6">
+      <div className="relative overflow-hidden rounded-2xl bg-card shadow-card p-5 md:p-6 mt-3">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/40 to-transparent" />
         <UserIdentity
           size="lg"
