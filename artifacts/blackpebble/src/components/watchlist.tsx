@@ -104,15 +104,15 @@ export function Watchlist({
             key={w.mint}
             onClick={() => onNavigate(w.mint)}
             data-testid={`watch-card-${w.mint}`}
-            className="rounded-xl bg-card shadow-card p-3.5 flex items-center gap-3 cursor-pointer transition-colors hover:bg-surface-3 active:bg-accent/5"
+            className="rounded-xl bg-card shadow-card p-2.5 flex items-center gap-2 cursor-pointer transition-colors hover:bg-surface-3 active:bg-accent/5"
           >
-            <WatchTokenLogo logo={w.logo} symbol={w.symbol} sizeClass="w-8 h-8" />
+            <WatchTokenLogo logo={w.logo} symbol={w.symbol} sizeClass="w-7 h-7" />
             <div className="min-w-0 flex-1">
-              <div className="font-medium text-foreground truncate">
+              <div className="font-medium text-foreground truncate text-[15px]">
                 {w.symbol ?? shortAddr(w.mint)}
               </div>
               {w.name && (
-                <div className="text-xs text-muted-foreground truncate">
+                <div className="text-[11px] text-muted-foreground truncate">
                   {w.name}
                 </div>
               )}
@@ -121,7 +121,7 @@ export function Watchlist({
               <div className="font-mono text-sm text-foreground">
                 {fmtPrice(w.priceUsd)}
               </div>
-              <div className="font-mono text-[11px] text-muted-foreground">
+              <div className="font-mono text-[10px] text-muted-foreground">
                 {fmtMarketCap(w.marketCapUsd)} MC
               </div>
             </div>
@@ -129,13 +129,13 @@ export function Watchlist({
               <Sparkline
                 series={spark[w.mint]}
                 seed={w.mint}
-                width={48}
+                width={40}
                 height={20}
               />
             </div>
             <div
               className={cn(
-                "font-mono text-xs w-16 text-right shrink-0",
+                "font-mono text-xs w-12 text-right shrink-0",
                 pnlColorSafe(w.priceChange24h),
               )}
             >
@@ -149,9 +149,9 @@ export function Watchlist({
               }}
               data-testid={`watch-remove-${w.mint}`}
               aria-label={`Remove ${w.symbol ?? "token"} from watchlist`}
-              className="shrink-0 p-1.5 text-muted-foreground hover:text-red-400 transition-colors"
+              className="shrink-0 -mr-1 p-1 text-muted-foreground hover:text-red-400 transition-colors"
             >
-              <X className="w-4 h-4" />
+              <X className="w-3.5 h-3.5" />
             </button>
           </div>
         ))}
