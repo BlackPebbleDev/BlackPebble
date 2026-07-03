@@ -41,6 +41,11 @@ testem.log
 .DS_Store
 Thumbs.db
 
+# Local environment files (secrets) — .env.example is the committed template
+.env
+.env.*
+!.env.example
+
 # Database files — SQLite is not used in production (PostgreSQL via DATABASE_URL).
 # These patterns prevent local dev databases and WAL files from being committed.
 *.sqlite
@@ -51,11 +56,3 @@ Thumbs.db
 
 .cursor/rules/nx-rules.mdc
 .github/instructions/nx.instructions.md
-
-# Replit
-.cache/
-.local/
-
-# Instruction files dropped by the Replit agent (task descriptions, review docs).
-# These are ephemeral context files, not project source.
-attached_assets/
