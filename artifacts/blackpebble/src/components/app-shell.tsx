@@ -10,7 +10,7 @@ import {
   Rss,
 } from "lucide-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
-import logoFlat from "@assets/bp-wordmark.png";
+import logoFlat from "@/assets/bp-wordmark.png";
 import { TokenSearch } from "@/components/token-search";
 import { XLoginButton } from "@/components/x-login-button";
 import { GuestMigrationPrompt } from "@/components/guest-migration-prompt";
