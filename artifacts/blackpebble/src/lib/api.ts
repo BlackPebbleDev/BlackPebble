@@ -672,6 +672,7 @@ export interface XReputation {
   verified: boolean | null;
   followers: number | null;
   following: number | null;
+  tweetCount: number | null;
 }
 
 export type TrustLabel = "New" | "Building" | "Established" | "Proven";

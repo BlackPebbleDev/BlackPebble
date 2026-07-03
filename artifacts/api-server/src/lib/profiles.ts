@@ -51,6 +51,7 @@ export interface XReputation {
   verified: boolean | null;
   followers: number | null;
   following: number | null;
+  tweetCount: number | null;
 }
 
 export type TrustLabel = "New" | "Building" | "Established" | "Proven";
@@ -158,6 +159,9 @@ export async function ensureProfileSchema(): Promise<void> {
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_handle TEXT`,
   );
   await dbRun(`ALTER TABLE users ADD COLUMN IF NOT EXISTS x_banner_url TEXT`);
+  await dbRun(
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS x_tweet_count INTEGER`,
+  );
   await dbRun(
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS discord_invite TEXT`,
   );
@@ -350,13 +354,14 @@ export async function getProfile(
       x_following_count: number | null;
       x_verified: boolean | null;
       x_account_created_at: number | null;
+      x_tweet_count: number | null;
       website_url: string | null;
       telegram_handle: string | null;
       discord_invite: string | null;
       x_banner_url: string | null;
     }>(
       `SELECT bio, x_followers_count, x_following_count, x_verified,
-              x_account_created_at, website_url, telegram_handle, discord_invite,
+              x_account_created_at, x_tweet_count, website_url, telegram_handle, discord_invite,
               x_banner_url
          FROM users WHERE id = $1`,
       [u.user_id],
@@ -380,6 +385,7 @@ export async function getProfile(
       verified: extras?.x_verified ?? null,
       followers: extras?.x_followers_count ?? null,
       following: extras?.x_following_count ?? null,
+      tweetCount: extras?.x_tweet_count ?? null,
     },
     socials: {
       website: extras?.website_url ?? null,

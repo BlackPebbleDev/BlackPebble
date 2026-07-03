@@ -17,6 +17,7 @@ export interface XUser {
   x_username: string;
   x_display_name?: string;
   x_avatar_url?: string;
+  x_verified?: boolean | null;
   wallet?: string;
 }
 

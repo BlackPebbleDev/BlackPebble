@@ -7,6 +7,10 @@ import { dbGet, dbRun, withTx } from "../lib/database.js";
 import { ensureProfileSchema } from "../lib/profiles.js";
 import { mintBadgesAsync } from "../lib/badge-mint.js";
 import { logger } from "../lib/logger.js";
+import {
+  ensureFreshXAccessToken,
+  saveXOAuthTokens,
+} from "../lib/x-oauth.js";
 
 const CLIENT_ID = process.env["X_CLIENT_ID"];
 const CLIENT_SECRET = process.env["X_CLIENT_SECRET"];
@@ -30,8 +34,39 @@ const USER_URL =
 const APP_TOKEN_URL = "https://api.x.com/oauth2/token";
 const USER_SHOW_URL = "https://api.x.com/1.1/users/show.json";
 
-// X OAuth 2.0 scopes needed for basic profile + username
-const SCOPES = ["users.read", "tweet.read"].join(" ");
+// X OAuth 2.0 scopes: profile read + optional offline refresh for background sync.
+const SCOPES = [
+  "users.read",
+  "tweet.read",
+  ...(process.env["X_OAUTH_OFFLINE_ACCESS"] !== "false" ? ["offline.access"] : []),
+].join(" ");
+
+function isProduction(): boolean {
+  return (
+    process.env["NODE_ENV"] === "production" ||
+    process.env["IS_PROD"] === "true"
+  );
+}
+
+/** Session cookies are Secure only in production (http://localhost dev). */
+function authCookieOptions(opts: {
+  maxAge: number;
+  path?: string;
+}): {
+  httpOnly: boolean;
+  secure: boolean;
+  sameSite: "lax";
+  maxAge: number;
+  path: string;
+} {
+  return {
+    httpOnly: true,
+    secure: isProduction(),
+    sameSite: "lax",
+    maxAge: opts.maxAge,
+    path: opts.path ?? "/",
+  };
+}
 
 // Challenge lifetime for wallet ownership proof (5 minutes)
 const CHALLENGE_TTL_MS = 5 * 60 * 1000;
@@ -61,6 +96,7 @@ interface XSessionPayload {
   x_username: string;
   x_display_name?: string;
   x_avatar_url?: string;
+  x_verified?: boolean;
   wallet?: string;
 }
 
@@ -186,7 +222,12 @@ async function exchangeCode(
   code: string,
   codeVerifier: string,
   redirectUri: string,
-): Promise<{ access_token: string } | null> {
+): Promise<{
+  access_token: string;
+  refresh_token?: string;
+  expires_in?: number;
+  scope?: string;
+} | null> {
   try {
     const params = new URLSearchParams();
     params.set("code", code);
@@ -212,8 +253,20 @@ async function exchangeCode(
       return null;
     }
 
-    const data = (await res.json()) as { access_token?: string };
-    return data.access_token ? (data as { access_token: string }) : null;
+    const data = (await res.json()) as {
+      access_token?: string;
+      refresh_token?: string;
+      expires_in?: number;
+      scope?: string;
+    };
+    return data.access_token
+      ? {
+          access_token: data.access_token,
+          refresh_token: data.refresh_token,
+          expires_in: data.expires_in,
+          scope: data.scope,
+        }
+      : null;
   } catch (err) {
     logger.warn({ err }, "X token exchange exception");
     return null;
@@ -231,41 +284,61 @@ let appBearerToken: string | null = null;
 // moment the underlying credentials/access are fixed.
 let appTokenKnownUnavailable = false;
 
+async function fetchAppBearerTokenWithCredentials(
+  clientId: string,
+  clientSecret: string,
+): Promise<string | null> {
+  const res = await fetch(APP_TOKEN_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      Authorization:
+        "Basic " + Buffer.from(`${clientId}:${clientSecret}`).toString("base64"),
+    },
+    body: "grant_type=client_credentials",
+  });
+  if (!res.ok) return null;
+  const data = (await res.json()) as { access_token?: string };
+  return data.access_token ?? null;
+}
+
 async function getAppBearerToken(forceRefresh = false): Promise<string | null> {
-  if (appTokenKnownUnavailable) return null;
+  if (appTokenKnownUnavailable && !forceRefresh) return null;
   if (appBearerToken && !forceRefresh) return appBearerToken;
-  if (!CLIENT_ID || !CLIENT_SECRET) return null;
+  if (forceRefresh) appTokenKnownUnavailable = false;
+
   try {
-    const res = await fetch(APP_TOKEN_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        Authorization:
-          "Basic " +
-          Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString("base64"),
-      },
-      body: "grant_type=client_credentials",
-    });
-    if (!res.ok) {
-      const text = await res.text();
-      // DIAGNOSED (confirmed via a live request, not assumed): this endpoint
-      // expects the classic OAuth 1.0a "Consumer Key/Secret" pair, not the
-      // OAuth 2.0 Client ID/Secret (X_CLIENT_ID/X_CLIENT_SECRET) this app
-      // uses for the PKCE user-login flow. With the current credentials it
-      // reliably returns 403 "Unable to verify your credentials" — so we
-      // mark it unavailable for this process rather than retry per login.
-      logger.warn(
-        { status: res.status, body: text },
-        "X app-only token fetch failed — banner fetch disabled for this process (wrong credential type or access tier for the v1.1 endpoint)",
-      );
-      if (res.status === 401 || res.status === 403) {
-        appTokenKnownUnavailable = true;
-      }
-      return null;
+  if (CLIENT_ID && CLIENT_SECRET) {
+    const token = await fetchAppBearerTokenWithCredentials(CLIENT_ID, CLIENT_SECRET);
+    if (token) {
+      appBearerToken = token;
+      appTokenKnownUnavailable = false;
+      return token;
     }
-    const data = (await res.json()) as { access_token?: string };
-    appBearerToken = data.access_token ?? null;
-    return appBearerToken;
+  }
+
+  // 2) Optional OAuth 1.0a Consumer Key / Secret (banner v1.1 fallback)
+  const consumerKey = process.env["X_CONSUMER_KEY"];
+  const consumerSecret = process.env["X_CONSUMER_SECRET"];
+  if (consumerKey && consumerSecret) {
+    const token = await fetchAppBearerTokenWithCredentials(
+      consumerKey,
+      consumerSecret,
+    );
+    if (token) {
+      appBearerToken = token;
+      appTokenKnownUnavailable = false;
+      return token;
+    }
+  }
+
+  if (!appTokenKnownUnavailable) {
+    logger.warn(
+      "X app-only token unavailable — banner fetch disabled (check API tier or set X_CONSUMER_KEY/X_CONSUMER_SECRET)",
+    );
+    appTokenKnownUnavailable = true;
+  }
+  return null;
   } catch (err) {
     logger.warn({ err }, "X app-only token fetch exception");
     return null;
@@ -332,6 +405,7 @@ async function upsertXUser(user: XUser): Promise<XSessionPayload> {
   // X reputation snapshot (null when X didn't return the field).
   const followers = user.public_metrics?.followers_count ?? null;
   const following = user.public_metrics?.following_count ?? null;
+  const tweetCount = user.public_metrics?.tweet_count ?? null;
   const verified = typeof user.verified === "boolean" ? user.verified : null;
   const xCreatedAt = user.created_at
     ? Math.floor(new Date(user.created_at).getTime() / 1000)
@@ -375,7 +449,8 @@ async function upsertXUser(user: XUser): Promise<XSessionPayload> {
            x_following_count = COALESCE($6, x_following_count),
            x_verified = COALESCE($7, x_verified),
            x_account_created_at = COALESCE($8, x_account_created_at),
-           x_banner_url = COALESCE($9, x_banner_url)
+           x_banner_url = COALESCE($9, x_banner_url),
+           x_tweet_count = COALESCE($10, x_tweet_count)
          WHERE id = $4`,
         [
           user.name || user.username,
@@ -387,6 +462,7 @@ async function upsertXUser(user: XUser): Promise<XSessionPayload> {
           verified,
           xCreatedAtValid,
           bannerUrl,
+          tweetCount,
         ],
         c,
       );
@@ -402,9 +478,9 @@ async function upsertXUser(user: XUser): Promise<XSessionPayload> {
         `INSERT INTO users (
            display_name, avatar_url, created_at, last_active,
            x_followers_count, x_following_count, x_verified, x_account_created_at,
-           x_banner_url
+           x_banner_url, x_tweet_count
          )
-         VALUES ($1, $2, $3, $3, $4, $5, $6, $7, $8)
+         VALUES ($1, $2, $3, $3, $4, $5, $6, $7, $8, $9)
          RETURNING id`,
         [
           user.name || user.username,
@@ -415,6 +491,7 @@ async function upsertXUser(user: XUser): Promise<XSessionPayload> {
           verified,
           xCreatedAtValid,
           bannerUrl,
+          tweetCount,
         ],
         c,
       );
@@ -435,6 +512,7 @@ async function upsertXUser(user: XUser): Promise<XSessionPayload> {
       x_username: user.username,
       x_display_name: user.name || user.username,
       x_avatar_url: user.profile_image_url || undefined,
+      x_verified: verified ?? undefined,
       wallet: wallet || undefined,
     };
   });
@@ -448,7 +526,18 @@ async function upsertXUser(user: XUser): Promise<XSessionPayload> {
 
 // ── Build the redirect URI ──────────────────────────────────────────────────
 function getRedirectUri(req: any): string {
-  // In production, use the public domain. In dev, use the request origin.
+  // Local dev: the browser always reaches the API via the frontend origin
+  // (Vite proxies /api). Use FRONTEND_URL so the callback matches the X app
+  // registration (e.g. http://localhost:5173/api/auth/x/callback).
+  const frontendUrl = process.env["FRONTEND_URL"];
+  if (
+    process.env.NODE_ENV !== "production" &&
+    frontendUrl &&
+    /^https?:\/\//.test(frontendUrl)
+  ) {
+    return `${frontendUrl.replace(/\/$/, "")}/api/auth/x/callback`;
+  }
+
   const host = req.headers["x-forwarded-host"] || req.headers.host || "blackpebble.fun";
   const proto = req.headers["x-forwarded-proto"] || "https";
   return `${proto}://${host}/api/auth/x/callback`;
@@ -481,13 +570,10 @@ router.get(
     // nonce-challenge-signature POST /api/auth/x/link-wallet endpoint to
     // prevent an attacker from binding a victim wallet during the OAuth flow.
     const pkceCookie = JSON.stringify({ codeVerifier, state });
-    res.cookie("__x_pkce", pkceCookie, {
-      httpOnly: true,
-      secure: true,
-      sameSite: "lax",
+    res.cookie("__x_pkce", pkceCookie, authCookieOptions({
       maxAge: 5 * 60 * 1000,
       path: "/api/auth/x",
-    });
+    }));
 
     const url = new URL(AUTHORIZE_URL);
     url.searchParams.set("response_type", "code");
@@ -550,17 +636,20 @@ router.get(
 
     const sessionPayload = await upsertXUser(xUser);
 
+    await saveXOAuthTokens(Number(sessionPayload.sub), {
+      accessToken: tokenResult.access_token,
+      refreshToken: tokenResult.refresh_token ?? null,
+      expiresIn: tokenResult.expires_in ?? null,
+      scope: tokenResult.scope ?? null,
+    });
+
     const token = await signSession(sessionPayload);
 
     // Clear PKCE cookie, set session cookie
     res.clearCookie("__x_pkce", { path: "/api/auth/x" });
-    res.cookie(COOKIE_NAME, token, {
-      httpOnly: true,
-      secure: true,
-      sameSite: "lax",
-      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-      path: "/",
-    });
+    res.cookie(COOKIE_NAME, token, authCookieOptions({
+      maxAge: 30 * 24 * 60 * 60 * 1000,
+    }));
 
     return res.redirect(`${FRONTEND_URL}?x_login=success`);
   }),
@@ -590,11 +679,51 @@ router.get(
     const token = req.cookies[COOKIE_NAME];
     if (!token) return res.json({ loggedIn: false });
 
-    const payload = await verifySession(token);
+    let payload = await verifySession(token);
     if (!payload) {
       res.clearCookie(COOKIE_NAME, { path: "/" });
       return res.json({ loggedIn: false });
     }
+
+    const userId = Number(payload.sub);
+    const now = Math.floor(Date.now() / 1000);
+
+    // Backfill x_verified for sessions issued before verified was in the JWT.
+    const row = await dbGet<{
+      x_verified: boolean | null;
+      last_active: number | null;
+    }>(
+      `SELECT x_verified, last_active FROM users WHERE id = $1`,
+      [userId],
+    );
+
+    if (row && payload.x_verified === undefined) {
+      payload = {
+        ...payload,
+        x_verified: row.x_verified ?? undefined,
+      };
+    }
+
+    // Background profile sync (max once per 6h) when X OAuth tokens are stored.
+    const stale = !row?.last_active || row.last_active < now - 6 * 3600;
+    if (stale) {
+      const accessToken = await ensureFreshXAccessToken(userId);
+      if (accessToken) {
+        const xUser = await fetchXUser(accessToken);
+        if (xUser && xUser.id === payload.x_id) {
+          const synced = await upsertXUser(xUser);
+          payload = {
+            ...synced,
+            wallet: payload.wallet ?? synced.wallet,
+          };
+        }
+      }
+    }
+
+    const refreshedJwt = await signSession(payload);
+    res.cookie(COOKIE_NAME, refreshedJwt, authCookieOptions({
+      maxAge: 30 * 24 * 60 * 60 * 1000,
+    }));
 
     return res.json({
       loggedIn: true,
@@ -604,6 +733,7 @@ router.get(
         x_username: payload.x_username,
         x_display_name: payload.x_display_name,
         x_avatar_url: payload.x_avatar_url,
+        x_verified: payload.x_verified ?? null,
         wallet: payload.wallet,
       },
     });
@@ -673,13 +803,9 @@ router.post(
       ...payload,
       wallet,
     });
-    res.cookie(COOKIE_NAME, newToken, {
-      httpOnly: true,
-      secure: true,
-      sameSite: "lax",
+    res.cookie(COOKIE_NAME, newToken, authCookieOptions({
       maxAge: 30 * 24 * 60 * 60 * 1000,
-      path: "/",
-    });
+    }));
 
     return res.json({ ok: true, wallet });
   }),

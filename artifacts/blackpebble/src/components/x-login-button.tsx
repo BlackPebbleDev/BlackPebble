@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
 import { useXAuth } from "@/hooks/use-x-auth";
+import { BadgeCheck } from "lucide-react";
 
 function XLogo({ className }: { className?: string }) {
   return (
@@ -28,8 +29,11 @@ export function XLoginButton({ className }: { className?: string }) {
           </div>
         )}
         <div className="hidden lg:flex flex-col items-start leading-tight">
-          <span className="text-[11px] text-foreground font-medium max-w-[120px] truncate">
+          <span className="text-[11px] text-foreground font-medium max-w-[120px] truncate inline-flex items-center gap-1">
             {user.x_display_name || user.x_username}
+            {user.x_verified ? (
+              <BadgeCheck className="w-3.5 h-3.5 text-sky-400 flex-shrink-0" aria-label="Verified on X" />
+            ) : null}
           </span>
           <span className="text-[10px] text-muted-foreground">@{user.x_username}</span>
         </div>

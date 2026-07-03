@@ -488,6 +488,7 @@ export const users = pgTable("users", {
   x_following_count: integer("x_following_count"),
   x_verified: boolean("x_verified"),
   x_account_created_at: bigint("x_account_created_at", { mode: "number" }),
+  x_tweet_count: integer("x_tweet_count"),
   // Owner-editable off-platform links (validated + normalized server-side):
   // website is a full http(s) URL; telegram is a bare handle; discord is a bare
   // invite code. Added idempotently at runtime in ensureProfileSchema.
