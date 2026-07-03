@@ -7,8 +7,9 @@ import {
   openLeverage,
   closeLeverage,
   valueLeveragePositions,
-  evaluateLeverage,
   getLeverageHistory,
+  getClosedLeveragePositions,
+  getRecentLeverageFills,
   getLeverageExitOrders,
   createLeverageExitOrder,
   updateLeverageExitOrder,
@@ -47,11 +48,13 @@ router.post(
       }
       marginSol = usd / solPrice;
     }
+    const direction = b.direction === "short" ? "short" : "long";
     const result = await openLeverage({
       wallet,
       mint,
       marginSol,
       leverage: Number(b.leverage),
+      direction,
       meta: { name: b.name ?? null, symbol: b.symbol ?? null, logo: b.logo ?? null },
       tpTriggerMc: b.tpTriggerMc != null ? Number(b.tpTriggerMc) : null,
       slTriggerMc: b.slTriggerMc != null ? Number(b.slTriggerMc) : null,
@@ -83,6 +86,12 @@ router.post(
   "/leverage/orders",
   requireOwnership((req) => String(req.body?.wallet || "").trim()),
   asyncHandler(async (req, res) => {
+    // Flag gates NEW risk (like open). Close / cancel stay available so users
+    // can always exit existing positions even if perps is turned off.
+    const flags = await getFeatureFlags();
+    if (!flags.leverage) {
+      return res.status(403).json({ ok: false, error: "Perps trading is not enabled." });
+    }
     const b = req.body ?? {};
     const result = await createLeverageExitOrder({
       wallet: String(b.wallet || "").trim(),
@@ -132,19 +141,13 @@ router.get(
   asyncHandler(async (req, res) => {
     const wallet = String(req.params.wallet || "").trim();
     if (!wallet) return res.status(400).json({ error: "wallet is required" });
+    // Read-only: liquidation / TP / SL evaluation runs on the background sweep
+    // cron, not here — a public GET must never mutate positions. Recent fills
+    // (from the sweep or manual closes elsewhere) are attached so the owner's
+    // client can announce them; the client dedupes by tradeId.
     const positions = await valueLeveragePositions(wallet);
     const solUsd = await getSolPriceUsd();
-    // Evaluate liquidation / TP / SL against the values we just fetched (no new
-    // external calls). Never let an eval error break the positions response.
-    let fills: Awaited<ReturnType<typeof evaluateLeverage>> = [];
-    try {
-      fills = await evaluateLeverage(wallet, positions);
-    } catch {
-      fills = [];
-    }
-    // Re-value after any closes so the client sees the post-close set.
-    const finalPositions =
-      fills.length > 0 ? await valueLeveragePositions(wallet) : positions;
+    const fills = await getRecentLeverageFills(wallet);
     // Attach each position's active exit orders (no extra external calls).
     const exitOrders = await getLeverageExitOrders(wallet);
     const ordersByPosition = new Map<number, LeverageExitOrderRow[]>();
@@ -153,7 +156,7 @@ router.get(
       list.push(o);
       ordersByPosition.set(o.position_id, list);
     }
-    const withOrders = finalPositions.map(
+    const withOrders = positions.map(
       (p: ValuedLeveragePosition) => ({
         ...p,
         exitOrders: ordersByPosition.get(p.id) ?? [],
@@ -170,6 +173,18 @@ router.get(
     if (!wallet) return res.status(400).json({ error: "wallet is required" });
     const trades = await getLeverageHistory(wallet);
     return res.json({ trades });
+  }),
+);
+
+// Closed / liquidated position snapshots (entry → exit, realized P&L, close
+// reason, timestamps) — the auditable per-position record behind the history.
+router.get(
+  "/leverage/closed/:wallet",
+  asyncHandler(async (req, res) => {
+    const wallet = String(req.params.wallet || "").trim();
+    if (!wallet) return res.status(400).json({ error: "wallet is required" });
+    const positions = await getClosedLeveragePositions(wallet);
+    return res.json({ positions });
   }),
 );
 

@@ -672,7 +672,7 @@ export function TradeActivityCard({
                 : "bg-secondary text-muted-foreground",
             )}
           >
-            {item.kind === "leverage" ? "Leverage" : "Spot"}
+            {item.kind === "leverage" ? "Perps" : "Spot"}
           </span>
           {showPnl && (
             <span

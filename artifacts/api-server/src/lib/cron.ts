@@ -3,6 +3,7 @@ import { dbAll, dbRun } from "./database.js";
 import { getPortfolio } from "./trading.js";
 import { getSolPriceUsd } from "./prices.js";
 import { refreshActiveCallPeaks } from "./peaks.js";
+import { ensureLeverageSchema, sweepAllLeverage } from "./leverage.js";
 import { logger } from "./logger.js";
 
 async function snapshotPortfolios(): Promise<void> {
@@ -38,6 +39,18 @@ async function snapshotPortfolios(): Promise<void> {
 export function startCron(): void {
   // Warm the SOL/USD cache immediately.
   getSolPriceUsd().catch(() => undefined);
+
+  // Additive perps schema upgrades (idempotent).
+  ensureLeverageSchema().catch((e) =>
+    logger.error({ err: e }, "ensureLeverageSchema failed"),
+  );
+
+  // Perps liquidation / TP / SL sweep. Runs every 20s so positions liquidate
+  // and triggers fire even when the owner is offline — no silent stale
+  // positions. Internally guarded against overlapping runs.
+  cron.schedule("*/20 * * * * *", () => {
+    sweepAllLeverage().catch(() => undefined);
+  });
 
   // Snapshot portfolios every 30 minutes for the performance chart.
   cron.schedule("*/30 * * * *", snapshotPortfolios);

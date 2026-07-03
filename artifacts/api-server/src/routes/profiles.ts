@@ -180,10 +180,11 @@ router.get(
       getOfficialBadgesForUser(profile.user_id),
     ]);
 
+    // Trust reads spot-only stats — simulated perps P&L never inflates trust.
     const badgeStats: BadgeStatsInput = {
-      closedTrades: profile.stats.closedTrades,
+      closedTrades: profile.stats.spotClosedTrades,
       realizedPnlSol: profile.stats.realizedPnlSol,
-      roiPercent: profile.stats.roiPercent,
+      roiPercent: profile.stats.spotRoiPercent,
       traderRank: profile.rank,
       callsMade: callerEntry?.callsMade ?? 0,
       bestMultiple: callerEntry?.bestMultiple ?? null,
@@ -208,10 +209,11 @@ router.get(
     if (!profile) return res.status(404).json({ error: "Profile not found" });
 
     const callerEntry = await getCallerStats(profile.user_id);
+    // Badge thresholds read spot-only stats (same isolation as trust).
     const badgeStats: BadgeStatsInput = {
-      closedTrades: profile.stats.closedTrades,
+      closedTrades: profile.stats.spotClosedTrades,
       realizedPnlSol: profile.stats.realizedPnlSol,
-      roiPercent: profile.stats.roiPercent,
+      roiPercent: profile.stats.spotRoiPercent,
       traderRank: profile.rank,
       callsMade: callerEntry?.callsMade ?? 0,
       bestMultiple: callerEntry?.bestMultiple ?? null,

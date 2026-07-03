@@ -1286,12 +1286,15 @@ export interface ExecuteResult {
   balance?: number;
 }
 
-// ---- Paper leverage trading ----
+// ---- Paper perps (leverage) trading ----
 export type LeverageCloseReason =
   | "manual"
   | "take_profit"
   | "stop_loss"
-  | "liquidated";
+  | "liquidated"
+  | "system_correction";
+
+export type LeverageDirection = "long" | "short";
 
 export interface LeveragePosition {
   id: number;
@@ -1341,6 +1344,9 @@ export interface LeverageFill {
   exitPriceSol: number | null;
   exitMarketCap: number | null;
   realizedPnlSol: number | null;
+  /** Trade row id — used to dedupe fill toasts across polls. */
+  tradeId?: number;
+  executedAt?: number;
 }
 
 export type LeverageExitKind = "take_profit" | "stop_loss";
@@ -1386,6 +1392,10 @@ export interface LeverageTrade {
   price_sol: number;
   market_cap: number | null;
   pnl_sol: number | null;
+  /** Why this slice closed; null on opens + legacy rows. */
+  close_reason: LeverageCloseReason | null;
+  /** Trigger level (USD MC) that fired this close; null for manual closes. */
+  trigger_mc: number | null;
   executed_at: number;
 }
 
@@ -1609,6 +1619,7 @@ export const api = {
       marginSol: number;
       marginUsd?: number | null;
       leverage: number;
+      direction?: LeverageDirection;
       tpTriggerMc?: number | null;
       slTriggerMc?: number | null;
     }) =>
@@ -1633,6 +1644,8 @@ export const api = {
       }>(`/leverage/positions/${wallet}`),
     history: (wallet: string) =>
       request<{ trades: LeverageTrade[] }>(`/leverage/history/${wallet}`),
+    closed: (wallet: string) =>
+      request<{ positions: LeveragePosition[] }>(`/leverage/closed/${wallet}`),
     createOrder: (body: {
       wallet: string;
       positionId: number;

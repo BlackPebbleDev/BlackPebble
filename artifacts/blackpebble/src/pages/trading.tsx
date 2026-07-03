@@ -1595,7 +1595,7 @@ function TradePanel({
                     : "text-muted-foreground hover:text-foreground",
                 )}
               >
-                {m === "spot" ? "Spot" : "Leverage"}
+                {m === "spot" ? "Spot" : "Perps"}
               </button>
             ))}
           </div>

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, ChevronDown, Loader2 } from "lucide-react";
-import { api, type TokenInfo } from "@/lib/api";
+import { api, type LeverageDirection, type TokenInfo } from "@/lib/api";
+import { PerpsInfoSheet } from "@/components/perps-info-sheet";
 import { useAccount } from "@/hooks/use-account";
 import { useTradeRate } from "@/hooks/use-sol-usd";
 import { useToast } from "@/hooks/use-toast";
@@ -36,7 +37,7 @@ function unitAmt(solValue: number, unit: Unit, solUsd: number | null): string {
 }
 
 /**
- * Leverage trade box (Phase 1: longs only). Fully separate from the spot panel.
+ * Perps trade box (simulated long + short). Fully separate from the spot panel.
  * Margin is debited from the paper balance; max loss is the margin (equity can
  * never go negative). Liquidation level + ROI previews update live as the trader
  * edits. Optional Take Profit / Stop Loss (by market cap) attach to the position.
@@ -67,6 +68,8 @@ export function LeveragePanel({ info }: { info: TokenInfo }) {
   }, [unit]);
   const [margin, setMargin] = useState("");
   const [leverage, setLeverage] = useState<number>(2);
+  const [direction, setDirection] = useState<LeverageDirection>("long");
+  const isShort = direction === "short";
   const [exitOpen, setExitOpen] = useState(false);
   const [tpEnabled, setTpEnabled] = useState(false);
   const [slEnabled, setSlEnabled] = useState(false);
@@ -110,10 +113,16 @@ export function LeveragePanel({ info }: { info: TokenInfo }) {
     return () => clearTimeout(id);
   }, [notionalSol]);
   const quoteEnabled = debouncedNotional > 0;
+  // A long enters like a buy, a short like a sell — quote the matching side so
+  // the previewed slippage reflects the actual entry fill.
   const { data: quote, isFetching: quoteFetching } = useQuery({
-    queryKey: ["leverage-quote", info.mint, debouncedNotional],
+    queryKey: ["leverage-quote", info.mint, debouncedNotional, direction],
     queryFn: () =>
-      api.quote({ mint: info.mint, side: "buy", solAmount: debouncedNotional }),
+      api.quote({
+        mint: info.mint,
+        side: isShort ? "sell" : "buy",
+        solAmount: debouncedNotional,
+      }),
     enabled: quoteEnabled,
     staleTime: 10_000,
   });
@@ -123,38 +132,55 @@ export function LeveragePanel({ info }: { info: TokenInfo }) {
   useEffect(() => {
     setMargin("");
     setLeverage(2);
+    setDirection("long");
     setTpEnabled(false);
     setSlEnabled(false);
     setTpMc("");
     setSlMc("");
   }, [info.mint]);
 
-  // Liquidation preview: price (and thus MC) at liquidation is
-  // entry × (1 − (1/lev − buffer)).
-  const liqDropPercent = 1 / leverage - MAINTENANCE_BUFFER;
+  // Clear the TP/SL fields on direction flip — the valid ranges invert, so a
+  // long's targets are always invalid for a short (and vice versa).
+  useEffect(() => {
+    setTpMc("");
+    setSlMc("");
+    setTpEnabled(false);
+    setSlEnabled(false);
+  }, [direction]);
+
+  // Liquidation preview. Longs liquidate when the market cap FALLS by
+  // (1/lev − buffer); shorts when it RISES by the same fraction.
+  const liqMovePercent = 1 / leverage - MAINTENANCE_BUFFER;
+  const liqFactor = isShort ? 1 + liqMovePercent : 1 - liqMovePercent;
   const entryMc = info.marketCapUsd;
   const liqMarketCap = useMemo(() => {
     if (entryMc == null || entryMc <= 0) return null;
-    return entryMc * (1 - liqDropPercent);
-  }, [entryMc, liqDropPercent]);
-  // Liquidation price in USD: entry price scaled by the same liquidation drop.
+    return entryMc * liqFactor;
+  }, [entryMc, liqFactor]);
+  // Liquidation price in USD: entry price scaled by the same liquidation move.
   const liqPriceUsd = useMemo(() => {
     if (info.priceUsd == null || info.priceUsd <= 0) return null;
-    return info.priceUsd * (1 - liqDropPercent);
-  }, [info.priceUsd, liqDropPercent]);
+    return info.priceUsd * liqFactor;
+  }, [info.priceUsd, liqFactor]);
 
-  // TP/SL validation against entry & liquidation market caps. Triggers need a
-  // known entry market cap to be meaningful, so they're disabled without one.
+  // TP/SL validation against entry & liquidation market caps, mirrored by
+  // direction: a long's TP is above entry, a short's TP is below entry (and
+  // its SL sits between entry and the liquidation level above it). Triggers
+  // need a known entry market cap to be meaningful, so they're disabled
+  // without one.
   const exitsAvailable = entryMc != null && entryMc > 0;
   const tpMcNum = parseAbbreviatedNumber(tpMc);
   const slMcNum = parseAbbreviatedNumber(slMc);
   const tpInvalid =
-    tpEnabled && (tpMcNum == null || (entryMc != null && tpMcNum <= entryMc));
+    tpEnabled &&
+    (tpMcNum == null ||
+      (entryMc != null && (isShort ? tpMcNum >= entryMc : tpMcNum <= entryMc)));
   const slInvalid =
     slEnabled &&
     (slMcNum == null ||
-      (entryMc != null && slMcNum >= entryMc) ||
-      (liqMarketCap != null && slMcNum <= liqMarketCap));
+      (entryMc != null && (isShort ? slMcNum <= entryMc : slMcNum >= entryMc)) ||
+      (liqMarketCap != null &&
+        (isShort ? slMcNum >= liqMarketCap : slMcNum <= liqMarketCap)));
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -171,6 +197,7 @@ export function LeveragePanel({ info }: { info: TokenInfo }) {
         marginSol,
         marginUsd,
         leverage,
+        direction,
         tpTriggerMc: tpEnabled && !tpInvalid ? tpMcNum : null,
         slTriggerMc: slEnabled && !slInvalid ? slMcNum : null,
       });
@@ -185,7 +212,7 @@ export function LeveragePanel({ info }: { info: TokenInfo }) {
         return;
       }
       toast({
-        title: `Opened ${leverage}x long`,
+        title: `Opened ${leverage}x ${direction}`,
         description: `${fmtSol(marginSol)} SOL margin → ${fmtSol(
           notionalSol,
         )} SOL position`,
@@ -252,6 +279,34 @@ export function LeveragePanel({ info }: { info: TokenInfo }) {
         <span className="font-mono text-foreground">
           {unitAmt(cashBalance, unit, solUsd)}
         </span>
+      </div>
+
+      {/* Direction — mirrors the spot Buy/Sell tab pattern. */}
+      <div
+        role="tablist"
+        aria-label="Position direction"
+        className="flex border border-border rounded-md p-0.5"
+      >
+        {(["long", "short"] as const).map((d) => (
+          <button
+            key={d}
+            type="button"
+            role="tab"
+            aria-selected={direction === d}
+            onClick={() => setDirection(d)}
+            data-testid={`button-perps-${d}`}
+            className={cn(
+              "flex-1 py-2 rounded-md text-xs font-medium uppercase tracking-wider transition-colors",
+              direction === d
+                ? d === "long"
+                  ? "bg-emerald-500/15 text-emerald-400"
+                  : "bg-red-500/15 text-red-400"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {d === "long" ? "Long" : "Short"}
+          </button>
+        ))}
       </div>
 
       <div>
@@ -391,7 +446,9 @@ export function LeveragePanel({ info }: { info: TokenInfo }) {
               </div>
               {tpInvalid && (
                 <p className="pl-5 text-[11px] text-red-400">
-                  Take Profit must be above the entry market cap.
+                  {isShort
+                    ? "Take Profit must be below the entry market cap."
+                    : "Take Profit must be above the entry market cap."}
                 </p>
               )}
             </div>
@@ -453,6 +510,16 @@ export function LeveragePanel({ info }: { info: TokenInfo }) {
             value={marginValid ? unitAmt(marginSol, unit, solUsd) : "—"}
             valueClass="text-red-400"
           />
+          <PreviewRow
+            label="Est. risk"
+            value={
+              marginValid && cashBalance > 0
+                ? `${Math.min((marginSol / cashBalance) * 100, 100).toFixed(1)}% of balance`
+                : "—"
+            }
+            valueClass="text-red-400"
+            testId="perps-est-risk"
+          />
           <PreviewRow label="Entry MC" value={fmtMarketCap(entryMc)} />
           <PreviewRow
             label="Liq. price"
@@ -466,14 +533,14 @@ export function LeveragePanel({ info }: { info: TokenInfo }) {
           />
           <PreviewRow
             label="Est. liq. %"
-            value={fmtPercent(-liqDropPercent * 100)}
+            value={fmtPercent((isShort ? 1 : -1) * liqMovePercent * 100)}
             valueClass="text-red-400"
           />
         </div>
 
         <div className="border-t border-border/60 pt-2">
           <div className="mb-1.5 text-[11px] uppercase tracking-wider text-muted-foreground">
-            ROI preview (price move)
+            ROI preview (move in your favor)
           </div>
           <div className="grid grid-cols-3 gap-2">
             {ROI_EXAMPLES.map((mv) => {
@@ -486,7 +553,8 @@ export function LeveragePanel({ info }: { info: TokenInfo }) {
                   data-testid={`roi-preview-${mv}`}
                 >
                   <div className="text-[11px] text-muted-foreground">
-                    +{mv * 100}%
+                    {isShort ? "−" : "+"}
+                    {mv * 100}%
                   </div>
                   <div className="font-mono text-[11px] text-emerald-400">
                     {marginValid ? `+${unitAmt(pnlSol, unit, solUsd)}` : "—"}
@@ -509,21 +577,26 @@ export function LeveragePanel({ info }: { info: TokenInfo }) {
         className={cn(
           "w-full h-11 text-sm font-medium transition-colors rounded-xl flex items-center justify-center gap-2",
           canSubmit
-            ? "bg-emerald-500/15 text-emerald-400 border border-emerald-400/40 hover:bg-emerald-500/25"
+            ? isShort
+              ? "bg-red-500/15 text-red-400 border border-red-400/40 hover:bg-red-500/25"
+              : "bg-emerald-500/15 text-emerald-400 border border-emerald-400/40 hover:bg-emerald-500/25"
             : "bg-muted text-muted-foreground cursor-not-allowed",
         )}
       >
         {mutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
         {marginValid
-          ? `Open ${leverage}x Long`
+          ? `Open ${leverage}x ${isShort ? "Short" : "Long"}`
           : `Min margin ${MIN_MARGIN_SOL} SOL`}
       </button>
 
-      <p className="text-[11px] leading-relaxed text-muted-foreground">
-        Longs only. Your position is force-closed if the price falls to the
-        liquidation level, losing the full margin. Leverage P&L is tracked
-        separately from your spot stats and the leaderboard.
-      </p>
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-[11px] leading-relaxed text-muted-foreground">
+          Simulated perps — no real funds are at risk. Your position is
+          force-closed at the liquidation level, losing the full margin. Perps
+          P&L is tracked separately from your spot stats and the leaderboard.
+        </p>
+        <PerpsInfoSheet />
+      </div>
     </div>
   );
 }

@@ -512,7 +512,7 @@ function JournalDashboard() {
               onChange={(v) => setTypeFilter(v as "" | "spot" | "leverage")}
               options={[
                 { value: "spot", label: "Spot" },
-                { value: "leverage", label: "Leverage" },
+                { value: "leverage", label: "Perps" },
               ]}
             />
             <Segmented
@@ -665,7 +665,7 @@ function JournalDashboard() {
                   }
                   options={[
                     { value: "spot", label: "Spot" },
-                    { value: "leverage", label: "Leverage" },
+                    { value: "leverage", label: "Perps" },
                   ]}
                 />
               </Field>

@@ -3,25 +3,34 @@ import { getExecutionPrice, getSolPriceUsd } from "./prices.js";
 import { computeSlippage } from "./slippage.js";
 import { maxTokensForSupply } from "./trading.js";
 import { logger } from "./logger.js";
+import {
+  computeLiquidation,
+  computeRealizedPnl,
+  exitOrderTriggered,
+  isLeverageDirection,
+  isLiquidated,
+  movePercentFrom,
+  validateTrigger,
+  MAINTENANCE_BUFFER,
+  type CloseReason,
+  type LeverageDirection,
+  type LeverageExitKind,
+} from "./leverage-math.js";
 
 const DEV = process.env.NODE_ENV !== "production";
 const EPOCH = "EXTRACT(EPOCH FROM NOW())::bigint";
 
 // ── Leverage constants ──────────────────────────────────────────────────────
-/** Allowed leverage multipliers (longs only in Phase 1). */
+/** Allowed leverage multipliers. */
 export const ALLOWED_LEVERAGE = [2, 5, 10, 20] as const;
 /** Minimum margin (SOL) — mirrors the spot MIN_TRADE_SOL. */
 export const MIN_MARGIN_SOL = 0.1;
 /** Per-wallet cap on simultaneously open leverage positions. */
 export const MAX_LEVERAGE_POSITIONS = 10;
-/**
- * Maintenance buffer: liquidates slightly EARLY so account equity can never go
- * negative. liquidation_drop_percent = (1 / leverage) − MAINTENANCE_BUFFER, so
- * the position is force-closed before the margin is fully wiped out.
- */
-export const MAINTENANCE_BUFFER = 0.005;
 /** A position stuck in 'closing' longer than this is released back to 'open'. */
 const CLOSING_STALE_SECONDS = 60;
+/** An exit order stuck in 'filling' longer than this is released to 'pending'. */
+const FILLING_STALE_SECONDS = 60;
 /** Per-position caps on manageable exit orders. */
 export const MAX_LEVERAGE_TP = 4;
 export const MAX_LEVERAGE_SL = 1;
@@ -31,19 +40,8 @@ export const MAX_LEVERAGE_SL = 1;
  */
 const DUST_NOTIONAL_SOL = 0.001;
 
-export type LeverageDirection = "long";
-export type CloseReason = "manual" | "take_profit" | "stop_loss" | "liquidated";
-export type LeverageExitKind = "take_profit" | "stop_loss";
-
-/** Liquidation level for a long, derived from entry + leverage + buffer. */
-export function computeLiquidation(
-  entryPriceSol: number,
-  leverage: number,
-): { liqDropPercent: number; liqPriceSol: number } {
-  const liqDropPercent = 1 / leverage - MAINTENANCE_BUFFER;
-  const liqPriceSol = entryPriceSol * (1 - liqDropPercent);
-  return { liqDropPercent, liqPriceSol };
-}
+export { MAINTENANCE_BUFFER, computeLiquidation };
+export type { CloseReason, LeverageDirection, LeverageExitKind };
 
 // ── Row + view types ────────────────────────────────────────────────────────
 export interface LeveragePositionRow {
@@ -79,7 +77,10 @@ export interface LeveragePositionRow {
 export interface ValuedLeveragePosition extends LeveragePositionRow {
   currentPriceSol: number | null;
   currentMarketCapUsd: number | null;
-  /** (current − entry) / entry, as a fraction. Null when price unavailable. */
+  /**
+   * Direction-signed move as a fraction of entry (positive = profit for this
+   * position's direction). Null when price unavailable.
+   */
   priceMovePercent: number | null;
   /** notional × priceMovePercent (SOL). Null when price unavailable. */
   unrealizedPnlSol: number | null;
@@ -154,11 +155,15 @@ export async function openLeverage(opts: {
   mint: string;
   marginSol: number;
   leverage: number;
+  direction?: LeverageDirection;
   meta: LeverageTradeMeta;
   tpTriggerMc?: number | null;
   slTriggerMc?: number | null;
 }): Promise<OpenLeverageResult> {
   const { wallet, mint, marginSol, leverage, meta } = opts;
+  const direction: LeverageDirection = isLeverageDirection(opts.direction)
+    ? opts.direction
+    : "long";
 
   if (!(ALLOWED_LEVERAGE as readonly number[]).includes(leverage)) {
     return { ok: false, error: "Leverage must be 2x, 5x, 10x, or 20x." };
@@ -179,9 +184,11 @@ export async function openLeverage(opts: {
   const notionalSol = marginSol * leverage;
   const notionalUsd = notionalSol * solUsd;
 
-  // Slippage / supply caps apply to the FULL notional, exactly like a spot buy.
+  // Slippage / supply caps apply to the FULL notional, exactly like a spot
+  // trade. A long enters like a buy (slippage pushes entry up); a short enters
+  // like a sell (slippage pushes entry down) — the adverse side either way.
   const slip = computeSlippage({
-    side: "buy",
+    side: direction === "short" ? "sell" : "buy",
     rawPriceUsd: priceUsd,
     solUsd,
     liquidityUsd,
@@ -213,7 +220,7 @@ export async function openLeverage(opts: {
     marketCapUsd != null && Number.isFinite(marketCapUsd) && marketCapUsd > 0
       ? marketCapUsd
       : null;
-  const { liqPriceSol } = computeLiquidation(entryPriceSol, leverage);
+  const { liqPriceSol } = computeLiquidation(entryPriceSol, leverage, direction);
   const liqMc = entryMc != null ? entryMc * (liqPriceSol / entryPriceSol) : null;
 
   const tpTriggerMc =
@@ -224,6 +231,14 @@ export async function openLeverage(opts: {
     opts.slTriggerMc != null && Number.isFinite(opts.slTriggerMc) && opts.slTriggerMc > 0
       ? opts.slTriggerMc
       : null;
+  if (tpTriggerMc != null) {
+    const err = validateTrigger(direction, "take_profit", tpTriggerMc, entryMc, liqMc);
+    if (err) return { ok: false, error: err };
+  }
+  if (slTriggerMc != null) {
+    const err = validateTrigger(direction, "stop_loss", slTriggerMc, entryMc, liqMc);
+    if (err) return { ok: false, error: err };
+  }
 
   const now = Math.floor(Date.now() / 1000);
 
@@ -232,6 +247,7 @@ export async function openLeverage(opts: {
       {
         symbol: meta.symbol,
         mint,
+        direction,
         marginSol,
         leverage,
         notionalSol,
@@ -285,7 +301,7 @@ export async function openLeverage(opts: {
           entry_market_cap, liq_price_sol, liq_market_cap, tp_trigger_mc,
           sl_trigger_mc, status, entry_slippage_percent, entry_trade_impact_percent,
           opened_at, updated_at)
-       VALUES ($1,$2,$3,$4,$5,'long',$6,$7,$8,$9,$10,$11,$12,$13,NULL,NULL,'open',$14,$15,${EPOCH},${EPOCH})
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,NULL,NULL,'open',$15,$16,${EPOCH},${EPOCH})
        RETURNING *`,
       [
         wallet,
@@ -293,6 +309,7 @@ export async function openLeverage(opts: {
         meta.name ?? null,
         meta.symbol ?? null,
         meta.logo ?? null,
+        direction,
         leverage,
         marginSol,
         notionalSol,
@@ -338,7 +355,7 @@ export async function openLeverage(opts: {
          (position_id, wallet, token_mint, token_name, token_symbol, token_logo,
           action, direction, leverage, margin_sol, notional_sol, tokens,
           price_sol, market_cap, pnl_sol, executed_at)
-       VALUES ($1,$2,$3,$4,$5,$6,'open','long',$7,$8,$9,$10,$11,$12,NULL,${EPOCH})`,
+       VALUES ($1,$2,$3,$4,$5,$6,'open',$7,$8,$9,$10,$11,$12,$13,NULL,${EPOCH})`,
       [
         inserted!.id,
         wallet,
@@ -346,6 +363,7 @@ export async function openLeverage(opts: {
         meta.name ?? null,
         meta.symbol ?? null,
         meta.logo ?? null,
+        direction,
         leverage,
         marginSol,
         notionalSol,
@@ -402,16 +420,18 @@ export async function valueLeveragePositions(
     // P&L tracks the token's USD market-cap move — the same basis as the entry
     // MC, the chart (MCAP/USD), the TP/SL triggers and the Liq MC shown to the
     // trader. Fall back to the SOL-denominated price move only when market-cap
-    // data is unavailable, so a long is never liquidated or marked down purely
-    // because SOL/USD moved.
-    const priceMovePercent =
-      currentMarketCapUsd != null &&
-      p.entry_market_cap != null &&
-      p.entry_market_cap > 0
-        ? (currentMarketCapUsd - p.entry_market_cap) / p.entry_market_cap
-        : currentPriceSol != null && p.entry_price_sol > 0
-          ? (currentPriceSol - p.entry_price_sol) / p.entry_price_sol
-          : null;
+    // data is unavailable, so a position is never liquidated or marked down
+    // purely because SOL/USD moved. The move is signed by direction: positive
+    // is always profit (shorts gain when the market cap falls).
+    const direction: LeverageDirection =
+      p.direction === "short" ? "short" : "long";
+    const priceMovePercent = movePercentFrom(
+      direction,
+      p.entry_market_cap,
+      currentMarketCapUsd,
+      p.entry_price_sol,
+      currentPriceSol,
+    );
     const unrealizedPnlSol =
       priceMovePercent != null ? p.notional_sol * priceMovePercent : null;
     const roiOnMargin =
@@ -453,6 +473,12 @@ async function performClose(
   exitMarketCap: number | null,
   reason: CloseReason,
   fraction = 1,
+  /**
+   * The trigger level (USD MC) that caused this close — the liquidation MC for
+   * liquidations, the exit order's trigger for TP/SL, null for manual closes.
+   * Persisted on the trade row so every close is individually explainable.
+   */
+  triggerMc: number | null = null,
 ): Promise<CloseLeverageResult> {
   const now = Math.floor(Date.now() / 1000);
   return withTx(async (c): Promise<CloseLeverageResult> => {
@@ -472,6 +498,8 @@ async function performClose(
     const notional = claimed.notional_sol;
     const tokens = claimed.tokens;
     const entry = claimed.entry_price_sol;
+    const direction: LeverageDirection =
+      claimed.direction === "short" ? "short" : "long";
 
     // Liquidation always closes 100%. Otherwise clamp the requested fraction and
     // promote near-full / dust-leaving closes to a full close so a position can
@@ -497,22 +525,29 @@ async function performClose(
       realizedPnl = -margin;
       credit = 0;
       action = "liquidated";
+    } else if (reason === "system_correction") {
+      // Administrative close (e.g. season reset): return the margin untouched,
+      // no P&L. Every such close still leaves a fully-attributed trade row.
+      realizedPnl = 0;
+      credit = closedMargin;
+      action = "close";
     } else {
       // Realized P&L tracks the token's USD market-cap move (consistent with the
-      // valuation, the liquidation level and the TP/SL triggers). Fall back to
-      // the SOL-denominated price move only when market-cap data is unavailable
-      // at entry or exit.
-      const entryMc = claimed.entry_market_cap;
-      const priceMovePercent =
-        entryMc != null && entryMc > 0 && exitMarketCap != null
-          ? (exitMarketCap - entryMc) / entryMc
-          : entry > 0
-            ? (exitPriceSol - entry) / entry
-            : 0;
-      const rawPnl = closedNotional * priceMovePercent;
+      // valuation, the liquidation level and the TP/SL triggers), signed by
+      // direction so shorts profit on a falling market cap. Falls back to the
+      // SOL-denominated price move only when market-cap data is unavailable.
+      const movePercent =
+        movePercentFrom(
+          direction,
+          claimed.entry_market_cap,
+          exitMarketCap,
+          entry,
+          exitPriceSol,
+        ) ?? 0;
       // Max loss on the closed slice is its margin; equity can never go negative.
-      realizedPnl = Math.max(rawPnl, -closedMargin);
-      credit = Math.max(0, closedMargin + realizedPnl);
+      const r = computeRealizedPnl(closedNotional, movePercent, closedMargin);
+      realizedPnl = r.realizedPnlSol;
+      credit = r.creditSol;
       action = "close";
     }
 
@@ -575,8 +610,8 @@ async function performClose(
       `INSERT INTO paper_leverage_trades
          (position_id, wallet, token_mint, token_name, token_symbol, token_logo,
           action, direction, leverage, margin_sol, notional_sol, tokens,
-          price_sol, market_cap, pnl_sol, executed_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,'long',$8,$9,$10,$11,$12,$13,$14,${EPOCH})`,
+          price_sol, market_cap, pnl_sol, close_reason, trigger_mc, executed_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,${EPOCH})`,
       [
         claimed.id,
         wallet,
@@ -585,6 +620,7 @@ async function performClose(
         claimed.token_symbol,
         claimed.token_logo,
         action,
+        direction,
         claimed.leverage,
         closedMargin,
         closedNotional,
@@ -592,6 +628,8 @@ async function performClose(
         exitPriceSol,
         exitMarketCap,
         realizedPnl,
+        reason,
+        triggerMc,
       ],
       c,
     );
@@ -661,6 +699,15 @@ export async function evaluateLeverage(
        AND updated_at < ${EPOCH} - $2`,
     [wallet, CLOSING_STALE_SECONDS],
   );
+  // Release exit orders stuck mid-fill by a crashed request so a TP/SL can
+  // never be silently wedged in 'filling' forever.
+  await dbRun(
+    `UPDATE paper_leverage_exit_orders
+       SET status = 'pending', updated_at = ${EPOCH}, fill_reason = 'stale_filling_released'
+     WHERE wallet = $1 AND status = 'filling'
+       AND updated_at < ${EPOCH} - $2`,
+    [wallet, FILLING_STALE_SECONDS],
+  );
 
   // Batch-load every pending exit order for the wallet, grouped by position.
   const pendingOrders = await dbAll<LeverageExitOrderRow>(
@@ -682,18 +729,32 @@ export async function evaluateLeverage(
     const price = p.currentPriceSol;
     const mc = p.currentMarketCapUsd;
     if (price == null || !Number.isFinite(price)) continue;
+    const direction: LeverageDirection =
+      p.direction === "short" ? "short" : "long";
 
     // 1. Liquidation (full close, highest precedence). The token's USD market
-    //    cap has fallen to/through the liquidation level — same basis as the
-    //    entry MC, the chart, the triggers and the Liq MC shown to the trader.
-    //    Fall back to the SOL price only when market-cap data is unavailable, so
-    //    a long is never liquidated purely because SOL/USD appreciated.
-    const liquidated =
-      mc != null && p.liq_market_cap != null
-        ? mc <= p.liq_market_cap
-        : price <= p.liq_price_sol;
+    //    cap has crossed the liquidation level — same basis as the entry MC,
+    //    the chart, the triggers and the Liq MC shown to the trader. Longs
+    //    liquidate when MC falls to the level; shorts when it rises to it.
+    //    Fall back to the SOL price only when market-cap data is unavailable,
+    //    so a position is never liquidated purely because SOL/USD moved.
+    const liquidated = isLiquidated(
+      direction,
+      mc,
+      p.liq_market_cap,
+      price,
+      p.liq_price_sol,
+    );
     if (liquidated) {
-      const res = await performClose(wallet, p.id, price, mc, "liquidated", 1);
+      const res = await performClose(
+        wallet,
+        p.id,
+        price,
+        mc,
+        "liquidated",
+        1,
+        p.liq_market_cap,
+      );
       if (res.ok) {
         fills.push({
           positionId: p.id,
@@ -714,16 +775,33 @@ export async function evaluateLeverage(
     const orders = ordersByPosition.get(p.id) ?? [];
     if (orders.length === 0) continue;
 
-    // 2. Stop-loss first (risk management precedence): trigger when MC has
-    //    fallen to/through the stop. 3. Then take-profit rungs in ascending
-    //    trigger order: trigger when MC has risen to/through each target.
+    // 2. Stop-loss first (risk management precedence), then take-profit rungs
+    //    in trigger order. Trigger comparisons are direction-aware: for longs a
+    //    stop fires when MC falls to it and a TP when MC rises to it; shorts
+    //    are mirrored.
     const triggered = [
       ...orders
-        .filter((o) => o.kind === "stop_loss" && mc <= o.trigger_mc)
-        .sort((a, b) => b.trigger_mc - a.trigger_mc),
+        .filter(
+          (o) =>
+            o.kind === "stop_loss" &&
+            exitOrderTriggered(direction, "stop_loss", mc, o.trigger_mc),
+        )
+        .sort((a, b) =>
+          direction === "short"
+            ? a.trigger_mc - b.trigger_mc
+            : b.trigger_mc - a.trigger_mc,
+        ),
       ...orders
-        .filter((o) => o.kind === "take_profit" && mc >= o.trigger_mc)
-        .sort((a, b) => a.trigger_mc - b.trigger_mc),
+        .filter(
+          (o) =>
+            o.kind === "take_profit" &&
+            exitOrderTriggered(direction, "take_profit", mc, o.trigger_mc),
+        )
+        .sort((a, b) =>
+          direction === "short"
+            ? b.trigger_mc - a.trigger_mc
+            : a.trigger_mc - b.trigger_mc,
+        ),
     ];
 
     for (const order of triggered) {
@@ -747,6 +825,7 @@ export async function evaluateLeverage(
         mc,
         reason,
         order.percent / 100,
+        order.trigger_mc,
       );
 
       if (res.ok) {
@@ -789,30 +868,6 @@ export async function evaluateLeverage(
 }
 
 // ── Exit-order CRUD ─────────────────────────────────────────────────────────
-/**
- * Validate a trigger market cap for a given exit kind against the position's
- * entry / liquidation market caps. Returns an error string, or null if valid.
- */
-function validateTrigger(
-  kind: LeverageExitKind,
-  triggerMc: number,
-  entryMc: number | null,
-  liqMc: number | null,
-): string | null {
-  if (kind === "take_profit") {
-    if (entryMc != null && triggerMc <= entryMc) {
-      return "Take Profit must be above the entry market cap.";
-    }
-  } else {
-    if (entryMc != null && triggerMc >= entryMc) {
-      return "Stop Loss must be below the entry market cap.";
-    }
-    if (liqMc != null && triggerMc <= liqMc) {
-      return "Stop Loss must be above the liquidation market cap.";
-    }
-  }
-  return null;
-}
 
 /** All active (pending/filling) exit orders for a wallet. */
 export async function getLeverageExitOrders(
@@ -860,6 +915,7 @@ export async function createLeverageExitOrder(input: {
     if (pos.status !== "open") return { ok: false, error: "Position is not open." };
 
     const triggerError = validateTrigger(
+      pos.direction === "short" ? "short" : "long",
       input.kind,
       triggerMc,
       pos.entry_market_cap,
@@ -939,6 +995,7 @@ export async function updateLeverageExitOrder(input: {
       return { ok: false, error: "percent must be between 1 and 100." };
     }
     const triggerError = validateTrigger(
+      pos.direction === "short" ? "short" : "long",
       order.kind === "stop_loss" ? "stop_loss" : "take_profit",
       newTrigger,
       pos.entry_market_cap,
@@ -997,6 +1054,10 @@ export interface LeverageTradeRow {
   price_sol: number;
   market_cap: number | null;
   pnl_sol: number | null;
+  /** Why this slice closed: manual | take_profit | stop_loss | liquidated | system_correction. Null on opens + legacy rows. */
+  close_reason: string | null;
+  /** The trigger level (USD MC) that fired this close; null for manual closes + opens. */
+  trigger_mc: number | null;
   executed_at: number;
 }
 
@@ -1021,6 +1082,146 @@ export interface LeveragePortfolioSummary {
   /** Total realized leverage P&L to date (separate from spot realized_pnl). */
   realizedPnlSol: number;
   solUsd: number;
+}
+
+/**
+ * Closed / liquidated position rows (final snapshots with cumulative realized
+ * P&L, exit price/MC, close reason and timestamps) — newest first.
+ */
+export async function getClosedLeveragePositions(
+  wallet: string,
+  limit = 100,
+): Promise<LeveragePositionRow[]> {
+  return dbAll<LeveragePositionRow>(
+    `SELECT * FROM paper_leverage_positions
+     WHERE wallet = $1 AND status IN ('closed','liquidated')
+     ORDER BY closed_at DESC NULLS LAST, id DESC
+     LIMIT $2`,
+    [wallet, limit],
+  );
+}
+
+/**
+ * Recent close/liquidation events for a wallet — lets the read-only positions
+ * endpoint surface fills produced by the background sweep so the client can
+ * toast them (deduped client-side by trade id).
+ */
+export interface RecentLeverageFill extends LeverageFill {
+  tradeId: number;
+  executedAt: number;
+}
+
+export async function getRecentLeverageFills(
+  wallet: string,
+  sinceSeconds = 90,
+): Promise<RecentLeverageFill[]> {
+  const rows = await dbAll<LeverageTradeRow>(
+    `SELECT * FROM paper_leverage_trades
+     WHERE wallet = $1 AND action IN ('close','liquidated')
+       AND executed_at >= ${EPOCH} - $2
+     ORDER BY executed_at DESC, id DESC
+     LIMIT 20`,
+    [wallet, sinceSeconds],
+  );
+  return rows.map((t) => ({
+    tradeId: t.id,
+    positionId: t.position_id,
+    tokenMint: t.token_mint,
+    tokenSymbol: t.token_symbol,
+    reason:
+      (t.close_reason as CloseReason | null) ??
+      (t.action === "liquidated" ? "liquidated" : "manual"),
+    exitPriceSol: t.price_sol,
+    exitMarketCap: t.market_cap,
+    realizedPnlSol: t.pnl_sol,
+    executedAt: t.executed_at,
+  }));
+}
+
+// ── Background sweep ────────────────────────────────────────────────────────
+/**
+ * Evaluate liquidation / TP / SL for EVERY wallet with open positions. Runs on
+ * a cron so positions liquidate and triggers fire even when the owner is not
+ * polling — no silent stale positions. Prices come from the shared execution
+ * price cache (one fetch per distinct mint per wallet pass).
+ */
+let sweepRunning = false;
+
+export async function sweepAllLeverage(): Promise<void> {
+  if (sweepRunning) return; // never overlap two sweeps
+  sweepRunning = true;
+  try {
+    const wallets = await dbAll<{ wallet: string }>(
+      `SELECT DISTINCT wallet FROM paper_leverage_positions
+       WHERE status IN ('open','closing')`,
+    );
+    for (const { wallet } of wallets) {
+      try {
+        const valued = await valueLeveragePositions(wallet);
+        const fills = await evaluateLeverage(wallet, valued);
+        if (fills.length > 0) {
+          logger.info(
+            { wallet, fills: fills.map((f) => ({ id: f.positionId, reason: f.reason })) },
+            "[leverage-sweep] fills executed",
+          );
+        }
+      } catch (e) {
+        logger.warn({ err: e, wallet }, "[leverage-sweep] wallet sweep failed");
+      }
+    }
+  } catch (e) {
+    logger.error({ err: e }, "[leverage-sweep] sweep failed");
+  } finally {
+    sweepRunning = false;
+  }
+}
+
+// ── Season reset ────────────────────────────────────────────────────────────
+/**
+ * Force-close every open leverage position (reason: system_correction) so a
+ * season reset can never leave orphaned positions with margin debited from a
+ * balance that no longer exists. Margin handling is irrelevant post-reset (the
+ * balance is re-seeded), but each close still writes a fully-attributed trade
+ * row + position snapshot so history stays auditable.
+ */
+export async function closeAllLeverageForReset(wallet?: string): Promise<number> {
+  const open = wallet
+    ? await dbAll<LeveragePositionRow>(
+        `SELECT * FROM paper_leverage_positions WHERE wallet = $1 AND status IN ('open','closing')`,
+        [wallet],
+      )
+    : await dbAll<LeveragePositionRow>(
+        `SELECT * FROM paper_leverage_positions WHERE status IN ('open','closing')`,
+      );
+  let closed = 0;
+  for (const p of open) {
+    // Reuse performClose for consistent accounting/logging; exit at entry so
+    // the event carries a sane price even when live data is unavailable.
+    const res = await performClose(
+      p.wallet,
+      p.id,
+      p.entry_price_sol,
+      p.entry_market_cap,
+      "system_correction",
+      1,
+    );
+    if (res.ok) closed += 1;
+  }
+  return closed;
+}
+
+// ── Schema ensure ───────────────────────────────────────────────────────────
+/**
+ * Additive, idempotent schema upgrades for perps auditability. Runs at boot so
+ * deployments don't depend on an out-of-band drizzle push.
+ */
+export async function ensureLeverageSchema(): Promise<void> {
+  await dbRun(
+    `ALTER TABLE paper_leverage_trades ADD COLUMN IF NOT EXISTS close_reason TEXT`,
+  );
+  await dbRun(
+    `ALTER TABLE paper_leverage_trades ADD COLUMN IF NOT EXISTS trigger_mc DOUBLE PRECISION`,
+  );
 }
 
 export async function getLeveragePortfolio(

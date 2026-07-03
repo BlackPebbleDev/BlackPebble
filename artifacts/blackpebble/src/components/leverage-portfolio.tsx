@@ -34,7 +34,25 @@ const FILL_LABELS: Record<string, string> = {
   take_profit: "Take-profit hit",
   stop_loss: "Stop-loss hit",
   manual: "Closed",
+  system_correction: "Closed (system)",
 };
+
+/** Human labels + colors for a close reason in history. */
+const REASON_BADGES: Record<string, { label: string; className: string }> = {
+  manual: { label: "Manual", className: "bg-muted text-muted-foreground" },
+  take_profit: { label: "Take Profit", className: "bg-emerald-500/15 text-emerald-400" },
+  stop_loss: { label: "Stop Loss", className: "bg-red-500/15 text-red-400" },
+  liquidated: { label: "Liquidated", className: "bg-red-500/25 text-red-400" },
+  system_correction: { label: "System", className: "bg-muted text-muted-foreground" },
+};
+
+function isShortPosition(direction: string): boolean {
+  return direction === "short";
+}
+
+function directionLabel(direction: string): string {
+  return isShortPosition(direction) ? "Short" : "Long";
+}
 
 /** Current market value of a leverage position: notional + unrealized P&L. */
 function currentValueSol(p: LeveragePosition): number | null {
@@ -42,15 +60,18 @@ function currentValueSol(p: LeveragePosition): number | null {
 }
 
 /**
- * Distance from the current market cap down to the liquidation market cap, as a
+ * Distance from the current market cap to the liquidation market cap, as a
  * percentage of the current market cap. Smaller = closer to liquidation.
- *   distance% = ((currentMC − liqMC) / currentMC) × 100
+ * Longs liquidate below the current MC, shorts above it — the distance is
+ * positive while the position is alive either way.
  */
 function distanceToLiqPercent(p: LeveragePosition): number | null {
   const cur = p.currentMarketCapUsd;
   const liq = p.liq_market_cap;
   if (cur == null || liq == null || cur <= 0) return null;
-  return ((cur - liq) / cur) * 100;
+  return isShortPosition(p.direction)
+    ? ((liq - cur) / cur) * 100
+    : ((cur - liq) / cur) * 100;
 }
 
 function fmtDistance(d: number | null): string {
@@ -81,18 +102,33 @@ function useLeverageData(wallet: string, announce = true) {
     enabled: !!wallet,
   });
 
+  // On the very first response, mark everything already-seen without toasting:
+  // the server returns recent fills from the last ~90s, which would otherwise
+  // replay stale events on every page load.
+  const fillsPrimed = useRef(false);
   useEffect(() => {
     if (!announce) return;
     const fills = posData?.fills ?? [];
-    const fresh = fills.filter((f) => !seenFills.current.has(f.positionId));
+    if (!fillsPrimed.current) {
+      if (posData) {
+        for (const f of fills) seenFills.current.add(f.tradeId ?? f.positionId);
+        fillsPrimed.current = true;
+      }
+      return;
+    }
+    // Dedupe by trade id (unique per close event — a position can produce
+    // several partial-close fills, so positionId alone is not enough).
+    const fresh = fills.filter(
+      (f) => !seenFills.current.has(f.tradeId ?? f.positionId),
+    );
     if (fresh.length === 0) return;
     for (const f of fresh) {
-      seenFills.current.add(f.positionId);
+      seenFills.current.add(f.tradeId ?? f.positionId);
       announceFill(f, toast);
     }
     qc.invalidateQueries({ queryKey: ["account"] });
     qc.invalidateQueries({ queryKey: ["leverage-history", wallet] });
-  }, [posData?.fills, qc, toast, wallet, announce]);
+  }, [posData, qc, toast, wallet, announce]);
 
   const closeMutation = useMutation({
     mutationFn: ({ id, percent }: { id: number; percent?: number }) =>
@@ -214,7 +250,7 @@ export function LeveragePortfolioSection({
     <section className="mt-8">
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-lg font-semibold">
-          Leverage Positions ({positions.length})
+          Perps Positions ({positions.length})
         </h2>
         <div className="flex gap-4 text-xs text-muted-foreground">
           <span>
@@ -238,7 +274,7 @@ export function LeveragePortfolioSection({
 
       {positions.length === 0 ? (
         <div className="rounded-xl bg-card shadow-card px-4 py-8 text-center text-sm text-muted-foreground">
-          No open leverage positions.
+          No open perps positions.
         </div>
       ) : (
         <div className="space-y-2">
@@ -257,7 +293,7 @@ export function LeveragePortfolioSection({
 
       {trades.length > 0 && (
         <>
-          <h2 className="mb-3 mt-8 text-lg font-semibold">Leverage History</h2>
+          <h2 className="mb-3 mt-8 text-lg font-semibold">Perps History</h2>
           <LeverageHistoryTable trades={trades} onNavigate={onNavigate} />
         </>
       )}
@@ -286,8 +322,8 @@ export function TokenLeverageActivity({
   const tokenTrades = trades.filter((t) => t.token_mint === mint);
 
   const tabs = [
-    { id: "positions" as const, label: "Leverage Positions" },
-    { id: "history" as const, label: "Leverage History" },
+    { id: "positions" as const, label: "Perps Positions" },
+    { id: "history" as const, label: "Perps History" },
   ];
 
   return (
@@ -322,7 +358,7 @@ export function TokenLeverageActivity({
         <div className="p-3">
           {tokenPositions.length === 0 ? (
             <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-              No open leverage positions for this token.
+              No open perps positions for this token.
             </div>
           ) : (
             <div className="space-y-2">
@@ -347,7 +383,7 @@ export function TokenLeverageActivity({
         <div className="p-3">
           {tokenTrades.length === 0 ? (
             <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-              No leverage history for this token.
+              No perps history for this token.
             </div>
           ) : (
             <LeverageHistoryTable trades={tokenTrades} onNavigate={onNavigate} />
@@ -413,15 +449,21 @@ function LeverageRow({
           <div>
             <div className="flex items-center gap-1.5 text-sm font-medium">
               {p.token_symbol ?? "Token"}
-              <span className="text-[11px] font-semibold uppercase text-accent">
-                {p.leverage}x Long
+              <span
+                className={cn(
+                  "rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase",
+                  isShortPosition(p.direction)
+                    ? "bg-red-500/15 text-red-400"
+                    : "bg-emerald-500/15 text-emerald-400",
+                )}
+              >
+                {p.leverage}x {directionLabel(p.direction)}
               </span>
             </div>
-            {p.token_name && (
-              <div className="text-[11px] text-muted-foreground">
-                {p.token_name}
-              </div>
-            )}
+            <div className="text-[11px] text-muted-foreground">
+              {p.token_name ? `${p.token_name} · ` : ""}
+              opened {timeAgo(p.opened_at)}
+            </div>
           </div>
         </button>
         <div className="text-right">
@@ -811,6 +853,13 @@ function ExitOrderEditor({
   );
 }
 
+/**
+ * Perps history. Mobile-first: stacked expandable cards below `md` (the
+ * 9-column table can never fit an iPhone without horizontal scroll), the
+ * classic table on desktop. Close reason is always visible as a badge so a
+ * trader can tell manual closes, TP/SL fills and liquidations apart at a
+ * glance — with the trigger level in the expanded details.
+ */
 function LeverageHistoryTable({
   trades,
   onNavigate,
@@ -819,26 +868,156 @@ function LeverageHistoryTable({
   onNavigate: (mint: string) => void;
 }) {
   return (
-    <div className="overflow-x-auto rounded-2xl bg-card shadow-card">
-      <table className="w-full text-sm">
-        <thead className="text-left text-[11px] uppercase tracking-wider text-muted-foreground">
-          <tr>
-            <th className="px-3 py-2">When</th>
-            <th className="px-3 py-2">Token</th>
-            <th className="px-3 py-2">Action</th>
-            <th className="px-3 py-2 text-right">Lev</th>
-            <th className="px-3 py-2 text-right">Margin</th>
-            <th className="px-3 py-2 text-right">Size</th>
-            <th className="px-3 py-2 text-right">MC</th>
-            <th className="px-3 py-2 text-right">P&L</th>
-          </tr>
-        </thead>
-        <tbody>
-          {trades.map((t) => (
-            <LeverageHistoryRow key={t.id} t={t} onNavigate={onNavigate} />
-          ))}
-        </tbody>
-      </table>
+    <>
+      {/* Mobile: cards */}
+      <div className="space-y-2 md:hidden">
+        {trades.map((t) => (
+          <LeverageHistoryCard key={t.id} t={t} onNavigate={onNavigate} />
+        ))}
+      </div>
+      {/* Desktop: table */}
+      <div className="hidden md:block overflow-x-auto rounded-2xl bg-card shadow-card">
+        <table className="w-full text-sm">
+          <thead className="text-left text-[11px] uppercase tracking-wider text-muted-foreground">
+            <tr>
+              <th className="px-3 py-2">When</th>
+              <th className="px-3 py-2">Token</th>
+              <th className="px-3 py-2">Action</th>
+              <th className="px-3 py-2">Reason</th>
+              <th className="px-3 py-2 text-right">Lev</th>
+              <th className="px-3 py-2 text-right">Margin</th>
+              <th className="px-3 py-2 text-right">Size</th>
+              <th className="px-3 py-2 text-right">MC</th>
+              <th className="px-3 py-2 text-right">P&L</th>
+            </tr>
+          </thead>
+          <tbody>
+            {trades.map((t) => (
+              <LeverageHistoryRow key={t.id} t={t} onNavigate={onNavigate} />
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
+function historyActionLabel(t: LeverageTrade): string {
+  const dir = directionLabel(t.direction);
+  if (t.action === "open") return `Opened ${dir}`;
+  if (t.action === "liquidated") return "Liquidated";
+  return `Closed ${dir}`;
+}
+
+function historyActionColor(t: LeverageTrade): string {
+  if (t.action === "liquidated") return "text-red-400";
+  if (t.action === "open") return "text-muted-foreground";
+  return "text-foreground";
+}
+
+function ReasonBadge({ t }: { t: LeverageTrade }) {
+  if (t.action === "open") return null;
+  const key = t.close_reason ?? (t.action === "liquidated" ? "liquidated" : "manual");
+  const badge = REASON_BADGES[key] ?? REASON_BADGES.manual;
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium",
+        badge.className,
+      )}
+      data-testid={`perps-reason-${t.id}`}
+    >
+      {badge.label}
+    </span>
+  );
+}
+
+/** Human explanation of what made this close happen (expanded details). */
+function triggerExplanation(t: LeverageTrade): string | null {
+  if (t.action === "open") return null;
+  const reason = t.close_reason ?? (t.action === "liquidated" ? "liquidated" : "manual");
+  switch (reason) {
+    case "liquidated":
+      return t.trigger_mc != null
+        ? `Market cap crossed the ${fmtMarketCap(t.trigger_mc)} liquidation level — position force-closed, margin lost.`
+        : "Market cap crossed the liquidation level — position force-closed, margin lost.";
+    case "take_profit":
+      return t.trigger_mc != null
+        ? `Take-profit trigger at ${fmtMarketCap(t.trigger_mc)} MC filled.`
+        : "Take-profit trigger filled.";
+    case "stop_loss":
+      return t.trigger_mc != null
+        ? `Stop-loss trigger at ${fmtMarketCap(t.trigger_mc)} MC filled.`
+        : "Stop-loss trigger filled.";
+    case "system_correction":
+      return "Closed by the system (e.g. season reset) — margin returned, no P&L.";
+    default:
+      return "Closed manually.";
+  }
+}
+
+/** Mobile history card: key facts visible, trigger details expandable. */
+function LeverageHistoryCard({
+  t,
+  onNavigate,
+}: {
+  t: LeverageTrade;
+  onNavigate: (mint: string) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const isOpen = t.action === "open";
+  const explanation = triggerExplanation(t);
+  return (
+    <div className="rounded-xl bg-card shadow-card p-3">
+      <button
+        type="button"
+        onClick={() => setExpanded((e) => !e)}
+        className="w-full text-left"
+        data-testid={`perps-history-card-${t.id}`}
+      >
+        <div className="flex items-center justify-between gap-2">
+          <span className="flex min-w-0 items-center gap-1.5">
+            <span
+              className="truncate text-xs font-medium hover:text-accent transition-colors"
+              onClick={(e) => {
+                e.stopPropagation();
+                onNavigate(t.token_mint);
+              }}
+            >
+              {t.token_symbol ?? "Token"}
+            </span>
+            <span className={cn("shrink-0 text-[11px] font-medium", historyActionColor(t))}>
+              {historyActionLabel(t)}
+            </span>
+            <ReasonBadge t={t} />
+          </span>
+          <span
+            className={cn(
+              "shrink-0 font-mono text-xs",
+              isOpen ? "text-muted-foreground" : pnlColor(t.pnl_sol ?? 0),
+            )}
+          >
+            {isOpen || t.pnl_sol == null ? "—" : `${fmtSol(t.pnl_sol)} SOL`}
+          </span>
+        </div>
+        <div className="mt-1 flex items-center justify-between text-[11px] text-muted-foreground">
+          <span>
+            {t.leverage}x · {fmtSol(t.margin_sol)} SOL margin
+          </span>
+          <span>{timeAgo(t.executed_at)}</span>
+        </div>
+      </button>
+      {expanded && (
+        <div className="mt-2 space-y-1.5 border-t border-border/60 pt-2 text-[11px]">
+          <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+            <StatCell label="Size" value={`${fmtSol(t.notional_sol)} SOL`} />
+            <StatCell label="MC at fill" value={fmtMarketCap(t.market_cap)} />
+          </div>
+          {explanation && (
+            <p className="leading-relaxed text-muted-foreground">{explanation}</p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -851,20 +1030,8 @@ function LeverageHistoryRow({
   onNavigate: (mint: string) => void;
 }) {
   const isOpen = t.action === "open";
-  const actionLabel =
-    t.action === "open"
-      ? "Opened Long"
-      : t.action === "liquidated"
-        ? "Liquidated"
-        : "Closed Long";
-  const actionColor =
-    t.action === "liquidated"
-      ? "text-red-400"
-      : t.action === "open"
-        ? "text-muted-foreground"
-        : "text-foreground";
   return (
-    <tr className="border-t border-border/60">
+    <tr className="border-t border-border/60" title={triggerExplanation(t) ?? undefined}>
       <td className="px-3 py-2 text-xs text-muted-foreground">
         {timeAgo(t.executed_at)}
       </td>
@@ -877,8 +1044,11 @@ function LeverageHistoryRow({
           {t.token_symbol ?? "Token"}
         </button>
       </td>
-      <td className={cn("px-3 py-2 text-xs font-medium", actionColor)}>
-        {actionLabel}
+      <td className={cn("px-3 py-2 text-xs font-medium", historyActionColor(t))}>
+        {historyActionLabel(t)}
+      </td>
+      <td className="px-3 py-2">
+        <ReasonBadge t={t} />
       </td>
       <td className="px-3 py-2 text-right font-mono text-xs">{t.leverage}x</td>
       <td className="px-3 py-2 text-right font-mono text-xs">

@@ -263,10 +263,11 @@ export async function computeReputationBoard(): Promise<ReputationEntry[]> {
     const caller = callerByUser.get(p.user_id);
     const traderRank = rankByWallet.get(accountKey) ?? null;
 
+    // Trust reads spot-only stats — simulated perps P&L never inflates trust.
     const badgeStats: BadgeStatsInput = {
-      closedTrades: stats.closedTrades,
+      closedTrades: stats.spotClosedTrades,
       realizedPnlSol: stats.realizedPnlSol,
-      roiPercent: stats.roiPercent,
+      roiPercent: stats.spotRoiPercent,
       traderRank,
       callsMade: caller?.callsMade ?? 0,
       bestMultiple: caller?.bestMultiple ?? null,

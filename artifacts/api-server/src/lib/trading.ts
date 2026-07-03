@@ -1085,6 +1085,11 @@ export async function startNewSeason(wallet: string): Promise<NewSeasonResult> {
     };
   }
   const now = Math.floor(Date.now() / 1000);
+  // Force-close open perps positions first (reason: system_correction) so the
+  // reset can never orphan a position whose margin came from the old balance.
+  // Each close writes a fully-attributed trade row, keeping history auditable.
+  const { closeAllLeverageForReset } = await import("./leverage.js");
+  await closeAllLeverageForReset(wallet);
   const result = await withTx(async (c) => {
     // Cancel any still-pending/active orders so they don't fire post-reset.
     await dbRun(

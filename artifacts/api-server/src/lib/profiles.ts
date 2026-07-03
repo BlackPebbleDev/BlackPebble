@@ -30,14 +30,23 @@ export interface ResolvedUser {
 }
 
 export interface ProfileStats {
+  /** Combined ROI (spot + perps equity) — display only, never trust/badges. */
   roiPercent: number;
   totalPnlSol: number;
   realizedPnlSol: number;
   winRate: number;
   totalExecutions: number;
+  /** Combined closed trades (spot + perps) — display only. */
   closedTrades: number;
   bestTrade: number | null;
   graduationTier: string;
+  /**
+   * Spot-only inputs for Trust Score / badges. Simulated perps P&L must not
+   * inflate reputation until a perps methodology is defined, so trust and
+   * badge thresholds read ONLY these.
+   */
+  spotRoiPercent: number;
+  spotClosedTrades: number;
 }
 
 /**
@@ -272,6 +281,8 @@ const EMPTY_STATS: ProfileStats = {
   closedTrades: 0,
   bestTrade: null,
   graduationTier: "Unranked",
+  spotRoiPercent: 0,
+  spotClosedTrades: 0,
 };
 
 /**
@@ -289,14 +300,20 @@ export async function getProfileStats(wallet: string): Promise<ProfileStats> {
   const account = await getAccount(wallet);
   if (!account) return { ...EMPTY_STATS };
 
-  const [portfolio, cs, levPortfolio, levCounts] = await Promise.all([
+  const [portfolio, cs, levPortfolio, levStats] = await Promise.all([
     getPortfolio(wallet),
     getClosedTradeStats(wallet),
     getLeveragePortfolio(wallet),
-    dbGet<{ total: number; closed: number }>(
+    // Windowed by last_reset_at, matching spot stats, so a season reset also
+    // resets the perps contribution to the combined display numbers.
+    dbGet<{ total: number; closed: number; realized: number }>(
       `SELECT COUNT(*)::int AS total,
-              COUNT(CASE WHEN action != 'open' THEN 1 END)::int AS closed
-         FROM paper_leverage_trades WHERE wallet = $1`,
+              COUNT(CASE WHEN action != 'open' THEN 1 END)::int AS closed,
+              COALESCE(SUM(CASE WHEN action != 'open' THEN pnl_sol END), 0) AS realized
+         FROM paper_leverage_trades
+        WHERE wallet = $1
+          AND executed_at > COALESCE(
+            (SELECT last_reset_at FROM accounts WHERE wallet = $1), 0)`,
       [wallet],
     ),
   ]);
@@ -308,8 +325,19 @@ export async function getProfileStats(wallet: string): Promise<ProfileStats> {
   const totalEquitySol = portfolio.equitySol + openLeverageEquitySol;
   const totalPnlSol = totalEquitySol - STARTING_BALANCE;
   const roiPercent = (totalPnlSol / STARTING_BALANCE) * 100;
-  const totalExecutions = cs.executions + (levCounts?.total ?? 0);
-  const closedTrades = cs.closedTrades + (levCounts?.closed ?? 0);
+  const totalExecutions = cs.executions + (levStats?.total ?? 0);
+  const closedTrades = cs.closedTrades + (levStats?.closed ?? 0);
+
+  // Spot-only equity for trust/badges: strip perps flows out of the cash
+  // balance. Realized perps P&L stayed in cash on close, and open positions'
+  // margin left cash without a credit yet — so add the margin back and remove
+  // the realized P&L to reconstruct what equity would be with spot alone.
+  const spotEquitySol =
+    portfolio.equitySol -
+    (levStats?.realized ?? 0) +
+    levPortfolio.openMarginSol;
+  const spotRoiPercent =
+    ((spotEquitySol - STARTING_BALANCE) / STARTING_BALANCE) * 100;
 
   return {
     roiPercent,
@@ -320,6 +348,8 @@ export async function getProfileStats(wallet: string): Promise<ProfileStats> {
     closedTrades,
     bestTrade: cs.bestTrade,
     graduationTier: account.graduation_tier,
+    spotRoiPercent,
+    spotClosedTrades: cs.closedTrades,
   };
 }
 

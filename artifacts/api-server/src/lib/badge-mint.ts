@@ -39,10 +39,11 @@ async function buildBadgeStats(
   if (!profile) return null;
 
   const callerEntry = await getCallerStats(profile.user_id);
+  // Badge thresholds read spot-only stats (same isolation as trust).
   const stats: BadgeStatsInput = {
-    closedTrades: profile.stats.closedTrades,
+    closedTrades: profile.stats.spotClosedTrades,
     realizedPnlSol: profile.stats.realizedPnlSol,
-    roiPercent: profile.stats.roiPercent,
+    roiPercent: profile.stats.spotRoiPercent,
     traderRank: profile.rank,
     callsMade: callerEntry?.callsMade ?? 0,
     bestMultiple: callerEntry?.bestMultiple ?? null,

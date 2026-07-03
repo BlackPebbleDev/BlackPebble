@@ -403,7 +403,7 @@ export default function Portfolio() {
                     </div>
                   </div>
                   <div>
-                    <div className="text-muted-foreground">Open Leverage Equity</div>
+                    <div className="text-muted-foreground">Open Perps Equity</div>
                     <div className="font-mono">{fmtSol(serverStats.openLeverageEquitySol)} SOL</div>
                   </div>
                   <div>
@@ -417,13 +417,13 @@ export default function Portfolio() {
                     </div>
                   </div>
                   <div>
-                    <div className="text-muted-foreground">Leverage Realized P&L</div>
+                    <div className="text-muted-foreground">Perps Realized P&L</div>
                     <div className={cn("font-mono", pnlColor(serverStats.leverageRealizedPnlSol))}>
                       {fmtSol(serverStats.leverageRealizedPnlSol)} SOL
                     </div>
                   </div>
                   <div>
-                    <div className="text-muted-foreground">Leverage Unrealized P&L</div>
+                    <div className="text-muted-foreground">Perps Unrealized P&L</div>
                     <div className={cn("font-mono", pnlColor(serverStats.leverageUnrealizedPnlSol))}>
                       {fmtSol(serverStats.leverageUnrealizedPnlSol)} SOL
                     </div>

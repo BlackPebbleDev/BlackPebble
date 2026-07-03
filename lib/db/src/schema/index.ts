@@ -178,13 +178,14 @@ export const paperOrders = pgTable(
   ],
 );
 
-// ── Paper leverage trading (Phase 1: longs only) ────────────────────────────
-// Simulated leverage positions, fully isolated from the spot tables above. A
-// position debits `margin_sol` from accounts.paper_balance on open and credits
-// max(0, margin + realized_pnl) on close (0 on liquidation). Liquidation and the
-// optional single TP/SL are evaluated on positions-refresh against the price /
-// market cap already fetched by valuation — no background workers. Realized P&L
-// here is intentionally NOT added to accounts.realized_pnl or the leaderboard.
+// ── Paper perps / leverage trading ──────────────────────────────────────────
+// Simulated perps positions (long + short), fully isolated from the spot tables
+// above. A position debits `margin_sol` from accounts.paper_balance on open and
+// credits max(0, margin + realized_pnl) on close (0 on liquidation).
+// Liquidation and TP/SL exit orders are evaluated by a background sweep cron
+// (plus on-demand valuation) so positions always liquidate even when the owner
+// is offline. Realized P&L here is intentionally NOT added to
+// accounts.realized_pnl or the leaderboard.
 export const paperLeveragePositions = pgTable(
   "paper_leverage_positions",
   {
@@ -194,7 +195,7 @@ export const paperLeveragePositions = pgTable(
     token_name: text("token_name"),
     token_symbol: text("token_symbol"),
     token_logo: text("token_logo"),
-    // 'long' only in Phase 1.
+    // 'long' | 'short'
     direction: text("direction").notNull().default("long"),
     // 2 | 5 | 10 | 20
     leverage: integer("leverage").notNull(),
@@ -257,6 +258,12 @@ export const paperLeverageTrades = pgTable(
     market_cap: doublePrecision("market_cap"),
     // Realized P&L (SOL) on close / liquidation; null on open.
     pnl_sol: doublePrecision("pnl_sol"),
+    // Why this slice closed: 'manual' | 'take_profit' | 'stop_loss' |
+    // 'liquidated' | 'system_correction'. Null on opens + legacy rows.
+    close_reason: text("close_reason"),
+    // The trigger level (USD market cap) that fired this close — the liq MC for
+    // liquidations, the exit order's trigger for TP/SL. Null for manual closes.
+    trigger_mc: doublePrecision("trigger_mc"),
     executed_at: bigint("executed_at", { mode: "number" }).default(epoch),
   },
   (t) => [

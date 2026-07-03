@@ -599,7 +599,8 @@ export default function Leaderboard() {
       ) : (
         <>
           <p className="text-sm text-muted-foreground mb-6">
-            Ranked by realized P&L from closed trades only. A minimum of{" "}
+            Ranked by realized paper P&L from closed spot trades only — no real
+            funds, and simulated perps results are excluded. A minimum of{" "}
             {minTrades} closed trades is required to appear.
           </p>
 
