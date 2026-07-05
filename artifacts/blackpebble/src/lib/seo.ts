@@ -27,7 +27,7 @@ export function canonicalUrl(path: string): string {
 
 /**
  * Canonical URL for the actual current location. Dynamic / unlisted routes
- * (e.g. /u/:handle) canonicalize to their own URL — never to the homepage —
+ * (e.g. /u/:handle) canonicalize to their own URL - never to the homepage —
  * so they are not incorrectly collapsed into the home page.
  */
 export function canonicalForLocation(location: string): string {

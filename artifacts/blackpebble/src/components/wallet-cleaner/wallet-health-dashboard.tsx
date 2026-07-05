@@ -12,7 +12,7 @@ function healthBand(score: number): { label: string; tone: string } {
   return { label: "Needs cleanup", tone: "text-foreground" };
 }
 
-/** A single metric cell. Values fall back to "—" — never a fabricated number. */
+/** A single metric cell. Values fall back to "—" - never a fabricated number. */
 function Tile({
   label,
   value,
@@ -80,7 +80,7 @@ function GroupLabel({
 /**
  * Expanded Wallet Health Dashboard. Surfaces the real 0–100 health score
  * alongside the live scan breakdown and lifetime recovery totals. Every figure
- * comes from real data — the live wallet scan (via the cleaner hook) or the
+ * comes from real data - the live wallet scan (via the cleaner hook) or the
  * stored recovery history (via the shared react-query cache). Cleanup modules
  * that are not built yet (dust / burn / small-balance) are shown explicitly as
  * "coming soon" and never given a fabricated count.
@@ -117,7 +117,7 @@ export function WalletHealthDashboard({
     (status === "error" && accounts.length > 0);
 
   // Reuses the exact query key the history section uses, so this never triggers
-  // a second network request — it reads from the shared cache.
+  // a second network request - it reads from the shared cache.
   const { data: history } = useQuery({
     queryKey: ["recovery-history", wallet],
     queryFn: () => api.recovery.history(wallet as string),
@@ -140,7 +140,7 @@ export function WalletHealthDashboard({
         </h2>
       </div>
 
-      {/* Health score hero — derived only from the real empty-account count.
+      {/* Health score hero - derived only from the real empty-account count.
           Hidden in "detail" mode because Section 1 already shows the score. */}
       {variant === "full" && (
       <div className="rounded-2xl border border-border bg-secondary/30 px-4 py-4">
@@ -190,7 +190,7 @@ export function WalletHealthDashboard({
       </div>
       )}
 
-      {/* Live scan breakdown — real on-chain figures, "—" until a scan runs. */}
+      {/* Live scan breakdown - real on-chain figures, "—" until a scan runs. */}
       <div className="space-y-2">
         <GroupLabel icon={<Sparkles className="w-3 h-3" />}>
           From your latest scan
@@ -220,7 +220,7 @@ export function WalletHealthDashboard({
         </div>
       </div>
 
-      {/* Cleanup opportunities — real, derived from token intelligence. */}
+      {/* Cleanup opportunities - real, derived from token intelligence. */}
       <div className="space-y-2">
         <GroupLabel icon={<Clock className="w-3 h-3" />}>
           Cleanup opportunities
@@ -246,7 +246,7 @@ export function WalletHealthDashboard({
         </div>
       </div>
 
-      {/* Lifetime totals — real stored recovery history (shared cache). */}
+      {/* Lifetime totals - real stored recovery history (shared cache). */}
       <div className="space-y-2">
         <GroupLabel icon={<History className="w-3 h-3" />}>Lifetime</GroupLabel>
         <div className="grid grid-cols-2 gap-2">

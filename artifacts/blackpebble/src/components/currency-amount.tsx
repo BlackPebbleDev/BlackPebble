@@ -51,7 +51,7 @@ export function CurrencyAmount({
           activate(e);
         }
       }}
-      title={`Showing ${showUsd ? "USD" : "SOL"} — tap to switch`}
+      title={`Showing ${showUsd ? "USD" : "SOL"} - tap to switch`}
       aria-label={`${display} (showing ${showUsd ? "USD" : "SOL"}, tap to switch currency)`}
       data-testid="currency-toggle"
       className={cn(

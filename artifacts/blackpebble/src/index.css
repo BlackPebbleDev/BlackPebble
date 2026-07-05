@@ -39,16 +39,23 @@
   --color-destructive-foreground: hsl(var(--destructive-foreground));
   --color-destructive-border: var(--destructive-border);
 
+  /* Status colors (see docs/DESIGN_SYSTEM.md §2.1) - display colors for
+     text, pills and deltas. `destructive` remains the button variant. */
+  --color-success: hsl(var(--success));
+  --color-danger: hsl(var(--danger));
+  --color-warning: hsl(var(--warning));
+  --color-info: hsl(var(--info));
+
   --font-sans: var(--app-font-sans);
   --font-serif: var(--app-font-serif);
   --font-mono: var(--app-font-mono);
 
   /* Premium rounded scale: buttons/inputs/dropdowns 14px, cards/panels/alerts 16px, search/modals 18px. */
   --radius-sm: 0.5rem;    /* 8px  */
-  --radius-md: 0.875rem;  /* 14px — buttons, inputs, dropdowns */
+  --radius-md: 0.875rem;  /* 14px - buttons, inputs, dropdowns */
   --radius-lg: 0.875rem;  /* 14px */
-  --radius-xl: 1rem;      /* 16px — cards, panels, alerts */
-  --radius-2xl: 1.125rem; /* 18px — search, modals, hero surfaces */
+  --radius-xl: 1rem;      /* 16px - cards, panels, alerts */
+  --radius-2xl: 1.125rem; /* 18px - search, modals, hero surfaces */
 }
 
 :root, .dark {
@@ -61,7 +68,7 @@
   --elevate-1: rgba(255,255,255, .04);
   --elevate-2: rgba(255,255,255, .09);
 
-  /* Layered depth ladder — separation comes from elevation, not outlines.
+  /* Layered depth ladder - separation comes from elevation, not outlines.
      #050505 → #0d0d0d → #121212 → #171717 → #1c1c1c */
   --surface-0: 0 0% 2%;    /* #050505 deepest */
   --surface-1: 0 0% 5%;    /* #0d0d0d */
@@ -81,7 +88,7 @@
   /* White text #ffffff */
   --foreground: 0 0% 100%;
   
-  /* Subtle hairline — depth carries separation, not heavy outlines (#171717) */
+  /* Subtle hairline - depth carries separation, not heavy outlines (#171717) */
   --border: 0 0% 9%;
   
   /* Dark charcoal secondary background #141414 */
@@ -110,6 +117,13 @@
   --destructive: 0 62.8% 30.6%;
   --destructive-foreground: 0 0% 100%;
 
+  /* Status display colors - deliberately muted vs stock Tailwind so PnL and
+     state never read "neon". success ≈ refined emerald, danger ≈ calm red. */
+  --success: 158 50% 52%;
+  --danger: 0 60% 62%;
+  --warning: 40 70% 56%;
+  --info: 199 60% 60%;
+
   --input: 0 0% 12%;
   --ring: 39 45% 61%;
 
@@ -132,7 +146,7 @@
     text-rendering: optimizeLegibility;
   }
 
-  /* Stronger, tighter heading hierarchy — premium, dominant titles. */
+  /* Stronger, tighter heading hierarchy - premium, dominant titles. */
   h1, h2, h3, h4, h5, h6 {
     @apply font-serif font-bold;
     letter-spacing: -0.02em;
@@ -141,7 +155,7 @@
 }
 
 @layer utilities {
-  /* Elevation surfaces — use depth instead of nested borders. */
+  /* Elevation surfaces - use depth instead of nested borders. */
   .shadow-card { box-shadow: var(--shadow-card), var(--highlight-top); }
   .shadow-elevated { box-shadow: var(--shadow-elevated), var(--highlight-top); }
   .glow-accent { box-shadow: var(--glow-accent); }
@@ -151,7 +165,7 @@
   .bg-surface-3 { background-color: hsl(var(--surface-3)); }
   .bg-surface-4 { background-color: hsl(var(--surface-4)); }
 
-  /* Big-number data displays — let metrics command attention. */
+  /* Big-number data displays - let metrics command attention. */
   .stat-value {
     font-family: var(--app-font-mono);
     font-weight: 700;
@@ -173,6 +187,45 @@
   .card-interactive:hover {
     transform: translateY(-2px);
     box-shadow: var(--shadow-elevated), var(--highlight-top);
+  }
+
+  /* The reusable data atom: label over a mono value inside any card.
+     Pair with .stat-label + font-mono content. DESIGN_SYSTEM.md §2.7. */
+  .metric-tile {
+    border-radius: 0.5rem;
+    background-color: hsl(var(--secondary) / .4);
+    border: 1px solid hsl(var(--border) / .4);
+    padding: 0.5rem 0.75rem;
+    min-width: 0;
+  }
+
+  /* BlackPebble's signature premium-surface marker: a 1px gold hairline
+     across the top of a hero card. One per page, max. §2.6. */
+  .hairline-accent {
+    position: relative;
+  }
+  .hairline-accent::before {
+    content: "";
+    pointer-events: none;
+    position: absolute;
+    inset-inline: 0;
+    top: 0;
+    height: 1px;
+    border-radius: inherit;
+    background: linear-gradient(
+      to right,
+      transparent,
+      hsl(var(--accent) / .4),
+      transparent
+    );
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-interactive,
+  .card-interactive:hover {
+    transition: none;
+    transform: none;
   }
 }
 

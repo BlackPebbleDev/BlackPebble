@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 /**
  * Small circular token logo with a graceful fallback. When no logo is available
  * (or it fails to load) it shows the symbol's initial, or "?" when the token is
- * unknown. Purely presentational — shared by the recovery account list and the
+ * unknown. Purely presentational - shared by the recovery account list and the
  * confirmation preview so both render token identity identically.
  */
 export function TokenAvatar({

@@ -3,7 +3,7 @@
  *
  * The achievement catalogue (badges.ts) derives every unlock from REAL platform
  * activity, but `getUserBadges` only persists ("mints") newly-earned rows when it
- * is called — historically that happened only on a profile/badges view. That made
+ * is called - historically that happened only on a profile/badges view. That made
  * the system PULL-based: a user could publish a thesis or build a watchlist and
  * the unlock would not exist in `user_achievements` (and therefore not appear in
  * the activity feed, which is a live union over that table) until someone opened
@@ -11,7 +11,7 @@
  *
  * This module makes minting PUSH-based: each qualifying action fires a
  * non-blocking mint so the unlock is persisted immediately and surfaces in the
- * feed without a refresh. It is purely additive — it never changes trading,
+ * feed without a refresh. It is purely additive - it never changes trading,
  * portfolio or accounting state; it only evaluates + upserts achievement rows
  * (which is idempotent via ON CONFLICT DO NOTHING in getUserBadges).
  *
@@ -28,7 +28,7 @@ import { logger } from "./logger.js";
 /**
  * Assemble the exact BadgeStatsInput the profile/badges route builds, so the
  * unlock thresholds evaluated here are identical to those shown on the profile.
- * Returns null for users without a public (X-authenticated) profile — those
+ * Returns null for users without a public (X-authenticated) profile - those
  * users have no feed/profile surface to mint onto, matching the rest of the
  * system (the feed achievement union is X-identity gated).
  */
@@ -69,7 +69,7 @@ export async function mintBadgesForUser(
 }
 
 /**
- * Fire-and-forget mint. Never blocks the request and never throws — any error is
+ * Fire-and-forget mint. Never blocks the request and never throws - any error is
  * logged and swallowed. Use this at the end of action routes (thesis, callout,
  * trade, watchlist, follow, profile update, recovery).
  */
@@ -85,8 +85,8 @@ export function mintBadgesAsync(
 /**
  * Resolve the internal user id linked to a wallet key.
  * Handles two key formats the frontend can send:
- *   "x:<x_provider_user_id>"  — X-authenticated users (most common signed-in path)
- *   "<solana_address>"        — wallet-only users
+ *   "x:<x_provider_user_id>"  - X-authenticated users (most common signed-in path)
+ *   "<solana_address>"        - wallet-only users
  * The x: prefix is NEVER stored in wallet_address, so it must be looked up via
  * the X identity row's provider_user_id instead.
  */
@@ -111,7 +111,7 @@ async function resolveUserIdByWallet(wallet: string): Promise<number | null> {
 }
 
 /**
- * Fire-and-forget mint keyed by wallet — for wallet-scoped actions (spot/leverage
+ * Fire-and-forget mint keyed by wallet - for wallet-scoped actions (spot/leverage
  * trades, watchlist, recovery) where the route only has the wallet address. No-op
  * for wallets not linked to an account.
  */

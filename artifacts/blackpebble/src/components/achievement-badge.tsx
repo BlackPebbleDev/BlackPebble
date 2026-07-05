@@ -33,10 +33,10 @@ import { cn } from "@/lib/utils";
 import type { BadgeEntry, BadgeRarity } from "@/lib/api";
 
 /**
- * Achievement badge — a collectible tile (one of three identity axes). Earned
+ * Achievement badge - a collectible tile (one of three identity axes). Earned
  * achievements are tinted by rarity with a metallic medallion + glow; locked
  * ones are greyed with a lock overlay so the catalog reads like a collection to
- * complete. This is purely the achievement axis — never conflate with role
+ * complete. This is purely the achievement axis - never conflate with role
  * badges or progression tiers.
  *
  * Sizing note (Task #55): the tile is intentionally compact/dense so a full
@@ -256,7 +256,7 @@ export function AchievementBadge({
   );
 }
 
-/** Compact progress numbers — strip noisy decimals, keep small fractions. */
+/** Compact progress numbers - strip noisy decimals, keep small fractions. */
 function formatProgress(n: number): string {
   if (Number.isInteger(n)) return String(n);
   return n >= 10 ? Math.round(n).toString() : n.toFixed(1);

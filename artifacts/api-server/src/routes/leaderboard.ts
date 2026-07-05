@@ -28,7 +28,7 @@ router.get(
     ]);
     // Attach decorative official badges so Top Traders shows the same
     // founder / BlackPebble Team badges as the other leaderboard tabs.
-    // Best-effort, read-only — never affects ranking or trade accounting.
+    // Best-effort, read-only - never affects ranking or trade accounting.
     const traderUserIds = baseEntries
       .map((e) => e.user_id)
       .filter((id): id is number => id != null);
@@ -62,7 +62,7 @@ router.get(
 /**
  * Most Followed leaderboard: users ranked by how many BlackPebble peers
  * follow them. Returns an empty entries array (not 404) when no one has
- * followers yet — the frontend renders a polished empty state.
+ * followers yet - the frontend renders a polished empty state.
  */
 router.get(
   "/leaderboard/most-followed",

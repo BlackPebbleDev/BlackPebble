@@ -89,7 +89,7 @@ router.post(
       }
       const result = await executeBuy(wallet, mint, solAmount, meta);
       // Trading milestones unlock on closed trades/P&L; mint after a successful
-      // execution so unlocks surface immediately. Additive — never touches the
+      // execution so unlocks surface immediately. Additive - never touches the
       // trade accounting above.
       if (result.ok) mintBadgesForWalletAsync(wallet);
       return res.status(result.ok ? 200 : 400).json(result);
@@ -139,7 +139,7 @@ router.get(
     // Evaluate TP/SL orders against the values we just fetched (no new external
     // calls for the check). Returns the orders that filled this pass so the
     // client can toast them. Never let an order-eval error break the positions
-    // response — paper positions must always render.
+    // response - paper positions must always render.
     let orderFills: Awaited<ReturnType<typeof evaluateOrders>> = [];
     try {
       orderFills = await evaluateOrders(wallet, positions);
@@ -262,7 +262,7 @@ router.post(
          added_at = EXCLUDED.added_at`,
       [wallet, mint, b.name ?? null, b.symbol ?? null, b.logo ?? null],
     );
-    // Watchlist Builder unlocks at 3 distinct mints — mint here so it actually
+    // Watchlist Builder unlocks at 3 distinct mints - mint here so it actually
     // unlocks at add time (previously only on a profile view).
     mintBadgesForWalletAsync(wallet);
     return res.json({ ok: true });

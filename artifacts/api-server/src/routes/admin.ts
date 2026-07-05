@@ -126,8 +126,8 @@ router.get(
 
 /**
  * Achievement integrity audit. Read-only. Confirms the badge catalogue is sound:
- *   • every defined badge has an evaluator (an unlock path) — no orphans;
- *   • every evaluator key maps to a defined badge — no dangling logic;
+ *   • every defined badge has an evaluator (an unlock path) - no orphans;
+ *   • every evaluator key maps to a defined badge - no dangling logic;
  *   • each badge's feed eligibility, rarity, hidden flag and live holder count.
  * This is the machine-checkable backbone of the Task #55 integrity report.
  */
@@ -158,6 +158,8 @@ router.get(
       recoverySolRecovered: 0,
       recoveryCleanups: 0,
       recoveryTokensBurned: 0,
+      realTradesAnalyzed: 0,
+      hasVerifiedWalletAnalysis: false,
     };
     const evaluatorKeys = new Set(Object.keys(evaluateBadges(zeroMetrics)));
     const definedKeys = new Set(BADGE_DEFINITIONS.map((d) => d.key));
@@ -196,7 +198,7 @@ router.get(
       };
     });
 
-    // Integrity violations — both should always be empty in a healthy catalogue.
+    // Integrity violations - both should always be empty in a healthy catalogue.
     const definitionsWithoutPath = badges
       .filter((b) => !b.hasUnlockPath)
       .map((b) => b.key);
@@ -495,7 +497,7 @@ router.get(
   }),
 );
 
-/** Cancel any pending/filling order (admin override — not wallet-scoped). */
+/** Cancel any pending/filling order (admin override - not wallet-scoped). */
 router.post(
   "/admin/orders/cancel",
   asyncHandler(async (req, res) => {

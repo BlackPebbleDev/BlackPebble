@@ -12,7 +12,7 @@ const UNKNOWN: RecoveryTokenMeta = { symbol: null, name: null, logo: null };
 
 /**
  * Resolve token metadata (symbol/name/logo) for a set of mints via the batch
- * recovery endpoint. Purely a display enrichment for the recovery list — it
+ * recovery endpoint. Purely a display enrichment for the recovery list - it
  * never affects scanning or the close/recovery flow. Results are remembered for
  * the lifetime of the hook, so re-scans and selection changes never refetch a
  * mint we have already seen. Best-effort: on failure, mints fall back to the
@@ -36,7 +36,7 @@ export function useTokenMetadata(mints: string[]): UseTokenMetadata {
     const missing = uniqueMints.filter((m) => !cacheRef.current.has(m));
 
     if (missing.length === 0) {
-      // Everything is cached — reflect the current selection from the cache.
+      // Everything is cached - reflect the current selection from the cache.
       setMetaByMint(new Map(cacheRef.current));
       return;
     }

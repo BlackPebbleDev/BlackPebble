@@ -27,7 +27,7 @@ import { trackLeaderboardView } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
 
 /**
- * Shared leaderboard card shell — every category (Top Traders / Top Callers /
+ * Shared leaderboard card shell - every category (Top Traders / Top Callers /
  * Most Followed) uses the exact same base shade, radius, padding and shadow so
  * the tabs look identical. Only the rank accent differs.
  */
@@ -117,7 +117,7 @@ function TopCallers({
         multiple, and call volume. A call “hits” at 2× or more.
       </p>
 
-      {/* Mobile: card list — matches Top Trader card style */}
+      {/* Mobile: card list - matches Top Trader card style */}
       <div className="space-y-2 md:hidden" data-testid="list-callers-mobile">
         {entries.map((c) => {
           const pid = callerRowId(c);
@@ -153,7 +153,7 @@ function TopCallers({
                   </div>
                 </div>
               </div>
-              {/* Stats grid — same LbField pattern as Top Trader */}
+              {/* Stats grid - same LbField pattern as Top Trader */}
               <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
                 <LbField
                   label="Calls"
@@ -162,7 +162,7 @@ function TopCallers({
                 <LbField
                   label="Hit Rate"
                   value={fmtPercent(c.hitRate * 100, 0)}
-                  cls={c.hitRate >= 0.6 ? "text-emerald-400" : undefined}
+                  cls={c.hitRate >= 0.6 ? "text-success" : undefined}
                 />
                 <LbField
                   label="Avg Multiple"
@@ -171,7 +171,7 @@ function TopCallers({
                 <LbField
                   label="Best"
                   value={c.bestMultiple == null ? "—" : fmtMultiple(c.bestMultiple)}
-                  cls="text-emerald-400"
+                  cls="text-success"
                 />
                 <LbField
                   label="Graded"
@@ -243,7 +243,7 @@ function TopCallers({
                   <td className="px-4 py-3 text-right font-mono">
                     {c.avgMultiple == null ? "—" : fmtMultiple(c.avgMultiple)}
                   </td>
-                  <td className="px-4 py-3 text-right font-mono text-emerald-400">
+                  <td className="px-4 py-3 text-right font-mono text-success">
                     {c.bestMultiple == null ? "—" : fmtMultiple(c.bestMultiple)}
                   </td>
                   <td className="px-4 py-3 text-right font-mono hidden lg:table-cell">
@@ -304,7 +304,7 @@ function MostFollowed({
   return (
     <>
       <p className="text-sm text-muted-foreground mb-6">
-        Ranked by BlackPebble follower count — traders others find worth following.
+        Ranked by BlackPebble follower count - traders others find worth following.
       </p>
 
       {/* Mobile: card list */}
@@ -397,7 +397,7 @@ function MostFollowed({
 }
 
 /**
- * Reputation board — shared list shell for Top Rising and Highest Trust. Both
+ * Reputation board - shared list shell for Top Rising and Highest Trust. Both
  * render the same ReputationCard; only the data source, copy and momentum
  * highlight differ. No new ranking logic here: order comes straight from the
  * server's reputation board.
@@ -420,7 +420,7 @@ function ReputationBoard({
     variant === "rising"
       ? {
           intro:
-            "Traders with the most momentum over the last 30 days — ranked by new followers, recent calls and Trust Score growth, not lifetime totals.",
+            "Traders with the most momentum over the last 30 days - ranked by new followers, recent calls and Trust Score growth, not lifetime totals.",
           emptyTitle: "No rising traders yet",
           emptyBody:
             "As traders gain followers and make calls, the fastest-climbing names will surface here.",
@@ -428,7 +428,7 @@ function ReputationBoard({
         }
       : {
           intro:
-            "Ranked by Trust Score — a reputation blend of call accuracy, trading performance and X reputation.",
+            "Ranked by Trust Score - a reputation blend of call accuracy, trading performance and X reputation.",
           emptyTitle: "No trusted traders ranked yet",
           emptyBody:
             "Connect X, trade and make calls to build a Trust Score and appear on this board.",
@@ -477,8 +477,8 @@ function ReputationBoard({
 }
 
 function pnlClass(v: number): string {
-  if (v > 0) return "text-emerald-400";
-  if (v < 0) return "text-red-400";
+  if (v > 0) return "text-success";
+  if (v < 0) return "text-danger";
   return "text-muted-foreground";
 }
 
@@ -578,7 +578,7 @@ export default function Leaderboard() {
         </button>
       </div>
 
-      {/* Category nav — shared filter pills (no horizontal scroll). */}
+      {/* Category nav - shared filter pills (no horizontal scroll). */}
       <FilterPills
         options={categoryTabs}
         value={category}
@@ -599,7 +599,7 @@ export default function Leaderboard() {
       ) : (
         <>
           <p className="text-sm text-muted-foreground mb-6">
-            Ranked by realized paper P&L from closed spot trades only — no real
+            Ranked by realized paper P&L from closed spot trades only - no real
             funds, and simulated perps results are excluded. A minimum of{" "}
             {minTrades} closed trades is required to appear.
           </p>

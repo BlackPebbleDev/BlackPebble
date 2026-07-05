@@ -1,4 +1,11 @@
-import { Sparkles, ChevronRight, Target, BookOpen } from "lucide-react";
+import {
+  Sparkles,
+  ChevronRight,
+  Target,
+  BookOpen,
+  Brain,
+  Megaphone,
+} from "lucide-react";
 import { Link } from "wouter";
 import { useFeatureFlags } from "@/hooks/use-feature-flags";
 import { SupportSection } from "@/components/support-section";
@@ -51,10 +58,54 @@ export default function Utilities() {
             </div>
             <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
               See every token, spot scams and inflated value, reclaim trapped
-              SOL, and burn junk — safely.
+              SOL, and burn junk - safely.
             </p>
           </div>
         </Link>
+
+        {flags.real_trading_analysis && (
+          <Link
+            href="/utilities/trading-analysis"
+            className="group card-interactive rounded-2xl bg-card shadow-card p-6 flex items-start gap-4"
+            data-testid="link-trading-analysis"
+          >
+            <div className="w-12 h-12 rounded-full bg-accent/12 flex items-center justify-center flex-shrink-0">
+              <Brain className="w-[22px] h-[22px] text-accent" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-lg font-bold">Trading Analysis</div>
+                <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-accent group-hover:translate-x-0.5 transition-all flex-shrink-0" />
+              </div>
+              <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
+                Read-only intelligence from your real on-chain history - trader
+                DNA, signals, insights, and milestones.
+              </p>
+            </div>
+          </Link>
+        )}
+
+        {flags.community_campaigns && (
+          <Link
+            href="/campaigns"
+            className="group card-interactive rounded-2xl bg-card shadow-card p-6 flex items-start gap-4"
+            data-testid="link-campaigns"
+          >
+            <div className="w-12 h-12 rounded-full bg-accent/12 flex items-center justify-center flex-shrink-0">
+              <Megaphone className="w-[22px] h-[22px] text-accent" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-lg font-bold">Community Campaigns</div>
+                <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-accent group-hover:translate-x-0.5 transition-all flex-shrink-0" />
+              </div>
+              <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
+                Escrow-backed community funding with a fully public money
+                trail - automatic refunds if goals aren't met.
+              </p>
+            </div>
+          </Link>
+        )}
 
         {flags.experimental_utilities && (
           <Link
@@ -80,7 +131,7 @@ export default function Utilities() {
       </div>
 
       <p className="text-sm text-muted-foreground">
-        More BlackPebble tools are in the works — see the{" "}
+        More BlackPebble tools are in the works - see the{" "}
         <Link
           href="/roadmap"
           data-testid="link-utilities-roadmap"

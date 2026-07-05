@@ -1,4 +1,5 @@
 import { dbAll, dbGet, dbRun } from "./database.js";
+import { publishFollowerMilestone } from "./feed-service.js";
 import {
   getAccount,
   getClosedTradeStats,
@@ -17,7 +18,7 @@ import { getLeveragePortfolio } from "./leverage.js";
  * they have no profile and the routes reject any follow action.
  *
  * The follow table is created idempotently at runtime (CREATE TABLE IF NOT
- * EXISTS), mirroring the analytics_events pattern — drizzle-kit push needs a TTY
+ * EXISTS), mirroring the analytics_events pattern - drizzle-kit push needs a TTY
  * that isn't available here. The schema is mirrored in lib/db for type-safety.
  */
 
@@ -30,13 +31,13 @@ export interface ResolvedUser {
 }
 
 export interface ProfileStats {
-  /** Combined ROI (spot + perps equity) — display only, never trust/badges. */
+  /** Combined ROI (spot + perps equity) - display only, never trust/badges. */
   roiPercent: number;
   totalPnlSol: number;
   realizedPnlSol: number;
   winRate: number;
   totalExecutions: number;
-  /** Combined closed trades (spot + perps) — display only. */
+  /** Combined closed trades (spot + perps) - display only. */
   closedTrades: number;
   bestTrade: number | null;
   graduationTier: string;
@@ -292,7 +293,7 @@ const EMPTY_STATS: ProfileStats = {
  *
  * Because getPortfolio() (and ensureAccount) would lazily INSERT an accounts
  * row, we first fetch the account read-only. An X user who has never traded has
- * no account yet — we return zeroed defaults instead of materializing one, so a
+ * no account yet - we return zeroed defaults instead of materializing one, so a
  * profile GET never creates trading state. When the account already exists,
  * getPortfolio's INSERT ... ON CONFLICT DO NOTHING is a no-op.
  */
@@ -330,7 +331,7 @@ export async function getProfileStats(wallet: string): Promise<ProfileStats> {
 
   // Spot-only equity for trust/badges: strip perps flows out of the cash
   // balance. Realized perps P&L stayed in cash on close, and open positions'
-  // margin left cash without a credit yet — so add the margin back and remove
+  // margin left cash without a credit yet - so add the margin back and remove
   // the realized P&L to reconstruct what equity would be with spot alone.
   const spotEquitySol =
     portfolio.equitySol -
@@ -573,7 +574,7 @@ export type SetSocialsResult =
 /**
  * Set (or clear) the owner's off-platform links. Each field is validated +
  * normalized independently; an empty/blank value clears that link. Keyed to the
- * authenticated user's id — there is no path to edit another user's socials.
+ * authenticated user's id - there is no path to edit another user's socials.
  */
 export async function setSocials(
   viewerUserId: number,
@@ -623,6 +624,16 @@ export async function followUser(
      ON CONFLICT (follower_user_id, following_user_id) DO NOTHING`,
     [viewerUserId, target.user_id],
   );
+
+  // Feed milestone: fixed follower thresholds only (fire-and-forget).
+  void (async () => {
+    const row = await dbGet<{ n: number }>(
+      `SELECT COUNT(*)::int AS n FROM user_follows WHERE following_user_id = $1`,
+      [target.user_id],
+    );
+    if (row) await publishFollowerMilestone(target.user_id, row.n);
+  })().catch(() => undefined);
+
   return { ok: true };
 }
 
@@ -704,7 +715,7 @@ export async function getFollowedUserIds(
 // append-only:
 //   - createCallout INSERTs a new immutable call.
 //   - addCalloutUpdate INSERTs a follow-up note onto an existing call.
-// There is deliberately NO updateCallout / deleteCallout / hideCallout — once a
+// There is deliberately NO updateCallout / deleteCallout / hideCallout - once a
 // call is on the record it is permanent. Do not add a mutation/delete path here:
 // the immutability of a caller's track record is a core product guarantee.
 

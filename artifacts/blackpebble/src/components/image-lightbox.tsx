@@ -2,10 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 
 /**
- * Premium fullscreen image viewer — used for the token banner and token
+ * Premium fullscreen image viewer - used for the token banner and token
  * avatar. Soft backdrop blur, aspect-ratio preserved (never stretched),
  * closes on ESC, backdrop click, or (on touch devices) a downward swipe.
- * Purely presentational — no trading/data behaviour attached.
+ * Purely presentational - no trading/data behaviour attached.
  */
 export function ImageLightbox({
   src,

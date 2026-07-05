@@ -17,6 +17,8 @@ import profilesRouter from "./profiles.js";
 import thesesRouter from "./theses.js";
 import feedRouter from "./feed.js";
 import journalRouter from "./journal.js";
+import realAnalysisRouter from "./real-analysis.js";
+import campaignsRouter from "./campaigns.js";
 
 const router: IRouter = Router();
 
@@ -38,5 +40,7 @@ router.use(profilesRouter);
 router.use(thesesRouter);
 router.use(feedRouter);
 router.use(journalRouter);
+router.use(realAnalysisRouter);
+router.use(campaignsRouter);
 
 export default router;

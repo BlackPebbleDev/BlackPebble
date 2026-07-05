@@ -111,7 +111,7 @@ export function requireOwnership(walletExtractor: (req: Request) => string) {
       }
 
       const linked = await isLinkedWallet(wallet);
-      if (!linked) return next(); // unlinked / guest wallet — unrestricted, as before
+      if (!linked) return next(); // unlinked / guest wallet - unrestricted, as before
 
       const token = req.cookies[COOKIE_NAME];
       if (!token) {

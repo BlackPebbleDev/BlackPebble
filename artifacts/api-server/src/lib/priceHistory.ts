@@ -4,7 +4,7 @@
  * BlackPebble has no price-history table and we add none. But every time the
  * server already fetches a token's current price (trending feed, token-info,
  * sparkline pool resolution) we can cheaply remember it here. Over a session
- * these observed snapshots accumulate into a genuine — if coarse — intraday
+ * these observed snapshots accumulate into a genuine - if coarse - intraday
  * series we can draw when richer real sources (GeckoTerminal OHLCV,
  * DexScreener-derived windows) are unavailable.
  *

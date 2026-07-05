@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import type { OfficialBadgeType } from "@/lib/api";
 
 /**
- * Role badges — an independent identity axis. A user may hold any number of
+ * Role badges - an independent identity axis. A user may hold any number of
  * these at once and they render in a fixed priority order (see ROLE_ORDER). This
  * is the single source of truth for role-badge display: icon, labels and tone.
  * Adding a new role is just another entry here (plus the server union).
@@ -76,7 +76,7 @@ export const ROLE_META: Record<OfficialBadgeType, RoleMeta> = {
 };
 
 /**
- * Fixed render priority — highest-status roles lead and are never dropped first
+ * Fixed render priority - highest-status roles lead and are never dropped first
  * when horizontal space is tight. Shared with UserIdentity's ordering and the
  * admin assignment UI so roles stay consistent everywhere.
  */

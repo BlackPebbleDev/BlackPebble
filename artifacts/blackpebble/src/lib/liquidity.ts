@@ -6,7 +6,7 @@
  *   orange 3–5%   · high
  *   red    5%+    · severe
  *
- * Purely presentational — these never change how a trade is priced or filled.
+ * Purely presentational - these never change how a trade is priced or filled.
  */
 export type ImpactBand = "low" | "moderate" | "high" | "severe";
 
@@ -22,13 +22,13 @@ export function impactBand(percent: number | null | undefined): ImpactBand {
 export function impactColor(percent: number | null | undefined): string {
   switch (impactBand(percent)) {
     case "severe":
-      return "text-red-400";
+      return "text-danger";
     case "high":
       return "text-orange-400";
     case "moderate":
       return "text-yellow-400";
     default:
-      return "text-emerald-400";
+      return "text-success";
   }
 }
 

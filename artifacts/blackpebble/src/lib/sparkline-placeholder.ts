@@ -4,7 +4,7 @@
  * When the server can supply no real history for a token from ANY source
  * (GeckoTerminal, DexScreener-derived, Birdeye, observed snapshots), a card
  * would otherwise be blank. Rather than lie with a fabricated "trend", we draw a
- * clearly-secondary, deterministic placeholder so the layout stays alive — and
+ * clearly-secondary, deterministic placeholder so the layout stays alive - and
  * the UI renders it at reduced opacity with its own test id so it never claims to
  * be real market data.
  *
@@ -70,18 +70,18 @@ function noisy(base: number[], rng: () => number, amp: number): number[] {
  * the caller applies amplitude/offset/jitter; absolute scale is irrelevant.
  */
 const TEMPLATES: Template[] = [
-  // 0 — gradual climb
+  // 0 - gradual climb
   (rng, n) => noisy(Array.from({ length: n }, (_, i) => i / (n - 1)), rng, 0.12),
-  // 1 — gradual decline
+  // 1 - gradual decline
   (rng, n) => noisy(Array.from({ length: n }, (_, i) => 1 - i / (n - 1)), rng, 0.12),
-  // 2 — sideways chop
+  // 2 - sideways chop
   (rng, n) =>
     noisy(
       Array.from({ length: n }, (_, i) => 0.5 + Math.sin(i * 1.1) * 0.12),
       rng,
       0.2,
     ),
-  // 3 — recovery (V): down then up
+  // 3 - recovery (V): down then up
   (rng, n) =>
     noisy(
       Array.from({ length: n }, (_, i) => {
@@ -91,14 +91,14 @@ const TEMPLATES: Template[] = [
       rng,
       0.1,
     ),
-  // 4 — consolidation (tight range, slight drift)
+  // 4 - consolidation (tight range, slight drift)
   (rng, n) =>
     noisy(
       Array.from({ length: n }, (_, i) => 0.45 + (i / (n - 1)) * 0.12),
       rng,
       0.08,
     ),
-  // 5 — mild volatility waves
+  // 5 - mild volatility waves
   (rng, n) =>
     noisy(
       Array.from(
@@ -108,7 +108,7 @@ const TEMPLATES: Template[] = [
       rng,
       0.18,
     ),
-  // 6 — breakout then pullback (rise to a peak, settle below it)
+  // 6 - breakout then pullback (rise to a peak, settle below it)
   (rng, n) =>
     noisy(
       Array.from({ length: n }, (_, i) => {
@@ -119,7 +119,7 @@ const TEMPLATES: Template[] = [
       rng,
       0.1,
     ),
-  // 7 — slow uptrend with wobble
+  // 7 - slow uptrend with wobble
   (rng, n) =>
     noisy(
       Array.from(
@@ -129,7 +129,7 @@ const TEMPLATES: Template[] = [
       rng,
       0.1,
     ),
-  // 8 — slow downtrend with wobble
+  // 8 - slow downtrend with wobble
   (rng, n) =>
     noisy(
       Array.from(
@@ -139,7 +139,7 @@ const TEMPLATES: Template[] = [
       rng,
       0.1,
     ),
-  // 9 — low-volatility drift
+  // 9 - low-volatility drift
   (rng, n) =>
     noisy(
       Array.from({ length: n }, (_, i) => 0.5 + Math.sin(i * 0.25 + 1) * 0.06),
@@ -151,7 +151,7 @@ const TEMPLATES: Template[] = [
 /**
  * Generate a deterministic, market-shaped placeholder series for a mint. Returns
  * a chronological array (oldest first) suitable for the same drawing code real
- * series use. Pure and synchronous — safe to call in render.
+ * series use. Pure and synchronous - safe to call in render.
  */
 export function generatePlaceholderSeries(seed: string, count = 20): number[] {
   const n = Math.max(6, count);

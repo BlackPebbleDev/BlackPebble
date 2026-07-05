@@ -22,7 +22,7 @@ import { tierFromRealizedPnl } from "@/lib/tiers";
  * watchlist live entirely in localStorage (survive refresh / navigation, but
  * never touch the server database and never appear on the leaderboard).
  *
- * Market math (slippage / effective fill price) is NEVER recomputed here — the
+ * Market math (slippage / effective fill price) is NEVER recomputed here - the
  * server `/trade/quote` endpoint is the single source of truth and works
  * without an account. This module only does the position bookkeeping
  * (averaging, cost basis, realized P&L), mirroring the server's executeBuy /
@@ -250,7 +250,7 @@ export function resetGuest() {
 
 /**
  * Reset a guest portfolio after its post-first-trade window elapses, preserving
- * the anon_id so funnel analytics keep deduping to one device — mirroring the
+ * the anon_id so funnel analytics keep deduping to one device - mirroring the
  * expiry path in load(). Use this (not resetGuest) for countdown expiry.
  */
 export function resetExpiredGuest() {
@@ -794,7 +794,7 @@ export async function evaluateGuestOrders(
       if (order.order_type === "buy_limit") {
         const pos = byMint.get(order.token_mint);
         const curMc = pos?.currentMarketCapUsd ?? null;
-        // No live market-cap data for this token yet — skip, don't cancel.
+        // No live market-cap data for this token yet - skip, don't cancel.
         if (curMc == null || !Number.isFinite(curMc)) continue;
         // buy_limit triggers when MC drops to or below the target.
         if (curMc > order.trigger_value) continue;
@@ -963,7 +963,7 @@ export function useGuestValuedPositions(opts?: {
   /**
    * When true, this hook only OBSERVES the shared token-info cache (populated by
    * the Trading/Portfolio pages) and never initiates its own fetches. Used by
-   * the global fill-toast hook so it adds zero new external API calls — guest
+   * the global fill-toast hook so it adds zero new external API calls - guest
    * fills can only happen while a page is already polling token data anyway.
    */
   observeOnly?: boolean;

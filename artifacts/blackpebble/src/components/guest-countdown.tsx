@@ -10,7 +10,7 @@ import {
 /**
  * Shown to guests after their FIRST trade: a live countdown to when their
  * temporary portfolio resets, plus a nudge to register and keep it. The clock
- * doesn't start at account creation — only once the guest actually trades
+ * doesn't start at account creation - only once the guest actually trades
  * (first_trade_at). When the window elapses, the guest store is wiped back to a
  * fresh state and this hides itself again.
  */
@@ -52,9 +52,9 @@ export function GuestCountdown() {
   return (
     <div
       data-testid="banner-guest-countdown"
-      className="flex flex-col gap-3 rounded-xl border border-amber-500/20 bg-gradient-to-r from-amber-500/[0.12] to-amber-500/[0.04] px-4 py-3.5 mb-6 shadow-card sm:flex-row sm:items-center sm:gap-3"
+      className="flex flex-col gap-3 rounded-xl border border-warning/20 bg-gradient-to-r from-amber-500/[0.12] to-amber-500/[0.04] px-4 py-3.5 mb-6 shadow-card sm:flex-row sm:items-center sm:gap-3"
     >
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-500/15 text-amber-400">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-warning/15 text-warning">
         <Clock className="h-4 w-4" />
       </div>
       <p className="text-xs leading-relaxed text-foreground/90">
@@ -66,7 +66,7 @@ export function GuestCountdown() {
           {label}
         </span>
         . Connect X to save your trades, build your profile, and keep your
-        trading history — guest data is cleared {GUEST_RESET_HOURS}h after your
+        trading history - guest data is cleared {GUEST_RESET_HOURS}h after your
         first trade.
       </p>
     </div>

@@ -102,7 +102,7 @@ export function XAuthProvider({ children }: { children: ReactNode }) {
         try {
           await performLinkWallet(wallet, walletAdapter);
         } catch {
-          // Silent fail — user can manually link later
+          // Silent fail - user can manually link later
         }
       };
       link();

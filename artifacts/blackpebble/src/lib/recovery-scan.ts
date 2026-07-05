@@ -4,7 +4,7 @@ import { TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID } from "@solana/spl-token";
 /**
  * A token account that is SAFE to close. An account only ever reaches this list
  * when it holds a zero token balance, so closing it can never move an NFT or any
- * valuable token — there is nothing in it but the locked rent.
+ * valuable token - there is nothing in it but the locked rent.
  *
  * This type is the single source of truth shared by the SOL Recovery dashboard
  * hook (`use-wallet-cleaner`) and the lightweight discovery scan used by the
@@ -15,18 +15,18 @@ export interface CloseableAccount {
   pubkey: string;
   /** The token mint the (now empty) account was created for. */
   mint: string;
-  /** Actual lamports locked as rent in this account — read from chain, never assumed. */
+  /** Actual lamports locked as rent in this account - read from chain, never assumed. */
   lamports: number;
   /** Recoverable SOL derived from the real lamports value. */
   sol: number;
   /** Token decimals, used only for display. */
   decimals: number;
-  /** Owning token program (classic SPL or Token-2022) — needed to build the close ix. */
+  /** Owning token program (classic SPL or Token-2022) - needed to build the close ix. */
   programId: string;
 }
 
 /**
- * Any SPL / Token-2022 token account a wallet holds — empty or not. This is the
+ * Any SPL / Token-2022 token account a wallet holds - empty or not. This is the
  * superset the full wallet-cleanup scan works from. The zero-balance
  * `CloseableAccount` list is derived as a strict subset of these, so rent
  * recovery behaviour is unchanged.
@@ -122,12 +122,12 @@ export async function scanCloseableAccounts(
         if (tokenAmount.amount !== "0") continue;
 
         // SAFETY: if a custom close authority is set and it is not us, the
-        // account is controlled by someone else — skip it.
+        // account is controlled by someone else - skip it.
         const closeAuth = info.closeAuthority as string | undefined;
         if (closeAuth && closeAuth !== ownerStr) continue;
 
         const lamports = account.lamports ?? 0;
-        // Nothing to recover — skip rather than show a misleading 0.
+        // Nothing to recover - skip rather than show a misleading 0.
         if (lamports <= 0) continue;
 
         found.push({
@@ -164,7 +164,7 @@ export async function scanCloseableAccounts(
  * Wallet Health is a 0–100 cleanup score derived ONLY from real on-chain data:
  * the number of empty (closeable) token accounts found. A wallet with nothing to
  * clean scores 100; each cleanup opportunity lowers the score on a fixed curve.
- * This is a transparent heuristic over a real count — never a fabricated figure.
+ * This is a transparent heuristic over a real count - never a fabricated figure.
  */
 export function computeWalletHealth(emptyAccountCount: number): number {
   if (emptyAccountCount <= 0) return 100;
@@ -173,7 +173,7 @@ export function computeWalletHealth(emptyAccountCount: number): number {
 }
 
 /**
- * Scan a wallet for EVERY token account it holds — empty or not — across the
+ * Scan a wallet for EVERY token account it holds - empty or not - across the
  * classic SPL and Token-2022 programs. Reads balances, decimals and rent
  * directly from chain. Throws only if *neither* program query succeeds, so a
  * partial RPC outage still returns usable results.
@@ -318,7 +318,7 @@ export function explainWalletHealth(inputs: HealthInputs): string {
     );
 
   if (parts.length === 0) {
-    return "Nothing flagged — your wallet is clean.";
+    return "Nothing flagged - your wallet is clean.";
   }
   const list =
     parts.length === 1

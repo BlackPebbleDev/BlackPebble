@@ -43,7 +43,7 @@ function useCancelOrder() {
   };
 }
 
-/** Cancel a single leverage exit order (signed-in only — guests have no leverage). */
+/** Cancel a single leverage exit order (signed-in only - guests have no leverage). */
 function useCancelLeverageOrder() {
   const { wallet } = useAccount();
   const { toast } = useToast();
@@ -92,8 +92,8 @@ function OrderRow({
   const labelColor = isBuyLimit
     ? "text-accent"
     : isTp
-      ? "text-emerald-400"
-      : "text-red-400";
+      ? "text-success"
+      : "text-danger";
 
   const label = isBuyLimit ? "Buy Limit" : isTp ? "Take Profit" : "Stop Loss";
 
@@ -105,7 +105,7 @@ function OrderRow({
     <div
       key={order.id}
       data-testid={`order-row-${order.id}`}
-      className="flex items-center justify-between gap-2 border border-border/60 bg-background/40 px-2.5 py-1.5 text-xs"
+      className="flex items-center justify-between gap-2 rounded-full bg-surface-2 border border-white/[0.05] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] px-3.5 py-2 text-xs transition-colors hover:border-white/[0.09]"
     >
       <span className="flex items-center gap-1.5 min-w-0">
         {showToken &&
@@ -143,7 +143,7 @@ function OrderRow({
           }}
           data-testid={`button-cancel-order-${order.id}`}
           aria-label="Cancel order"
-          className="flex items-center gap-1 text-muted-foreground hover:text-red-400 transition-colors shrink-0"
+          className="flex items-center gap-1 text-muted-foreground hover:text-danger transition-colors shrink-0"
         >
           <X className="h-3.5 w-3.5" />
           Cancel
@@ -171,12 +171,12 @@ function LeverageOrderRow({
 }) {
   const isTp = order.kind === "take_profit";
   const label = isTp ? "Leverage TP" : "Leverage SL";
-  const labelColor = isTp ? "text-emerald-400" : "text-red-400";
+  const labelColor = isTp ? "text-success" : "text-danger";
   const filling = order.status === "filling";
   return (
     <div
       data-testid={`leverage-order-row-${order.id}`}
-      className="flex items-center justify-between gap-2 border border-border/60 bg-background/40 px-2.5 py-1.5 text-xs"
+      className="flex items-center justify-between gap-2 rounded-full bg-surface-2 border border-white/[0.05] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] px-3.5 py-2 text-xs transition-colors hover:border-white/[0.09]"
     >
       <span className="flex items-center gap-1.5 min-w-0">
         <span className={cn("font-medium shrink-0", labelColor)}>{label}</span>
@@ -196,7 +196,7 @@ function LeverageOrderRow({
           }}
           data-testid={`button-cancel-leverage-order-${order.id}`}
           aria-label="Cancel order"
-          className="flex items-center gap-1 text-muted-foreground hover:text-red-400 transition-colors shrink-0"
+          className="flex items-center gap-1 text-muted-foreground hover:text-danger transition-colors shrink-0"
         >
           <X className="h-3.5 w-3.5" />
           Cancel
@@ -295,7 +295,7 @@ export function AllOrders({
   const totalCount = orders.length + levTriggerCount;
 
   // Group every active order by its token, preserving first-seen order. Each
-  // group lists its Buy Limit / TP / SL together (display only — no engine change).
+  // group lists its Buy Limit / TP / SL together (display only - no engine change).
   const groups: { mint: string; symbol: string; orders: PaperOrder[] }[] = [];
   const indexByMint = new Map<string, number>();
   for (const o of orders) {
@@ -361,7 +361,7 @@ export function AllOrders({
                   {g.orders.length} {g.orders.length === 1 ? "order" : "orders"}
                 </span>
               </div>
-              <div className="p-2 space-y-1.5">
+              <div className="p-2.5 space-y-2">
                 {g.orders.map((o) => (
                   <OrderRow key={o.id} order={o} onCancel={cancel} />
                 ))}
@@ -401,7 +401,7 @@ export function AllOrders({
                   {(p.exitOrders?.length ?? 0) === 1 ? "order" : "orders"}
                 </span>
               </div>
-              <div className="p-2 space-y-1.5">
+              <div className="p-2.5 space-y-2">
                 {(p.exitOrders ?? []).map((o) => (
                   <LeverageOrderRow
                     key={o.id}

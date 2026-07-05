@@ -3,13 +3,13 @@
  *
  * Real DEX fills move price against the trader in proportion to how large the
  * order is relative to pool liquidity. We approximate that with a tiered model
- * so paper trading feels closer to live conditions and — crucially — so a user
+ * so paper trading feels closer to live conditions and - crucially - so a user
  * cannot farm fake leaderboard PnL by "buying" an enormous amount of a tiny,
  * illiquid token at its quoted price.
  *
  * Design principle (BlackPebble): low-cap meme tokens MUST stay tradable. Normal
  * degen-sized entries are never rejected just because liquidity data is missing
- * or thin — instead we estimate depth from market cap, apply heavier slippage,
+ * or thin - instead we estimate depth from market cap, apply heavier slippage,
  * and only hard-reject trades that are extremely oversized relative to the
  * token's market cap. Prefer a slippage penalty over an outright rejection.
  *
@@ -41,7 +41,7 @@ export const LOW_DATA_MAX_TRADE_FRACTION_OF_MC = 0.25; // 25% of MC
 /**
  * Minimum trade size (USD) that is ALWAYS allowed for a given market cap, no
  * matter how thin or unreliable the liquidity data is. Trades at or below this
- * floor are never rejected — they only pay (possibly steep) slippage. This is
+ * floor are never rejected - they only pay (possibly steep) slippage. This is
  * what keeps normal degen-sized entries working on low-cap tokens.
  *
  *   MCAP < $10k    -> $25
@@ -102,7 +102,7 @@ export function slippageForImpact(impactPercent: number): number | null {
  * Harsher slippage tiers used in low-data mode, where impact is measured against
  * the synthetic depth derived from market cap. Penalties are deliberately
  * steeper than the normal curve. Unlike the normal curve this NEVER returns
- * null — impact above the top tier clamps to LOW_DATA_MAX_SLIPPAGE, because the
+ * null - impact above the top tier clamps to LOW_DATA_MAX_SLIPPAGE, because the
  * accept/reject decision in low-data mode is made against market cap, not here.
  */
 const LOW_DATA_TIERS: { maxImpact: number; slippage: number }[] = [
@@ -158,7 +158,7 @@ function warningFor(impactPercent: number): WarningLevel {
  * Compute the simulated effective execution price for a trade.
  *
  * - With real pool liquidity: tiered impact model, capped at
- *   MAX_TRADE_IMPACT_PERCENT — except a guaranteed small trade (see
+ *   MAX_TRADE_IMPACT_PERCENT - except a guaranteed small trade (see
  *   minGuaranteedTradeUsd) is always allowed at the steepest penalty.
  * - Without usable liquidity: estimate depth from market cap, apply the harsher
  *   low-data curve, and only reject when the trade is extremely oversized
@@ -193,11 +193,11 @@ export function computeSlippage(opts: {
   const hasLiquidity =
     liquidityUsd != null && Number.isFinite(liquidityUsd) && liquidityUsd > 0;
 
-  // A trade at or below this size is never rejected — it only pays slippage.
+  // A trade at or below this size is never rejected - it only pays slippage.
   // The floor is a market-cap-derived allowance, so it only applies when MC is
   // known. Without a usable MC we cannot tell whether a trade is genuinely small
   // relative to the token, so the honest liquidity-impact cap governs and there
-  // is no bypass — this prevents farming the per-trade cap on MC-less tokens via
+  // is no bypass - this prevents farming the per-trade cap on MC-less tokens via
   // repeated tiny trades into a thin real pool.
   const guaranteedFloorUsd = hasMc ? minGuaranteedTradeUsd(mc as number) : 0;
   const isGuaranteed = guaranteedFloorUsd > 0 && tradeUsdValue <= guaranteedFloorUsd;

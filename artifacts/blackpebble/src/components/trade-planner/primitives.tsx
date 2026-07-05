@@ -150,7 +150,7 @@ export function PlannerField({
         ) : null}
       </div>
       {error ? (
-        <p className="text-xs text-red-400" data-testid={`${testId}-error`}>
+        <p className="text-xs text-danger" data-testid={`${testId}-error`}>
           {error}
         </p>
       ) : hint ? (
@@ -176,9 +176,9 @@ export function Stat({
 }) {
   const toneClass =
     tone === "profit"
-      ? "text-emerald-400"
+      ? "text-success"
       : tone === "loss"
-        ? "text-red-400"
+        ? "text-danger"
         : tone === "accent"
           ? "text-accent"
           : "text-foreground";

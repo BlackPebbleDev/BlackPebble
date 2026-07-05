@@ -71,7 +71,7 @@ function parseThesisFields(
 
 /**
  * Owner-only: publish a standalone thesis (token research). Unlike a callout,
- * this is NOT graded as a price prediction — it never affects caller ranking,
+ * this is NOT graded as a price prediction - it never affects caller ranking,
  * call multiples, hit rate, or call history. Token metadata is snapshotted from
  * the live source so it renders consistently; price is intentionally NOT
  * snapshotted (a thesis is an opinion, not an on-the-record entry).

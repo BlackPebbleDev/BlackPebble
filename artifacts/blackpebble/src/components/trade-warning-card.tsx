@@ -5,7 +5,7 @@ import type { TradeQuote } from "@/lib/api";
 /**
  * Reusable pre-trade warning card. Infrastructure shared by the spot and
  * leverage panels so any execution-cost caution reads consistently. Purely
- * advisory — it never blocks or alters a trade.
+ * advisory - it never blocks or alters a trade.
  */
 export type WarningTone = "caution" | "danger";
 
@@ -24,8 +24,8 @@ export function TradeWarningCard({ warning }: { warning: TradeWarning }) {
       className={cn(
         "flex items-start gap-2 rounded-xl border px-3 py-2.5 text-xs",
         danger
-          ? "border-red-500/40 bg-red-500/10 text-red-300"
-          : "border-amber-500/40 bg-amber-500/10 text-amber-300",
+          ? "border-danger/40 bg-danger/10 text-danger"
+          : "border-warning/40 bg-warning/10 text-amber-300",
       )}
     >
       <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
@@ -41,7 +41,7 @@ export function TradeWarningCard({ warning }: { warning: TradeWarning }) {
 
 /**
  * Lightweight rule helper deriving advisory warnings from an existing quote.
- * Reads quote fields only — no new calculations. Returned warnings can be
+ * Reads quote fields only - no new calculations. Returned warnings can be
  * rendered with <TradeWarningCard>; callers decide how aggressively to surface
  * them (kept intentionally minimal for now).
  */

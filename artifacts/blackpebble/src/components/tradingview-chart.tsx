@@ -27,7 +27,7 @@ function loadChartMode(): ChartMode {
  *
  * A native TradingView widget can't be used for arbitrary SPL tokens (TradingView
  * has no symbol for most Solana memecoins), so we embed GeckoTerminal's pool
- * chart — which renders the TradingView charting library under the hood with
+ * chart - which renders the TradingView charting library under the hood with
  * full candlesticks, timeframes and indicators. This gives the page a genuine
  * pro-grade chart while still working for any token that has a DEX pool.
  *
@@ -36,7 +36,7 @@ function loadChartMode(): ChartMode {
  *    mobile webviews tear down the old embed instead of reusing it.
  *  - Blank the iframe (`about:blank`) on unmount to release webview memory.
  *  - Spinner until `onLoad`; a "Reload Chart" fallback if it stalls.
- * No polling — this never spams the network.
+ * No polling - this never spams the network.
  */
 export function TradingViewChart({ pairAddress }: { pairAddress: string }) {
   const [status, setStatus] = useState<"loading" | "loaded" | "error">(
@@ -44,7 +44,7 @@ export function TradingViewChart({ pairAddress }: { pairAddress: string }) {
   );
   const [nonce, setNonce] = useState(0);
   // Mode is read from localStorage (default: market_cap). GeckoTerminal's own
-  // built-in toggle handles switching — no outer toggle needed.
+  // built-in toggle handles switching - no outer toggle needed.
   const mode: ChartMode = loadChartMode();
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
 
@@ -60,7 +60,7 @@ export function TradingViewChart({ pairAddress }: { pairAddress: string }) {
         try {
           iframe.src = "about:blank";
         } catch {
-          /* cross-origin teardown — safe to ignore */
+          /* cross-origin teardown - safe to ignore */
         }
       }
     };

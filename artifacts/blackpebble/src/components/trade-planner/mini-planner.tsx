@@ -1,16 +1,16 @@
 /**
- * Mini Trade Planner — a compact execution assistant embedded in the token
+ * Mini Trade Planner - a compact execution assistant embedded in the token
  * trading page (below the Buy/Sell panel). It is intentionally lighter than the
  * full Utilities Trade Planner: plan an entry/target/stop + size, see the
  * headline outcome, then "Apply To Trade" to pre-fill the existing buy amount.
  *
- * It never executes a trade and never touches paper-trading state directly — it
+ * It never executes a trade and never touches paper-trading state directly - it
  * only hands a SOL amount + planned target/stop up to the trading page via the
  * `onApply` callback. All math is pure (see computeMiniPlan).
  *
  * Phase 2: also supports setting a Buy Limit order. When enabled, the trading
- * page creates the buy-limit order immediately on Apply — before the user
- * clicks Buy — so the token is purchased automatically when its MC dips.
+ * page creates the buy-limit order immediately on Apply - before the user
+ * clicks Buy - so the token is purchased automatically when its MC dips.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, Info } from "lucide-react";
@@ -172,7 +172,7 @@ export function MiniPlanner({
     [parsed],
   );
 
-  // Authoritative SOL/USD rate — `rate` for the SOL amount applied to the buy
+  // Authoritative SOL/USD rate - `rate` for the SOL amount applied to the buy
   // field, `rateReady` to gate Apply. Using the trusted rate (not the per-token
   // quote) keeps the applied SOL amount correct when the quote is stale.
   const { rate, rateReady } = useTradeRate(info);
@@ -363,16 +363,16 @@ export function MiniPlanner({
               >
                 <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                 <span>
-                  Buy Limit Scenario — order stays pending until market cap
+                  Buy Limit Scenario - order stays pending until market cap
                   drops to {fmtMarketCap(parsed.entry)}.
                 </span>
               </div>
             ) : (
               <p
                 data-testid="mini-below-current-warning"
-                className="text-[11px] leading-relaxed text-amber-400"
+                className="text-[11px] leading-relaxed text-warning"
               >
-                Earlier Entry Scenario — calculations assume entry at{" "}
+                Earlier Entry Scenario - calculations assume entry at{" "}
                 {fmtMarketCap(parsed.entry)} MC rather than the current price.
               </p>
             )
@@ -424,7 +424,7 @@ export function MiniPlanner({
             <Stat
               label="Risk / Reward"
               value={fmtRatioOneTo(result.riskReward)}
-              help="How much you stand to gain compared to what you risk. A 1:3 ratio means the potential reward is three times the potential loss — higher is generally better."
+              help="How much you stand to gain compared to what you risk. A 1:3 ratio means the potential reward is three times the potential loss - higher is generally better."
             />
             <Stat label="Reward %" value={fmtPct(result.rewardPct)} />
             <Stat label="Risk %" value={fmtPct(result.riskPct)} tone="loss" />
@@ -480,8 +480,8 @@ export function MiniPlanner({
               {attachBl && canAttachBl && (
                 <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
                   {blBelowCurrent
-                    ? `Order created now — will auto-buy when MC drops to ${fmtMarketCap(parsed.entry)}.`
-                    : `Entry MC is at or above current price — order will fire if MC dips to ${fmtMarketCap(parsed.entry)}.`}
+                    ? `Order created now - will auto-buy when MC drops to ${fmtMarketCap(parsed.entry)}.`
+                    : `Entry MC is at or above current price - order will fire if MC dips to ${fmtMarketCap(parsed.entry)}.`}
                 </p>
               )}
             </div>
@@ -544,8 +544,8 @@ export function MiniPlanner({
           )}
 
           {usdRateMissing && (
-            <p className="text-[11px] text-red-400">
-              SOL price unavailable for this token — switch to SOL to apply.
+            <p className="text-[11px] text-danger">
+              SOL price unavailable for this token - switch to SOL to apply.
             </p>
           )}
 
@@ -617,7 +617,7 @@ function AttachRow({
           <span
             className={cn(
               "font-medium",
-              tone === "profit" ? "text-emerald-400" : "text-red-400",
+              tone === "profit" ? "text-success" : "text-danger",
               !canEnable && "opacity-60",
             )}
           >
@@ -672,7 +672,7 @@ function AttachRow({
 
 /**
  * Compact read-out of an applied plan, shown next to the Buy/Sell controls.
- * Pure display — clearing it only drops the local note, never a position.
+ * Pure display - clearing it only drops the local note, never a position.
  */
 export function PlannedTradeSummary({
   planned,
@@ -710,7 +710,7 @@ export function PlannedTradeSummary({
         </div>
         <div className="flex justify-between">
           <span className="text-muted-foreground">Return</span>
-          <span className="font-mono text-emerald-400">
+          <span className="font-mono text-success">
             {fmtPct(planned.returnPct)}
           </span>
         </div>

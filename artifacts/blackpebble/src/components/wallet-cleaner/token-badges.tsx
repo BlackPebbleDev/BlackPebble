@@ -19,11 +19,11 @@ interface BadgeMeta {
   icon: React.ReactNode;
 }
 
-/** Fallback treatment for an unrecognized risk class (defensive — keeps the UI
+/** Fallback treatment for an unrecognized risk class (defensive - keeps the UI
  *  rendering even if the server sends a value outside the known union). */
 const UNKNOWN_RISK_META: BadgeMeta = {
   label: "Unknown",
-  className: "bg-amber-500/12 text-amber-400",
+  className: "bg-warning/12 text-warning",
   icon: <HelpCircle className="w-3 h-3" />,
 };
 
@@ -45,7 +45,7 @@ function riskMeta(risk: TokenRiskClass): BadgeMeta {
     case "unknown":
       return {
         label: "Unknown",
-        className: "bg-amber-500/12 text-amber-400",
+        className: "bg-warning/12 text-warning",
         icon: <HelpCircle className="w-3 h-3" />,
       };
     case "suspicious":
@@ -57,13 +57,13 @@ function riskMeta(risk: TokenRiskClass): BadgeMeta {
     case "spam":
       return {
         label: "Spam",
-        className: "bg-red-500/12 text-red-400",
+        className: "bg-danger/12 text-danger",
         icon: <Ban className="w-3 h-3" />,
       };
     case "high_risk":
       return {
         label: "High risk",
-        className: "bg-red-500/15 text-red-400",
+        className: "bg-danger/15 text-danger",
         icon: <ShieldAlert className="w-3 h-3" />,
       };
     default:
@@ -100,13 +100,13 @@ function sellabilityClass(rating: Sellability): string {
     case "Excellent":
       return "bg-accent/12 text-accent";
     case "Good":
-      return "bg-emerald-500/12 text-emerald-400";
+      return "bg-success/12 text-success";
     case "Fair":
-      return "bg-amber-500/12 text-amber-400";
+      return "bg-warning/12 text-warning";
     case "Poor":
       return "bg-orange-500/12 text-orange-400";
     case "Very Poor":
-      return "bg-red-500/12 text-red-400";
+      return "bg-danger/12 text-danger";
   }
 }
 
@@ -140,8 +140,8 @@ function factorIcon(level: TokenRiskFactor["level"]): React.ReactNode {
 
 function factorClass(level: TokenRiskFactor["level"]): string {
   if (level === "ok") return "bg-secondary text-muted-foreground";
-  if (level === "bad") return "bg-red-500/10 text-red-400";
-  return "bg-amber-500/10 text-amber-400";
+  if (level === "bad") return "bg-danger/10 text-danger";
+  return "bg-warning/10 text-warning";
 }
 
 /** A consistent row of structured factor chips (market / authorities / etc). */
@@ -176,7 +176,7 @@ export function BurnChip({ className }: { className?: string }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-md bg-red-500/12 px-1.5 py-0.5 text-[10px] font-medium text-red-400",
+        "inline-flex items-center gap-1 rounded-md bg-danger/12 px-1.5 py-0.5 text-[10px] font-medium text-danger",
         className,
       )}
     >

@@ -3,7 +3,7 @@
  *
  * Guests live entirely client-side, so these fire-and-forget POSTs are the only
  * way the admin dashboard can see the guest funnel (created → traded →
- * converted) and basic page activity. Failures are swallowed — analytics must
+ * converted) and basic page activity. Failures are swallowed - analytics must
  * never affect the user's session. No PII is sent; `anonId` is the random
  * per-device id from the guest store.
  */

@@ -84,7 +84,7 @@ function HistoryCard({ event }: { event: RecoveryHistoryEvent }) {
         <span
           className={
             failed
-              ? "rounded-md bg-destructive/12 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-red-400"
+              ? "rounded-md bg-destructive/12 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-danger"
               : "rounded-md bg-accent/12 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-accent"
           }
         >
@@ -143,7 +143,7 @@ function HistoryCard({ event }: { event: RecoveryHistoryEvent }) {
  * Permanent Recovery History for the connected wallet, built entirely from
  * stored recovery_events. Shows lifetime metrics (the single source of truth
  * for a wallet's totals) plus every persisted cleanup with explorer links.
- * Never fabricates rows — an empty wallet gets a professional empty state.
+ * Never fabricates rows - an empty wallet gets a professional empty state.
  */
 export function RecoveryHistory({ wallet }: { wallet: string }) {
   const { data, isLoading, isError } = useQuery({
@@ -160,18 +160,18 @@ export function RecoveryHistory({ wallet }: { wallet: string }) {
       </div>
 
       {isLoading ? (
-        <div className="rounded-3xl bg-card shadow-card p-10 text-center">
+        <div className="rounded-xl bg-card shadow-card p-10 text-center">
           <Loader2 className="w-5 h-5 text-accent animate-spin mx-auto" />
         </div>
       ) : isError || !data ? (
-        <div className="rounded-3xl bg-card shadow-card p-6 text-center">
+        <div className="rounded-xl bg-card shadow-card p-6 text-center">
           <p className="text-sm text-muted-foreground">
             Couldn't load your recovery history right now.
           </p>
         </div>
       ) : data.events.length === 0 ? (
         <div
-          className="rounded-3xl bg-card shadow-card p-10 text-center space-y-3"
+          className="rounded-xl bg-card shadow-card p-10 text-center space-y-3"
           data-testid="recovery-history-empty"
         >
           <Inbox className="w-8 h-8 text-muted-foreground mx-auto" />

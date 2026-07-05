@@ -26,7 +26,7 @@ const EMPTY_SIZING: SizingFields = {
 };
 
 export default function TradePlanner() {
-  // Global investment unit — drives Position Value Calc, Position Sizing,
+  // Global investment unit - drives Position Value Calc, Position Sizing,
   // Profit Targets, and Trade Summary simultaneously.
   const [unit, setUnit] = useState<Unit>("SOL");
 
@@ -95,7 +95,7 @@ export default function TradePlanner() {
         </div>
       </div>
 
-      {/* 1. Trade Setup — always in valuation (MC or price) units */}
+      {/* 1. Trade Setup - always in valuation (MC or price) units */}
       <TradeSetup
         inputMode={inputMode}
         onInputModeChange={setInputMode}
@@ -105,7 +105,7 @@ export default function TradePlanner() {
         result={result}
       />
 
-      {/* Global investment unit toggle — affects all sections below */}
+      {/* Global investment unit toggle - affects all sections below */}
       <div className="space-y-2">
         <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
           Investment Unit
@@ -121,10 +121,10 @@ export default function TradePlanner() {
         />
       </div>
 
-      {/* 2. Position Value Calculator — standalone quick projection */}
+      {/* 2. Position Value Calculator - standalone quick projection */}
       <PositionValueCalc unit={unit} inputMode={inputMode} />
 
-      {/* 3. Position Sizing — risk-based or fixed, in selected unit */}
+      {/* 3. Position Sizing - risk-based or fixed, in selected unit */}
       <PositionSizing
         unit={unit}
         sizingMode={sizingMode}
@@ -135,7 +135,7 @@ export default function TradePlanner() {
         result={result}
       />
 
-      {/* 4. Profit Targets — projection table uses selected unit */}
+      {/* 4. Profit Targets - projection table uses selected unit */}
       <ProfitTargets
         unit={unit}
         inputMode={inputMode}
@@ -144,7 +144,7 @@ export default function TradePlanner() {
         onPickMultiple={handlePickMultiple}
       />
 
-      {/* 5. Trade Summary — all monetary values in selected unit */}
+      {/* 5. Trade Summary - all monetary values in selected unit */}
       <TradeSummary
         unit={unit}
         inputMode={inputMode}

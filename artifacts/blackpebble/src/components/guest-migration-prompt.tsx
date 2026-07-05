@@ -20,7 +20,7 @@ import { trackGuestConverted } from "@/lib/analytics";
  *
  * "Save" re-runs each guest position as a real server buy (sized by the SOL
  * originally spent, capped to live balance) and migrates the watchlist. Guest
- * trade history and realized P&L are intentionally NOT imported — doing so would
+ * trade history and realized P&L are intentionally NOT imported - doing so would
  * let anyone fabricate a leaderboard record locally and "save" it. "Start Fresh"
  * permanently discards ALL local guest state (positions, balance, history,
  * watchlist) and drops the user onto their authenticated account with its
@@ -84,7 +84,7 @@ export function GuestMigrationPrompt() {
       }
 
       if (failed === 0) {
-        // Everything transferred — safe to wipe local guest state entirely.
+        // Everything transferred - safe to wipe local guest state entirely.
         clearGuest();
       } else {
         // Drop only the positions that actually moved to the wallet; keep the

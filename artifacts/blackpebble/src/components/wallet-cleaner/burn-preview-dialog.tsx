@@ -113,7 +113,7 @@ export function BurnPreviewDialog({
       <DialogContent className="max-w-md" data-testid="dialog-burn-preview">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Flame className="w-4 h-4 text-red-400" />
+            <Flame className="w-4 h-4 text-danger" />
             {isBurning ? "Burning tokens" : "Confirm token burn"}
           </DialogTitle>
           <DialogDescription>
@@ -141,7 +141,7 @@ export function BurnPreviewDialog({
               />
             </div>
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Loader2 className="w-3.5 h-3.5 animate-spin text-red-400" />
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-danger" />
               Waiting for wallet confirmation…
             </div>
           </div>
@@ -209,12 +209,12 @@ export function BurnPreviewDialog({
                 className="flex items-start gap-2.5 border border-destructive-border bg-destructive/10 px-3 py-2.5 text-xs text-foreground"
                 data-testid="burn-preview-error"
               >
-                <AlertTriangle className="w-3.5 h-3.5 text-red-400 flex-shrink-0 mt-0.5" />
+                <AlertTriangle className="w-3.5 h-3.5 text-danger flex-shrink-0 mt-0.5" />
                 <span>{burnError}</span>
               </div>
             )}
 
-            <label className="flex items-start gap-2.5 cursor-pointer rounded-xl border border-red-500/30 bg-red-500/5 px-3 py-2.5">
+            <label className="flex items-start gap-2.5 cursor-pointer rounded-xl border border-danger/30 bg-danger/5 px-3 py-2.5">
               <Checkbox
                 checked={ack}
                 onCheckedChange={(v) => setAck(v === true)}

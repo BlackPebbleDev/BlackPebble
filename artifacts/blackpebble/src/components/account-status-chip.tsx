@@ -6,7 +6,7 @@ import {
 
 /**
  * Renders the account-status axis (Guest | Member) as a subtle chip. This is
- * deliberately understated — it is a membership state, not a rank or a role, so
+ * deliberately understated - it is a membership state, not a rank or a role, so
  * it must never read as prestige. Kept visually distinct from tier badges
  * (lib/tiers.ts) and role badges (official-badge.tsx) so the three axes are
  * never confused.

@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/sheet";
 
 /**
- * "How simulated perps work" — progressive-disclosure education panel. Opened
+ * "How simulated perps work" - progressive-disclosure education panel. Opened
  * from the small info icon in the perps ticket / history so the default UI
  * stays clean. Plain-English, trust-first: it must be obvious that nothing
  * here involves real funds.
@@ -34,7 +34,7 @@ export function PerpsInfoSheet({ trigger }: { trigger?: React.ReactNode }) {
         <SheetHeader>
           <SheetTitle>How simulated perps work</SheetTitle>
           <SheetDescription>
-            Paper trading only — no real funds are ever at risk.
+            Paper trading only - no real funds are ever at risk.
           </SheetDescription>
         </SheetHeader>
         <div className="mt-4 space-y-4 text-sm leading-relaxed text-muted-foreground">
@@ -50,7 +50,7 @@ export function PerpsInfoSheet({ trigger }: { trigger?: React.ReactNode }) {
           </InfoBlock>
           <InfoBlock title="Leverage">
             Leverage multiplies your exposure. 5x leverage on 1 SOL margin
-            controls a 5 SOL position — gains and losses both move 5x faster
+            controls a 5 SOL position - gains and losses both move 5x faster
             relative to your margin.
           </InfoBlock>
           <InfoBlock title="Long vs. Short">

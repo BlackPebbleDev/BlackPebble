@@ -1,5 +1,5 @@
 /**
- * Progression — the single, centralized source for "what an achievement is
+ * Progression - the single, centralized source for "what an achievement is
  * worth". Any future XP / level / season / score system MUST read its point
  * values and contributions from here rather than hardcoding their own, so the
  * whole reputation surface stays consistent as it grows.

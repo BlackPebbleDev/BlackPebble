@@ -25,8 +25,8 @@ const ELEVATED_RISK: readonly TokenRiskClass[] = [
 
 const ACTION_STYLES: Record<SuggestedAction, string> = {
   Keep: "bg-secondary text-muted-foreground",
-  Review: "bg-amber-500/10 text-amber-400",
-  "Burn candidate": "bg-red-500/10 text-red-400",
+  Review: "bg-warning/10 text-warning",
+  "Burn candidate": "bg-danger/10 text-danger",
   Protected: "bg-accent/12 text-accent",
 };
 
@@ -35,7 +35,7 @@ const ACTION_STYLES: Record<SuggestedAction, string> = {
  * USD value vs realistically-realizable value (the core of fake-value
  * detection), the risk verdict + structured factors + reasons, sellability, and
  * the user-protect control. Optionally selectable when it sits in a burnable
- * bucket. Purely presentational — never closes, burns, hides or auto-selects.
+ * bucket. Purely presentational - never closes, burns, hides or auto-selects.
  */
 export function TokenCard({
   token,
@@ -135,7 +135,7 @@ export function TokenCard({
             className={cn(
               "inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium",
               token.fakeValue
-                ? "bg-red-500/10 text-red-400"
+                ? "bg-danger/10 text-danger"
                 : "bg-secondary text-muted-foreground",
             )}
             data-testid={`realizable-${asset.pubkey}`}
@@ -143,7 +143,7 @@ export function TokenCard({
             Realizable {formatUsd(token.realizableUsd)}
           </span>
           {token.fakeValue && (
-            <span className="inline-flex items-center gap-1 rounded-md bg-red-500/10 px-1.5 py-0.5 text-[10px] font-medium text-red-400">
+            <span className="inline-flex items-center gap-1 rounded-md bg-danger/10 px-1.5 py-0.5 text-[10px] font-medium text-danger">
               <Info className="w-3 h-3" />
               Inflated value
             </span>
@@ -225,18 +225,18 @@ export function TokenCard({
             data-testid={`analysis-unavailable-${asset.pubkey}`}
           >
             <Info className="w-3 h-3 flex-shrink-0 mt-0.5" />
-            Analysis unavailable — we couldn't confirm a market or risk for this
+            Analysis unavailable - we couldn't confirm a market or risk for this
             token, so it's kept for your review, never flagged for cleanup.
           </div>
         )}
 
-      {/* Elevated-risk reasons surface inline — never buried behind a toggle. */}
+      {/* Elevated-risk reasons surface inline - never buried behind a toggle. */}
       {elevated && riskReasons.length > 0 && (
         <ul className="mt-2 space-y-1 rounded-lg bg-red-500/[0.06] p-2">
           {riskReasons.map((reason) => (
             <li
               key={reason}
-              className="flex items-start gap-1.5 text-[11px] text-red-400/90 leading-snug"
+              className="flex items-start gap-1.5 text-[11px] text-danger/90 leading-snug"
             >
               <span className="w-1 h-1 rounded-full bg-red-400/60 flex-shrink-0 mt-1.5" />
               {reason}

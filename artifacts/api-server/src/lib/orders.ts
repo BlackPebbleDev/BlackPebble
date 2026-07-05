@@ -3,7 +3,7 @@ import { executeSell, executeBuy, type ValuedPosition } from "./trading.js";
 import { getTokenInfo } from "./prices.js";
 
 /**
- * Advanced orders — phase 1: take-profit / stop-loss SELL orders attached to
+ * Advanced orders - phase 1: take-profit / stop-loss SELL orders attached to
  * an existing paper position, evaluated on every positions-refresh.
  *
  * Phase 2: buy_limit BUY orders, evaluated on a separate polling path
@@ -72,7 +72,7 @@ export interface OrderFill {
   tokenMint: string;
   tokenSymbol: string | null;
   percent: number;
-  /** SOL amount spent — populated for buy_limit fills, null for TP/SL. */
+  /** SOL amount spent - populated for buy_limit fills, null for TP/SL. */
   solAmount?: number | null;
   triggerType: TriggerType;
   triggerValue: number;
@@ -95,7 +95,7 @@ function isTriggerType(v: unknown): v is TriggerType {
 }
 
 /**
- * Create a TP/SL order. Requires an open position for the mint — phase 1
+ * Create a TP/SL order. Requires an open position for the mint - phase 1
  * orders only ever EXIT an existing position.
  */
 export async function createOrder(
@@ -372,7 +372,7 @@ export async function evaluateOrders(
 
 /**
  * Evaluate pending buy-limit orders for a wallet. Fetches current market cap
- * for each token via getTokenInfo() (30 s cache — the same data the markets
+ * for each token via getTokenInfo() (30 s cache - the same data the markets
  * page already fetches, so the incremental cost is bounded by BUY_LIMIT_CAP).
  *
  * Called on a separate polling path (GET /trade/buy-limits/check/:wallet) so
@@ -412,7 +412,7 @@ export async function evaluateBuyLimitOrders(
         });
       }
     } catch {
-      // Token info unavailable this pass — retry next poll.
+      // Token info unavailable this pass - retry next poll.
     }
   }
 

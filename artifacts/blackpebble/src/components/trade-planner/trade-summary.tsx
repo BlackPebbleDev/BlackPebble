@@ -1,4 +1,4 @@
-/** Section 4 — Trade Summary. Final read-out + setup rating + disclaimer. */
+/** Section 4 - Trade Summary. Final read-out + setup rating + disclaimer. */
 import { SectionCard, Stat } from "./primitives";
 import { fmtValuation, fmtUnitAmt, fmtRR } from "./util";
 import { cn } from "@/lib/utils";

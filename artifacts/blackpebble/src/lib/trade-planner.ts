@@ -1,5 +1,5 @@
 /**
- * Trade Planner — pure calculation + parsing logic.
+ * Trade Planner - pure calculation + parsing logic.
  *
  * Frontend-only utility. Nothing here touches paper trading, portfolio,
  * leaderboard, market feeds, auth, the API, or the database. It is deliberately
@@ -7,7 +7,7 @@
  * Scenario Simulator, Profit Taking, Trade Journal, Conviction Simulator) can
  * reuse the same primitives.
  *
- * The math works on "valuations" — a valuation is either a market cap or a token
+ * The math works on "valuations" - a valuation is either a market cap or a token
  * price. Because every output is a ratio of valuations (downside/upside/multiple),
  * the formulas are identical in both modes; only display/formatting differs.
  */
@@ -34,7 +34,7 @@ export interface PlanInput {
   stop: number | null;
   /** Target valuation. For a long this must be above entry. */
   target: number | null;
-  /** Optional current valuation — informational only. */
+  /** Optional current valuation - informational only. */
   current: number | null;
   /** Account size in SOL. */
   accountSize: number | null;
@@ -88,7 +88,7 @@ export interface PlanResult {
 
 export interface TargetProjection {
   multiple: number;
-  /** Projected valuation (entry * multiple) — market cap or price. */
+  /** Projected valuation (entry * multiple) - market cap or price. */
   valuation: number | null;
   /** Position value at this multiple. */
   positionValue: number | null;
@@ -262,7 +262,7 @@ export function computePlan(input: PlanInput): PlanResult {
 /**
  * Compact "Mini Planner" used on the token trading page. A lightweight execution
  * assistant: from an entry/target/stop valuation plus an investment amount it
- * derives the headline outcome stats. Pure and side-effect-free — like the rest
+ * derives the headline outcome stats. Pure and side-effect-free - like the rest
  * of this module it never touches paper trading, the API, or the database.
  *
  * All math is ratio-based, so the investment unit (SOL or USD) only affects how

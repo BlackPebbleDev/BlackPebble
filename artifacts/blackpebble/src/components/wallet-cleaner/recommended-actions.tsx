@@ -37,7 +37,7 @@ function ActionRow({
         className={cn(
           "w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0",
           tone === "danger"
-            ? "bg-red-500/12 text-red-400"
+            ? "bg-danger/12 text-danger"
             : "bg-accent/12 text-accent",
         )}
       >
@@ -53,7 +53,7 @@ function ActionRow({
         <span
           className={cn(
             "flex items-center gap-1 text-xs font-medium flex-shrink-0",
-            tone === "danger" ? "text-red-400" : "text-accent",
+            tone === "danger" ? "text-danger" : "text-accent",
           )}
         >
           <span className="hidden xs:inline">{cta}</span>
@@ -65,7 +65,7 @@ function ActionRow({
 }
 
 /**
- * SECTION 2 — Recommended Actions. An action-focused workflow that turns the
+ * SECTION 2 - Recommended Actions. An action-focused workflow that turns the
  * scan results into one-tap next steps: reclaim trapped SOL, burn confirmed
  * junk, or review everything that needs a human look. Each action is gated on
  * real counts and disabled (with an explicit reason) when there's nothing to do.
@@ -106,7 +106,7 @@ export function RecommendedActions({
       <h2 className="text-[11px] uppercase tracking-wider text-muted-foreground px-1">
         Recommended actions
       </h2>
-      <div className="rounded-3xl bg-card shadow-card overflow-hidden divide-y divide-border">
+      <div className="rounded-xl bg-card shadow-card overflow-hidden divide-y divide-border">
         <ActionRow
           icon={<Coins className="w-5 h-5" />}
           tone="accent"

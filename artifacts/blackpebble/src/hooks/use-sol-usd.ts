@@ -26,7 +26,7 @@ export function useSolUsd(): number {
 /**
  * The SOL/USD rate the trade panels (spot, leverage, planners) MUST use. It
  * prefers the authoritative, position-independent app rate and only falls back
- * to the per-token quote for USD *display* while that rate loads — never for
+ * to the per-token quote for USD *display* while that rate loads - never for
  * sizing or validating an order. `rateReady` gates order submission so a trade
  * can never execute against an untrusted rate, and a wild divergence between the
  * token quote and the authoritative rate is logged as a desync diagnostic.
@@ -48,7 +48,7 @@ export function useTradeRate(info: {
     if (result.anomaly && warnedMint.current !== (info.mint ?? null)) {
       warnedMint.current = info.mint ?? null;
       console.warn(
-        "[balance] SOL/USD rate anomaly — token quote diverges from the authoritative rate; using authoritative.",
+        "[balance] SOL/USD rate anomaly - token quote diverges from the authoritative rate; using authoritative.",
         {
           mint: info.mint,
           authoritative,

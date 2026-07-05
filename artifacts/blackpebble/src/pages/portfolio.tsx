@@ -34,6 +34,16 @@ import { useSolUsd } from "@/hooks/use-sol-usd";
 import { LIVE_MS } from "@/lib/live";
 import { LiveIndicator } from "@/components/live-indicator";
 import { RecoveryDiscoveryCard } from "@/components/recovery-discovery-card";
+import { RealTradingAnalysisSection } from "@/components/real-trading-analysis";
+import {
+  bpScales,
+  bpTooltip,
+  accentLineDataset,
+  crosshairPlugin,
+  filterByRange,
+  type ChartRange,
+} from "@/lib/chart-theme";
+import { ChartRangeToggle } from "@/components/chart-range-toggle";
 import { cn } from "@/lib/utils";
 import {
   useGuestStore,
@@ -89,7 +99,7 @@ function BestTradeStat({
       <Stat
         label="Best Trade"
         value={<PnlAmount sol={stats.bestTrade} solUsd={solUsd} />}
-        className="text-emerald-400"
+        className="text-success"
       />
     );
   }
@@ -109,6 +119,7 @@ export default function Portfolio() {
   const flags = useFeatureFlags();
   const [, navigate] = useLocation();
   const [historyExpanded, setHistoryExpanded] = useState(false);
+  const [chartRange, setChartRange] = useState<ChartRange>("all");
 
   useEffect(() => {
     trackPortfolioView();
@@ -185,29 +196,37 @@ export default function Portfolio() {
   const statsLoading = isGuest ? false : serverStatsLoading;
   const history = isGuest ? { trades: guestHistory(guestState) } : serverHistory;
 
-  const chartData = useMemo(() => {
+  // Range-filtered equity points; fall back to full history when the selected
+  // window is too sparse to draw a line. Chart points use ms timestamps, the
+  // shared filter expects seconds.
+  const { chartPoints, chartRangeSparse } = useMemo(() => {
     const points = chart?.points ?? [];
-    return {
-      labels: points.map((p) =>
-        new Date(p.t).toLocaleDateString("en-US", {
+    const asSeconds = points.map((p) => ({ ...p, t: Math.floor(p.t / 1000) }));
+    const filtered = filterByRange(asSeconds, chartRange);
+    if (filtered.length > 1) {
+      return { chartPoints: filtered, chartRangeSparse: false };
+    }
+    return { chartPoints: asSeconds, chartRangeSparse: chartRange !== "all" };
+  }, [chart, chartRange]);
+
+  const chartData = useMemo(
+    () => ({
+      labels: chartPoints.map((p) =>
+        new Date(p.t * 1000).toLocaleDateString("en-US", {
           month: "short",
           day: "numeric",
         }),
       ),
       datasets: [
         {
-          label: "Equity (SOL)",
-          data: points.map((p) => p.equity),
-          borderColor: "#c9a96e",
-          backgroundColor: "rgba(201,169,110,0.08)",
-          fill: true,
-          tension: 0.3,
-          pointRadius: 0,
-          borderWidth: 2,
+          ...accentLineDataset,
+          label: "Equity",
+          data: chartPoints.map((p) => p.equity),
         },
       ],
-    };
-  }, [chart]);
+    }),
+    [chartPoints],
+  );
 
   if (!wallet && !isGuest) {
     return (
@@ -250,9 +269,8 @@ export default function Portfolio() {
       {!isGuest && selfHandle && (
         <div
           data-testid="portfolio-user-summary"
-          className="relative overflow-hidden rounded-2xl bg-card shadow-card px-4 py-4 md:px-5 md:py-5 mb-6"
+          className="hairline-accent overflow-hidden rounded-2xl bg-card shadow-card px-4 py-4 md:px-5 md:py-5 mb-6"
         >
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/40 to-transparent" />
           <div className="flex items-start justify-between gap-3">
             <UserIdentity
               size="lg"
@@ -384,7 +402,7 @@ export default function Portfolio() {
             </div>
           </div>
 
-          {/* P&L breakdown — only shown for signed-in users with any leverage activity */}
+          {/* P&L breakdown - only shown for signed-in users with any leverage activity */}
           {!isGuest && flags.leverage && serverStats != null &&
             (serverStats.leverageOpenCount > 0 ||
               serverStats.leverageRealizedPnlSol !== 0 ||
@@ -438,31 +456,64 @@ export default function Portfolio() {
               </div>
             )}
 
-          {/* Wallet utility — strictly isolated from paper-trading metrics above. */}
+          {/* Wallet utility - strictly isolated from paper-trading metrics above. */}
+          {flags.real_trading_analysis && (
+            <RealTradingAnalysisSection />
+          )}
           <div className="mb-6">
             <RecoveryDiscoveryCard />
           </div>
 
           {!isGuest && (
             <div className="rounded-xl bg-card shadow-card p-5 mb-6">
-              <div className="stat-label mb-4">Equity Performance</div>
+              <div className="flex items-start justify-between gap-3 mb-4">
+                <div className="stat-label">Equity Performance</div>
+                <ChartRangeToggle
+                  value={chartRange}
+                  onChange={setChartRange}
+                  className="shrink-0"
+                />
+              </div>
+              {chartRangeSparse && (
+                <p className="text-[11px] text-warning/80 mb-2">
+                  Not enough history in this window - showing full history.
+                </p>
+              )}
               <div className="h-64">
                 <Line
                   data={chartData}
+                  plugins={[crosshairPlugin]}
                   options={{
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: {
-                      x: {
-                        grid: { color: "rgba(255,255,255,0.04)" },
-                        ticks: { color: "#a0a0a0", maxTicksLimit: 8 },
-                      },
-                      y: {
-                        grid: { color: "rgba(255,255,255,0.04)" },
-                        ticks: { color: "#a0a0a0" },
+                    interaction: { mode: "index", intersect: false },
+                    plugins: {
+                      legend: { display: false },
+                      tooltip: {
+                        ...bpTooltip,
+                        callbacks: {
+                          title: (items) => {
+                            const p =
+                              items[0] != null
+                                ? chartPoints[items[0].dataIndex]
+                                : null;
+                            return p
+                              ? new Date(p.t * 1000).toLocaleDateString(
+                                  "en-US",
+                                  {
+                                    month: "short",
+                                    day: "numeric",
+                                    year: "numeric",
+                                  },
+                                )
+                              : "";
+                          },
+                          label: (item) =>
+                            `Equity: ${fmtSol(item.parsed.y ?? 0)} SOL`,
+                        },
                       },
                     },
+                    scales: bpScales,
                   }}
                 />
               </div>

@@ -46,7 +46,7 @@ function StatRow({
  * Premium post-recovery summary: the full SOL breakdown (recovered, network fee,
  * BlackPebble fee = 0, net received), confirmed transaction signatures with
  * Solscan / Solana Explorer links, copy + share, and a way back to Recovery.
- * Display-only — it never re-runs or alters the on-chain recovery flow.
+ * Display-only - it never re-runs or alters the on-chain recovery flow.
  */
 export function RecoverySuccess({ cleaner }: { cleaner: UseWalletCleaner }) {
   const { recoveredSol, closedCount, recoveredFee, recoveredNet, signatures, scan, reset } =
@@ -90,7 +90,7 @@ export function RecoverySuccess({ cleaner }: { cleaner: UseWalletCleaner }) {
           ...(url ? { url } : {}),
         });
       } catch (err) {
-        // User dismissed the native share sheet — not an error.
+        // User dismissed the native share sheet - not an error.
         if ((err as Error)?.name === "AbortError") return;
         // A real native-share failure: fall back to clipboard if we can.
         if (canClipboardShare) await copyToClipboardShare(payload);
@@ -103,7 +103,7 @@ export function RecoverySuccess({ cleaner }: { cleaner: UseWalletCleaner }) {
 
   return (
     <div
-      className="rounded-3xl bg-card shadow-card p-6 sm:p-8 space-y-6"
+      className="rounded-xl bg-card shadow-card p-6 sm:p-8 space-y-6"
       data-testid="recovery-complete"
     >
       <div className="text-center space-y-2">

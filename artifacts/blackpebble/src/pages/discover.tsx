@@ -16,7 +16,7 @@ const sortTabs: { id: TraderSort; label: string }[] = [
 // Progression tiers. The `id` is the stored graduation_tier key (the server
 // filters on an exact, case-insensitive match against that column); the label
 // is the display-only progression name from lib/tiers.ts. No membership words
-// ("Premium"/"Verified") appear here — progression has its own vocabulary.
+// ("Premium"/"Verified") appear here - progression has its own vocabulary.
 const tierTabs: { id: string; label: string }[] = [
   { id: "", label: "Any tier" },
   { id: "bronze", label: "Bronze" },

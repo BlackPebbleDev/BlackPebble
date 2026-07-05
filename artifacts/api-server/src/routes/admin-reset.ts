@@ -57,7 +57,7 @@ async function countRows(
  * One-time, password-protected pre-launch reset of all paper-trading data.
  *
  * - Requires the `x-admin-token` header to match the ADMIN_RESET_TOKEN secret.
- * - If ADMIN_RESET_TOKEN is unset the route is disabled (503) — deleting the
+ * - If ADMIN_RESET_TOKEN is unset the route is disabled (503) - deleting the
  *   secret after use turns the endpoint off without a redeploy.
  * - Backs up every affected table into a timestamped `reset_backups` schema
  *   inside the same transaction, then clears trading data and resets account

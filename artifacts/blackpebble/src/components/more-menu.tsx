@@ -30,12 +30,12 @@ interface ExternalProvider {
 
 /**
  * Single source of truth for every external provider in the More menu.
- * To add a new provider: append one object here — no other code changes needed.
+ * To add a new provider: append one object here - no other code changes needed.
  *
  * Identifier notes (verified):
- *   mint       — Axiom, GMGN, Terminal (static), Phantom, Jupiter, Birdeye,
+ *   mint       - Axiom, GMGN, Terminal (static), Phantom, Jupiter, Birdeye,
  *                BubbleMaps, RugCheck, Solscan
- *   pairOrMint — DexScreener (accepts both), Photon (LP addr), GeckoTerminal
+ *   pairOrMint - DexScreener (accepts both), Photon (LP addr), GeckoTerminal
  *                (pool addr), DEXTools (pair addr)
  *
  * Pump.fun Terminal: no token deep-link exists (catch-all SPA shell verified via
@@ -71,7 +71,7 @@ const PROVIDERS: ExternalProvider[] = [
     category: "trading",
     logo: "/provider-logos/terminal.svg",
     requiresPair: false,
-    // No token-specific deep link — verified via bundle route inspection
+    // No token-specific deep link - verified via bundle route inspection
     buildHref: () => "https://terminal.pump.fun/sign-in",
   },
   {
@@ -207,7 +207,7 @@ interface MoreMenuProps {
   pairAddress: string | null;
   /**
    * True when the token actually originates on Pump.fun (bonding curve or a
-   * migrated PumpSwap pool). Drives visibility of the Pump.fun row — never
+   * migrated PumpSwap pool). Drives visibility of the Pump.fun row - never
    * show it for tokens that never touched Pump.fun.
    */
   isPumpFun?: boolean;

@@ -32,7 +32,7 @@ function clampInt(v: unknown, max = 1_000_000): number {
  * Sanitize a list of confirmed tx signatures from the client into a base58
  * string[]. Anything that does not look like a Solana signature is dropped and
  * the list is capped so a hostile client cannot bloat the row. The signatures
- * are only a *pointer* to on-chain data — they are independently verified server
+ * are only a *pointer* to on-chain data - they are independently verified server
  * side before any value is credited (see recovery-verify.ts).
  */
 function sanitizeSignatures(v: unknown): string[] {
@@ -91,7 +91,7 @@ router.post(
       : null;
 
     // V2 capture: confirmed signatures + fee/net breakdown (cleanup only). The
-    // BlackPebble platform fee is forced to 0 here — fees are inert scaffolding,
+    // BlackPebble platform fee is forced to 0 here - fees are inert scaffolding,
     // never trusted or charged from the client.
     const sigList =
       eventType === "cleanup" ? sanitizeSignatures(body.txSignatures) : [];
@@ -150,7 +150,7 @@ router.post(
 
     // Only successful cleanups carry on-chain proof worth verifying. Scans and
     // failed cleanups stay verified=false (they never surface as public truth).
-    // Verification is identity-independent, so it runs for guests too — the X
+    // Verification is identity-independent, so it runs for guests too - the X
     // identity (resolved server-side above) only governs feed attribution.
     let verification: { verified: boolean; status: string } | null = null;
     if (
@@ -187,7 +187,7 @@ router.post(
  * Batch token-metadata lookup for the recovery account list. Public (recovery
  * works for guest wallets too). Accepts a list of mint addresses and returns a
  * mint -> {symbol,name,logo} map, each field nullable. This is purely a display
- * enrichment — it never touches scanning or the close/recovery transaction flow.
+ * enrichment - it never touches scanning or the close/recovery transaction flow.
  */
 router.post(
   "/recovery/token-metadata",
@@ -249,7 +249,7 @@ function parseSignatures(v: unknown): string[] {
 
 /**
  * Per-wallet Recovery History + lifetime metrics, derived entirely from the
- * stored recovery_events captured during recovery (Phase A). Public — recovery
+ * stored recovery_events captured during recovery (Phase A). Public - recovery
  * works for guest wallets and a wallet address is public on-chain data. Returns
  * ONLY real persisted cleanups: nothing is fabricated, sampled, or estimated.
  * Lifetime metrics are aggregated from the same rows so the history is the
@@ -283,7 +283,7 @@ router.get(
       tokens_burned: Number(r.tokens_burned ?? 0),
       recovered_sol: Number(r.recovered_sol ?? 0),
       network_fee_sol: Number(r.network_fee_sol ?? 0),
-      // The BlackPebble fee is inert scaffolding — always 0, never charged.
+      // The BlackPebble fee is inert scaffolding - always 0, never charged.
       bp_fee_sol: 0,
       net_sol: Number(r.net_sol ?? 0),
       status: String(r.status ?? ""),
@@ -426,7 +426,7 @@ router.get(
       recent,
       topUsers,
       // Disabled future-fee architecture status (Phase G). Always reports the
-      // fee system as off — see recovery-fee.ts.
+      // fee system as off - see recovery-fee.ts.
       feeStatus: getRecoveryFeeStatus(),
     });
   }),
@@ -435,7 +435,7 @@ router.get(
 /**
  * Admin-only backfill: re-run on-chain verification for not-yet-verified
  * successful cleanups that carry signatures. This NEVER fabricates verification
- * — each row still has to pass the same on-chain proof, so historical rows are
+ * - each row still has to pass the same on-chain proof, so historical rows are
  * only promoted to verified when the chain confirms them. Bounded per call.
  */
 router.post(

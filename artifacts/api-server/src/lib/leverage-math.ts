@@ -1,9 +1,9 @@
 /**
- * Pure perps math — no database or network dependencies so every formula the
+ * Pure perps math - no database or network dependencies so every formula the
  * simulated perps engine relies on is unit-testable in isolation.
  *
  * All P&L / liquidation levels are denominated in USD market cap (falling back
- * to SOL price only when MC is unavailable) — see
+ * to SOL price only when MC is unavailable) - see
  * .agents/memory/leverage-mc-denomination.md for why.
  */
 
@@ -116,7 +116,7 @@ export function isLiquidated(
 /**
  * Whether an exit order's market-cap trigger has been met.
  * Long:  TP fires when MC rises to/through the target; SL fires when MC falls to it.
- * Short: mirrored — TP fires on a fall, SL fires on a rise.
+ * Short: mirrored - TP fires on a fall, SL fires on a rise.
  */
 export function exitOrderTriggered(
   direction: LeverageDirection,

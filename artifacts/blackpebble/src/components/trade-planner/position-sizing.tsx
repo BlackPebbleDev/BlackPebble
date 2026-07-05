@@ -1,4 +1,4 @@
-/** Section 2 — Position Sizing. Mode A (risk-based) or Mode B (fixed size). */
+/** Section 2 - Position Sizing. Mode A (risk-based) or Mode B (fixed size). */
 import { SectionCard, SegmentedToggle, PlannerField, Stat } from "./primitives";
 import { fmtUnitAmt, fmtPct } from "./util";
 import type { SizingMode, PlanErrors, PlanResult, Unit } from "@/lib/trade-planner";

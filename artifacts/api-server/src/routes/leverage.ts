@@ -74,7 +74,7 @@ router.post(
       return res.status(400).json({ ok: false, error: "wallet and a valid position id are required" });
     }
     // Optional partial close: percent of the remaining notional (1..100).
-    // Omitted / null defaults to a full (100%) close — behavior unchanged.
+    // Omitted / null defaults to a full (100%) close - behavior unchanged.
     const percent = b.percent != null ? Number(b.percent) : 100;
     const result = await closeLeverage(wallet, id, percent);
     return res.status(result.ok ? 200 : 400).json(result);
@@ -142,7 +142,7 @@ router.get(
     const wallet = String(req.params.wallet || "").trim();
     if (!wallet) return res.status(400).json({ error: "wallet is required" });
     // Read-only: liquidation / TP / SL evaluation runs on the background sweep
-    // cron, not here — a public GET must never mutate positions. Recent fills
+    // cron, not here - a public GET must never mutate positions. Recent fills
     // (from the sweep or manual closes elsewhere) are attached so the owner's
     // client can announce them; the client dedupes by tradeId.
     const positions = await valueLeveragePositions(wallet);
@@ -177,7 +177,7 @@ router.get(
 );
 
 // Closed / liquidated position snapshots (entry → exit, realized P&L, close
-// reason, timestamps) — the auditable per-position record behind the history.
+// reason, timestamps) - the auditable per-position record behind the history.
 router.get(
   "/leverage/closed/:wallet",
   asyncHandler(async (req, res) => {

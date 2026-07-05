@@ -40,9 +40,9 @@ const FILL_LABELS: Record<string, string> = {
 /** Human labels + colors for a close reason in history. */
 const REASON_BADGES: Record<string, { label: string; className: string }> = {
   manual: { label: "Manual", className: "bg-muted text-muted-foreground" },
-  take_profit: { label: "Take Profit", className: "bg-emerald-500/15 text-emerald-400" },
-  stop_loss: { label: "Stop Loss", className: "bg-red-500/15 text-red-400" },
-  liquidated: { label: "Liquidated", className: "bg-red-500/25 text-red-400" },
+  take_profit: { label: "Take Profit", className: "bg-success/15 text-success" },
+  stop_loss: { label: "Stop Loss", className: "bg-danger/15 text-danger" },
+  liquidated: { label: "Liquidated", className: "bg-red-500/25 text-danger" },
   system_correction: { label: "System", className: "bg-muted text-muted-foreground" },
 };
 
@@ -62,7 +62,7 @@ function currentValueSol(p: LeveragePosition): number | null {
 /**
  * Distance from the current market cap to the liquidation market cap, as a
  * percentage of the current market cap. Smaller = closer to liquidation.
- * Longs liquidate below the current MC, shorts above it — the distance is
+ * Longs liquidate below the current MC, shorts above it - the distance is
  * positive while the position is alive either way.
  */
 function distanceToLiqPercent(p: LeveragePosition): number | null {
@@ -116,7 +116,7 @@ function useLeverageData(wallet: string, announce = true) {
       }
       return;
     }
-    // Dedupe by trade id (unique per close event — a position can produce
+    // Dedupe by trade id (unique per close event - a position can produce
     // several partial-close fills, so positionId alone is not enough).
     const fresh = fills.filter(
       (f) => !seenFills.current.has(f.tradeId ?? f.positionId),
@@ -453,8 +453,8 @@ function LeverageRow({
                 className={cn(
                   "rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase",
                   isShortPosition(p.direction)
-                    ? "bg-red-500/15 text-red-400"
-                    : "bg-emerald-500/15 text-emerald-400",
+                    ? "bg-danger/15 text-danger"
+                    : "bg-success/15 text-success",
                 )}
               >
                 {p.leverage}x {directionLabel(p.direction)}
@@ -488,7 +488,7 @@ function LeverageRow({
         <StatCell
           label="Liq MC"
           value={fmtMarketCap(p.liq_market_cap)}
-          valueClass="text-red-400"
+          valueClass="text-danger"
         />
       </div>
 
@@ -501,8 +501,8 @@ function LeverageRow({
               className={cn(
                 "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium",
                 o.kind === "take_profit"
-                  ? "bg-emerald-500/15 text-emerald-400"
-                  : "bg-red-500/15 text-red-400",
+                  ? "bg-success/15 text-success"
+                  : "bg-danger/15 text-danger",
               )}
             >
               {o.kind === "take_profit" ? "TP" : "SL"} {o.percent}% @{" "}
@@ -519,7 +519,7 @@ function LeverageRow({
           <span
             className={cn(
               "font-mono",
-              dist != null && dist < 10 ? "text-red-400" : "text-foreground",
+              dist != null && dist < 10 ? "text-danger" : "text-foreground",
             )}
           >
             {fmtDistance(dist)}
@@ -544,7 +544,7 @@ function LeverageRow({
             onClick={() => onClose()}
             disabled={closing}
             data-testid={`button-leverage-close-${p.id}`}
-            className="flex items-center gap-1.5 h-8 px-3 text-xs font-medium border border-red-400/40 text-red-400 hover:bg-red-500/15 transition-colors rounded-md disabled:opacity-40"
+            className="flex items-center gap-1.5 h-8 px-3 text-xs font-medium border border-danger/40 text-danger hover:bg-danger/15 transition-colors rounded-md disabled:opacity-40"
           >
             {closing && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             Close
@@ -626,7 +626,7 @@ function ManageExits({
               disabled={!canAddTp}
               onClick={() => setAdding(adding === "take_profit" ? null : "take_profit")}
               data-testid={`button-leverage-add-tp-${p.id}`}
-              className="inline-flex items-center gap-1 rounded-md border border-emerald-400/40 px-2 py-1 text-[11px] font-medium text-emerald-400 hover:bg-emerald-500/10 transition-colors disabled:opacity-30"
+              className="inline-flex items-center gap-1 rounded-md border border-success/40 px-2 py-1 text-[11px] font-medium text-success hover:bg-success/10 transition-colors disabled:opacity-30"
             >
               <Plus className="h-3 w-3" /> TP
             </button>
@@ -635,7 +635,7 @@ function ManageExits({
               disabled={!canAddSl}
               onClick={() => setAdding(adding === "stop_loss" ? null : "stop_loss")}
               data-testid={`button-leverage-add-sl-${p.id}`}
-              className="inline-flex items-center gap-1 rounded-md border border-red-400/40 px-2 py-1 text-[11px] font-medium text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-30"
+              className="inline-flex items-center gap-1 rounded-md border border-danger/40 px-2 py-1 text-[11px] font-medium text-danger hover:bg-danger/10 transition-colors disabled:opacity-30"
             >
               <Plus className="h-3 w-3" /> SL
             </button>
@@ -724,7 +724,7 @@ function ExitOrderRow({
         <span
           className={cn(
             "font-medium shrink-0",
-            isTp ? "text-emerald-400" : "text-red-400",
+            isTp ? "text-success" : "text-danger",
           )}
         >
           {isTp ? "Take Profit" : "Stop Loss"}
@@ -752,7 +752,7 @@ function ExitOrderRow({
             disabled={busy}
             data-testid={`button-leverage-exit-cancel-${order.id}`}
             aria-label="Cancel order"
-            className="flex items-center gap-1 text-muted-foreground hover:text-red-400 transition-colors disabled:opacity-40"
+            className="flex items-center gap-1 text-muted-foreground hover:text-danger transition-colors disabled:opacity-40"
           >
             <X className="h-3.5 w-3.5" />
           </button>
@@ -795,7 +795,7 @@ function ExitOrderEditor({
         <span
           className={cn(
             "w-[74px] shrink-0 text-xs font-medium",
-            isTp ? "text-emerald-400" : "text-red-400",
+            isTp ? "text-success" : "text-danger",
           )}
         >
           {isTp ? "Take Profit" : "Stop Loss"}
@@ -858,7 +858,7 @@ function ExitOrderEditor({
  * 9-column table can never fit an iPhone without horizontal scroll), the
  * classic table on desktop. Close reason is always visible as a badge so a
  * trader can tell manual closes, TP/SL fills and liquidations apart at a
- * glance — with the trigger level in the expanded details.
+ * glance - with the trigger level in the expanded details.
  */
 function LeverageHistoryTable({
   trades,
@@ -910,7 +910,7 @@ function historyActionLabel(t: LeverageTrade): string {
 }
 
 function historyActionColor(t: LeverageTrade): string {
-  if (t.action === "liquidated") return "text-red-400";
+  if (t.action === "liquidated") return "text-danger";
   if (t.action === "open") return "text-muted-foreground";
   return "text-foreground";
 }
@@ -939,8 +939,8 @@ function triggerExplanation(t: LeverageTrade): string | null {
   switch (reason) {
     case "liquidated":
       return t.trigger_mc != null
-        ? `Market cap crossed the ${fmtMarketCap(t.trigger_mc)} liquidation level — position force-closed, margin lost.`
-        : "Market cap crossed the liquidation level — position force-closed, margin lost.";
+        ? `Market cap crossed the ${fmtMarketCap(t.trigger_mc)} liquidation level - position force-closed, margin lost.`
+        : "Market cap crossed the liquidation level - position force-closed, margin lost.";
     case "take_profit":
       return t.trigger_mc != null
         ? `Take-profit trigger at ${fmtMarketCap(t.trigger_mc)} MC filled.`
@@ -950,7 +950,7 @@ function triggerExplanation(t: LeverageTrade): string | null {
         ? `Stop-loss trigger at ${fmtMarketCap(t.trigger_mc)} MC filled.`
         : "Stop-loss trigger filled.";
     case "system_correction":
-      return "Closed by the system (e.g. season reset) — margin returned, no P&L.";
+      return "Closed by the system (e.g. season reset) - margin returned, no P&L.";
     default:
       return "Closed manually.";
   }

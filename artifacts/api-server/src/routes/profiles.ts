@@ -87,7 +87,7 @@ async function calloutResult(
 /**
  * Owner-only bio update. The bio is keyed to the authenticated user's internal
  * id (session.sub); there is no path to edit another user's bio. Validation
- * (≤250 chars, plain text — no HTML/markdown) lives in setBio.
+ * (≤250 chars, plain text - no HTML/markdown) lives in setBio.
  *
  * Declared before the polymorphic `/profiles/:id` routes so "me" is never
  * interpreted as a profile handle.
@@ -133,7 +133,7 @@ router.put(
 /**
  * Trader discovery: search/filter the reputation board. Declared before the
  * polymorphic `/profiles/:id` route so "search" is never read as a handle.
- * Read-only — never mutates trading/reputation state.
+ * Read-only - never mutates trading/reputation state.
  */
 router.get(
   "/profiles/search",
@@ -180,7 +180,7 @@ router.get(
       getOfficialBadgesForUser(profile.user_id),
     ]);
 
-    // Trust reads spot-only stats — simulated perps P&L never inflates trust.
+    // Trust reads spot-only stats - simulated perps P&L never inflates trust.
     const badgeStats: BadgeStatsInput = {
       closedTrades: profile.stats.spotClosedTrades,
       realizedPnlSol: profile.stats.realizedPnlSol,
@@ -343,7 +343,7 @@ router.get(
 /**
  * Period-filtered call performance for a profile (30d / 90d / all-time): total
  * calls, win rate, avg return, best/worst call. Graded live against current
- * prices over the immutable callouts table — read-only, no scoring changes.
+ * prices over the immutable callouts table - read-only, no scoring changes.
  */
 router.get(
   "/profiles/:id/performance",
@@ -360,7 +360,7 @@ router.get(
  * optional thesis + conviction; the server snapshots authoritative entry price /
  * market cap / liquidity from the live price source so the on-the-record entry
  * can never be back-dated or spoofed. There is intentionally NO edit or delete
- * path. Thesis is optional — a call with no thesis is valid.
+ * path. Thesis is optional - a call with no thesis is valid.
  *
  * Declared before `/profiles/:id/*` matchers so "me" is never read as a handle.
  */
@@ -423,7 +423,7 @@ router.post(
 
 /**
  * Owner-only: append a follow-up note to one of the caller's own callouts. This
- * never mutates the original callout — updates are a separate append-only trail.
+ * never mutates the original callout - updates are a separate append-only trail.
  */
 router.post(
   "/callouts/:id/updates",

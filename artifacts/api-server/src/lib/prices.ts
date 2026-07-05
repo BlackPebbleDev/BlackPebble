@@ -30,7 +30,7 @@ export interface TokenInfo {
   // bonding-curve or Jupiter-sourced tokens. None of these feed trade math.
   buys24h?: number | null;
   sells24h?: number | null;
-  /** Pair creation time (ms epoch) — used to render token age. */
+  /** Pair creation time (ms epoch) - used to render token age. */
   pairCreatedAt?: number | null;
   volume6hUsd?: number | null;
   volume1hUsd?: number | null;
@@ -40,7 +40,7 @@ export interface TokenInfo {
   telegramUrl?: string | null;
   /** Banner / header image URL from DexScreener (display-only, optional). */
   bannerUrl?: string | null;
-  /** DEX identifier from DexScreener (e.g. "raydium", "meteora", "orca") — display-only. */
+  /** DEX identifier from DexScreener (e.g. "raydium", "meteora", "orca") - display-only. */
   dexId?: string | null;
 }
 
@@ -66,7 +66,7 @@ interface DexPair {
   fdv?: number;
   info?: {
     imageUrl?: string;
-    /** Banner / header image URL — shown as background art on the token card. */
+    /** Banner / header image URL - shown as background art on the token card. */
     header?: string;
     websites?: { label: string; url: string }[];
     socials?: { type: string; url: string }[];
@@ -162,7 +162,7 @@ function pickBestPair(pairs: DexPair[], mint: string): DexPair | null {
 
 // Short in-memory cache for the per-mint DexScreener pair. This is the shared
 // "live market data layer": clients can poll active tokens aggressively (every
-// few seconds) while external API load stays bounded — concurrent reads for the
+// few seconds) while external API load stays bounded - concurrent reads for the
 // same mint within the TTL collapse to a single upstream fetch. On a fetch
 // failure we serve the last-known-good pair rather than null so position values
 // never wipe to zero on a transient blip.
@@ -486,7 +486,7 @@ export interface TokenStatsBatchResult {
   /**
    * Whether EVERY upstream chunk request succeeded. When false, the batch hit a
    * transport-level failure (outage/timeout) for at least one chunk, so a mint
-   * being absent from `stats` does NOT prove it has no market — callers that
+   * being absent from `stats` does NOT prove it has no market - callers that
    * make trust decisions must treat absent mints as UNKNOWN, not "no market".
    */
   ok: boolean;
@@ -556,7 +556,7 @@ export async function getTokenStatsBatch(
 /**
  * Resolve each mint to the address of its best (trusted-quote) DexScreener pool.
  * On Solana a DexScreener `pairAddress` IS the on-chain AMM pool account, which
- * is the same address GeckoTerminal uses for its OHLCV endpoint — so this lets
+ * is the same address GeckoTerminal uses for its OHLCV endpoint - so this lets
  * the sparkline read its history from the SAME pool that prices/MC come from
  * (via the shared `isBetterPair` selection), keeping them consistent. Best
  * effort: mints with no usable Solana pair simply won't appear in the map.
@@ -578,7 +578,7 @@ export interface MintPair {
 /**
  * Resolve a set of mints to their trusted-quote best pair (batched, 30/request).
  * One DexScreener call per chunk yields the pool address AND the price/MC/change
- * fields — so the sparkline resolver gets both its OHLCV pool (L2) and its
+ * fields - so the sparkline resolver gets both its OHLCV pool (L2) and its
  * DexScreener-derived series (L3) from a single batched lookup, adding no extra
  * upstream load. Every observed price is also fed into the snapshot store (L5).
  */
@@ -647,7 +647,7 @@ export async function getBestPairAddresses(
  * window whose change is `pct`, the price `t` ago was `price / (1 + pct/100)`;
  * stitched oldest→newest this yields anchors at ~24h, 6h, 1h, 5m ago and now.
  * Returns null when fewer than three anchors are available (too thin to draw a
- * meaningful shape — let the next fallback level handle it).
+ * meaningful shape - let the next fallback level handle it).
  */
 export function deriveSeriesFromPair(pair: MintPair): number[] | null {
   const price = pair.priceUsd;
@@ -707,7 +707,7 @@ export function getMarketStatus(): {
 
 /**
  * Conservative dead/rugged-token thresholds. Tuned low so legitimately
- * volatile memecoins still pass — only pairs that are effectively dead or have
+ * volatile memecoins still pass - only pairs that are effectively dead or have
  * had their liquidity pulled are dropped.
  */
 const MIN_LIQUIDITY_USD = 500;
@@ -716,7 +716,7 @@ const MIN_VOLUME_24H_USD = 250;
 /**
  * Exclude tokens that are effectively dead or rugged:
  *  - missing symbol/name, price, or market cap,
- *  - extremely low liquidity — this also catches collapsed-liquidity rugs whose
+ *  - extremely low liquidity - this also catches collapsed-liquidity rugs whose
  *    pool was pulled to near zero,
  *  - no meaningful recent trading volume (a stale market cap with no 24h volume
  *    is a dead pair, not a tradable one).

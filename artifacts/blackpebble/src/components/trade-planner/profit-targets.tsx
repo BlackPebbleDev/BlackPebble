@@ -1,4 +1,4 @@
-/** Section 3 — Profit Targets. Quick multiples projected off entry + position. */
+/** Section 3 - Profit Targets. Quick multiples projected off entry + position. */
 import { SectionCard } from "./primitives";
 import { fmtValuation, fmtUnitAmt } from "./util";
 import {
@@ -73,7 +73,7 @@ export function ProfitTargets({
                     <td className="px-3 py-2 text-right text-foreground">
                       {r.positionValue != null ? fmtUnitAmt(r.positionValue, unit) : "—"}
                     </td>
-                    <td className="px-3 py-2 text-right text-emerald-400">
+                    <td className="px-3 py-2 text-right text-success">
                       {r.profit != null ? fmtUnitAmt(r.profit, unit) : "—"}
                     </td>
                   </tr>

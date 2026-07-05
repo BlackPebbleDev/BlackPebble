@@ -18,13 +18,13 @@ import {
 
 /**
  * Lifecycle of the lightweight, app-wide recovery scan that powers passive
- * discovery surfaces — the Portfolio "SOL Recovery" card and the post-connect
+ * discovery surfaces - the Portfolio "SOL Recovery" card and the post-connect
  * notification. This is intentionally separate from the full SOL Recovery
  * dashboard hook (`use-wallet-cleaner`): it never closes anything, it only
  * reports whether there is recoverable SOL so the feature stays discoverable.
  */
 export type DiscoveryStatus =
-  | "no-wallet" // No wallet connected — the feature is shown as an invitation.
+  | "no-wallet" // No wallet connected - the feature is shown as an invitation.
   | "scanning"
   | "ready"
   | "error";
@@ -78,7 +78,7 @@ export function RecoveryDiscoveryProvider({ children }: { children: ReactNode })
   const [accountCount, setAccountCount] = useState(0);
   const [notificationDismissed, setNotificationDismissed] = useState(false);
 
-  // Only the most recent scan may write state — a slow earlier scan can never
+  // Only the most recent scan may write state - a slow earlier scan can never
   // overwrite a fresher result.
   const reqId = useRef(0);
 

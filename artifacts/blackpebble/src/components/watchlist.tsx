@@ -14,7 +14,7 @@ import {
 } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
-/** Small round token image with an initials fallback — kept purely for quick
+/** Small round token image with an initials fallback - kept purely for quick
  * visual recognition, never the focus of the row. Not expandable. */
 function WatchTokenLogo({
   logo,
@@ -52,7 +52,7 @@ function WatchTokenLogo({
  * Shared watchlist used on both the Trading desk (account-context tabs) and the
  * Portfolio page. Each row shows symbol/name, price, market cap and 24h change,
  * has a remove control, and navigates to the Trading desk for that exact mint
- * when tapped — the remove button stops propagation so it never triggers a
+ * when tapped - the remove button stops propagation so it never triggers a
  * navigation.
  */
 export function Watchlist({
@@ -149,7 +149,7 @@ export function Watchlist({
               }}
               data-testid={`watch-remove-${w.mint}`}
               aria-label={`Remove ${w.symbol ?? "token"} from watchlist`}
-              className="shrink-0 -mr-1 p-1 text-muted-foreground hover:text-red-400 transition-colors"
+              className="shrink-0 -mr-1 p-1 text-muted-foreground hover:text-danger transition-colors"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -226,7 +226,7 @@ export function Watchlist({
                     }}
                     data-testid={`watch-remove-${w.mint}`}
                     aria-label={`Remove ${w.symbol ?? "token"} from watchlist`}
-                    className="p-1.5 text-muted-foreground hover:text-red-400 transition-colors"
+                    className="p-1.5 text-muted-foreground hover:text-danger transition-colors"
                   >
                     <X className="w-4 h-4" />
                   </button>

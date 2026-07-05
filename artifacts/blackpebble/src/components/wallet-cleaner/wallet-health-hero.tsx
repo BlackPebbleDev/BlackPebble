@@ -9,10 +9,10 @@ function healthBand(score: number): { label: string; tone: string } {
   if (score >= 90) return { label: "Excellent", tone: "text-accent" };
   if (score >= 75) return { label: "Good", tone: "text-accent" };
   if (score >= 60) return { label: "Fair", tone: "text-foreground" };
-  return { label: "Needs cleanup", tone: "text-amber-400" };
+  return { label: "Needs cleanup", tone: "text-warning" };
 }
 
-/** A single compact hero metric. Falls back to "—" — never fabricated. */
+/** A single compact hero metric. Falls back to "—" - never fabricated. */
 function HeroStat({
   icon,
   label,
@@ -43,10 +43,10 @@ function HeroStat({
 }
 
 /**
- * SECTION 1 — Wallet Health Hero. The centerpiece summary: a real 0–100 health
+ * SECTION 1 - Wallet Health Hero. The centerpiece summary: a real 0–100 health
  * score plus the three figures a holder acts on (recoverable SOL, assets that
  * need a look, and protected assets). Every value is derived from the live scan
- * via the cleaner hook — nothing is fabricated, and "—" shows until a scan runs.
+ * via the cleaner hook - nothing is fabricated, and "—" shows until a scan runs.
  */
 export function WalletHealthHero({
   cleaner,
@@ -93,7 +93,7 @@ export function WalletHealthHero({
 
   return (
     <section
-      className="rounded-3xl bg-card shadow-card p-5 sm:p-6 space-y-5"
+      className="rounded-xl bg-card shadow-card p-5 sm:p-6 space-y-5"
       data-testid="wallet-health-hero"
     >
       <div className="flex items-center justify-between gap-4">
@@ -155,7 +155,7 @@ export function WalletHealthHero({
               icon={<AlertTriangle className="w-3 h-3" />}
               label="Needs review"
               value={String(reviewCount)}
-              tone={reviewCount > 0 ? "text-amber-400" : "text-foreground"}
+              tone={reviewCount > 0 ? "text-warning" : "text-foreground"}
               testId="hero-needs-review"
             />
             <HeroStat

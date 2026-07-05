@@ -32,7 +32,7 @@ export function ProtectConfirmDialog({
       <DialogContent className="max-w-sm" data-testid="dialog-protect-confirm">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <ShieldAlert className="w-4 h-4 text-amber-400" />
+            <ShieldAlert className="w-4 h-4 text-warning" />
             Remove protection?
           </DialogTitle>
           <DialogDescription>

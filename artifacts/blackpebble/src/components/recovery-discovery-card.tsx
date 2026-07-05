@@ -9,7 +9,7 @@ const RECOVERY_PATH = "/utilities/sol-recovery";
 /**
  * Passive discovery card for the Portfolio. Surfaces recoverable SOL so the
  * feature is findable, while staying strictly isolated from paper-trading
- * metrics — recoverable SOL is a wallet utility figure, never PnL or equity.
+ * metrics - recoverable SOL is a wallet utility figure, never PnL or equity.
  *
  * Three states:
  *  - no wallet connected (incl. X-only users) → invitation to connect

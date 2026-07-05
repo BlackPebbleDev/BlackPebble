@@ -1,5 +1,5 @@
 /**
- * Display helpers local to the Trade Planner. Output-only formatting — parsing
+ * Display helpers local to the Trade Planner. Output-only formatting - parsing
  * lives in src/lib/trade-planner.ts. Keeps brand rules in one place so future
  * planner modules format identically.
  */

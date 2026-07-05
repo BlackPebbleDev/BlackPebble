@@ -5,7 +5,7 @@
  * derived from real platform activity each time it is requested, then
  * persisted via upsert so the first-earn timestamp is preserved.
  *
- * Trust Score formula (100-pt scale — change only the weights here to tune):
+ * Trust Score formula (100-pt scale - change only the weights here to tune):
  *
  *   tradePerf  = clamp(roiPercent / 200, 0, 1) × 30   (0–30, needs ≥5 trades)
  *   tradesComp = min(closedTrades, 50) / 50 × 20        (0–20)
@@ -32,7 +32,7 @@ export type BadgeCategory =
   | "special";
 
 /**
- * Achievement rarity — additive scaffolding for the collectible badge UI and the
+ * Achievement rarity - additive scaffolding for the collectible badge UI and the
  * expanded catalog (Task #54). Existing badges are annotated below; new catalog
  * entries supply their own. Defaults to "common" when absent.
  */
@@ -106,11 +106,11 @@ export interface BadgeStatsInput {
  * single exported source the rest of the system consumes.
  *
  * Every unlock condition is derived from REAL platform activity in
- * `evaluateBadges` below — nothing here is fabricated. Count-based badges expose
+ * `evaluateBadges` below - nothing here is fabricated. Count-based badges expose
  * a `target` there so the UI can render a progress bar.
  */
 
-// Trading — paper-trade volume milestones.
+// Trading - paper-trade volume milestones.
 const TRADING_BADGES: BadgeDefinition[] = [
   {
     key: "first_trade",
@@ -154,7 +154,7 @@ const TRADING_BADGES: BadgeDefinition[] = [
   },
 ];
 
-// Profit — realized P&L and ROI milestones.
+// Profit - realized P&L and ROI milestones.
 const PROFIT_BADGES: BadgeDefinition[] = [
   {
     key: "first_profit",
@@ -198,7 +198,7 @@ const PROFIT_BADGES: BadgeDefinition[] = [
   },
 ];
 
-// Calls — on-the-record public token calls.
+// Calls - on-the-record public token calls.
 const CALL_BADGES: BadgeDefinition[] = [
   {
     key: "first_call",
@@ -250,7 +250,7 @@ const CALL_BADGES: BadgeDefinition[] = [
   },
 ];
 
-// Research — standalone token theses.
+// Research - standalone token theses.
 const RESEARCH_BADGES: BadgeDefinition[] = [
   {
     key: "first_thesis",
@@ -279,7 +279,7 @@ const RESEARCH_BADGES: BadgeDefinition[] = [
 ];
 
 /**
- * Wallet Utilities — the signature collection, derived entirely from REAL
+ * Wallet Utilities - the signature collection, derived entirely from REAL
  * verified on-chain recovery events (rent reclaimed by cleaning up empty token
  * accounts). Unverified telemetry never unlocks a badge. Thresholds mirror the
  * recovery-badges scaffold so the two stay consistent.
@@ -349,9 +349,25 @@ const WALLET_BADGES: BadgeDefinition[] = [
     icon: "Trophy",
     rarity: "legendary",
   },
+  {
+    key: "verified_wallet_analysis",
+    name: "Verified Wallet",
+    description: "Connected and analyzed your first verified on-chain wallet.",
+    category: "wallet",
+    icon: "ShieldCheck",
+    rarity: "common",
+  },
+  {
+    key: "real_trader_100",
+    name: "100 Real Trades",
+    description: "100+ on-chain swaps analyzed from your verified wallet.",
+    category: "wallet",
+    icon: "BarChart3",
+    rarity: "rare",
+  },
 ];
 
-// Community — membership and network.
+// Community - membership and network.
 const COMMUNITY_BADGES: BadgeDefinition[] = [
   {
     key: "early_user",
@@ -371,7 +387,7 @@ const COMMUNITY_BADGES: BadgeDefinition[] = [
   },
 ];
 
-// Profile — personalising your presence. Setup badges; not feed-worthy.
+// Profile - personalising your presence. Setup badges; not feed-worthy.
 const PROFILE_BADGES: BadgeDefinition[] = [
   {
     key: "profile_complete",
@@ -393,7 +409,7 @@ const PROFILE_BADGES: BadgeDefinition[] = [
   },
 ];
 
-// Special — rare cross-cutting feats spanning multiple disciplines.
+// Special - rare cross-cutting feats spanning multiple disciplines.
 const SPECIAL_BADGES: BadgeDefinition[] = [
   {
     key: "triple_threat",
@@ -406,7 +422,7 @@ const SPECIAL_BADGES: BadgeDefinition[] = [
 ];
 
 /**
- * Hidden — invisible in the locked catalogue until earned, then revealed with a
+ * Hidden - invisible in the locked catalogue until earned, then revealed with a
  * celebration. Still derived from real activity; never fabricated.
  */
 const HIDDEN_BADGES: BadgeDefinition[] = [
@@ -440,7 +456,7 @@ const HIDDEN_BADGES: BadgeDefinition[] = [
 ];
 
 /**
- * Flattened catalogue — the single source the API, feed and trust score consume.
+ * Flattened catalogue - the single source the API, feed and trust score consume.
  * Collection order here is the display order on the profile.
  */
 export const BADGE_DEFINITIONS: BadgeDefinition[] = [
@@ -486,7 +502,7 @@ export async function ensureBadgesSchema(): Promise<void> {
 // ── Trust score ───────────────────────────────────────────────────────────────
 
 /**
- * Pure function — compute trust score from pre-fetched stats.
+ * Pure function - compute trust score from pre-fetched stats.
  * Tune by adjusting only the weights/thresholds here.
  */
 export function computeTrustScore(
@@ -526,7 +542,7 @@ export function computeTrustScore(
  * Compute and persist badges for a user.
  *
  * Trading/caller/rank stats that the caller already holds are passed in via
- * `stats` — this avoids re-fetching data that the route already gathered.
+ * `stats` - this avoids re-fetching data that the route already gathered.
  * Community/content stats (bio, theses, watchlist) are queried here.
  *
  * Returns the full badge list (earned + locked) and the earned count so the
@@ -556,6 +572,9 @@ export interface BadgeMetrics {
   recoverySolRecovered: number;
   recoveryCleanups: number;
   recoveryTokensBurned: number;
+  /** On-chain swaps analyzed via Real Trading Analysis engine. */
+  realTradesAnalyzed: number;
+  hasVerifiedWalletAnalysis: boolean;
 }
 
 /** One badge's derived state: whether it is earned and (optionally) progress. */
@@ -617,6 +636,8 @@ export function evaluateBadges(
     elite_cleaner: bool(
       m.recoveryAccountsClosed >= 50 && m.recoverySolRecovered >= 5,
     ),
+    verified_wallet_analysis: bool(m.hasVerifiedWalletAnalysis),
+    real_trader_100: count(m.realTradesAnalyzed, 100),
     // Community
     early_user: bool(m.userId <= 500),
     networked: count(m.followers, 10),
@@ -649,6 +670,7 @@ export async function getUserBadges(
     holderRows,
     totalUsersRow,
     existingAchievements,
+    realAnalysisRow,
   ] = await Promise.all([
     dbGet<{ bio: string | null; avatar: string | null }>(
       `SELECT bio, avatar_url AS avatar FROM users WHERE id = $1`,
@@ -661,8 +683,8 @@ export async function getUserBadges(
       [userId],
     ).catch(() => ({ count: 0 })),
     // Match watchlist entries by every key format the frontend may have used:
-    //   "x:<x_id>"        — X-authenticated users (accountKey in frontend)
-    //   "<solana_addr>"   — wallet-only users
+    //   "x:<x_id>"        - X-authenticated users (accountKey in frontend)
+    //   "<solana_addr>"   - wallet-only users
     // The x: prefix is never stored in wallet_address, so it is reconstructed
     // from the X identity row's provider_user_id.
     dbGet<{ count: number }>(
@@ -719,6 +741,12 @@ export async function getUserBadges(
         WHERE user_id = $1`,
       [userId],
     ),
+    dbGet<{ trade_count: number }>(
+      `SELECT COALESCE(MAX(sync_trade_count), 0)::int AS trade_count
+         FROM real_analysis_snapshots
+        WHERE user_id = $1`,
+      [userId],
+    ).catch(() => null),
   ]);
 
   const metrics: BadgeMetrics = {
@@ -741,6 +769,8 @@ export async function getUserBadges(
     recoverySolRecovered: Number(recoveryRow?.sol_recovered ?? 0),
     recoveryCleanups: Number(recoveryRow?.cleanups ?? 0),
     recoveryTokensBurned: Number(recoveryRow?.tokens_burned ?? 0),
+    realTradesAnalyzed: Number(realAnalysisRow?.trade_count ?? 0),
+    hasVerifiedWalletAnalysis: (realAnalysisRow?.trade_count ?? 0) > 0,
   };
 
   const evals = evaluateBadges(metrics);
@@ -788,7 +818,7 @@ export async function getUserBadges(
   return { badges, earnedCount };
 }
 
-/** Quick count of stored earned badges — no recomputation, just a DB read. */
+/** Quick count of stored earned badges - no recomputation, just a DB read. */
 export async function getEarnedBadgeCount(userId: number): Promise<number> {
   await ensureBadgesSchema();
   const row = await dbGet<{ count: number }>(
@@ -801,7 +831,7 @@ export async function getEarnedBadgeCount(userId: number): Promise<number> {
 // ── Official Badges ───────────────────────────────────────────────────────────
 
 /**
- * Role badges — an independent identity axis. A user may hold ANY number of
+ * Role badges - an independent identity axis. A user may hold ANY number of
  * these simultaneously; they are admin-assigned and curated, never earned by
  * activity (that is the achievement system). The set is extensible: adding a new
  * role is just another entry here plus its display meta on the client. These

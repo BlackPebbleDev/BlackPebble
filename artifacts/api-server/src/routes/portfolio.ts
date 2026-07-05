@@ -91,7 +91,7 @@ router.get(
     //
     // This works because:
     //   • paper_balance already has margin deducted (done at open) and realized
-    //     leverage P&L re-added (done at close) — so closed positions are
+    //     leverage P&L re-added (done at close) - so closed positions are
     //     automatically reflected through the cash balance.
     //   • openLeverageEquitySol adds back the current value of OPEN positions
     //     so equity doesn't crater just because margin moved into a position.
@@ -151,7 +151,7 @@ router.get(
       graduationTier: a.graduation_tier,
       openPositions: portfolio.positions.length,
       solUsd,
-      // Leverage breakdown — used by the portfolio P&L breakdown section.
+      // Leverage breakdown - used by the portfolio P&L breakdown section.
       openLeverageEquitySol,
       leverageRealizedPnlSol: levPortfolio.realizedPnlSol,
       leverageUnrealizedPnlSol: levPortfolio.unrealizedPnlSol,

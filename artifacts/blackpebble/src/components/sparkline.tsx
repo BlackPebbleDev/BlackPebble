@@ -12,7 +12,7 @@ import { generatePlaceholderSeries } from "@/lib/sparkline-placeholder";
  *
  * When NO real data exists for a token (`points: null`), instead of leaving the
  * card blank we draw a deterministic, market-shaped ARTIFICIAL placeholder (the
- * last-resort L6 level) seeded by the mint — rendered at reduced opacity with its
+ * last-resort L6 level) seeded by the mint - rendered at reduced opacity with its
  * own test id so it is visibly secondary and never claims to be real movement.
  * The moment real data arrives the line swaps in with a smooth opacity fade.
  *
@@ -28,7 +28,7 @@ import { generatePlaceholderSeries } from "@/lib/sparkline-placeholder";
 interface SparklineProps {
   /** Resolved server entry, or undefined while loading. */
   series: SparklineEntry | undefined;
-  /** Token mint — seeds the deterministic placeholder when no real data exists. */
+  /** Token mint - seeds the deterministic placeholder when no real data exists. */
   seed?: string;
   width?: number;
   height?: number;
@@ -96,7 +96,7 @@ function SparklineImpl({
     return { d: buildPath(points, width, height, pad), color: colorFor(points) };
   }, [series, width, height, pad]);
 
-  // Deterministic artificial placeholder (L6) — only computed when there is no
+  // Deterministic artificial placeholder (L6) - only computed when there is no
   // real series to draw and we have a seed. Same footprint, reduced opacity.
   const placeholder = useMemo(() => {
     if (real || series === undefined || !seed) return null;

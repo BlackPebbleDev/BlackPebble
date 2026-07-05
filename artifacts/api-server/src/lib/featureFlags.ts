@@ -12,13 +12,15 @@ export const FEATURE_FLAG_KEYS = [
   "multi_target_tp",
   "experimental_utilities",
   "leverage",
+  "real_trading_analysis",
+  "community_campaigns",
 ] as const;
 
 export type FeatureFlagKey = (typeof FEATURE_FLAG_KEYS)[number];
 
 export type FeatureFlags = Record<FeatureFlagKey, boolean>;
 
-// Everything on by default — this preserves the current behaviour until an
+// Everything on by default - this preserves the current behaviour until an
 // admin explicitly turns a capability off.
 export const DEFAULT_FLAGS: FeatureFlags = {
   buy_limits: true,
@@ -27,6 +29,10 @@ export const DEFAULT_FLAGS: FeatureFlags = {
   experimental_utilities: true,
   // Paper leverage trading ships dark; an admin enables it explicitly.
   leverage: false,
+  // Real Trading Analysis - read-only on-chain intelligence engine.
+  real_trading_analysis: false,
+  // Community Campaigns - escrow-backed goal campaigns. Ships dark.
+  community_campaigns: false,
 };
 
 function isFlagKey(v: string): v is FeatureFlagKey {

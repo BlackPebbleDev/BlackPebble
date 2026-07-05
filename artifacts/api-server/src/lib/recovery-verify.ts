@@ -186,7 +186,7 @@ function accountIndex(accountKeys: any[], pubkey: string): number {
 /**
  * Extract every CloseAccount instruction (top-level + inner CPI) from a parsed
  * transaction and resolve the rent lamports each one returned. A close is only
- * credited to `wallet` when its rent `destination` IS that wallet — i.e. the
+ * credited to `wallet` when its rent `destination` IS that wallet - i.e. the
  * recovered SOL provably landed in the claimed wallet. Paying the network fee
  * for a tx (being its fee payer) is deliberately NOT sufficient, since rent can
  * be routed to a different account.
@@ -242,7 +242,7 @@ function extractClosesForWallet(tx: any, wallet: string): ClosedAccount[] {
 /**
  * Count every SPL burn instruction (top-level + inner CPI) in a parsed
  * transaction whose burn `authority` IS the claimed wallet. A burn is only
- * credited when the wallet provably signed it as the token authority — burns by
+ * credited when the wallet provably signed it as the token authority - burns by
  * any other authority are ignored. Covers both `burn` and `burnChecked`.
  */
 function extractBurnsForWallet(tx: any, wallet: string): number {
@@ -318,7 +318,7 @@ export async function verifyRecoveryEvent(
   };
 
   if (!hasHelius()) {
-    // Cannot prove anything without an RPC — leave pending for later backfill.
+    // Cannot prove anything without an RPC - leave pending for later backfill.
     await dbRun(
       `UPDATE recovery_events
           SET verification_status = 'pending',

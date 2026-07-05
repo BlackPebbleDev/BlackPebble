@@ -145,7 +145,7 @@ export function ClosePreviewDialog({
                 const symbol = meta?.symbol?.trim() ?? "";
                 const name = meta?.name?.trim() ?? "";
                 const known = symbol.length > 0;
-                // Still resolving and nothing cached yet — show the short mint as
+                // Still resolving and nothing cached yet - show the short mint as
                 // a neutral placeholder rather than flashing "Unknown Token".
                 const pending = metaLoading && !meta;
                 const shortMint = shortAddr(acc.mint, 4);
@@ -188,7 +188,7 @@ export function ClosePreviewDialog({
                 className="flex items-start gap-2.5 border border-destructive-border bg-destructive/10 px-3 py-2.5 text-xs text-foreground"
                 data-testid="preview-error"
               >
-                <AlertTriangle className="w-3.5 h-3.5 text-red-400 flex-shrink-0 mt-0.5" />
+                <AlertTriangle className="w-3.5 h-3.5 text-danger flex-shrink-0 mt-0.5" />
                 <span>{error}</span>
               </div>
             )}
@@ -198,7 +198,7 @@ export function ClosePreviewDialog({
               <span>
                 Closed token accounts cannot be recovered.{" "}
                 {txCount > 1
-                  ? `Your wallet will prompt you ${txCount} times — once per transaction.`
+                  ? `Your wallet will prompt you ${txCount} times - once per transaction.`
                   : "Your wallet will prompt you once to sign."}{" "}
                 All recovered SOL goes to your connected wallet.
               </span>

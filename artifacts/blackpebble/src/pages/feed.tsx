@@ -1,63 +1,64 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, Megaphone, Rss, ScrollText } from "lucide-react";
+import { Loader2, Rss } from "lucide-react";
 import type { FeedActivityItem } from "@/lib/api";
 import { api } from "@/lib/api";
 import { useXAuth } from "@/hooks/use-x-auth";
 import { useSolUsd } from "@/hooks/use-sol-usd";
 import { TradeActivityCard } from "@/components/feed-card";
 import { FilterPills } from "@/components/filter-pills";
+import { PageHeader } from "@/components/page-header";
+import { EmptyState } from "@/components/empty-state";
 import { trackFeedView, trackFeedTabChanged } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
 
-// Content-type filter bar. Only "all" is wired to the live activity feed; the
-// rest are forward-looking placeholders until their engines exist.
+/**
+ * The BlackPebble Feed — the Activity Intelligence timeline. Tabs are
+ * server-filtered (each requests only its kinds), so low-volume categories
+ * never get starved by trade volume. "All" keeps the Following/Global source
+ * toggle; "My Activity" is the signed-in user's own timeline including
+ * private milestones.
+ */
+
 type FeedFilter =
   | "all"
-  | "trades"
-  | "callouts"
-  | "theses"
+  | "trading"
+  | "calls"
   | "achievements"
-  | "recovery";
+  | "campaigns"
+  | "recovery"
+  | "mine";
 type FeedSource = "following" | "global";
 
 const filterTabs: { id: FeedFilter; label: string }[] = [
   { id: "all", label: "All" },
-  { id: "trades", label: "Trades" },
-  { id: "callouts", label: "Callouts" },
-  { id: "theses", label: "Theses" },
+  { id: "trading", label: "Trading" },
+  { id: "calls", label: "Calls & Theses" },
   { id: "achievements", label: "Achievements" },
+  { id: "campaigns", label: "Campaigns" },
   { id: "recovery", label: "Recovery" },
+  { id: "mine", label: "My Activity" },
 ];
 
-function EmptyState({
-  title,
-  body,
-  action,
+/** Server-side kind filter per tab (undefined = everything). */
+const TAB_KINDS: Partial<Record<FeedFilter, string[]>> = {
+  trading: ["spot", "leverage"],
+  calls: ["callout", "thesis"],
+  achievements: ["achievement", "milestone"],
+  campaigns: ["campaign"],
+  recovery: ["recovery"],
+};
+
+function FeedList({
+  items,
+  isLoading,
+  empty,
 }: {
-  title: string;
-  body: string;
-  action?: React.ReactNode;
+  items: FeedActivityItem[];
+  isLoading: boolean;
+  empty: { title: string; body: string; action?: React.ReactNode };
 }) {
-  return (
-    <div className="rounded-2xl bg-card shadow-card text-center py-16 px-6">
-      <Rss className="w-10 h-10 text-muted-foreground/40 mx-auto mb-4" />
-      <p className="text-foreground font-medium mb-1">{title}</p>
-      <p className="text-muted-foreground text-sm max-w-sm mx-auto">{body}</p>
-      {action && <div className="mt-4">{action}</div>}
-    </div>
-  );
-}
-
-function GlobalFeed() {
   const solUsd = useSolUsd();
-  const { data, isLoading } = useQuery({
-    queryKey: ["feed", "global"],
-    queryFn: () => api.feed.global(),
-    refetchInterval: 30_000,
-  });
-  const items = data?.items ?? [];
-
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -66,12 +67,7 @@ function GlobalFeed() {
     );
   }
   if (items.length === 0) {
-    return (
-      <EmptyState
-        title="No public activity yet"
-        body="Public activity will appear here as the BlackPebble community grows."
-      />
-    );
+    return <EmptyState title={empty.title} body={empty.body} action={empty.action} />;
   }
   return (
     <div className="space-y-2">
@@ -82,9 +78,45 @@ function GlobalFeed() {
   );
 }
 
+/** A server-filtered slice of the global feed (Trading, Calls, Campaigns…). */
+function FilteredGlobalFeed({
+  tab,
+  empty,
+}: {
+  tab: FeedFilter;
+  empty: { title: string; body: string };
+}) {
+  const kinds = TAB_KINDS[tab];
+  const { data, isLoading } = useQuery({
+    queryKey: ["feed", "global", tab],
+    queryFn: () => api.feed.global({ kinds }),
+    refetchInterval: 30_000,
+  });
+  return (
+    <FeedList items={data?.items ?? []} isLoading={isLoading} empty={empty} />
+  );
+}
+
+function GlobalFeed() {
+  const { data, isLoading } = useQuery({
+    queryKey: ["feed", "global", "all"],
+    queryFn: () => api.feed.global(),
+    refetchInterval: 30_000,
+  });
+  return (
+    <FeedList
+      items={data?.items ?? []}
+      isLoading={isLoading}
+      empty={{
+        title: "The intelligence feed is quiet",
+        body: "Public activity will appear here as the BlackPebble community trades, calls, and builds.",
+      }}
+    />
+  );
+}
+
 function FollowingFeed() {
   const { loggedIn, login } = useXAuth();
-  const solUsd = useSolUsd();
   const { data, isLoading } = useQuery({
     queryKey: ["feed", "following"],
     queryFn: () => api.feed.following(),
@@ -110,208 +142,55 @@ function FollowingFeed() {
       />
     );
   }
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-  const items = data?.items ?? [];
-  if (items.length === 0) {
-    return (
-      <EmptyState
-        title="Your feed is empty"
-        body="Follow traders to build your personalized feed."
-      />
-    );
-  }
   return (
-    <div className="space-y-2">
-      {items.map((item) => (
-        <TradeActivityCard key={item.id} item={item} solUsd={solUsd} />
-      ))}
-    </div>
+    <FeedList
+      items={data?.items ?? []}
+      isLoading={isLoading}
+      empty={{
+        title: "Your intelligence feed is quiet",
+        body: "Follow traders to see their trades, calls, and milestones here.",
+      }}
+    />
   );
 }
 
-/** Trades-only feed: spot and leverage items from the global activity feed. */
-function TradesFeed() {
-  const solUsd = useSolUsd();
+/** My Activity: the signed-in user's own timeline (private milestones too). */
+function MyActivityFeed() {
+  const { loggedIn, login } = useXAuth();
   const { data, isLoading } = useQuery({
-    queryKey: ["feed", "global"],
-    queryFn: () => api.feed.global(),
+    queryKey: ["feed", "mine"],
+    queryFn: () => api.feed.mine(),
+    enabled: loggedIn,
     refetchInterval: 30_000,
   });
-  const items = (data?.items ?? []).filter(
-    (item: FeedActivityItem) =>
-      item.kind === "spot" || item.kind === "leverage",
-  );
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-  if (items.length === 0) {
+  if (!loggedIn) {
     return (
       <EmptyState
-        title="No trades yet"
-        body="Spot and leverage paper trades from the community will show up here."
+        title="Sign in with X to see your timeline"
+        body="Your trades, calls, achievements, and milestones will build your BlackPebble story here."
+        action={
+          <button
+            type="button"
+            onClick={login}
+            data-testid="button-feed-connect-x-mine"
+            className="inline-flex items-center rounded-lg px-4 py-2 text-sm font-semibold bg-accent text-accent-foreground hover:bg-accent/90 transition-colors"
+          >
+            Connect X
+          </button>
+        }
       />
     );
   }
   return (
-    <div className="space-y-2">
-      {items.map((item) => (
-        <TradeActivityCard key={item.id} item={item} solUsd={solUsd} />
-      ))}
-    </div>
-  );
-}
-
-function CalloutFeed() {
-  const solUsd = useSolUsd();
-  const { data, isLoading } = useQuery({
-    queryKey: ["feed", "global"],
-    queryFn: () => api.feed.global(),
-    refetchInterval: 30_000,
-  });
-  const items = (data?.items ?? []).filter(
-    (item: FeedActivityItem) => item.kind === "callout",
-  );
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-  if (items.length === 0) {
-    return (
-      <EmptyState
-        title="No callouts yet"
-        body="When traders put a token call on the record, it'll show up here with their thesis and conviction."
-      />
-    );
-  }
-  return (
-    <div className="space-y-2">
-      {items.map((item) => (
-        <TradeActivityCard key={item.id} item={item} solUsd={solUsd} />
-      ))}
-    </div>
-  );
-}
-
-/** Theses-only feed: the global activity feed narrowed to thesis items. */
-function ThesisFeed() {
-  const solUsd = useSolUsd();
-  const { data, isLoading } = useQuery({
-    queryKey: ["feed", "global"],
-    queryFn: () => api.feed.global(),
-    refetchInterval: 30_000,
-  });
-  const items = (data?.items ?? []).filter(
-    (item: FeedActivityItem) => item.kind === "thesis",
-  );
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-  if (items.length === 0) {
-    return (
-      <EmptyState
-        title="No theses yet"
-        body="When traders publish research theses on tokens, they'll show up here — separate from on-the-record calls."
-      />
-    );
-  }
-  return (
-    <div className="space-y-2">
-      {items.map((item) => (
-        <TradeActivityCard key={item.id} item={item} solUsd={solUsd} />
-      ))}
-    </div>
-  );
-}
-
-/** Achievements-only feed: badge/milestone earn events from the global feed. */
-function AchievementsFeed() {
-  const solUsd = useSolUsd();
-  const { data, isLoading } = useQuery({
-    queryKey: ["feed", "global"],
-    queryFn: () => api.feed.global(),
-    refetchInterval: 30_000,
-  });
-  const items = (data?.items ?? []).filter(
-    (item: FeedActivityItem) => item.kind === "achievement",
-  );
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-  if (items.length === 0) {
-    return (
-      <EmptyState
-        title="No achievements yet"
-        body="When traders earn badges and milestones, they'll show up here."
-      />
-    );
-  }
-  return (
-    <div className="space-y-2">
-      {items.map((item) => (
-        <TradeActivityCard key={item.id} item={item} solUsd={solUsd} />
-      ))}
-    </div>
-  );
-}
-
-/** Recovery-only feed: wallet cleanup events from the global activity feed. */
-function RecoveryFeed() {
-  const solUsd = useSolUsd();
-  const { data, isLoading } = useQuery({
-    queryKey: ["feed", "global"],
-    queryFn: () => api.feed.global(),
-    refetchInterval: 30_000,
-  });
-  const items = (data?.items ?? []).filter(
-    (item: FeedActivityItem) => item.kind === "recovery",
-  );
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-  if (items.length === 0) {
-    return (
-      <EmptyState
-        title="No recoveries yet"
-        body="When traders clean up their wallets and recover SOL rent, it'll show up here."
-      />
-    );
-  }
-  return (
-    <div className="space-y-2">
-      {items.map((item) => (
-        <TradeActivityCard key={item.id} item={item} solUsd={solUsd} />
-      ))}
-    </div>
+    <FeedList
+      items={data?.items ?? []}
+      isLoading={isLoading}
+      empty={{
+        title: "Your timeline is just getting started",
+        body: "Place paper trades, publish calls, or clean up a wallet to start building your activity history.",
+      }}
+    />
   );
 }
 
@@ -351,6 +230,29 @@ function ActivityFeed() {
   );
 }
 
+const TAB_EMPTY: Record<string, { title: string; body: string }> = {
+  trading: {
+    title: "No trades yet",
+    body: "Aggregated spot activity and perps positions from the community will show up here.",
+  },
+  calls: {
+    title: "No calls or theses yet",
+    body: "When traders put calls on the record or publish research, it lands here with live performance.",
+  },
+  achievements: {
+    title: "No achievements yet",
+    body: "Badge unlocks, tier promotions, and community milestones will show up here.",
+  },
+  campaigns: {
+    title: "No campaign activity yet",
+    body: "Campaign launches, fundings, and completions from the community will appear here.",
+  },
+  recovery: {
+    title: "No recoveries yet",
+    body: "When traders clean up their wallets and recover SOL rent, it'll show up here.",
+  },
+};
+
 export default function FeedPage() {
   const [filter, setFilter] = useState<FeedFilter>("all");
 
@@ -367,15 +269,13 @@ export default function FeedPage() {
 
   return (
     <div className="w-full max-w-3xl mx-auto px-4 md:px-6 py-6">
-      <div className="flex items-center gap-3 mb-1">
-        <Rss className="w-7 h-7 text-accent" />
-        <h1 className="text-3xl md:text-4xl font-bold tracking-tight">Feed</h1>
-      </div>
-      <p className="text-sm text-muted-foreground mb-6">
-        Live trading activity from the BlackPebble community.
-      </p>
+      <PageHeader
+        icon={Rss}
+        title="Feed"
+        subtitle="What's happening across BlackPebble — trades, calls, milestones, and campaigns."
+      />
 
-      {/* Content-type filter — shared pills, wraps cleanly, no horizontal scroll */}
+      {/* Content-type filter - shared pills, wraps cleanly, no horizontal scroll */}
       <FilterPills
         options={filterTabs}
         value={filter}
@@ -386,11 +286,10 @@ export default function FeedPage() {
       />
 
       {filter === "all" && <ActivityFeed />}
-      {filter === "trades" && <TradesFeed />}
-      {filter === "callouts" && <CalloutFeed />}
-      {filter === "theses" && <ThesisFeed />}
-      {filter === "achievements" && <AchievementsFeed />}
-      {filter === "recovery" && <RecoveryFeed />}
+      {filter === "mine" && <MyActivityFeed />}
+      {filter !== "all" && filter !== "mine" && (
+        <FilteredGlobalFeed tab={filter} empty={TAB_EMPTY[filter]} />
+      )}
     </div>
   );
 }

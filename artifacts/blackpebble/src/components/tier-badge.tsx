@@ -4,14 +4,14 @@ import { cn } from "@/lib/utils";
 /**
  * Prestige tier indicator. Two variants:
  *
- * - "pill" (default) — rounded-full pill with subtle background tint and glow
+ * - "pill" (default) - rounded-full pill with subtle background tint and glow
  *   on Gold and above. Used in leaderboard cards, profile headers, etc.
  *
- * - "plain" — bare text with tier color only; no background, no border, no
+ * - "plain" - bare text with tier color only; no background, no border, no
  *   glow. Used in dense surfaces like feed cards where a pill would clutter.
  *
  * Every account carries at least the base "Rookie" progression tier, so this
- * never returns null — a tier is always shown. This is the trading-progression
+ * never returns null - a tier is always shown. This is the trading-progression
  * axis only; it is distinct from account status (Guest/Member) and role badges.
  * Display order convention: Official badge(s) → TierBadge.
  */

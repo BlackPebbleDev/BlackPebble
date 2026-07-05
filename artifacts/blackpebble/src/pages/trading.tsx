@@ -159,7 +159,7 @@ function useTokenParam(): string | null {
   }, [search]);
 }
 
-/** Inline X (twitter) brand glyph — lucide has no brand mark for it. */
+/** Inline X (twitter) brand glyph - lucide has no brand mark for it. */
 function XGlyph({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" aria-hidden className={className} fill="currentColor">
@@ -195,7 +195,7 @@ function TokenHeader({
     <div className="space-y-3 lg:space-y-[26px]">
       {/*
        * ── BANNER CARD ──────────────────────────────────────────────────────────
-       * Standalone rounded card — no UI overlay of any kind.
+       * Standalone rounded card - no UI overlay of any kind.
        * <img> with natural dimensions (w-full h-auto) shows the full artwork
        * at its correct aspect ratio on mobile; on desktop the height is capped
        * via aspect-ratio + object-cover so wide monitors don't get an
@@ -226,17 +226,16 @@ function TokenHeader({
 
       {/*
        * ── INFO + SOCIAL CARD ───────────────────────────────────────────────────
-       * Information sits directly on the card surface — no nested containers,
+       * Information sits directly on the card surface - no nested containers,
        * no pill, no capsule. Two-column row (left: identity, right: price),
        * with more generous spacing/typography on desktop for better hierarchy.
        */}
-      <div className="relative rounded-xl bg-card shadow-card px-3 py-2.5 lg:px-5 lg:py-[23px] space-y-2 lg:space-y-3">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/40 to-transparent rounded-t-xl" />
+      <div className="hairline-accent rounded-xl bg-card shadow-card px-3 py-2.5 lg:px-5 lg:py-[23px] space-y-2 lg:space-y-3">
 
         {/* ── Two-column info row ── */}
         <div className="flex items-center justify-between gap-3 lg:gap-6">
 
-          {/* LEFT — logo + name + ticker + LIVE */}
+          {/* LEFT - logo + name + ticker + LIVE */}
           <div className="flex items-center gap-2.5 lg:gap-3 min-w-0">
             {info.logo ? (
               <img
@@ -273,7 +272,7 @@ function TokenHeader({
             </div>
           </div>
 
-          {/* RIGHT — price + 24h, no container */}
+          {/* RIGHT - price + 24h, no container */}
           <div className="flex items-center gap-4 lg:gap-8 shrink-0 text-right">
             <div>
               <div className="text-[10px] uppercase tracking-wider text-muted-foreground leading-tight">
@@ -369,7 +368,7 @@ function PriceChart({ info }: { info: TokenInfo }) {
   return (
     <div className="rounded-xl bg-card shadow-card p-4 h-[420px]">
       <div className="text-xs text-muted-foreground mb-2">
-        Bonding curve — recent trade prices (live)
+        Bonding curve - recent trade prices (live)
       </div>
       {trades.length === 0 ? (
         <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
@@ -434,7 +433,7 @@ function TradeEstimate({
     const reasons = quote.errors ?? (quote.error ? [quote.error] : []);
     return (
       <div
-        className="rounded-xl border border-red-500/40 bg-red-500/10 p-3 text-xs text-red-300"
+        className="rounded-xl border border-danger/40 bg-danger/10 p-3 text-xs text-danger"
         data-testid="quote-error"
       >
         {reasons.length <= 1 ? (
@@ -466,9 +465,9 @@ function TradeEstimate({
   // the shared green/yellow/orange/red bands.
   const slippageColor =
     quote.warningLevel === "extreme"
-      ? "text-red-400"
+      ? "text-danger"
       : quote.warningLevel === "high"
-        ? "text-amber-400"
+        ? "text-warning"
         : "text-foreground";
   const warnings = getTradeWarnings(quote);
 
@@ -479,7 +478,7 @@ function TradeEstimate({
     >
       {quote.lowData && (
         <div
-          className="flex items-start gap-2 px-3 py-2 border-b border-amber-500/30 bg-amber-500/10 text-amber-300"
+          className="flex items-start gap-2 px-3 py-2 border-b border-warning/30 bg-warning/10 text-amber-300"
           data-testid="low-data-notice"
         >
           <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
@@ -600,7 +599,7 @@ function fmtUnitValue(solValue: number, unit: Unit, solUsd: number | null): stri
 
 /**
  * P&L in the active unit. Keeps the SOL-mode look (signed via the number) and
- * shows USD as "-$182.38" / "$182.38" — sign before the $, full precision.
+ * shows USD as "-$182.38" / "$182.38" - sign before the $, full precision.
  */
 function fmtUnitPnl(solValue: number, unit: Unit, solUsd: number | null): string {
   if (unit === "USD" && solUsd != null && solUsd > 0) {
@@ -650,7 +649,7 @@ function dexLabel(dexId: string): string {
 }
 
 /**
- * True when a token actually originates on Pump.fun — either still on the
+ * True when a token actually originates on Pump.fun - either still on the
  * bonding curve (source is always "pumpportal", Pump.fun's live trade feed)
  * or migrated to a PumpSwap/Pump.fun pool post-graduation. Used to gate the
  * Pump.fun row in the More menu so it never shows for unrelated tokens.
@@ -662,7 +661,7 @@ function isPumpFunToken(info: TokenInfo): boolean {
 }
 
 /**
- * Lightweight metadata strip — shows identity metadata (age, platform, status)
+ * Lightweight metadata strip - shows identity metadata (age, platform, status)
  * that is NOT duplicated in the Token Intelligence section below the chart.
  * Styled as inline muted text with bullet separators, not a card/pill/box.
  */
@@ -720,7 +719,7 @@ const TP_LADDER_DEFAULT: TpRung[] = [{ mcValue: "", percent: 50 }];
 /**
  * A single automated order row (Stop Loss). Take Profit now uses the dedicated
  * ladder below; this stays for the single-target Stop Loss (always sells 100%
- * per the trading spec — no percent selector).
+ * per the trading spec - no percent selector).
  */
 function QuickOrderToggle({
   label,
@@ -737,7 +736,7 @@ function QuickOrderToggle({
   onChange: (v: QuickOrder) => void;
   helpText?: string;
 }) {
-  const labelColor = tone === "profit" ? "text-emerald-400" : "text-red-400";
+  const labelColor = tone === "profit" ? "text-success" : "text-danger";
   return (
     <div className="space-y-1.5">
       <div className="flex items-center gap-2">
@@ -782,7 +781,7 @@ function QuickOrderToggle({
  * Multi-target Take Profit ladder (spec #1). Up to four rungs, each an MC
  * trigger + a sell % of the *remaining* position at the moment that rung fills.
  * Rungs fire sequentially as the market cap rises, so each percent compounds on
- * what's left — totals are NOT capped at or required to reach 100%. Each enabled
+ * what's left - totals are NOT capped at or required to reach 100%. Each enabled
  * rung becomes its own take_profit order (evaluated independently by the order
  * engine, which already sells a % of the live remaining balance).
  */
@@ -827,12 +826,12 @@ function TpLadder({
           data-testid="checkbox-quick-take-profit"
           className="h-3.5 w-3.5 accent-[var(--accent)]"
         />
-        <span className="flex items-center gap-1 text-xs font-medium text-emerald-400">
+        <span className="flex items-center gap-1 text-xs font-medium text-success">
           Take Profit
         </span>
         <HelpTip
           label="Take Profit"
-          text="Set up to four targets that fill in order as the market cap rises. Each one sells a percentage of whatever is left of your position at that moment — they don't need to add up to 100%."
+          text="Set up to four targets that fill in order as the market cap rises. Each one sells a percentage of whatever is left of your position at that moment - they don't need to add up to 100%."
         />
       </div>
 
@@ -876,7 +875,7 @@ function TpLadder({
                   onClick={() => removeRung(i)}
                   aria-label={`Remove target ${i + 1}`}
                   data-testid={`button-tp-remove-${i}`}
-                  className="h-7 w-7 shrink-0 rounded-md border border-border text-muted-foreground hover:text-red-400 hover:border-red-400/50 transition-colors"
+                  className="h-7 w-7 shrink-0 rounded-md border border-border text-muted-foreground hover:text-danger hover:border-danger/50 transition-colors"
                 >
                   ×
                 </button>
@@ -896,7 +895,7 @@ function TpLadder({
           <p className="text-[11px] leading-relaxed text-muted-foreground">
             Each target sells that % of your{" "}
             <span className="text-foreground">remaining</span> position as the
-            market cap rises — they fill in order and don't need to total 100%.
+            market cap rises - they fill in order and don't need to total 100%.
           </p>
         </div>
       )}
@@ -911,7 +910,7 @@ const QUICK_BUY_LIMIT_DEFAULT: QuickBuyLimit = { enabled: false, mcValue: "" };
  * Buy Limit row for the Automated Orders section. Unlike TP/SL (which attach
  * after the next buy), a buy limit is an entry order created immediately via the
  * page-level `createBuyLimitOrder` helper. The SOL it spends is the buy box's
- * current Amount. No order engine logic lives here — this only collects inputs.
+ * current Amount. No order engine logic lives here - this only collects inputs.
  */
 function BuyLimitRow({
   enabled,
@@ -1046,7 +1045,7 @@ function LeverageSummary({
       </div>
       <div className="flex justify-between">
         <span className="text-muted-foreground">Liquidation MC</span>
-        <span className="font-mono text-red-400">
+        <span className="font-mono text-danger">
           {fmtMarketCap(p.liq_market_cap)}
         </span>
       </div>
@@ -1055,7 +1054,7 @@ function LeverageSummary({
         <span
           className={cn(
             "font-mono",
-            dist != null && dist < 10 ? "text-red-400" : "text-foreground",
+            dist != null && dist < 10 ? "text-danger" : "text-foreground",
           )}
         >
           {dist != null ? `${dist.toFixed(1)}%` : "—"}
@@ -1121,7 +1120,7 @@ function TradePanel({
   };
 
   // Keep the cash balance fresh whenever the trader opens a new token or toggles
-  // between spot and leverage — both are moments where a stale balance would
+  // between spot and leverage - both are moments where a stale balance would
   // mislead the pre-trade UI (the desync bug surfaced exactly here).
   useEffect(() => {
     if (!isGuest) void refresh();
@@ -1169,14 +1168,14 @@ function TradePanel({
   }, [info.mint]);
 
   // If the leverage feature flag is off (or turned off), never leave the panel
-  // stuck in leverage mode — fall back to the spot experience.
+  // stuck in leverage mode - fall back to the spot experience.
   useEffect(() => {
     if (!flags.leverage && tradeMode === "leverage") setTradeMode("spot");
   }, [flags.leverage, tradeMode]);
 
   // Create a buy-limit entry order immediately from the Automated Orders
   // section. Spends the current buy-box Amount (converted to SOL) and delegates
-  // creation to the existing page-level helper — no new order logic here.
+  // creation to the existing page-level helper - no new order logic here.
   function handleSetBuyLimit() {
     const mc = parseAbbreviatedNumber(quickBl.mcValue);
     const spend = toSol(solAmount);
@@ -1206,7 +1205,7 @@ function TradePanel({
     ? guestValued.positions.find((p) => p.token_mint === info.mint)
     : posData?.positions.find((p) => p.token_mint === info.mint);
 
-  // Leverage position for this token (signed-in only). Read-only here — the
+  // Leverage position for this token (signed-in only). Read-only here - the
   // token-page Leverage box owns liquidation/TP/SL toasts, so don't announce.
   const { data: levData } = useQuery({
     queryKey: ["leverage-positions", wallet],
@@ -1348,7 +1347,7 @@ function TradePanel({
   const quickExitSpecs = buildQuickExitSpecs();
 
   // Sell tab: create the configured exit orders immediately against the held
-  // position (spec #4 — automated orders are available after you already own a
+  // position (spec #4 - automated orders are available after you already own a
   // position, not only when buying).
   async function handleCreateExitsNow() {
     if (!position) return;
@@ -1614,7 +1613,7 @@ function TradePanel({
             className={cn(
               "rounded-lg py-2.5 text-sm font-semibold transition-all",
               side === "buy"
-                ? "bg-emerald-500/15 text-emerald-400 shadow-sm"
+                ? "bg-success/15 text-success shadow-sm"
                 : "text-muted-foreground hover:text-foreground",
             )}
           >
@@ -1626,7 +1625,7 @@ function TradePanel({
             className={cn(
               "rounded-lg py-2.5 text-sm font-semibold transition-all",
               side === "sell"
-                ? "bg-red-500/15 text-red-400 shadow-sm"
+                ? "bg-danger/15 text-danger shadow-sm"
                 : "text-muted-foreground hover:text-foreground",
             )}
           >
@@ -1747,7 +1746,7 @@ function TradePanel({
           </>
         )}
 
-        {/* Automated orders — available on both Buy and Sell tabs. On Buy they
+        {/* Automated orders - available on both Buy and Sell tabs. On Buy they
             attach after the next fill; on Sell they're created immediately
             against the held position. Buy Limit is buy-only. */}
         <div className="rounded-xl border border-border/60 overflow-hidden">
@@ -1781,9 +1780,9 @@ function TradePanel({
                     position,{" "}
                   </>
                 )}
-                <span className="text-emerald-400">Take Profit</span> locks in
+                <span className="text-success">Take Profit</span> locks in
                 gains, and{" "}
-                <span className="text-red-400">Stop Loss</span> limits losses.
+                <span className="text-danger">Stop Loss</span> limits losses.
               </p>
               {side === "buy" && flags.buy_limits && (
                 <BuyLimitRow
@@ -1824,7 +1823,7 @@ function TradePanel({
                     <>
                       <p className="text-[11px] text-muted-foreground leading-relaxed">
                         Already holding {info.symbol ?? "this token"}? Apply these
-                        to your open position now — no new buy needed.
+                        to your open position now - no new buy needed.
                       </p>
                       <button
                         type="button"
@@ -1907,7 +1906,7 @@ function TradePanel({
                   <span className="text-muted-foreground">
                     Take Profit {tpTargets.length > 1 ? i + 1 : ""}
                   </span>
-                  <span className="font-mono text-emerald-400">
+                  <span className="font-mono text-success">
                     Sell {t.percent}% of remaining @ MC {fmtMarketCap(t.mc!)}
                   </span>
                 </div>
@@ -1915,7 +1914,7 @@ function TradePanel({
               {slMc != null && slMc > 0 && (
                 <div className="flex justify-between gap-2">
                   <span className="text-muted-foreground">Stop Loss</span>
-                  <span className="font-mono text-red-400">
+                  <span className="font-mono text-danger">
                     Sell 100% of remaining @ MC {fmtMarketCap(slMc)}
                   </span>
                 </div>
@@ -1937,8 +1936,8 @@ function TradePanel({
             className={cn(
               "rounded-xl border p-3 space-y-3",
               quote.warningLevel === "extreme"
-                ? "border-red-500/50 bg-red-500/10"
-                : "border-amber-500/50 bg-amber-500/10",
+                ? "border-red-500/50 bg-danger/10"
+                : "border-amber-500/50 bg-warning/10",
             )}
             data-testid="trade-confirm"
           >
@@ -1946,7 +1945,7 @@ function TradePanel({
               <AlertTriangle
                 className={cn(
                   "w-4 h-4 shrink-0 mt-0.5",
-                  quote.warningLevel === "extreme" ? "text-red-400" : "text-amber-400",
+                  quote.warningLevel === "extreme" ? "text-danger" : "text-warning",
                 )}
               />
               <p className="text-foreground/90">
@@ -1961,7 +1960,7 @@ function TradePanel({
                 </span>{" "}
                 slippage.{" "}
                 {quote.warningLevel === "extreme"
-                  ? "That's a very large fill — expect a poor execution price."
+                  ? "That's a very large fill - expect a poor execution price."
                   : "Consider a smaller size for a better fill."}
               </p>
             </div>
@@ -2027,7 +2026,7 @@ function TradePanel({
         {side === "buy" && usdUnavailable && (
           <p
             data-testid="usd-unavailable-note"
-            className="flex items-start gap-1.5 text-[11px] leading-relaxed text-red-400"
+            className="flex items-start gap-1.5 text-[11px] leading-relaxed text-danger"
           >
             <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
             USD mode unavailable until SOL price loads.
@@ -2059,7 +2058,7 @@ function TradePanel({
               className="border-t border-border/60 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground"
             >
               BlackPebble simulates slippage from each token's available
-              liquidity, so larger orders fill at a worse price — just like a
+              liquidity, so larger orders fill at a worse price - just like a
               real swap. Trades above 20% of liquidity, or that would leave you
               holding more than 4% of a token's supply, are blocked.
             </p>
@@ -2167,7 +2166,7 @@ function WatchButton({ info }: { info: TokenInfo }) {
 }
 
 /**
- * "Call Token" action — lets an X-authenticated trader put a token call on the
+ * "Call Token" action - lets an X-authenticated trader put a token call on the
  * record. Price and market cap are snapshotted server-side at creation time; the
  * trader only supplies an optional thesis + conviction. Guests are prompted to
  * connect X. Calls are immutable (no edit/delete) by design.
@@ -2206,7 +2205,7 @@ function CallTokenButton({ info }: { info: TokenInfo }) {
       qc.invalidateQueries({ queryKey: ["leaderboard", "callers"] });
       toast({
         title: "Call recorded",
-        description: "It's now on the record — permanent and immutable.",
+        description: "It's now on the record - permanent and immutable.",
       });
     },
     onError: (e) =>
@@ -2283,7 +2282,7 @@ function CallTokenButton({ info }: { info: TokenInfo }) {
               onChange={(e) => setThesis(e.target.value)}
               maxLength={CALLOUT_THESIS_MAX}
               rows={3}
-              placeholder="Your thesis — why this call? (optional)"
+              placeholder="Your thesis - why this call? (optional)"
               data-testid="input-call-token-thesis"
               className="w-full bg-secondary/40 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-accent transition-colors resize-none"
             />
@@ -2309,7 +2308,7 @@ function CallTokenButton({ info }: { info: TokenInfo }) {
 
             <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
               <Lock className="w-3 h-3 flex-shrink-0" />
-              Calls are permanent — no edits or deletes once recorded.
+              Calls are permanent - no edits or deletes once recorded.
             </div>
 
             <button
@@ -2360,7 +2359,7 @@ const SENTIMENT_OPTIONS: {
 ];
 
 /**
- * "Thesis" action — publishes a standalone piece of token research. A thesis is
+ * "Thesis" action - publishes a standalone piece of token research. A thesis is
  * NOT a price call: it is never graded and has no effect on caller ranking,
  * multiples, hit rate, or call history. Unlike calls, theses are editable and
  * deletable by their author. Requires title, sentiment and content; conviction
@@ -2396,7 +2395,7 @@ function ThesisButton({ info }: { info: TokenInfo }) {
       qc.invalidateQueries({ queryKey: ["tokenIntel"] });
       toast({
         title: "Thesis published",
-        description: "Shared as research — it won't affect your caller stats.",
+        description: "Shared as research - it won't affect your caller stats.",
       });
     },
     onError: (e) =>
@@ -2466,7 +2465,7 @@ function ThesisButton({ info }: { info: TokenInfo }) {
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 maxLength={THESIS_TITLE_MAX}
-                placeholder="Title — the headline of your thesis"
+                placeholder="Title - the headline of your thesis"
                 data-testid="input-thesis-title"
                 className="w-full bg-secondary/40 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-accent transition-colors"
               />
@@ -2505,7 +2504,7 @@ function ThesisButton({ info }: { info: TokenInfo }) {
                 onChange={(e) => setContent(e.target.value)}
                 maxLength={THESIS_CONTENT_MAX}
                 rows={5}
-                placeholder="Your thesis — the full reasoning, catalysts, risks…"
+                placeholder="Your thesis - the full reasoning, catalysts, risks…"
                 data-testid="input-thesis-content"
                 className="w-full bg-secondary/40 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-accent transition-colors resize-none"
               />
@@ -2552,7 +2551,7 @@ function ThesisButton({ info }: { info: TokenInfo }) {
 
 /**
  * Copy-to-clipboard chip for the token contract address. Gives the address an
- * intentional, premium presentation in the action row (UX polish) — purely a
+ * intentional, premium presentation in the action row (UX polish) - purely a
  * convenience control, no trading behaviour.
  */
 function CopyContract({ mint }: { mint: string }) {
@@ -2773,7 +2772,7 @@ export default function TradingDesk() {
   }, [unit]);
 
   // Shared bridge between the Mini Planner and the Buy/Sell panel. The planner
-  // never executes — it only pushes the amount (bumping `nonce` so repeated
+  // never executes - it only pushes the amount (bumping `nonce` so repeated
   // applies re-fire) in the active unit and saves the planned target/stop for
   // display.
   const [appliedAmount, setAppliedAmount] = useState<{
@@ -2852,7 +2851,7 @@ export default function TradingDesk() {
         </div>
       </div>
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2">
-        {/* Primary actions — flex so buttons size to content, never stretched.
+        {/* Primary actions - flex so buttons size to content, never stretched.
             On desktop this group moves to the RIGHT (lg:order-2); mobile keeps
             its natural DOM order (this group stays first/top on mobile). */}
         <div className="flex flex-wrap items-center gap-2 lg:order-2">
@@ -2860,7 +2859,7 @@ export default function TradingDesk() {
           <CallTokenButton info={info} />
           <ThesisButton info={info} />
         </div>
-        {/* Utility row — more / share / contract address. On desktop this
+        {/* Utility row - more / share / contract address. On desktop this
             group moves to the LEFT (lg:order-1) so More's dropdown opens
             into open space instead of over the trade panel; mobile visual
             order is unaffected by this reorder (this group stays
@@ -2886,7 +2885,7 @@ export default function TradingDesk() {
         </div>
       </div>
 
-      {/* Quick Stats strip — sits between action buttons and chart; only shows real data */}
+      {/* Quick Stats strip - sits between action buttons and chart; only shows real data */}
       <QuickStatsStrip info={info} />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">

@@ -31,7 +31,7 @@ export type SparklinePoints = number[] | null;
 
 /**
  * Which fallback level produced a series. `null` means no real data was found at
- * any level — the client draws an honest artificial placeholder (L6), seeded by
+ * any level - the client draws an honest artificial placeholder (L6), seeded by
  * the mint, that never claims to be real. Real sources are ranked: a richer
  * source always wins over a coarser one.
  */
@@ -60,7 +60,7 @@ interface WindowConfig {
 
 /**
  * Window → candle settings. Architecture supports 1H/6H/24H today; 24H is the
- * default the UI renders. (No UI control yet — callers pass the window param.)
+ * default the UI renders. (No UI control yet - callers pass the window param.)
  */
 const WINDOW_CONFIG: Record<SparklineWindow, WindowConfig> = {
   "1h": { timeframe: "minute", aggregate: 5, limit: 12, ttlMs: 60 * 1000 },
@@ -83,7 +83,7 @@ const cacheKey = (mint: string, w: SparklineWindow) => `${w}:${mint}`;
 
 /** Cap concurrent GeckoTerminal calls so a cold batch stays within rate limits. */
 const FETCH_CONCURRENCY = 3;
-/** Hard cap on mints served per request — bounds upstream fan-out. */
+/** Hard cap on mints served per request - bounds upstream fan-out. */
 export const MAX_SPARKLINE_MINTS = 60;
 
 // ── Admin diagnostics counters ─────────────────────────────────────────────
@@ -206,7 +206,7 @@ async function fetchPoolCloses(
 // ── Birdeye history (L4) ───────────────────────────────────────────────────
 /**
  * Birdeye OHLCV history for a mint. ONLY attempted when a `BIRDEYE_API_KEY` is
- * configured — otherwise this returns null instantly and the level is skipped
+ * configured - otherwise this returns null instantly and the level is skipped
  * cleanly (no key is set in this environment today, so L4 is inactive until one
  * is provided). Read-only, oldest-first close prices.
  */
@@ -292,7 +292,7 @@ async function mapWithConcurrency<T, R>(
  *
  * When every real source comes up empty the entry's points are `null` with a
  * `null` source; the CLIENT then draws an honest artificial placeholder (L6)
- * seeded by the mint. Cached per (mint, window) — including `null` results — so
+ * seeded by the mint. Cached per (mint, window) - including `null` results - so
  * only cache-missing mints do any work, and a later retry can promote a mint to
  * a real source once snapshots accumulate or upstream recovers.
  */
@@ -322,7 +322,7 @@ export async function getSparklines(
 
   if (misses.length > 0) {
     // One batched DexScreener lookup yields BOTH the OHLCV pool (L2) and the
-    // price/change fields used for the derived series (L3) — no extra upstream load.
+    // price/change fields used for the derived series (L3) - no extra upstream load.
     const pairs = await getBestPairs(misses);
     await mapWithConcurrency(misses, FETCH_CONCURRENCY, async (mint) => {
       const pair = pairs.get(mint);

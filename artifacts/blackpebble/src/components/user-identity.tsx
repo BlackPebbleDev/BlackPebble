@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * The single source of truth for how a user's identity is rendered across the
- * app — avatar, display name, official badges, tier, and @handle. Every surface
+ * app - avatar, display name, official badges, tier, and @handle. Every surface
  * (feed cards, all leaderboard tabs, profile header, token callouts/theses)
  * uses this so badge/tier placement and alignment stay consistent everywhere.
  *
@@ -179,7 +179,7 @@ type LinkSpec = { type: "internal" | "external"; href: string };
 export interface UserIdentityProps {
   avatarUrl?: string | null;
   /** Let the avatar be tapped to open a fullscreen preview (profile-header
-   * surfaces only — Portfolio and Public Profile). Defaults to false so
+   * surfaces only - Portfolio and Public Profile). Defaults to false so
    * dense surfaces (feed, leaderboard) are unaffected. */
   avatarExpandable?: boolean;
   /** Trimmed display name; falls back to @handle then `fallbackName`. */

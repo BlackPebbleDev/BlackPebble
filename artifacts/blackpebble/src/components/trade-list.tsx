@@ -119,7 +119,7 @@ function TradeRow({
         <span
           className={cn(
             "flex items-center gap-1.5 text-sm font-medium min-w-0",
-            isBuy ? "text-emerald-400" : "text-red-400",
+            isBuy ? "text-success" : "text-danger",
           )}
         >
           {isBuy ? (
@@ -135,8 +135,8 @@ function TradeRow({
               className={cn(
                 "shrink-0 px-1.5 py-0.5 text-[9px] uppercase tracking-wider border",
                 t.source === "take_profit"
-                  ? "border-emerald-500/40 text-emerald-400"
-                  : "border-red-500/40 text-red-400",
+                  ? "border-success/40 text-success"
+                  : "border-danger/40 text-danger",
               )}
             >
               {t.source === "take_profit" ? "TP" : "SL"}

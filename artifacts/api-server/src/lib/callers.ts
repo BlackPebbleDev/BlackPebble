@@ -10,7 +10,7 @@ import { getUserTiers } from "./trading.js";
  *
  * Reads the immutable `callouts` table and grades each call live (current price
  * ÷ snapshotted call price = multiple), then rolls the calls up per caller into
- * a weighted reputation score. This is a pure read over existing tables — it
+ * a weighted reputation score. This is a pure read over existing tables - it
  * never mutates callouts (their immutability is a hard product rule).
  *
  * A caller is graded only on calls where a current price is available; in
@@ -22,7 +22,7 @@ import { getUserTiers } from "./trading.js";
 const HIT_MULTIPLE = 2;
 /**
  * Bayesian shrinkage constant: performance-based score components are scaled by
- * callsMade / (callsMade + K) so a single lucky call can't top the board — a
+ * callsMade / (callsMade + K) so a single lucky call can't top the board - a
  * caller has to be consistent across several calls to earn full credit.
  */
 const CONFIDENCE_K = 5;

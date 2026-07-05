@@ -38,6 +38,8 @@ import FeedPage from "@/pages/feed";
 import ProfilePage from "@/pages/profile";
 import DiscoverPage from "@/pages/discover";
 import TradingJournal from "@/pages/journal";
+import TradingAnalysisPage from "@/pages/trading-analysis";
+import CampaignsPage, { CampaignDetailPage } from "@/pages/campaigns";
 
 const queryClient = new QueryClient();
 
@@ -68,6 +70,9 @@ function Router() {
         <Route path="/utilities/wallet-cleaner" component={WalletCleaner} />
         <Route path="/utilities/trade-planner" component={TradePlanner} />
         <Route path="/utilities/journal" component={TradingJournal} />
+        <Route path="/utilities/trading-analysis" component={TradingAnalysisPage} />
+        <Route path="/campaigns" component={CampaignsPage} />
+        <Route path="/campaigns/:id" component={CampaignDetailPage} />
         <Route path="/journal" component={TradingJournal} />
         <Route path="/utilities" component={Utilities} />
         <Route path="/about" component={About} />
@@ -107,7 +112,7 @@ function App() {
       fullScreen
       retryLabel="Reload"
       onReset={() => window.location.reload()}
-      description="An unexpected error interrupted BlackPebble. Your funds and data are safe — nothing was changed. Reloading should fix it."
+      description="An unexpected error interrupted BlackPebble. Your funds and data are safe - nothing was changed. Reloading should fix it."
     >
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>

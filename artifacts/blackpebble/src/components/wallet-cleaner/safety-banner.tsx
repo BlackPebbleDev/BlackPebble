@@ -1,16 +1,16 @@
 import { ShieldCheck } from "lucide-react";
 
 const RULES = [
-  "Every token in your wallet is shown with its real value, sellability, and risk — nothing is hidden from you.",
+  "Every token in your wallet is shown with its real value, sellability, and risk - nothing is hidden from you.",
   "Nothing is ever selected, burned, or closed automatically. You choose exactly what to clean up.",
   "Verified and valuable tokens are protected by default. Removing that protection always takes an extra confirmation.",
-  "You always see a full preview — including your wallet health before and after — before signing anything.",
+  "You always see a full preview - including your wallet health before and after - before signing anything.",
   "Recovered SOL is always returned to your connected wallet.",
 ];
 
 export function SafetyBanner() {
   return (
-    <div className="rounded-3xl bg-card shadow-card p-4 sm:p-5 space-y-3">
+    <div className="rounded-xl bg-card shadow-card p-4 sm:p-5 space-y-3">
       <div className="flex items-center gap-2">
         <ShieldCheck className="w-4 h-4 text-accent flex-shrink-0" />
         <h2 className="text-sm font-semibold text-foreground">

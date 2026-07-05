@@ -10,7 +10,7 @@ import { getUserTiers } from "./trading.js";
  * Per-token "intelligence" aggregation for the Token Page V2 workstation.
  *
  * This is a pure, read-only roll-up over existing tables (callouts, watchlist,
- * journal_entries) for a single mint. It NEVER mutates anything — callouts are
+ * journal_entries) for a single mint. It NEVER mutates anything - callouts are
  * immutable by product rule, and journal/watchlist rows are owner-scoped writes
  * that happen elsewhere. The current price is fetched once and used to grade
  * each callout live (current ÷ snapshotted call price = multiple), exactly like
@@ -18,7 +18,7 @@ import { getUserTiers } from "./trading.js";
  *
  * Data the underlying model does not capture (live holder count, individual
  * largest buy/sell, per-trade recent activity) is intentionally NOT fabricated
- * here — the client renders "Coming Soon" for those. The ATH multiple is the
+ * here - the client renders "Coming Soon" for those. The ATH multiple is the
  * peak-since-tracking high-water mark (see peaks.ts), never a fabricated
  * historical high. We only return what we can compute honestly.
  */
@@ -61,7 +61,7 @@ export interface RecentCallout {
   /** Peak-since-tracking multiple (ATH high-water mark), >= currentMultiple. */
   athMultiple: number | null;
   currentMarketCapUsd: number | null;
-  /** Caller's graduation tier (decorative — never affects grading). */
+  /** Caller's graduation tier (decorative - never affects grading). */
   graduation_tier?: string;
   created_at: number;
 }
@@ -76,7 +76,7 @@ export interface RecentThesis {
   content: string;
   sentiment: string;
   conviction: string | null;
-  /** Author's graduation tier (decorative — never affects anything). */
+  /** Author's graduation tier (decorative - never affects anything). */
   graduation_tier?: string;
   created_at: number;
   updated_at: number;
@@ -126,7 +126,7 @@ export async function getTokenIntelligence(
     [mint],
   );
 
-  // Standalone theses (separate content type — never graded as calls).
+  // Standalone theses (separate content type - never graded as calls).
   const [thesisRows, thesesTotal] = await Promise.all([
     getTokenTheses(mint, { limit: RECENT_LIMIT }),
     countTokenTheses(mint),
@@ -218,7 +218,7 @@ export async function getTokenIntelligence(
     updated_at: t.updated_at,
   }));
 
-  // Attach graduation_tier per user (decorative — never throws, never grades).
+  // Attach graduation_tier per user (decorative - never throws, never grades).
   const tierUserIds = [
     ...new Set([
       ...recentCallouts.map((c) => c.user_id),

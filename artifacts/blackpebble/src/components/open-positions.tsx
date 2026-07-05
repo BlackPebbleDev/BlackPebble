@@ -18,7 +18,7 @@ import {
 import { cn } from "@/lib/utils";
 
 /** Small round token image with an initials fallback, matching the styling
- * used for leverage positions and the watchlist — purely for quick visual
+ * used for leverage positions and the watchlist - purely for quick visual
  * recognition, not clickable/expandable. */
 function PositionTokenLogo({
   logo,
@@ -56,14 +56,14 @@ function PositionTokenLogo({
  * Open positions as a 3-level information hierarchy so a trader can scan many
  * positions without endless scrolling:
  *
- *  L1 — collapsed card / table row: the at-a-glance signals
+ *  L1 - collapsed card / table row: the at-a-glance signals
  *       (Token, Unrealized P&L, ROI%, Entry MC, Current MC, MC Multiple).
- *  L2 — expanded: the trader-focused grid (the L1 set plus Position Value,
+ *  L2 - expanded: the trader-focused grid (the L1 set plus Position Value,
  *       Cost Basis, Hold Time, Quantity) and quick actions.
- *  L3 — the dedicated /position/:mint page (full Market Cap + Position
+ *  L3 - the dedicated /position/:mint page (full Market Cap + Position
  *       Analytics and the complete Trade History). Linked from L2.
  *
- * Nothing is removed by the collapse — every field remains reachable in L2/L3.
+ * Nothing is removed by the collapse - every field remains reachable in L2/L3.
  */
 export function OpenPositions({
   positions,
@@ -377,7 +377,7 @@ function McCell({
 }
 
 /**
- * Level 2 — the trader-focused expanded grid. Mirrors the spec field set and
+ * Level 2 - the trader-focused expanded grid. Mirrors the spec field set and
  * links to the full Level-3 analytics page (where the complete trade history
  * lives). No analytics are dropped here; they move one tap deeper.
  */

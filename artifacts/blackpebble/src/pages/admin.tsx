@@ -126,6 +126,8 @@ const FLAG_LABELS: Record<FeatureFlagKey, string> = {
   multi_target_tp: "Multi-target take-profit",
   experimental_utilities: "Experimental utilities",
   leverage: "Leverage trading (longs)",
+  real_trading_analysis: "Real Trading Analysis (on-chain intelligence)",
+  community_campaigns: "Community Campaigns (escrow-backed funding)",
 };
 
 const STATS_WINDOWS: { key: AdminStatsWindow; label: string }[] = [
@@ -214,7 +216,7 @@ function pct(n: number, d: number): number {
 }
 
 /**
- * Guest funnel visualization — full journey with per-stage counts, conversion %
+ * Guest funnel visualization - full journey with per-stage counts, conversion %
  * (vs the previous stage), and dropoff %. Windowed via the parent's selector.
  */
 function GuestFunnel({ funnel }: { funnel?: AdminFunnel }) {
@@ -601,12 +603,12 @@ function BadgesSection() {
         </Button>
       </div>
       {result && (
-        <div className="mt-3 rounded-lg bg-emerald-950/40 border border-emerald-700/40 px-4 py-2 text-sm text-emerald-400">
+        <div className="mt-3 rounded-lg bg-emerald-950/40 border border-emerald-700/40 px-4 py-2 text-sm text-success">
           {result}
         </div>
       )}
       {error && (
-        <div className="mt-3 rounded-lg bg-red-950/40 border border-red-700/40 px-4 py-2 text-sm text-red-400">
+        <div className="mt-3 rounded-lg bg-red-950/40 border border-red-700/40 px-4 py-2 text-sm text-danger">
           {error}
         </div>
       )}
@@ -642,7 +644,7 @@ function VerificationSection() {
     <Card title="Reputation Verification" icon={BadgeCheck}>
       <p className="mb-4 text-sm text-muted-foreground">
         Look up any user by X handle to verify their official badges and tier
-        exactly as they render across the app. Read-only — no changes are made.
+        exactly as they render across the app. Read-only - no changes are made.
       </p>
       <div className="mb-3 flex flex-col gap-3 sm:flex-row">
         <Input
@@ -667,7 +669,7 @@ function VerificationSection() {
       </div>
 
       {error && (
-        <div className="rounded-lg border border-red-700/40 bg-red-950/40 px-4 py-2 text-sm text-red-400">
+        <div className="rounded-lg border border-red-700/40 bg-red-950/40 px-4 py-2 text-sm text-danger">
           {error}
         </div>
       )}
@@ -902,9 +904,9 @@ function ResetSection() {
           </AlertDialog>
         </div>
 
-        <div className="space-y-2 border border-red-400/30 bg-red-400/5 p-3">
-          <div className="text-[11px] uppercase tracking-wider text-red-400">
-            All users — danger zone
+        <div className="space-y-2 border border-danger/30 bg-red-400/5 p-3">
+          <div className="text-[11px] uppercase tracking-wider text-danger">
+            All users - danger zone
           </div>
           <p className="text-xs text-muted-foreground">
             Applies the selected actions to every account on the platform.
@@ -1046,7 +1048,7 @@ function RecoverySection() {
               <span
                 className={
                   fee.active
-                    ? "rounded-sm bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-400"
+                    ? "rounded-sm bg-success/15 px-1.5 py-0.5 text-[10px] font-semibold text-success"
                     : "rounded-sm bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground"
                 }
                 data-testid="badge-fee-status"
@@ -1068,7 +1070,7 @@ function RecoverySection() {
                   <div
                     className={
                       s.enabled
-                        ? "text-[11px] text-emerald-400"
+                        ? "text-[11px] text-success"
                         : "text-[11px] text-muted-foreground"
                     }
                   >
@@ -1136,8 +1138,8 @@ function RecoverySection() {
                         <span
                           className={
                             r.status === "success"
-                              ? "text-emerald-400"
-                              : "text-red-400"
+                              ? "text-success"
+                              : "text-danger"
                           }
                         >
                           {r.status}
@@ -1255,7 +1257,7 @@ function LeverageSection() {
                       <td
                         className={
                           "px-3 py-2 text-right font-mono " +
-                          (u.realized_pnl_sol >= 0 ? "text-emerald-400" : "text-red-400")
+                          (u.realized_pnl_sol >= 0 ? "text-success" : "text-danger")
                         }
                       >
                         {fmt(u.realized_pnl_sol, 3)}
@@ -1329,12 +1331,12 @@ function RowFlags({ isTest, isHidden }: { isTest: boolean; isHidden: boolean }) 
   return (
     <span className="ml-2 inline-flex items-center gap-1">
       {isTest && (
-        <span className="rounded-full bg-amber-400/15 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-amber-400">
+        <span className="rounded-full bg-amber-400/15 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-warning">
           Test
         </span>
       )}
       {isHidden && (
-        <span className="rounded-full bg-red-400/15 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-red-400">
+        <span className="rounded-full bg-danger/15 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-danger">
           Hidden
         </span>
       )}
@@ -1370,7 +1372,7 @@ function ModButton({
       className={cn(
         "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-medium transition-colors disabled:opacity-50",
         danger
-          ? "border-red-400/30 text-red-400 hover:bg-red-400/10"
+          ? "border-danger/30 text-danger hover:bg-danger/10"
           : active
             ? "border-accent/40 bg-accent/10 text-accent"
             : "border-border text-muted-foreground hover:text-foreground hover:bg-surface-3",
@@ -1400,7 +1402,7 @@ function ConfirmDeleteButton({
           type="button"
           title="Delete"
           data-testid={testid}
-          className="inline-flex items-center gap-1 rounded-md border border-red-400/30 px-2 py-1 text-[11px] font-medium text-red-400 transition-colors hover:bg-red-400/10"
+          className="inline-flex items-center gap-1 rounded-md border border-danger/30 px-2 py-1 text-[11px] font-medium text-danger transition-colors hover:bg-danger/10"
         >
           <Trash2 className="h-3.5 w-3.5" />
           Delete
@@ -1869,13 +1871,13 @@ function SocialResetCard({
     <div
       className={cn(
         "space-y-2 border p-3",
-        spec.danger ? "border-red-400/30 bg-red-400/5" : "border-border bg-background/40",
+        spec.danger ? "border-danger/30 bg-red-400/5" : "border-border bg-background/40",
       )}
     >
       <div
         className={cn(
           "text-[11px] uppercase tracking-wider",
-          spec.danger ? "text-red-400" : "text-muted-foreground",
+          spec.danger ? "text-danger" : "text-muted-foreground",
         )}
       >
         {spec.label}
@@ -1939,7 +1941,7 @@ function ReputationRow({
           </>
         ) : (
           <>
-            <div className="font-mono text-sm text-emerald-400">
+            <div className="font-mono text-sm text-success">
               +{entry.followers30d}
             </div>
             <div className="text-[10px] uppercase tracking-wider text-muted-foreground">

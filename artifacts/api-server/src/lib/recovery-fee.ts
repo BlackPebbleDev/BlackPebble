@@ -1,5 +1,5 @@
 /**
- * Recovery Fee Architecture — DISABLED scaffolding (Phase G).
+ * Recovery Fee Architecture - DISABLED scaffolding (Phase G).
  *
  * ┌──────────────┐   ┌──────────┐   ┌──────────┐   ┌────────┐
  * │ Recovery Fee │──▶│ Treasury │──▶│ Buybacks │──▶│ Burns  │
@@ -31,7 +31,7 @@ export interface RecoveryFeeStage {
   label: string;
   /** Whether this stage is active. ALWAYS false today. */
   enabled: boolean;
-  /** What the stage will eventually do — documentation only. */
+  /** What the stage will eventually do - documentation only. */
   description: string;
 }
 
@@ -65,7 +65,7 @@ export const RECOVERY_FEE_CONFIG: RecoveryFeeConfig = Object.freeze({
   treasuryWallet: null,
   buybackToken: null,
   // Each stage is frozen too (deep freeze) so the disabled flags cannot be
-  // flipped by accidental in-process mutation — only a deliberate source change.
+  // flipped by accidental in-process mutation - only a deliberate source change.
   pipeline: [
     Object.freeze({
       key: "recovery_fee",
@@ -169,6 +169,6 @@ export function getRecoveryFeeStatus(
     pipeline: config.pipeline,
     summary: active
       ? `Recovery fee active at ${config.feeBps / 100}%`
-      : "Recovery fees are DISABLED — users keep 100% of recovered SOL. No treasury, buybacks, burns, or token logic are active.",
+      : "Recovery fees are DISABLED - users keep 100% of recovered SOL. No treasury, buybacks, burns, or token logic are active.",
   };
 }

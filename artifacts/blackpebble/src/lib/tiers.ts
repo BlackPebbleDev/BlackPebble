@@ -3,16 +3,16 @@
  *
  * This is ONE of three separate identity axes and must never be conflated with
  * the others:
- *   1. Account status  — Guest | Member        (see lib/account-status.ts)
- *   2. Role badges     — Founder, BP Team, …    (see components/official-badge.tsx)
- *   3. Trading progression — THIS FILE           (earned by trading performance)
+ *   1. Account status  - Guest | Member        (see lib/account-status.ts)
+ *   2. Role badges     - Founder, BP Team, …    (see components/official-badge.tsx)
+ *   3. Trading progression - THIS FILE           (earned by trading performance)
  *
  * The progression vocabulary below is deliberately distinct from account-status
  * ("Member") and role names ("Verified Trader") so a progression label can never
- * be mistaken for membership or a role. There is no "Premium" — paid membership
+ * be mistaken for membership or a role. There is no "Premium" - paid membership
  * does not exist on BlackPebble.
  *
- * IMPORTANT — this is a DISPLAY-ONLY relabel layer. The thresholds below mirror
+ * IMPORTANT - this is a DISPLAY-ONLY relabel layer. The thresholds below mirror
  * the server's TIERS table in `artifacts/api-server/src/lib/trading.ts`
  * (graduationTier) and MUST stay in lockstep with it. The server is the single
  * source of truth for an account's stored tier; these client thresholds exist
@@ -68,7 +68,7 @@ export interface TierMeta {
    */
   className: string;
   /**
-   * Text-only color class — no background, no glow.
+   * Text-only color class - no background, no glow.
    * Used by the "plain" variant for inline / dense surfaces (e.g. feed cards).
    */
   textClass: string;
@@ -124,7 +124,7 @@ const ROOKIE_META: TierMeta = {
 /**
  * Resolve badge metadata for a tier name. Accepts both the legacy server keys
  * (legend/diamond/gold/silver/bronze) and the progression display names
- * (case-insensitive). Anything unknown — including "none"/"unranked"/empty —
+ * (case-insensitive). Anything unknown - including "none"/"unranked"/empty —
  * resolves to the base Rookie tier so a progression badge is always shown.
  */
 const TIER_META: Record<string, TierMeta> = {

@@ -33,7 +33,7 @@ function persist(mode: PnlMode) {
   try {
     window.sessionStorage.setItem(STORAGE_KEY, mode);
   } catch {
-    /* sessionStorage unavailable — keep in-memory only */
+    /* sessionStorage unavailable - keep in-memory only */
   }
 }
 

@@ -23,6 +23,15 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return data as T;
 }
 
+/** Build the shared ?kinds=&limit= query string for feed endpoints. */
+function feedQuery(opts?: { kinds?: string[]; limit?: number }): string {
+  const p = new URLSearchParams();
+  if (opts?.kinds && opts.kinds.length > 0) p.set("kinds", opts.kinds.join(","));
+  if (opts?.limit) p.set("limit", String(opts.limit));
+  const s = p.toString();
+  return s ? `?${s}` : "";
+}
+
 // ---- Types ----
 export interface Account {
   wallet: string;
@@ -49,13 +58,102 @@ export type FeatureFlagKey =
   | "tp_sl"
   | "multi_target_tp"
   | "experimental_utilities"
-  | "leverage";
+  | "leverage"
+  | "real_trading_analysis"
+  | "community_campaigns";
 
 export type FeatureFlags = Record<FeatureFlagKey, boolean>;
 
 export interface AdminMe {
   admin: boolean;
   x_username: string | null;
+}
+
+// ---- Community Campaigns ----
+export type CampaignState =
+  | "live"
+  | "funded"
+  | "settled"
+  | "failed"
+  | "refunded"
+  | "frozen";
+
+export interface CampaignSummary {
+  publicId: string;
+  kind: string;
+  typeKey: string;
+  title: string;
+  brief: string;
+  tokenMint: string | null;
+  imageUrl: string | null;
+  bannerUrl: string | null;
+  linkUrl: string | null;
+  goalLamports: number;
+  goalUsd: number | null;
+  goalLabel: string | null;
+  deadlineAt: number;
+  state: CampaignState;
+  trustScore: number;
+  escrowAddress: string;
+  createdAt: number;
+  fundedAt: number | null;
+  settledAt: number | null;
+  fulfillmentNote: string | null;
+  fulfillmentUrl: string | null;
+  creator: {
+    username: string | null;
+    displayName: string | null;
+    avatarUrl: string | null;
+  };
+  accounting: {
+    depositedLamports: number;
+    paidOutLamports: number;
+    refundedLamports: number;
+    feeLamports: number;
+    remainingLamports: number;
+    contributorCount: number;
+    progress: number;
+  };
+}
+
+export interface CampaignLedgerEntry {
+  kind: string;
+  lamports: number;
+  txSignature: string | null;
+  counterparty: string | null;
+  note: string | null;
+  createdAt: number;
+}
+
+export type CampaignAsset = "icon" | "banner" | "title" | "pitch";
+
+export interface CampaignGoalOption {
+  label: string;
+  usd: number;
+  description: string;
+}
+
+export interface CampaignTypeDef {
+  key: string;
+  /** Platform grouping (DEXScreener / DEXTools / Community). */
+  group: string;
+  label: string;
+  description: string;
+  /** Fixed goal tiers. Every campaign goal is set in stone. */
+  goalOptions: CampaignGoalOption[];
+  requiresToken: boolean;
+  /** Assets needed for fulfillment (icon auto-fills from the token). */
+  requiredAssets: CampaignAsset[];
+}
+
+export interface CampaignTokenValidation {
+  mint: string;
+  valid: boolean;
+  symbol: string | null;
+  name: string | null;
+  logo: string | null;
+  safety: "ok" | "warning" | "danger" | "unknown";
+  risks: { name: string; level: string; description: string }[];
 }
 
 export type AdminStatsWindow = "24h" | "7d" | "30d" | "all";
@@ -87,7 +185,7 @@ export interface AdminFeedStats {
 }
 
 /**
- * Windowed guest funnel — full journey, each stage a first-touch-per-device
+ * Windowed guest funnel - full journey, each stage a first-touch-per-device
  * beacon so counts are monotonic and conversion/dropoff are well-defined.
  */
 export interface AdminFunnel {
@@ -302,7 +400,7 @@ export interface TokenInfo {
   // ── Token Page V2 detail fields (optional, display-only) ──
   buys24h?: number | null;
   sells24h?: number | null;
-  /** Pair creation time (ms epoch) — used to render token age. */
+  /** Pair creation time (ms epoch) - used to render token age. */
   pairCreatedAt?: number | null;
   volume6hUsd?: number | null;
   volume1hUsd?: number | null;
@@ -310,9 +408,9 @@ export interface TokenInfo {
   websiteUrl?: string | null;
   twitterUrl?: string | null;
   telegramUrl?: string | null;
-  /** Banner / header image from DexScreener — background artwork for the token card. */
+  /** Banner / header image from DexScreener - background artwork for the token card. */
   bannerUrl?: string | null;
-  /** DEX identifier from DexScreener (e.g. "raydium", "meteora", "orca") — display-only. */
+  /** DEX identifier from DexScreener (e.g. "raydium", "meteora", "orca") - display-only. */
   dexId?: string | null;
 }
 
@@ -490,7 +588,7 @@ export type WarningLevel = "none" | "high" | "extreme";
 
 export interface TradeQuote {
   ok: boolean;
-  /** First (or only) blocking reason — kept for backward compat. */
+  /** First (or only) blocking reason - kept for backward compat. */
   error?: string;
   /** All blocking reasons when more than one validation fails simultaneously. */
   errors?: string[];
@@ -727,7 +825,7 @@ export interface BadgeEntry {
   progress?: { current: number; target: number } | null;
   /** Hidden achievements stay out of the locked catalogue until earned. */
   hidden?: boolean;
-  /** % of registered users who hold this badge — share-card rarity signal. */
+  /** % of registered users who hold this badge - share-card rarity signal. */
   globalEarnedPercent?: number | null;
 }
 
@@ -923,9 +1021,54 @@ export interface JournalStats {
   lessonsRecorded: number;
 }
 
+/** One trade inside an aggregated buy/sell group's expandable breakdown. */
+export interface FeedTradeBreakdownRow {
+  id: string;
+  ts: number;
+  solAmount: number;
+  marketCapUsd: number | null;
+  pnlSol: number | null;
+}
+
+/** Structured payload for aggregated trade cards (item.kind === "agg"). */
+export interface FeedAggMeta {
+  tradeCount: number;
+  windowStart: number;
+  windowEnd: number;
+  totalSol: number;
+  avgMarketCapUsd: number | null;
+  totalPnlSol: number | null;
+  breakdown: FeedTradeBreakdownRow[];
+}
+
+/** The ten reaction keys, in display order (matches the backend vocabulary). */
+export const FEED_REACTIONS = [
+  { key: "rocket", emoji: "🚀", label: "Bullish" },
+  { key: "fire", emoji: "🔥", label: "Hot Trade" },
+  { key: "gem", emoji: "💎", label: "Conviction" },
+  { key: "brain", emoji: "🧠", label: "Smart" },
+  { key: "clap", emoji: "👏", label: "Congrats" },
+  { key: "eyes", emoji: "👀", label: "Watching" },
+  { key: "moneybag", emoji: "💰", label: "Nice Profit" },
+  { key: "flag", emoji: "🚩", label: "Red Flag" },
+  { key: "poop", emoji: "💩", label: "Bad Call" },
+  { key: "target", emoji: "🎯", label: "Accurate Call" },
+] as const;
+
+export type FeedReactionKey = (typeof FEED_REACTIONS)[number]["key"];
+
 export interface FeedActivityItem {
   id: string;
-  kind: "spot" | "leverage" | "callout" | "thesis" | "achievement" | "recovery";
+  kind:
+    | "spot"
+    | "agg"
+    | "leverage"
+    | "callout"
+    | "thesis"
+    | "achievement"
+    | "recovery"
+    | "campaign"
+    | "milestone";
   action: string;
   token: {
     mint: string;
@@ -956,6 +1099,20 @@ export interface FeedActivityItem {
   recoveredSol?: number | null;
   /** Recovery only: rent accounts closed in this cleanup, null otherwise. */
   accountsClosed?: number | null;
+  /** Campaign only: public id for linking to the campaign page. */
+  campaignPublicId?: string | null;
+  /** Campaign only: funding goal in SOL. */
+  campaignGoalSol?: number | null;
+  /**
+   * Structured payload: FeedAggMeta for aggregates, margin/notional/MC data
+   * for leverage, tokensBurned/netSol for recovery, publisher metadata for
+   * milestones.
+   */
+  meta?: Record<string, unknown> | null;
+  /** Reaction counts by key (only keys with count > 0). */
+  reactions?: Record<string, number>;
+  /** The viewer's own reaction, when signed in. */
+  viewerReaction?: string | null;
   timestamp: number;
   user: {
     user_id: number;
@@ -1009,7 +1166,7 @@ export interface MostFollowedEntry {
 }
 
 /**
- * A trader's row on the Reputation Network — the shared shape returned by
+ * A trader's row on the Reputation Network - the shared shape returned by
  * trader search, Top Rising Traders, and Highest Trust Score. Reuses the same
  * Trust Score / tier / caller primitives shown on the profile.
  */
@@ -1090,7 +1247,7 @@ export interface RecoveryTrackBody {
   netSol?: number;
   /**
    * Client-claimed count of SPL tokens burned in this cleanup. This is only a
-   * hint — the server independently proves burns on-chain before any value
+   * hint - the server independently proves burns on-chain before any value
    * counts toward public/lifetime totals (see recovery-verify.ts).
    */
   tokensBurned?: number;
@@ -1122,7 +1279,7 @@ export interface TokenRiskFactor {
 
 /**
  * Position-independent token intelligence for the wallet-cleanup suite. Every
- * market/authority signal is nullable — a null means "not resolvable" and the
+ * market/authority signal is nullable - a null means "not resolvable" and the
  * client treats it as UNKNOWN, never silently safe. Sellability, USD value and
  * realizable value are intentionally NOT here: they depend on the holder's
  * balance and are derived client-side from these signals × the real balance.
@@ -1171,7 +1328,7 @@ export interface RecoveryLifetimeStats extends RecoveryWindowStats {
   avg_recovered: number;
   /** Total estimated network fees paid across all successful cleanups (SOL). */
   total_network_fees: number;
-  /** Total BlackPebble platform fees collected — always 0 today (SOL). */
+  /** Total BlackPebble platform fees collected - always 0 today (SOL). */
   total_bp_fees: number;
   /** Total net SOL that landed in wallets across successful cleanups (SOL). */
   total_net: number;
@@ -1205,7 +1362,7 @@ export interface RecoveryHistoryEvent {
   tokens_burned: number;
   recovered_sol: number;
   network_fee_sol: number;
-  /** BlackPebble platform fee — always 0 today (SOL). */
+  /** BlackPebble platform fee - always 0 today (SOL). */
   bp_fee_sol: number;
   net_sol: number;
   status: string;
@@ -1224,7 +1381,7 @@ export interface RecoveryHistoryLifetime {
   successful_cleanups: number;
   failed_cleanups: number;
   total_network_fees: number;
-  /** Always 0 — fees are inert scaffolding. */
+  /** Always 0 - fees are inert scaffolding. */
   total_bp_fees: number;
   total_net: number;
 }
@@ -1344,7 +1501,7 @@ export interface LeverageFill {
   exitPriceSol: number | null;
   exitMarketCap: number | null;
   realizedPnlSol: number | null;
-  /** Trade row id — used to dedupe fill toasts across polls. */
+  /** Trade row id - used to dedupe fill toasts across polls. */
   tradeId?: number;
   executedAt?: number;
 }
@@ -1431,6 +1588,166 @@ export interface LeverageStats {
     volume_sol: number;
     realized_pnl_sol: number;
   }[];
+}
+
+// ---- Real Trading Analysis (read-only on-chain intelligence) ----
+
+export interface RealTradingMetrics {
+  totalTrades: number;
+  buyCount: number;
+  sellCount: number;
+  closedRoundTrips: number;
+  realizedPnlSol: number;
+  unrealizedPnlSol: number;
+  totalPnlSol: number;
+  winRate: number;
+  lossRate: number;
+  avgGainSol: number;
+  avgLossSol: number;
+  largestGainSol: number;
+  largestLossSol: number;
+  avgHoldDurationSec: number;
+  medianHoldDurationSec: number;
+  avgPositionSizeSol: number;
+  tradingFrequencyPerWeek: number;
+  uniqueTokensTraded: number;
+  holdingConcentration: number;
+  diversificationScore: number;
+  avgMarketCapPurchasedUsd: number | null;
+  walletAgeDays: number;
+  firstTradeAt: number | null;
+  lastTradeAt: number | null;
+}
+
+/** One registry signal (0–100) with a ~30-day delta for progression display. */
+export interface RealTradingSignal {
+  key: string;
+  value: number;
+  confidence: number;
+  evidence: string[];
+  previousValue: number | null;
+  delta30d: number | null;
+}
+
+export interface RealTraderDna {
+  vector: Record<string, number>;
+  primaryArchetype: string;
+  primaryLabel: string;
+  primaryDescription: string;
+  secondaryArchetype: string | null;
+  secondaryLabel: string | null;
+  confidence: number;
+  evolvedTraits: string[];
+  archetypeChanged: boolean;
+  version: number;
+}
+
+export interface RealTradingPersonality {
+  personality: string;
+  description: string;
+  traits: string[];
+}
+
+export interface RealTimelineEvent {
+  id: number;
+  eventType: string;
+  title: string;
+  body: string | null;
+  meta: Record<string, unknown> | null;
+  createdAt: number;
+}
+
+export interface RealWalletHealth {
+  score: number;
+  deadPositions: number;
+  dustPositions: number;
+  concentrationRisk: number;
+  diversification: number;
+  portfolioCleanliness: number;
+  notes: string[];
+}
+
+export interface RealTradingInsight {
+  key: string;
+  category: string;
+  title: string;
+  description: string;
+  severity: "info" | "positive" | "warning";
+  confidence: number;
+}
+
+export interface RealOpenPosition {
+  tokenMint: string;
+  symbol: string | null;
+  name: string | null;
+  logo: string | null;
+  tokenAmount: number;
+  costBasisSol: number;
+  avgEntryPriceSol: number;
+  firstAcquiredAt: number;
+  currentPriceSol: number | null;
+  currentValueSol: number | null;
+  unrealizedPnlSol: number | null;
+  marketCapUsd: number | null;
+}
+
+export interface RealPnlPoint {
+  t: number;
+  cumRealizedPnlSol: number;
+}
+
+export interface RealActivityBucket {
+  month: string;
+  buys: number;
+  sells: number;
+  volumeSol: number;
+}
+
+export interface RealHoldBucket {
+  label: string;
+  count: number;
+}
+
+export interface RealTokenPerformance {
+  tokenMint: string;
+  symbol: string | null;
+  name: string | null;
+  logo: string | null;
+  realizedPnlSol: number;
+  costBasisSol: number;
+  roiPercent: number;
+  roundTrips: number;
+}
+
+export interface RealPerformanceReport {
+  pnlSeries: RealPnlPoint[];
+  monthlyActivity: RealActivityBucket[];
+  holdBuckets: RealHoldBucket[];
+  topWinners: RealTokenPerformance[];
+  topLosers: RealTokenPerformance[];
+  totalRealizedPnlSol: number;
+}
+
+export interface RealAnalysisSummary {
+  wallet: string;
+  computedAt: number;
+  syncStatus: string;
+  lastSyncedAt: number | null;
+  tradeCount: number;
+  dataSources: string;
+  metrics: RealTradingMetrics;
+  signals: RealTradingSignal[];
+  dna: RealTraderDna | null;
+  personality: RealTradingPersonality;
+  walletHealth: RealWalletHealth;
+  openPositions: RealOpenPosition[];
+  /** Open positions were reconciled against live on-chain balances. */
+  holdingsVerified: boolean;
+  /** Trade-history tokens no longer actually held (excluded from positions). */
+  droppedGhostMints: number;
+  insights: RealTradingInsight[];
+  empty?: boolean;
+  message?: string;
 }
 
 // ---- API ----
@@ -1562,7 +1879,7 @@ export const api = {
       cacheAge: number | null;
     }>(`/markets/status`),
 
-  // Current SOL/USD rate — lets any page render USD even with no positions.
+  // Current SOL/USD rate - lets any page render USD even with no positions.
   solPrice: () => request<{ solUsd: number }>(`/markets/sol-price`),
 
   // Token Page V2 intelligence roll-up (sentiment / community / recent activity).
@@ -1607,6 +1924,31 @@ export const api = {
 
   // Public feature flags (read-only) consumed by the trading UI.
   featureFlags: () => request<{ flags: FeatureFlags }>("/feature-flags"),
+
+  // Real Trading Analysis - read-only on-chain intelligence (gated by feature flag).
+  realAnalysis: {
+    get: (wallet: string, refresh?: boolean) =>
+      request<{ analysis: RealAnalysisSummary }>(
+        `/real-analysis/${wallet}${refresh ? "?refresh=true" : ""}`,
+      ),
+    sync: (wallet: string) =>
+      request<{ sync: { ok: boolean; newTrades: number; totalTrades: number; error?: string }; analysis: RealAnalysisSummary }>(
+        `/real-analysis/${wallet}/sync`,
+        { method: "POST" },
+      ),
+    insights: (wallet: string) =>
+      request<{ insights: RealTradingInsight[] }>(
+        `/real-analysis/${wallet}/insights`,
+      ),
+    timeline: (wallet: string, limit?: number) =>
+      request<{ events: RealTimelineEvent[] }>(
+        `/real-analysis/${wallet}/timeline${limit ? `?limit=${limit}` : ""}`,
+      ),
+    performance: (wallet: string) =>
+      request<{ performance: RealPerformanceReport }>(
+        `/real-analysis/${wallet}/performance`,
+      ),
+  },
 
   // Paper leverage trading (gated behind the `leverage` feature flag).
   leverage: {
@@ -1674,7 +2016,7 @@ export const api = {
       }),
   },
 
-  // SOL Recovery usage tracking (public — recovery works for guests too).
+  // SOL Recovery usage tracking (public - recovery works for guests too).
   recovery: {
     track: (body: RecoveryTrackBody) =>
       request<{ ok: boolean }>("/recovery/events", {
@@ -1822,10 +2164,80 @@ export const api = {
       request<{ ok: boolean }>(`/theses/${id}`, { method: "DELETE" }),
   },
 
-  // Social: read-only activity feed.
+  // Community Campaigns - escrow-backed goal campaigns (feature-flag gated).
+  campaigns: {
+    list: (state?: string) =>
+      request<{ campaigns: CampaignSummary[]; escrowReady: boolean }>(
+        `/campaigns${state && state !== "all" ? `?state=${state}` : ""}`,
+      ),
+    config: () =>
+      request<{
+        types: CampaignTypeDef[];
+        solPriceUsd: number;
+        escrowReady: boolean;
+      }>("/campaigns/config"),
+    validateToken: (mint: string) =>
+      request<{ token: CampaignTokenValidation }>(
+        `/campaigns/validate-token/${mint}`,
+      ),
+    get: (publicId: string) =>
+      request<{ campaign: CampaignSummary }>(`/campaigns/${publicId}`),
+    ledger: (publicId: string) =>
+      request<{ ledger: CampaignLedgerEntry[] }>(
+        `/campaigns/${publicId}/ledger`,
+      ),
+    create: (body: {
+      typeKey: string;
+      title: string;
+      brief: string;
+      goalUsd?: number | null;
+      goalSol?: number | null;
+      durationHours: number;
+      tokenMint?: string | null;
+      imageUrl?: string | null;
+      bannerUrl?: string | null;
+      linkUrl?: string | null;
+    }) =>
+      request<{ campaign: CampaignSummary }>("/campaigns", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    refresh: (publicId: string) =>
+      request<{ campaign: CampaignSummary }>(
+        `/campaigns/${publicId}/refresh`,
+        { method: "POST" },
+      ),
+    settle: (
+      publicId: string,
+      body: {
+        payoutDestination: string;
+        fulfillmentNote: string;
+        fulfillmentUrl?: string | null;
+      },
+    ) =>
+      request<{ ok: boolean; error?: string }>(
+        `/campaigns/${publicId}/settle`,
+        { method: "POST", body: JSON.stringify(body) },
+      ),
+  },
+
+  // Social: activity feed + reactions.
   feed: {
-    global: () => request<{ items: FeedActivityItem[] }>(`/feed/global`),
-    following: () => request<{ items: FeedActivityItem[] }>(`/feed/following`),
+    global: (opts?: { kinds?: string[]; limit?: number }) =>
+      request<{ items: FeedActivityItem[] }>(
+        `/feed/global${feedQuery(opts)}`,
+      ),
+    following: (opts?: { kinds?: string[]; limit?: number }) =>
+      request<{ items: FeedActivityItem[] }>(
+        `/feed/following${feedQuery(opts)}`,
+      ),
+    mine: (opts?: { kinds?: string[]; limit?: number }) =>
+      request<{ items: FeedActivityItem[] }>(`/feed/mine${feedQuery(opts)}`),
+    react: (eventId: string, reaction: FeedReactionKey | null) =>
+      request<{ ok: boolean }>(`/feed/react`, {
+        method: "POST",
+        body: JSON.stringify({ eventId, reaction }),
+      }),
   },
 
   // Trading Journal: private, owner-scoped CRUD. Every call is session-scoped

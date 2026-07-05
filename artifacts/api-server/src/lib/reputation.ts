@@ -9,7 +9,7 @@
  *     and /portfolio/stats use) so the trust score here is byte-identical to
  *     the profile's trust score.
  *   - Caller stats come from computeCallers() (the immutable-callout grader).
- *   - Trust score is computeTrustScore() — the one and only formula. This file
+ *   - Trust score is computeTrustScore() - the one and only formula. This file
  *     NEVER changes scoring logic; it only surfaces it across more places.
  *
  * Everything is strictly read-only over existing tables, except the additive,
@@ -140,7 +140,7 @@ export async function ensureReputationSnapshotsSchema(): Promise<void> {
 }
 
 /**
- * Persist today's snapshot for every board entry (idempotent — one row per
+ * Persist today's snapshot for every board entry (idempotent - one row per
  * user per day). Best-effort: a snapshot failure never breaks the board.
  */
 async function writeDailySnapshots(entries: ReputationEntry[]): Promise<void> {
@@ -263,7 +263,7 @@ export async function computeReputationBoard(): Promise<ReputationEntry[]> {
     const caller = callerByUser.get(p.user_id);
     const traderRank = rankByWallet.get(accountKey) ?? null;
 
-    // Trust reads spot-only stats — simulated perps P&L never inflates trust.
+    // Trust reads spot-only stats - simulated perps P&L never inflates trust.
     const badgeStats: BadgeStatsInput = {
       closedTrades: stats.spotClosedTrades,
       realizedPnlSol: stats.realizedPnlSol,
@@ -363,7 +363,7 @@ export async function searchTraders(
   return rows.slice(0, limit);
 }
 
-/** Top Rising Traders — ranked by recent growth, not lifetime totals. */
+/** Top Rising Traders - ranked by recent growth, not lifetime totals. */
 export async function getTopRising(limit = 50): Promise<ReputationEntry[]> {
   const all = await computeReputationBoard();
   const rising = all
@@ -377,7 +377,7 @@ export async function getTopRising(limit = 50): Promise<ReputationEntry[]> {
   return rising.slice(0, Math.min(Math.max(limit, 1), 100));
 }
 
-/** Highest Trust Score board — reputation leaderboard. */
+/** Highest Trust Score board - reputation leaderboard. */
 export async function getHighestTrust(limit = 100): Promise<ReputationEntry[]> {
   const all = await computeReputationBoard();
   const ranked = all

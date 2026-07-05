@@ -91,7 +91,7 @@ export default function WalletCleaner() {
     if (ok) setBurnPreviewOpen(false);
   }
 
-  // Recommended-action handlers — turn a tap into the right flow.
+  // Recommended-action handlers - turn a tap into the right flow.
   function handleRecover() {
     selectAll();
     setPreviewOpen(true);
@@ -137,7 +137,7 @@ export default function WalletCleaner() {
             </h1>
             <p className="text-sm text-muted-foreground leading-relaxed">
               See every token you hold, spot scams and inflated value, reclaim
-              trapped SOL, and burn junk — safely and on your terms.
+              trapped SOL, and burn junk - safely and on your terms.
             </p>
           </div>
         </div>
@@ -148,11 +148,11 @@ export default function WalletCleaner() {
       <ErrorBoundary
         onReset={reset}
         title="Wallet Cleanup hit a snag"
-        description="Something went wrong while showing your scan results. Your wallet and funds are safe — nothing was changed. Try scanning again."
+        description="Something went wrong while showing your scan results. Your wallet and funds are safe - nothing was changed. Try scanning again."
         retryLabel="Try again"
       >
         {!connected ? (
-          <div className="rounded-3xl bg-card shadow-card p-8 text-center space-y-4">
+          <div className="rounded-xl bg-card shadow-card p-8 text-center space-y-4">
             <Wallet className="w-8 h-8 text-muted-foreground mx-auto" />
             <div className="space-y-1">
               <div className="font-semibold">Connect your wallet to begin</div>
@@ -174,11 +174,11 @@ export default function WalletCleaner() {
           <div className="space-y-6">
             <WalletStatusCard cleaner={cleaner} />
 
-            {/* SECTION 1 — Wallet Health Hero (the centerpiece summary). */}
+            {/* SECTION 1 - Wallet Health Hero (the centerpiece summary). */}
             <WalletHealthHero cleaner={cleaner} onScan={scan} />
 
             {status === "scanning" && (
-              <div className="rounded-3xl bg-card shadow-card p-10 text-center">
+              <div className="rounded-xl bg-card shadow-card p-10 text-center">
                 <Loader2 className="w-6 h-6 text-accent animate-spin mx-auto mb-3" />
                 <p className="text-sm text-muted-foreground">
                   Scanning your token accounts…
@@ -192,7 +192,7 @@ export default function WalletCleaner() {
 
                 {fullyClean ? (
                   <div
-                    className="rounded-3xl bg-card shadow-card p-10 text-center space-y-3"
+                    className="rounded-xl bg-card shadow-card p-10 text-center space-y-3"
                     data-testid="wallet-clean"
                   >
                     <CheckCircle2 className="w-8 h-8 text-accent mx-auto" />
@@ -214,7 +214,7 @@ export default function WalletCleaner() {
                   </div>
                 ) : (
                   <>
-                    {/* SECTION 2 — Recommended Actions. */}
+                    {/* SECTION 2 - Recommended Actions. */}
                     <RecommendedActions
                       cleaner={cleaner}
                       onRecover={handleRecover}
@@ -222,13 +222,13 @@ export default function WalletCleaner() {
                       onReview={handleReview}
                     />
 
-                    {/* SECTION 3 — Protected Assets (always visible, trust). */}
+                    {/* SECTION 3 - Protected Assets (always visible, trust). */}
                     <ProtectedAssets cleaner={cleaner} />
 
-                    {/* SECTION 4 — Advanced Analysis (collapsed by default). */}
+                    {/* SECTION 4 - Advanced Analysis (collapsed by default). */}
                     <section
                       ref={advancedRef}
-                      className="rounded-3xl bg-card shadow-card overflow-hidden"
+                      className="rounded-xl bg-card shadow-card overflow-hidden"
                       data-testid="advanced-analysis"
                     >
                       <button
@@ -312,7 +312,7 @@ export default function WalletCleaner() {
 
                 {status === "error" && accounts.length > 0 && error && (
                   <div className="flex items-start gap-2.5 border border-destructive-border bg-destructive/10 px-4 py-3 text-sm text-foreground rounded-2xl">
-                    <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+                    <AlertTriangle className="w-4 h-4 text-danger flex-shrink-0 mt-0.5" />
                     <span>{error}</span>
                   </div>
                 )}
@@ -321,14 +321,14 @@ export default function WalletCleaner() {
 
             {status === "error" && accounts.length === 0 && error && (
               <div className="flex items-start gap-2.5 border border-destructive-border bg-destructive/10 px-4 py-3 text-sm text-foreground rounded-2xl">
-                <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+                <AlertTriangle className="w-4 h-4 text-danger flex-shrink-0 mt-0.5" />
                 <span>{error}</span>
               </div>
             )}
           </div>
         )}
 
-        {/* Unified Action Center — single sticky bar for recover + burn. */}
+        {/* Unified Action Center - single sticky bar for recover + burn. */}
         {connected && scannedView && (
           <ActionCenter
             cleaner={cleaner}

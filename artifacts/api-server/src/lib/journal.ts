@@ -3,7 +3,7 @@ import { dbAll, dbGet, dbRun } from "./database.js";
 /**
  * Trading Journal: private, owner-scoped trade reviews. Unlike callouts these
  * are mutable (the trader can edit/delete their own reflections) and never
- * public — every read/write is keyed to the authenticated user's internal id.
+ * public - every read/write is keyed to the authenticated user's internal id.
  *
  * The table is created idempotently at runtime (CREATE TABLE IF NOT EXISTS),
  * matching the callouts / user_follows pattern; the drizzle definition in
@@ -40,7 +40,7 @@ export interface JournalEntry {
   notes: string | null;
   template: string | null;
   // Auto-import scaffolding (structured now, populated by a future
-  // "Create Journal Entry From Trade" flow — see routes/journal.ts).
+  // "Create Journal Entry From Trade" flow - see routes/journal.ts).
   source: string | null;
   entry_mc: number | null;
   exit_mc: number | null;

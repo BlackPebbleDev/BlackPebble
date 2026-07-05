@@ -66,7 +66,7 @@ function saveMintSet(key: string, mints: Set<string>): void {
   try {
     localStorage.setItem(key, JSON.stringify([...mints]));
   } catch {
-    // Non-fatal — protection just won't persist across reloads.
+    // Non-fatal - protection just won't persist across reloads.
   }
 }
 

@@ -726,3 +726,121 @@ export const reputationSnapshots = pgTable(
     index("idx_reputation_snapshots_date").on(t.snapshot_date),
   ],
 );
+
+// ── Real Trading Analysis (read-only on-chain intelligence) ─────────────────
+// Completely separate from paper trading. Ingested swap history + computed
+// metrics, behavior, personality, and wallet health snapshots.
+// Created idempotently at runtime (ensureRealTradingSchema in api-server);
+// mirror-only for type-safety.
+
+export const realWalletSyncJobs = pgTable("real_wallet_sync_jobs", {
+  wallet: text("wallet").primaryKey(),
+  user_id: integer("user_id"),
+  last_signature: text("last_signature"),
+  last_synced_at: bigint("last_synced_at", { mode: "number" }),
+  last_block_time: bigint("last_block_time", { mode: "number" }),
+  status: text("status").notNull().default("idle"),
+  error_message: text("error_message"),
+  trade_count: integer("trade_count").notNull().default(0),
+  created_at: bigint("created_at", { mode: "number" }).default(epoch),
+  updated_at: bigint("updated_at", { mode: "number" }).default(epoch),
+});
+
+export const realTokenTrades = pgTable(
+  "real_token_trades",
+  {
+    id: serial("id").primaryKey(),
+    wallet: text("wallet").notNull(),
+    user_id: integer("user_id"),
+    tx_signature: text("tx_signature").notNull(),
+    token_mint: text("token_mint").notNull(),
+    side: text("side").notNull(),
+    token_amount: doublePrecision("token_amount").notNull(),
+    sol_amount: doublePrecision("sol_amount").notNull(),
+    price_sol: doublePrecision("price_sol"),
+    price_usd: doublePrecision("price_usd"),
+    market_cap_usd: doublePrecision("market_cap_usd"),
+    dex_source: text("dex_source"),
+    block_time: bigint("block_time", { mode: "number" }).notNull(),
+    realized_pnl_sol: doublePrecision("realized_pnl_sol"),
+    hold_duration_sec: bigint("hold_duration_sec", { mode: "number" }),
+    ingested_at: bigint("ingested_at", { mode: "number" }).default(epoch),
+  },
+  (t) => [
+    index("idx_real_token_trades_wallet").on(t.wallet),
+    index("idx_real_token_trades_mint").on(t.token_mint),
+  ],
+);
+
+export const realAnalysisSnapshots = pgTable("real_analysis_snapshots", {
+  wallet: text("wallet").primaryKey(),
+  user_id: integer("user_id"),
+  computed_at: bigint("computed_at", { mode: "number" }).notNull(),
+  metrics_json: text("metrics_json").notNull(),
+  scores_json: text("scores_json").notNull(),
+  personality: text("personality"),
+  wallet_health_score: integer("wallet_health_score"),
+  open_positions_json: text("open_positions_json"),
+  insights_json: text("insights_json"),
+  sync_trade_count: integer("sync_trade_count").notNull().default(0),
+  wallet_age_days: integer("wallet_age_days"),
+  data_sources: text("data_sources").notNull().default("helius_swap_history"),
+  // Full-fidelity snapshot payloads (personality/traits, health breakdown,
+  // signal registry with deltas, trader DNA vector).
+  personality_json: text("personality_json"),
+  wallet_health_json: text("wallet_health_json"),
+  signals_json: text("signals_json"),
+  dna_json: text("dna_json"),
+});
+
+// Signal registry time series — one row per (wallet, signal, day). History
+// powers profile deltas and future reputation consumers.
+export const realSignalValues = pgTable(
+  "real_signal_values",
+  {
+    id: serial("id").primaryKey(),
+    wallet: text("wallet").notNull(),
+    user_id: integer("user_id"),
+    signal_key: text("signal_key").notNull(),
+    value: doublePrecision("value").notNull(),
+    confidence: doublePrecision("confidence").notNull().default(0.5),
+    computed_at: bigint("computed_at", { mode: "number" }).notNull(),
+  },
+  (t) => [
+    index("idx_real_signal_values_lookup").on(
+      t.wallet,
+      t.signal_key,
+      t.computed_at,
+    ),
+  ],
+);
+
+// Trader DNA — evolving trait vector (EMA-blended), archetype projection.
+export const realTraderDna = pgTable("real_trader_dna", {
+  wallet: text("wallet").primaryKey(),
+  user_id: integer("user_id"),
+  dna_vector_json: text("dna_vector_json").notNull(),
+  primary_archetype: text("primary_archetype").notNull(),
+  secondary_archetype: text("secondary_archetype"),
+  confidence: doublePrecision("confidence").notNull().default(0),
+  version: integer("version").notNull().default(1),
+  computed_at: bigint("computed_at", { mode: "number" }).notNull(),
+});
+
+// Intelligence milestones (feed/profile source). Progression only — payloads
+// never carry wallet amounts, mints, or tx details.
+export const realTimelineEvents = pgTable(
+  "real_timeline_events",
+  {
+    id: serial("id").primaryKey(),
+    wallet: text("wallet").notNull(),
+    user_id: integer("user_id"),
+    event_type: text("event_type").notNull(),
+    title: text("title").notNull(),
+    body: text("body"),
+    meta_json: text("meta_json"),
+    visibility: text("visibility").notNull().default("public"),
+    created_at: bigint("created_at", { mode: "number" }).default(epoch),
+  },
+  (t) => [index("idx_real_timeline_wallet").on(t.wallet, t.created_at)],
+);

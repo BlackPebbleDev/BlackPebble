@@ -1,7 +1,7 @@
 import { dbAll, dbGet, dbRun } from "./database.js";
 
 /**
- * Standalone token theses — research / analysis posts that are SEPARATE from
+ * Standalone token theses - research / analysis posts that are SEPARATE from
  * callouts.
  *
  * A thesis is NOT a tracked price prediction. It never feeds the Top Caller
@@ -107,7 +107,7 @@ const SELECT_WITH_AUTHOR = `
     JOIN user_identities xi ON xi.user_id = t.user_id AND xi.provider = 'x'
     JOIN users u ON u.id = t.user_id`;
 
-/** Create a new thesis (owner-scoped — userId comes from the session). */
+/** Create a new thesis (owner-scoped - userId comes from the session). */
 export async function createThesis(input: ThesisInput): Promise<Thesis> {
   await ensureThesesSchema();
   const row = await dbGet<Thesis>(
@@ -249,7 +249,7 @@ export async function getUserTheses(
   );
 }
 
-/** Count of (public, non-test) theses for a token — for the community card. */
+/** Count of (public, non-test) theses for a token - for the community card. */
 export async function countTokenTheses(mint: string): Promise<number> {
   await ensureThesesSchema();
   const row = await dbGet<{ n: number }>(

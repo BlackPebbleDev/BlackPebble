@@ -18,7 +18,7 @@ function useFillReporter() {
     for (const f of fills) {
       if (f.orderType === "buy_limit") {
         toast({
-          title: `Buy Limit filled${f.tokenSymbol ? ` — ${f.tokenSymbol}` : ""}`,
+          title: `Buy Limit filled${f.tokenSymbol ? ` - ${f.tokenSymbol}` : ""}`,
           description: `Bought ${fmtSol(f.solAmount ?? 0)} SOL at ${fmtMarketCap(f.fillMarketCap)} MC`,
         });
       } else {
@@ -29,7 +29,7 @@ function useFillReporter() {
             : "";
         toast({
           title: `${isTp ? "Take Profit" : "Stop Loss"} filled${
-            f.tokenSymbol ? ` — ${f.tokenSymbol}` : ""
+            f.tokenSymbol ? ` - ${f.tokenSymbol}` : ""
           }`,
           description: `Sold ${f.percent}% at ${fmtMarketCap(
             f.fillMarketCap,
@@ -61,7 +61,7 @@ function useServerOrderFills() {
   // Observe-only: read the shared positions cache that the Trading/Portfolio
   // pages already poll. Server-side TP/SL fills only happen when /trade/positions
   // is fetched, so this hook never needs to (and never does) issue its own
-  // requests — it adds zero new external API calls.
+  // requests - it adds zero new external API calls.
   const { data } = useQuery({
     queryKey: ["positions", wallet],
     queryFn: () => api.positions(wallet!),
@@ -80,7 +80,7 @@ function useServerOrderFills() {
 
 /**
  * Checks the server for buy-limit fills only when the session loads or the user
- * returns to the app — NOT on an always-on interval. The check fires on mount
+ * returns to the app - NOT on an always-on interval. The check fires on mount
  * (page load / refresh) and on window refocus, debounced by a 30 s staleTime so
  * rapid refocus never spams the endpoint. The backend evaluates only the current
  * wallet's active (pending) buy limits, reads token info from the 30 s cache, and
@@ -116,7 +116,7 @@ function useServerBuyLimitFills() {
 
 /**
  * Guest mirror: evaluates local pending orders whenever the valued positions'
- * market caps/prices change (the values are already fetched — no new calls for
+ * market caps/prices change (the values are already fetched - no new calls for
  * the check) and toasts any fills. Gated on a primitive signal string so it only
  * runs when the underlying numbers actually move, not on array identity.
  *

@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { formatRentSol, type UseWalletCleaner } from "@/hooks/use-wallet-cleaner";
 
 /**
- * Unified Action Center — a single sticky bar that replaces the separate
+ * Unified Action Center - a single sticky bar that replaces the separate
  * rent-recovery and burn action bars. It surfaces whichever selections are
  * pending (reclaimable accounts and/or tokens staged to burn) in one place, so
  * the user never has to hunt for two different action surfaces.
@@ -75,7 +75,7 @@ export function ActionCenter({
         {hasBurn && (
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2 min-w-0 text-xs text-muted-foreground">
-              <Flame className="w-4 h-4 text-red-400 flex-shrink-0" />
+              <Flame className="w-4 h-4 text-danger flex-shrink-0" />
               <span className="truncate">
                 <span className="font-mono text-foreground">
                   {burnSelectedTokens.length}

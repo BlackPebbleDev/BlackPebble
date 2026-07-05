@@ -30,7 +30,7 @@ interface State {
 /**
  * Catches render-time exceptions in its subtree and shows a premium error
  * state with a retry action, instead of letting the crash unmount the whole
- * React tree (which would leave an empty #root — a plain black screen).
+ * React tree (which would leave an empty #root - a plain black screen).
  */
 export class ErrorBoundary extends Component<Props, State> {
   state: State = { error: null };
@@ -61,19 +61,19 @@ export class ErrorBoundary extends Component<Props, State> {
 
     const {
       title = "Something went wrong",
-      description = "An unexpected error interrupted this view. Your funds and data are safe — nothing was changed.",
+      description = "An unexpected error interrupted this view. Your funds and data are safe - nothing was changed.",
       retryLabel = "Try again",
       fullScreen = false,
     } = this.props;
 
     const card = (
       <div
-        className="rounded-3xl bg-card shadow-card p-8 text-center space-y-4 max-w-md mx-auto w-full"
+        className="rounded-xl bg-card shadow-card p-8 text-center space-y-4 max-w-md mx-auto w-full"
         data-testid="error-boundary"
         role="alert"
       >
         <div className="w-12 h-12 rounded-full bg-destructive/12 flex items-center justify-center mx-auto">
-          <AlertTriangle className="w-6 h-6 text-red-400" />
+          <AlertTriangle className="w-6 h-6 text-danger" />
         </div>
         <div className="space-y-1.5">
           <div className="text-lg font-semibold">{title}</div>

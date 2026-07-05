@@ -13,7 +13,7 @@ import { TokenCard } from "@/components/wallet-cleaner/token-card";
 import { ProtectConfirmDialog } from "@/components/wallet-cleaner/protect-confirm-dialog";
 import { formatUsd, type EnrichedToken } from "@/lib/recovery-classify";
 
-/** Sort priority for the unified holdings list — things needing attention first. */
+/** Sort priority for the unified holdings list - things needing attention first. */
 function reviewRank(t: EnrichedToken): number {
   if (t.bucket === "burn") return 0;
   if (t.bucket === "dust") return 1;
@@ -50,7 +50,7 @@ function useProtectToggle(cleaner: UseWalletCleaner) {
 }
 
 /**
- * Displayed vs realizable wallet value — the core "is this value real?" signal.
+ * Displayed vs realizable wallet value - the core "is this value real?" signal.
  * Lives inside Advanced Analysis in V2.
  */
 export function ValueSummary({ cleaner }: { cleaner: UseWalletCleaner }) {
@@ -76,7 +76,7 @@ export function ValueSummary({ cleaner }: { cleaner: UseWalletCleaner }) {
           className={cn(
             "font-mono text-lg",
             walletRealizableUsd < walletValueUsd * 0.8
-              ? "text-amber-400"
+              ? "text-warning"
               : "text-accent",
           )}
           data-testid="wallet-realizable-value"
@@ -89,7 +89,7 @@ export function ValueSummary({ cleaner }: { cleaner: UseWalletCleaner }) {
 }
 
 /**
- * SECTION 3 — Protected Assets. Always visible to build trust: verified or
+ * SECTION 3 - Protected Assets. Always visible to build trust: verified or
  * valuable tokens that can never be selected for cleanup. Each token appears
  * here once and is excluded from the Advanced holdings list (no duplicates).
  */
@@ -114,7 +114,7 @@ export function ProtectedAssets({ cleaner }: { cleaner: UseWalletCleaner }) {
           {protectedTokens.length}
         </span>
       </div>
-      <div className="rounded-3xl bg-card shadow-card overflow-hidden">
+      <div className="rounded-xl bg-card shadow-card overflow-hidden">
         {protectedTokens.length > 0 ? (
           <div className="divide-y divide-border">
             {protectedTokens.map((token) => (
@@ -154,7 +154,7 @@ export function ProtectedAssets({ cleaner }: { cleaner: UseWalletCleaner }) {
  * The single deduped holdings list shown inside Advanced Analysis. Every
  * non-protected token appears exactly once (protected tokens live in their own
  * Section 3), ordered with burn candidates and dust first. Burn selectability
- * is per-token — only confirmed dust/burn rows are selectable, so a valuable
+ * is per-token - only confirmed dust/burn rows are selectable, so a valuable
  * "keep" token can never be staged for burning from here.
  */
 export function AllTokensAnalysis({ cleaner }: { cleaner: UseWalletCleaner }) {
@@ -194,7 +194,7 @@ export function AllTokensAnalysis({ cleaner }: { cleaner: UseWalletCleaner }) {
       <div className="p-4 text-center text-sm text-muted-foreground" data-testid="no-tokens">
         {intelLoading
           ? "Analyzing your tokens…"
-          : "No unprotected tokens — everything you hold is protected."}
+          : "No unprotected tokens - everything you hold is protected."}
       </div>
     );
   }
@@ -210,7 +210,7 @@ export function AllTokensAnalysis({ cleaner }: { cleaner: UseWalletCleaner }) {
           <button
             type="button"
             onClick={() => selectAllInBucket("burn")}
-            className="text-xs text-red-400 hover:text-red-300 transition-colors"
+            className="text-xs text-danger hover:text-danger transition-colors"
             data-testid="button-select-all-burn"
           >
             {allBurnSelected ? "Deselect all" : "Select all"}
@@ -242,7 +242,7 @@ export function AllTokensAnalysis({ cleaner }: { cleaner: UseWalletCleaner }) {
   );
 }
 
-/** Coming-soon advanced cleanup modules — never fabricated counts. */
+/** Coming-soon advanced cleanup modules - never fabricated counts. */
 export function FutureCleanupModules() {
   return (
     <ul className="space-y-2 p-4" data-testid="future-cleanup-modules">

@@ -40,7 +40,7 @@ const FEATURES: { icon: LucideIcon; title: string; desc: string }[] = [
   {
     icon: Sparkles,
     title: "SOL Recovery",
-    desc: "A real on-chain utility to reclaim trapped SOL rent from unused token accounts — separate from paper trading.",
+    desc: "A real on-chain utility to reclaim trapped SOL rent from unused token accounts - separate from paper trading.",
   },
 ];
 
@@ -54,7 +54,7 @@ export default function Features() {
         </div>
         <p className="text-sm text-muted-foreground">
           Everything you need to practice Solana trading and build a track
-          record — without risking real money.
+          record - without risking real money.
         </p>
       </div>
 

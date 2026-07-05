@@ -1,6 +1,7 @@
 import { dbAll, dbGet, dbRun, withTx } from "./database.js";
 import { getSolPriceUsd, getExecutionPrice } from "./prices.js";
 import { computeSlippage, type WarningLevel } from "./slippage.js";
+import { publishTierMilestone } from "./feed-service.js";
 import { logger } from "./logger.js";
 
 const DEV = process.env.NODE_ENV !== "production";
@@ -28,7 +29,7 @@ export const DUPLICATE_WINDOW_SECONDS = 2;
 // total supply, derived from marketCap / price. This blocks unrealistic "buy
 // the whole supply" paper trades that would otherwise farm the leaderboard,
 // independently of (and in addition to) the per-trade liquidity-impact cap in
-// slippage.ts — whichever limit is stricter for a given order applies first.
+// slippage.ts - whichever limit is stricter for a given order applies first.
 export const MAX_SUPPLY_PCT = 0.04; // 4% of total supply
 
 /**
@@ -111,7 +112,7 @@ export function graduationTier(allTimePnl: number): string {
 
 /**
  * Batch-fetch best graduation_tier per user (highest realized_pnl account).
- * Returns "Unranked" for users with no wallet account. Never throws — callers
+ * Returns "Unranked" for users with no wallet account. Never throws - callers
  * can display tiers as decorative so a DB error should not break the response.
  */
 export async function getUserTiers(
@@ -332,6 +333,16 @@ export interface ExecuteResult {
     pnl: number | null;
   };
   balance?: number;
+  /** Set when this sell promoted the account to a higher graduation tier. */
+  tierPromotion?: string | null;
+  /** All-time realized PnL after this sell (feed milestone metadata). */
+  realizedPnlAfter?: number;
+}
+
+/** Numeric rank of a graduation tier (higher = better; Unranked = 0). */
+function tierRank(tier: string): number {
+  const idx = TIERS.findIndex((t) => t.name === tier);
+  return idx === -1 ? 0 : TIERS.length - idx;
 }
 
 export async function executeBuy(
@@ -351,7 +362,7 @@ export async function executeBuy(
   }
   const { priceSol, priceUsd, solUsd, liquidityUsd, marketCapUsd, source, pair } =
     px;
-  // Never trade on a non-finite or non-positive price — a bad upstream feed
+  // Never trade on a non-finite or non-positive price - a bad upstream feed
   // could otherwise produce NaN/Infinity/zero token amounts and poison stats.
   if (![priceSol, priceUsd, solUsd].every((v) => Number.isFinite(v) && v > 0)) {
     return { ok: false, error: "Price data unavailable. Trade not executed." };
@@ -536,9 +547,9 @@ export async function executeBuy(
          sol_amount, token_amount, price, pnl, executed_at,
          raw_price_usd, effective_price_usd, slippage_percent,
          trade_impact_percent, liquidity_usd_at_execution,
-         sol_usd_price_at_execution, trade_usd_value
+         sol_usd_price_at_execution, trade_usd_value, market_cap_usd
        )
-       VALUES ($1, $2, $3, $4, $5, 'buy', $6, $7, $8, NULL, $9, $10, $11, $12, $13, $14, $15, $16)`,
+       VALUES ($1, $2, $3, $4, $5, 'buy', $6, $7, $8, NULL, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
       [
         wallet,
         mint,
@@ -556,6 +567,7 @@ export async function executeBuy(
         slip.liquidityUsd,
         solUsd,
         amountInUsd,
+        entryMc,
       ],
       c,
     );
@@ -599,7 +611,7 @@ export async function executeSell(
   }
   const { priceSol, priceUsd, solUsd, liquidityUsd, marketCapUsd, source, pair } =
     px;
-  // Never trade on a non-finite or non-positive price — a bad upstream feed
+  // Never trade on a non-finite or non-positive price - a bad upstream feed
   // could otherwise produce NaN/Infinity/zero proceeds and poison stats.
   if (![priceSol, priceUsd, solUsd].every((v) => Number.isFinite(v) && v > 0)) {
     return { ok: false, error: "Price data unavailable. Trade not executed." };
@@ -768,9 +780,9 @@ export async function executeSell(
          sol_amount, token_amount, price, pnl, source, executed_at,
          raw_price_usd, effective_price_usd, slippage_percent,
          trade_impact_percent, liquidity_usd_at_execution,
-         sol_usd_price_at_execution, trade_usd_value
+         sol_usd_price_at_execution, trade_usd_value, market_cap_usd
        )
-       VALUES ($1, $2, $3, $4, $5, 'sell', $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)`,
+       VALUES ($1, $2, $3, $4, $5, 'sell', $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)`,
       [
         wallet,
         mint,
@@ -790,6 +802,9 @@ export async function executeSell(
         slip.liquidityUsd,
         solUsd,
         tradeUsdValue,
+        marketCapUsd != null && Number.isFinite(marketCapUsd) && marketCapUsd > 0
+          ? marketCapUsd
+          : null,
       ],
       c,
     );
@@ -797,19 +812,58 @@ export async function executeSell(
     return {
       ok: true,
       trade: { side: "sell", mint, solAmount: solReceived, tokenAmount, price, pnl },
+      // Only upward moves are milestones - never announce a demotion.
+      tierPromotion:
+        tierRank(newTier) > tierRank(account.graduation_tier ?? "Unranked")
+          ? newTier
+          : null,
+      realizedPnlAfter: newRealized,
     };
   });
 
   if (!result.ok) return result;
   await recordParticipation(wallet);
 
+  // Feed milestone: tier promotion (fire-and-forget, never blocks the trade).
+  if (result.tierPromotion) {
+    publishTierMilestoneForWallet(
+      wallet,
+      result.tierPromotion,
+      result.realizedPnlAfter ?? 0,
+    ).catch(() => undefined);
+  }
+
   const updated = (await getAccount(wallet))!;
   return { ...result, balance: updated.paper_balance };
 }
 
+/**
+ * Resolve a trading wallet to its X-authenticated user and publish the tier
+ * milestone. Users without an X identity publish nothing (they never appear
+ * in the feed anyway).
+ */
+async function publishTierMilestoneForWallet(
+  wallet: string,
+  tier: string,
+  realizedPnlSol: number,
+): Promise<void> {
+  const row = await dbGet<{ user_id: number }>(
+    `SELECT wi.user_id
+       FROM user_identities wi
+       JOIN user_identities xi
+         ON xi.user_id = wi.user_id AND xi.provider = 'x'
+      WHERE (wi.provider = 'wallet' AND wi.wallet_address = $1)
+         OR (wi.provider = 'x' AND ('x:' || wi.provider_user_id) = $1)
+      LIMIT 1`,
+    [wallet],
+  );
+  if (!row) return;
+  await publishTierMilestone(row.user_id, tier, realizedPnlSol);
+}
+
 export interface TradeQuote {
   ok: boolean;
-  /** First (or only) blocking reason — kept for backward compat. */
+  /** First (or only) blocking reason - kept for backward compat. */
   error?: string;
   /** All blocking reasons when more than one validation fails simultaneously. */
   errors?: string[];
@@ -826,16 +880,16 @@ export interface TradeQuote {
   solUsd: number;
   tradeUsdValue: number;
   warningLevel: WarningLevel;
-  /** Tokens the buyer would receive (buy) — null for sells. */
+  /** Tokens the buyer would receive (buy) - null for sells. */
   estimatedTokens: number | null;
-  /** SOL the seller would receive (sell) — null for buys. */
+  /** SOL the seller would receive (sell) - null for buys. */
   estimatedSol: number | null;
 }
 
 /**
  * Pre-trade quote: returns the simulated effective price, slippage and impact
  * the user would get RIGHT NOW for a given order, using the exact same model as
- * execution so the preview matches the fill. Read-only — never writes.
+ * execution so the preview matches the fill. Read-only - never writes.
  */
 export async function getTradeQuote(opts: {
   wallet?: string;
@@ -973,7 +1027,7 @@ export async function getTradeQuote(opts: {
   // an order that would push the trader's total holding past MAX_SUPPLY_PCT of
   // supply. Run INDEPENDENTLY of slip.ok so both violations surface together.
   // When slip failed, estimatedTokens is null; use raw price as a conservative
-  // over-estimate for the supply check (no formula change — same cap threshold).
+  // over-estimate for the supply check (no formula change - same cap threshold).
   let supplyOk = true;
   let supplyError: string | undefined;
   if (side === "buy") {
@@ -1064,7 +1118,7 @@ export interface NewSeasonResult {
  * Self-service "start a new season" reset for a depleted paper account.
  *
  * Mirrors the admin single-user reset but is user-initiated and gated on the
- * account being effectively wiped out (total equity — cash + open positions —
+ * account being effectively wiped out (total equity - cash + open positions —
  * below RESET_THRESHOLD). It cancels pending orders, clears open positions and
  * resets cash to STARTING_BALANCE, bumping `last_reset_at` (which windows the
  * leaderboard / closed-trade stats so the previous season's P&L and trade
@@ -1141,7 +1195,7 @@ export interface ClosedTradeStats {
   /**
    * Largest positive realized pnl, or null when there are no winning closed
    * trades. Null is meaningful: the UI distinguishes "no winners yet" from
-   * "no closed trades yet" — it must never render a misleading 0.00.
+   * "no closed trades yet" - it must never render a misleading 0.00.
    */
   bestTrade: number | null;
   worstTrade: number;
@@ -1157,7 +1211,7 @@ export interface ClosedTradeStats {
  * the balance back to STARTING_BALANCE, so counting pre-reset realized pnl would
  * make Total PnL (realized + unrealized) disagree with the equity-based ROI.
  *
- * - closedTrades: number of sell executions — a buy alone is NOT a closed trade
+ * - closedTrades: number of sell executions - a buy alone is NOT a closed trade
  * - executions:   every buy + sell action since the last reset
  * - winRate:      winning sells / closed sells * 100
  * - bestTrade:    largest positive realized pnl, or null when there are no wins
@@ -1234,7 +1288,7 @@ export interface LeaderboardEntry {
 
 /**
  * Server-authoritative leaderboard, computed entirely from the immutable
- * `trades` table — never from any client-supplied figure. Anti-cheat rules:
+ * `trades` table - never from any client-supplied figure. Anti-cheat rules:
  *
  * - Only CLOSED trades count (sell rows that carry a realized pnl). Open
  *   positions are ignored so unrealized paper gains cannot inflate a rank.

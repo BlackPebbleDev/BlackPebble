@@ -4,6 +4,11 @@ import { getPortfolio } from "./trading.js";
 import { getSolPriceUsd } from "./prices.js";
 import { refreshActiveCallPeaks } from "./peaks.js";
 import { ensureLeverageSchema, sweepAllLeverage } from "./leverage.js";
+import { ensureRealTradingSchema } from "./real-trading-schema.js";
+import { syncAllLinkedWallets } from "./real-trading-engine.js";
+import { ensureCampaignSchema } from "./campaign-schema.js";
+import { sweepAllCampaigns } from "./campaign-engine.js";
+import { ensureFeedSchema } from "./feed-schema.js";
 import { logger } from "./logger.js";
 
 async function snapshotPortfolios(): Promise<void> {
@@ -45,8 +50,12 @@ export function startCron(): void {
     logger.error({ err: e }, "ensureLeverageSchema failed"),
   );
 
+  ensureRealTradingSchema().catch((e) =>
+    logger.error({ err: e }, "ensureRealTradingSchema failed"),
+  );
+
   // Perps liquidation / TP / SL sweep. Runs every 20s so positions liquidate
-  // and triggers fire even when the owner is offline — no silent stale
+  // and triggers fire even when the owner is offline - no silent stale
   // positions. Internally guarded against overlapping runs.
   cron.schedule("*/20 * * * * *", () => {
     sweepAllLeverage().catch(() => undefined);
@@ -69,6 +78,26 @@ export function startCron(): void {
   setTimeout(() => {
     refreshActiveCallPeaks().catch(() => undefined);
   }, 15 * 1000);
+
+  // Real Trading Analysis: sync linked wallets every 6 hours.
+  cron.schedule("0 */6 * * *", () => {
+    syncAllLinkedWallets().catch(() => undefined);
+  });
+
+  ensureCampaignSchema().catch((e) =>
+    logger.error({ err: e }, "ensureCampaignSchema failed"),
+  );
+
+  ensureFeedSchema().catch((e) =>
+    logger.error({ err: e }, "ensureFeedSchema failed"),
+  );
+
+  // Community Campaigns: credit deposits, apply due state transitions, and
+  // process failure refunds every 30s. Internally guarded against overlap
+  // and a no-op when the escrow seed / feature is not configured.
+  cron.schedule("*/30 * * * * *", () => {
+    sweepAllCampaigns().catch(() => undefined);
+  });
 
   logger.info("Cron jobs scheduled");
 }

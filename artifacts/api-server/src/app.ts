@@ -10,7 +10,7 @@ import { logger } from "./lib/logger";
 const app: Express = express();
 
 // ---------------------------------------------------------------------------
-// Security headers — helmet sets safe defaults for Content-Type, HSTS, etc.
+// Security headers - helmet sets safe defaults for Content-Type, HSTS, etc.
 // CSP and COEP are disabled: the frontend is a separate Vite app and the API
 // only serves JSON; imposing a CSP here would not protect the client.
 // ---------------------------------------------------------------------------
@@ -22,7 +22,7 @@ app.use(
 );
 
 // ---------------------------------------------------------------------------
-// CORS — allow known origins in production, all origins in development.
+// CORS - allow known origins in production, all origins in development.
 // In production, FRONTEND_URL is always included automatically.
 // Add CORS_ALLOWED_ORIGINS (comma-separated) for extra allowed origins.
 // Example: "https://blackpebble.fun,https://blackpebble.replit.app"
@@ -84,7 +84,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // ---------------------------------------------------------------------------
-// Rate limiting — applied to all /api routes.
+// Rate limiting - applied to all /api routes.
 // 300 requests / minute per IP is generous for normal use but blocks scrapers.
 // The health-check endpoint is excluded so uptime monitors are never blocked.
 // ---------------------------------------------------------------------------
@@ -93,7 +93,7 @@ const apiLimiter = rateLimit({
   limit: 300,
   standardHeaders: "draft-7",
   legacyHeaders: false,
-  message: { error: "Too many requests — please slow down." },
+  message: { error: "Too many requests - please slow down." },
   skip: (req) => req.path === "/healthz",
 });
 

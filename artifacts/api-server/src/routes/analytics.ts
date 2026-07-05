@@ -9,7 +9,7 @@ const router: IRouter = Router();
  *
  * Guests live entirely client-side, so a tiny append-only event log is the only
  * way to give the admin dashboard visibility into the guest funnel (created →
- * traded → converted) and page activity. No PII is stored — `anonId` is a
+ * traded → converted) and page activity. No PII is stored - `anonId` is a
  * random per-device id. The table is created idempotently here so it works in
  * dev and prod without a migration step.
  */
@@ -19,13 +19,13 @@ const ALLOWED_EVENTS = new Set([
   "guest_converted",
   "portfolio_view",
   "leaderboard_view",
-  // Guest funnel expansion — first-touch-per-device beacons for the full
+  // Guest funnel expansion - first-touch-per-device beacons for the full
   // journey: session → search → token view → first/second trade → X → convert.
   "wallet_search",
   "token_view",
   "guest_second_trade",
   "x_connect",
-  // Social layer (Phase 1) — server-side beacons, no PII.
+  // Social layer (Phase 1) - server-side beacons, no PII.
   "feed_view",
   "profile_view",
   "follow_created",

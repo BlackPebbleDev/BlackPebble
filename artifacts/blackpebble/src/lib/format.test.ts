@@ -7,7 +7,7 @@ import {
   PERCENT_SANITY_CEILING,
 } from "./format";
 
-describe("fmtPercentSafe — external 24h market change guard", () => {
+describe("fmtPercentSafe - external 24h market change guard", () => {
   it("renders normal percentages like fmtPercent", () => {
     expect(fmtPercentSafe(2.55)).toBe("+2.55%");
     expect(fmtPercentSafe(-1.31)).toBe("-1.31%");
@@ -50,10 +50,10 @@ describe("isPercentSane", () => {
   });
 });
 
-describe("pnlColorSafe — neutral colour for invalid/out-of-range values", () => {
+describe("pnlColorSafe - neutral colour for invalid/out-of-range values", () => {
   it("colours sane values like pnlColor", () => {
-    expect(pnlColorSafe(2.55)).toBe("text-emerald-400");
-    expect(pnlColorSafe(-1.31)).toBe("text-red-400");
+    expect(pnlColorSafe(2.55)).toBe("text-success");
+    expect(pnlColorSafe(-1.31)).toBe("text-danger");
     expect(pnlColorSafe(0)).toBe("text-muted-foreground");
   });
 
@@ -66,7 +66,7 @@ describe("pnlColorSafe — neutral colour for invalid/out-of-range values", () =
 
 describe("fmtPercent (unchanged baseline P&L formatter)", () => {
   it("still displays very large legitimate P&L without a ceiling", () => {
-    // Position/portfolio P&L is intentionally NOT clamped — a paper memecoin
+    // Position/portfolio P&L is intentionally NOT clamped - a paper memecoin
     // can legitimately exceed 1000x (100,000%).
     expect(fmtPercent(250_000)).toBe("+250000.00%");
   });

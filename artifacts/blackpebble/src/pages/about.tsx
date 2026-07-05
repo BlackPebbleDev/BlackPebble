@@ -10,7 +10,7 @@ export default function About() {
           <h1 className="text-2xl font-semibold">About BlackPebble</h1>
         </div>
         <p className="text-sm text-muted-foreground">
-          Practice trading live Solana tokens with paper money — no real funds,
+          Practice trading live Solana tokens with paper money - no real funds,
           no risk.
         </p>
       </div>
@@ -26,7 +26,7 @@ export default function About() {
         <p>
           Every price, market cap, and liquidity figure comes from live on-chain
           market data, but all balances and trades are simulated. BlackPebble
-          never takes custody of real SOL and never executes real swaps — it is
+          never takes custody of real SOL and never executes real swaps - it is
           a sandbox for learning and competition.
         </p>
         <p>

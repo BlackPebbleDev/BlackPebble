@@ -4,7 +4,7 @@ import { startCron } from "./lib/cron.js";
 import { pumpportal } from "./lib/pumpportal.js";
 
 // ---------------------------------------------------------------------------
-// Required-secret validation — run before anything else so misconfigured
+// Required-secret validation - run before anything else so misconfigured
 // deployments fail loudly at boot instead of silently misbehaving at runtime.
 // ---------------------------------------------------------------------------
 const isProduction =
@@ -21,7 +21,7 @@ if (!process.env["JWT_SECRET"]) {
     process.exit(1);
   } else {
     logger.warn(
-      "JWT_SECRET is not set — X authentication is disabled for this session.",
+      "JWT_SECRET is not set - X authentication is disabled for this session.",
     );
   }
 }

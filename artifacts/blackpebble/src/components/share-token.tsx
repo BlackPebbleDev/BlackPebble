@@ -4,7 +4,7 @@ import type { TokenInfo } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
-/** Inline X (twitter) glyph — lucide has no brand mark for it. */
+/** Inline X (twitter) glyph - lucide has no brand mark for it. */
 function XGlyph({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" aria-hidden className={className} fill="currentColor">
@@ -51,7 +51,7 @@ export function ShareToken({ info }: { info: TokenInfo }) {
     try {
       await navigator.share({ title: text, text, url });
     } catch {
-      /* user cancelled or unsupported — no-op */
+      /* user cancelled or unsupported - no-op */
     }
   }
 

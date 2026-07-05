@@ -89,7 +89,7 @@ function SectionHeader({
 }
 
 function convictionTone(c: string | null): string {
-  if (c === "high") return "text-emerald-400";
+  if (c === "high") return "text-success";
   if (c === "medium") return "text-accent";
   if (c === "low") return "text-muted-foreground";
   return "text-muted-foreground";
@@ -122,7 +122,7 @@ function volumeTrend(info: TokenInfo): { label: string; tone: string } {
   const hourlyAvg = v24h / 24;
   if (hourlyAvg <= 0) return { label: "—", tone: "text-muted-foreground" };
   const ratio = v1h / hourlyAvg;
-  if (ratio >= 1.25) return { label: "Rising", tone: "text-emerald-400" };
+  if (ratio >= 1.25) return { label: "Rising", tone: "text-success" };
   if (ratio <= 0.75) return { label: "Cooling", tone: "text-rose-400" };
   return { label: "Steady", tone: "text-foreground" };
 }
@@ -227,7 +227,7 @@ function IntelligencePanel({
             <Tile label="Callers" value={fmtInt(s?.activeCallers ?? 0)} />
           </div>
           <div className="mt-2 flex items-center gap-1.5 text-[11px]">
-            <span className="px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-400 font-mono">
+            <span className="px-2 py-1 rounded-full bg-success/10 text-success font-mono">
               High {s?.convictionHigh ?? 0}
             </span>
             <span className="px-2 py-1 rounded-full bg-accent/10 text-accent font-mono">
@@ -302,11 +302,11 @@ function RecentThesesCard({
         </h2>
       </div>
       <p className="text-[11px] text-muted-foreground mb-4">
-        Standalone research — not graded as calls.
+        Standalone research - not graded as calls.
       </p>
       {theses.length === 0 ? (
         <p className="text-sm text-muted-foreground py-4 text-center">
-          No theses yet — share your research on this token.
+          No theses yet - share your research on this token.
         </p>
       ) : (
         <div className="space-y-3">

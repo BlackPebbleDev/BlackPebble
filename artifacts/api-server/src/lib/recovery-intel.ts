@@ -11,7 +11,7 @@
  * Trust rules enforced here:
  *   • Nothing is fabricated. A signal we cannot resolve is reported as `null`
  *     and the risk engine treats it as UNKNOWN, never silently "safe".
- *   • This module is read-only — it never closes, burns, hides or selects
+ *   • This module is read-only - it never closes, burns, hides or selects
  *     anything, and it never writes to recovery tables.
  *   • Sellability, per-token USD value and realizable value are intentionally
  *     NOT computed here: those depend on the holder's on-chain balance and are
@@ -60,7 +60,7 @@ export interface TokenIntel {
   /**
    * Whether a trusted-quote DexScreener market exists. `true`/`false` are
    * positive determinations from a SUCCESSFUL lookup; `null` means the market
-   * lookup itself failed (outage) so we genuinely don't know — the risk engine
+   * lookup itself failed (outage) so we genuinely don't know - the risk engine
    * must treat null as UNKNOWN and never as "no market / junk".
    */
   hasMarket: boolean | null;
@@ -181,16 +181,16 @@ function classify(signals: {
 
   // ── Reason lines (only the meaningful ones) ──
   if (signals.hasFreezeAuthority === true) {
-    reasons.push("Has a freeze authority — your balance can be frozen.");
+    reasons.push("Has a freeze authority - your balance can be frozen.");
   }
   if (signals.hasMintAuthority === true) {
-    reasons.push("Mint authority is still active — supply can be inflated.");
+    reasons.push("Mint authority is still active - supply can be inflated.");
   }
   if (signals.mutableMetadata === true) {
-    reasons.push("Metadata is mutable — name, symbol or image can change.");
+    reasons.push("Metadata is mutable - name, symbol or image can change.");
   }
   if (signals.hasMarket === false) {
-    reasons.push("No trusted market — this token cannot be priced or sold.");
+    reasons.push("No trusted market - this token cannot be priced or sold.");
   } else if (signals.hasMarket === true && signals.hasSellRoute === false) {
     reasons.push("Liquidity is too thin to realistically sell into.");
   } else if (
@@ -198,10 +198,10 @@ function classify(signals: {
     signals.liquidityUsd != null &&
     signals.liquidityUsd < LOW_LIQUIDITY_USD
   ) {
-    reasons.push("Low liquidity — selling may move the price sharply.");
+    reasons.push("Low liquidity - selling may move the price sharply.");
   } else if (signals.hasMarket == null) {
     reasons.push(
-      "Market data is temporarily unavailable — we can't assess this token right now.",
+      "Market data is temporarily unavailable - we can't assess this token right now.",
     );
   }
 
@@ -216,7 +216,7 @@ function classify(signals: {
     signals.hasMarket === false &&
     (signals.priceUsd == null || signals.priceUsd <= 0)
   ) {
-    // CONFIRMED no market (successful lookup) and no price — overwhelmingly
+    // CONFIRMED no market (successful lookup) and no price - overwhelmingly
     // airdropped spam / junk. A failed lookup (hasMarket === null) never lands
     // here: missing data must not manufacture a removable verdict.
     risk = "spam";
@@ -227,7 +227,7 @@ function classify(signals: {
     // Inflatable + impersonatable, or a market with no realistic exit.
     risk = "suspicious";
   } else if (signals.hasMarket == null) {
-    // Market lookup failed / unresolved — be honest that we just don't know.
+    // Market lookup failed / unresolved - be honest that we just don't know.
     risk = "unknown";
   } else {
     risk = "normal";

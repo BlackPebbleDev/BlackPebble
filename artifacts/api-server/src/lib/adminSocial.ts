@@ -8,7 +8,7 @@ import { ensureJournalSchema } from "./journal.js";
  *
  * Listing helpers return EVERY row (including admin-hidden + test) joined to the
  * author's X identity, so the admin can moderate the full set. Moderation
- * helpers flip the is_test / is_hidden_by_admin flags only — they do not edit
+ * helpers flip the is_test / is_hidden_by_admin flags only - they do not edit
  * user content (the immutability of a caller's actual call data is preserved;
  * hiding a call removes it from public reads without rewriting it).
  */
@@ -187,7 +187,7 @@ export async function setHiddenFlag(
   return !!row;
 }
 
-/** Admin-only delete of a single journal entry (no backup — private data). */
+/** Admin-only delete of a single journal entry (no backup - private data). */
 export async function deleteJournalAdmin(id: number): Promise<boolean> {
   await ensureJournalSchema();
   const row = await dbGet<{ id: number }>(

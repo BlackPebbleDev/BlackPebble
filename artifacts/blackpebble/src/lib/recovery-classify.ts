@@ -9,7 +9,7 @@
  * falls into.
  *
  * Trust rules enforced here:
- *   • Nothing is fabricated — when a price/liquidity signal is null the value is
+ *   • Nothing is fabricated - when a price/liquidity signal is null the value is
  *     null and the token degrades to a conservative bucket, never silently safe.
  *   • Nothing is auto-selected and nothing is hidden. Buckets only *suggest*;
  *     the user always makes the final call, and a user-protected token can never
@@ -58,7 +58,7 @@ export interface EnrichedToken {
 /**
  * The largest fraction of a pool's liquidity a holder could realistically sell
  * into without collapsing the price. Selling more than this moves the market so
- * far that the displayed value is not obtainable — this is the core of
+ * far that the displayed value is not obtainable - this is the core of
  * fake-value detection.
  */
 const REALIZABLE_DEPTH_FRACTION = 0.05;
@@ -86,7 +86,7 @@ export function computeRealizableUsd(
 }
 
 /**
- * Sellability rating — how realistically the displayed value can be obtained.
+ * Sellability rating - how realistically the displayed value can be obtained.
  * Verified blue chips are always Excellent. With no trusted market or no sell
  * route, the value is unobtainable → Very Poor. Otherwise it scales with pool
  * depth and how large the position is relative to that depth.
@@ -149,7 +149,7 @@ export function enrichToken(
   // Bucket priority: protection always wins; NFTs and unresolved-intel assets
   // are NEVER burn candidates; then concrete junk signals; then tiny leftovers.
   // An asset is only ever made removable on POSITIVE evidence (real intel that
-  // shows no market or a scam-risk verdict) — never on missing information.
+  // shows no market or a scam-risk verdict) - never on missing information.
   let bucket: CleanupBucket;
   if (isProtected) {
     bucket = "protected";
@@ -157,7 +157,7 @@ export function enrichToken(
     // Even if a user removed NFT default-protection, NFTs stay out of burn in V1.
     bucket = "keep";
   } else if (!intel) {
-    // Intelligence unavailable — degrade to a non-removable review state, never
+    // Intelligence unavailable - degrade to a non-removable review state, never
     // burn. The UI surfaces an explicit "analysis unavailable" reason.
     bucket = "keep";
   } else if (
@@ -170,7 +170,7 @@ export function enrichToken(
     // CONFIRMED no-market result (hasMarket === false from a successful lookup).
     bucket = "burn";
   } else if (intel.hasMarket === null) {
-    // Market lookup failed (outage) — we genuinely don't know, so never make it
+    // Market lookup failed (outage) - we genuinely don't know, so never make it
     // removable. Degrade to a non-selectable review state with an explicit note.
     bucket = "keep";
   } else if (valueUsd == null || valueUsd < DUST_VALUE_USD) {

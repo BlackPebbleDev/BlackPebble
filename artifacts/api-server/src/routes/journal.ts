@@ -108,7 +108,7 @@ function isValidationError(v: unknown): v is ValidationError {
   return !!v && typeof v === "object" && "error" in v;
 }
 
-/** Owner-scoped: the journal is private — every read/write keys off session.sub. */
+/** Owner-scoped: the journal is private - every read/write keys off session.sub. */
 router.get(
   "/journal",
   asyncHandler(async (req, res) => {

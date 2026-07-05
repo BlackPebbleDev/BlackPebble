@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { formatUsd } from "./recovery-classify";
 
-describe("formatUsd — fraction-digit range safety", () => {
+describe("formatUsd - fraction-digit range safety", () => {
   it("renders values >= 1000 without throwing a RangeError", () => {
     // Regression: minimumFractionDigits(2) once exceeded maximumFractionDigits(0)
     // for values >= 1000, which Intl/toLocaleString rejects with

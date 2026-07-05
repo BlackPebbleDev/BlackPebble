@@ -28,7 +28,7 @@ function ExpandableSection({
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="rounded-3xl bg-card shadow-card overflow-hidden" data-testid={testId}>
+    <div className="rounded-xl bg-card shadow-card overflow-hidden" data-testid={testId}>
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}

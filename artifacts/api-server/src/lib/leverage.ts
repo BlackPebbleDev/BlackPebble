@@ -23,7 +23,7 @@ const EPOCH = "EXTRACT(EPOCH FROM NOW())::bigint";
 // ── Leverage constants ──────────────────────────────────────────────────────
 /** Allowed leverage multipliers. */
 export const ALLOWED_LEVERAGE = [2, 5, 10, 20] as const;
-/** Minimum margin (SOL) — mirrors the spot MIN_TRADE_SOL. */
+/** Minimum margin (SOL) - mirrors the spot MIN_TRADE_SOL. */
 export const MIN_MARGIN_SOL = 0.1;
 /** Per-wallet cap on simultaneously open leverage positions. */
 export const MAX_LEVERAGE_POSITIONS = 10;
@@ -186,7 +186,7 @@ export async function openLeverage(opts: {
 
   // Slippage / supply caps apply to the FULL notional, exactly like a spot
   // trade. A long enters like a buy (slippage pushes entry up); a short enters
-  // like a sell (slippage pushes entry down) — the adverse side either way.
+  // like a sell (slippage pushes entry down) - the adverse side either way.
   const slip = computeSlippage({
     side: direction === "short" ? "sell" : "buy",
     rawPriceUsd: priceUsd,
@@ -267,7 +267,7 @@ export async function openLeverage(opts: {
       c,
     );
     if (!acct) {
-      // No spot account yet — leverage requires a funded paper balance.
+      // No spot account yet - leverage requires a funded paper balance.
       return { ok: false, error: "No paper-trading account found for this wallet." };
     }
     if (acct.paper_balance < marginSol) {
@@ -417,7 +417,7 @@ export async function valueLeveragePositions(
     const px = priceByMint.get(p.token_mint) ?? { priceSol: null, mc: null };
     const currentPriceSol = px.priceSol;
     const currentMarketCapUsd = px.mc;
-    // P&L tracks the token's USD market-cap move — the same basis as the entry
+    // P&L tracks the token's USD market-cap move - the same basis as the entry
     // MC, the chart (MCAP/USD), the TP/SL triggers and the Liq MC shown to the
     // trader. Fall back to the SOL-denominated price move only when market-cap
     // data is unavailable, so a position is never liquidated or marked down
@@ -474,7 +474,7 @@ async function performClose(
   reason: CloseReason,
   fraction = 1,
   /**
-   * The trigger level (USD MC) that caused this close — the liquidation MC for
+   * The trigger level (USD MC) that caused this close - the liquidation MC for
    * liquidations, the exit order's trigger for TP/SL, null for manual closes.
    * Persisted on the trade row so every close is individually explainable.
    */
@@ -551,7 +551,7 @@ async function performClose(
       action = "close";
     }
 
-    // Settlement touches ONLY the paper balance — leverage P&L stays isolated
+    // Settlement touches ONLY the paper balance - leverage P&L stays isolated
     // from spot accounts.realized_pnl / winning_trades / leaderboard columns.
     await dbRun(
       "UPDATE accounts SET paper_balance = paper_balance + $1, last_active = $2 WHERE wallet = $3",
@@ -733,7 +733,7 @@ export async function evaluateLeverage(
       p.direction === "short" ? "short" : "long";
 
     // 1. Liquidation (full close, highest precedence). The token's USD market
-    //    cap has crossed the liquidation level — same basis as the entry MC,
+    //    cap has crossed the liquidation level - same basis as the entry MC,
     //    the chart, the triggers and the Liq MC shown to the trader. Longs
     //    liquidate when MC falls to the level; shorts when it rises to it.
     //    Fall back to the SOL price only when market-cap data is unavailable,
@@ -846,10 +846,10 @@ export async function evaluateLeverage(
           realizedPnlSol: res.realizedPnlSol ?? null,
         });
         // If this fill fully closed the position (100% or dust promotion), its
-        // remaining orders were canceled by performClose — stop processing.
+        // remaining orders were canceled by performClose - stop processing.
         if (res.position && res.position.status !== "open") break;
       } else {
-        // Release the claim so a later pass can retry — but ONLY if this order
+        // Release the claim so a later pass can retry - but ONLY if this order
         // is still 'filling'. A concurrent full close / liquidation may have
         // already canceled it (orphan cleanup); the `status = 'filling'` guard
         // prevents resurrecting a canceled order back to 'pending'.
@@ -1086,7 +1086,7 @@ export interface LeveragePortfolioSummary {
 
 /**
  * Closed / liquidated position rows (final snapshots with cumulative realized
- * P&L, exit price/MC, close reason and timestamps) — newest first.
+ * P&L, exit price/MC, close reason and timestamps) - newest first.
  */
 export async function getClosedLeveragePositions(
   wallet: string,
@@ -1102,7 +1102,7 @@ export async function getClosedLeveragePositions(
 }
 
 /**
- * Recent close/liquidation events for a wallet — lets the read-only positions
+ * Recent close/liquidation events for a wallet - lets the read-only positions
  * endpoint surface fills produced by the background sweep so the client can
  * toast them (deduped client-side by trade id).
  */
@@ -1142,7 +1142,7 @@ export async function getRecentLeverageFills(
 /**
  * Evaluate liquidation / TP / SL for EVERY wallet with open positions. Runs on
  * a cron so positions liquidate and triggers fire even when the owner is not
- * polling — no silent stale positions. Prices come from the shared execution
+ * polling - no silent stale positions. Prices come from the shared execution
  * price cache (one fetch per distinct mint per wallet pass).
  */
 let sweepRunning = false;

@@ -113,7 +113,7 @@ function SectionHeader({
 }
 
 /**
- * X profile banner hero — same click-to-expand treatment as the Token Page
+ * X profile banner hero - same click-to-expand treatment as the Token Page
  * banner (rounded card, hover overlay, fullscreen ImageLightbox on tap).
  * Falls back to a subtle premium gradient when the user has no X banner set
  * (most accounts), so the page never shows empty/broken space.
@@ -135,7 +135,7 @@ function ProfileBanner({ profile }: { profile: ProfileResponse }) {
   const banner = profile.x_banner_url;
 
   // No banner at all, or the image failed to load (dead/expired URL,
-  // hotlink block, etc.) — show the premium fallback hero instead of a
+  // hotlink block, etc.) - show the premium fallback hero instead of a
   // blank or broken image. The page should never look broken.
   if (!banner || failed) {
     return <ProfileBannerFallback />;
@@ -228,7 +228,7 @@ function BioSection({ profile }: { profile: ProfileResponse }) {
           <span
             className={cn(
               "text-[11px] font-mono",
-              remaining < 0 ? "text-red-400" : "text-muted-foreground",
+              remaining < 0 ? "text-danger" : "text-muted-foreground",
             )}
           >
             {remaining} left
@@ -714,7 +714,7 @@ function compareBadges(a: BadgeEntry, b: BadgeEntry, sort: BadgeSort): number {
 }
 
 /**
- * Achievements section — lazily fetches the full badge list for this profile and
+ * Achievements section - lazily fetches the full badge list for this profile and
  * renders a collectible-style view: a summary (progress + rarity breakdown), a
  * grid of earned collectible tiles, and the locked set tucked behind an
  * expandable toggle so the section stays compact by default.
@@ -741,7 +741,7 @@ function BadgesSection({ profile }: { profile: ProfileResponse }) {
   });
 
   const allBadges = data?.badges ?? [];
-  // Hidden achievements stay invisible until earned — never reveal the locked
+  // Hidden achievements stay invisible until earned - never reveal the locked
   // tile (no name, no hint). Everything else is part of the visible catalogue.
   const visibleBadges = allBadges.filter((b) => b.earned || !b.hidden);
   const earnedBadges = visibleBadges.filter((b) => b.earned);
@@ -769,7 +769,7 @@ function BadgesSection({ profile }: { profile: ProfileResponse }) {
       try {
         localStorage.setItem(storageKey, JSON.stringify(earnedKeys));
       } catch {
-        /* storage unavailable — skip celebration baseline */
+        /* storage unavailable - skip celebration baseline */
       }
       return;
     }
@@ -794,7 +794,7 @@ function BadgesSection({ profile }: { profile: ProfileResponse }) {
     return () => clearTimeout(t);
   }, [data, profile.isSelf, profile.user_id, toast]);
 
-  // Share an earned achievement — copy a ready-to-post line to the clipboard.
+  // Share an earned achievement - copy a ready-to-post line to the clipboard.
   // Self profile only (copy is first-person). Guards the clipboard explicitly:
   // navigator.clipboard?.writeText resolves undefined when unavailable, so a
   // naive await would fire a false "Copied" toast.
@@ -837,12 +837,12 @@ function BadgesSection({ profile }: { profile: ProfileResponse }) {
     { common: 0, rare: 0, epic: 0, legendary: 0 },
   );
 
-  // "Most recent unlock" — the earned badge with the latest timestamp.
+  // "Most recent unlock" - the earned badge with the latest timestamp.
   const mostRecent = earnedBadges.reduce<BadgeEntry | null>(
     (best, b) => ((b.earnedAt ?? 0) > (best?.earnedAt ?? -1) ? b : best),
     null,
   );
-  // "Rarest" — lowest index in RARITY_ORDER wins (legendary first); ties are
+  // "Rarest" - lowest index in RARITY_ORDER wins (legendary first); ties are
   // broken by most-recently earned.
   const rarestRank = (b: BadgeEntry) => RARITY_ORDER.indexOf(rarityOf(b));
   const rarest = earnedBadges.reduce<BadgeEntry | null>((best, b) => {
@@ -1293,7 +1293,7 @@ function CalloutCard({
   return (
     <div
       data-testid={`card-callout-${callout.id}`}
-      className="rounded-3xl bg-card shadow-card p-4"
+      className="rounded-xl bg-card shadow-card p-4"
     >
       {/* Header: token identity + timestamp */}
       <div className="flex items-start gap-3">
@@ -1424,7 +1424,7 @@ function NewCallForm({ profileKey }: { profileKey: string }) {
       setConviction("");
       setOpen(false);
       queryClient.invalidateQueries({ queryKey: ["callouts", profileKey] });
-      toast({ title: "Call recorded", description: "It's now on the record — permanent and immutable." });
+      toast({ title: "Call recorded", description: "It's now on the record - permanent and immutable." });
     },
     onError: (e) =>
       toast({
@@ -1487,7 +1487,7 @@ function NewCallForm({ profileKey }: { profileKey: string }) {
         onChange={(e) => setThesis(e.target.value)}
         maxLength={CALLOUT_THESIS_MAX}
         rows={3}
-        placeholder="Your thesis — why this call?"
+        placeholder="Your thesis - why this call?"
         data-testid="input-call-thesis"
         className="w-full bg-secondary/40 border border-border px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-accent transition-colors resize-none"
       />
@@ -1510,7 +1510,7 @@ function NewCallForm({ profileKey }: { profileKey: string }) {
 
       <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
         <Lock className="w-3 h-3 flex-shrink-0" />
-        Calls are permanent — no edits or deletes once recorded.
+        Calls are permanent - no edits or deletes once recorded.
       </div>
 
       <button
@@ -1531,7 +1531,7 @@ function NewCallForm({ profileKey }: { profileKey: string }) {
   );
 }
 
-/** Aggregated caller reputation — derived live from this trader's callouts. */
+/** Aggregated caller reputation - derived live from this trader's callouts. */
 function CallerStatsSection({ profile }: { profile: ProfileResponse }) {
   const key = profile.x_username || String(profile.user_id);
   const { data, isLoading } = useQuery({
@@ -1627,7 +1627,7 @@ const THESIS_SENTIMENT: Record<string, { label: string; cls: string }> = {
   neutral: { label: "Neutral", cls: "border-border text-muted-foreground" },
 };
 
-/** A single standalone thesis card — research, not graded as a call. */
+/** A single standalone thesis card - research, not graded as a call. */
 function ThesisCard({ thesis }: { thesis: ThesisWithAuthor }) {
   const sent = THESIS_SENTIMENT[thesis.sentiment] ?? THESIS_SENTIMENT.neutral;
   return (
@@ -1682,7 +1682,7 @@ function ThesisCard({ thesis }: { thesis: ThesisWithAuthor }) {
 }
 
 /**
- * Standalone research theses — separate from Call History and NOT graded
+ * Standalone research theses - separate from Call History and NOT graded
  * against caller reputation.
  */
 function ThesisHistorySection({ profile }: { profile: ProfileResponse }) {
@@ -1707,7 +1707,7 @@ function ThesisHistorySection({ profile }: { profile: ProfileResponse }) {
           kind="thesis"
           icon={ScrollText}
           title={profile.isSelf ? "Publish your first thesis" : "No theses yet"}
-          body="Standalone research theses live here — they're separate from calls and don't affect caller reputation."
+          body="Standalone research theses live here - they're separate from calls and don't affect caller reputation."
         />
       ) : (
         <div className="space-y-3" data-testid="list-theses">
@@ -1720,7 +1720,7 @@ function ThesisHistorySection({ profile }: { profile: ProfileResponse }) {
   );
 }
 
-/** Real, immutable call history — newest first, with owner controls. */
+/** Real, immutable call history - newest first, with owner controls. */
 function CallHistorySection({ profile }: { profile: ProfileResponse }) {
   const key = profile.x_username || String(profile.user_id);
   const { data, isLoading } = useQuery({
@@ -1746,7 +1746,7 @@ function CallHistorySection({ profile }: { profile: ProfileResponse }) {
           title={
             profile.isSelf ? "Make your first call" : "No calls yet"
           }
-          body="Every on-the-record callout is listed here — permanent and immutable, with no edits or deletes."
+          body="Every on-the-record callout is listed here - permanent and immutable, with no edits or deletes."
         />
       ) : (
         <div className="space-y-3" data-testid="list-callouts">
@@ -1827,7 +1827,7 @@ function PerformanceSection({ profile }: { profile: ProfileResponse }) {
             <StatTile
               label="Win Rate"
               value={`${perf.winRate.toFixed(0)}%`}
-              cls={perf.winRate >= 60 ? "text-emerald-400" : undefined}
+              cls={perf.winRate >= 60 ? "text-success" : undefined}
             />
             <StatTile
               label="Avg Return"
@@ -1895,7 +1895,7 @@ function ShareCard({ profile }: { profile: ProfileResponse }) {
   const trust = profile.trustScore?.score;
   const text =
     trust != null
-      ? `Check out ${name} on BlackPebble — Trust Score ${trust}.`
+      ? `Check out ${name} on BlackPebble - Trust Score ${trust}.`
       : `Check out ${name} on BlackPebble.`;
 
   const xUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(
@@ -1954,7 +1954,7 @@ function ShareCard({ profile }: { profile: ProfileResponse }) {
           className={btn}
         >
           {copied ? (
-            <Check className="w-4 h-4 text-emerald-400" />
+            <Check className="w-4 h-4 text-success" />
           ) : (
             <Copy className="w-4 h-4" />
           )}
@@ -2008,13 +2008,12 @@ export default function ProfilePage() {
 
   return (
     <div className="w-full max-w-5xl mx-auto px-4 md:px-6 py-6">
-      {/* X banner hero — same treatment as the Token Page banner: rounded card,
+      {/* X banner hero - same treatment as the Token Page banner: rounded card,
           click-to-expand fullscreen, subtle premium fallback when unset. */}
       <ProfileBanner profile={profile} />
 
       {/* Header */}
-      <div className="relative overflow-hidden rounded-2xl bg-card shadow-card p-5 md:p-6 mt-3">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/40 to-transparent" />
+      <div className="hairline-accent overflow-hidden rounded-2xl bg-card shadow-card p-5 md:p-6 mt-3">
         <UserIdentity
           size="lg"
           align="start"
@@ -2074,10 +2073,10 @@ export default function ProfilePage() {
         </UserIdentity>
       </div>
 
-      {/* Reputation — trust score, trading rank, call accuracy */}
+      {/* Reputation - trust score, trading rank, call accuracy */}
       <XReputationSection profile={profile} />
 
-      {/* Performance — trader stats grid */}
+      {/* Performance - trader stats grid */}
       <SectionHeader icon={Trophy} title="Trader Stats" />
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
         <StatTile
@@ -2114,7 +2113,7 @@ export default function ProfilePage() {
       {/* Period-filtered call performance (30D / 90D / All) */}
       <PerformanceSection profile={profile} />
 
-      {/* Activity — call and thesis history */}
+      {/* Activity - call and thesis history */}
       <CallHistorySection profile={profile} />
       <ThesisHistorySection profile={profile} />
 

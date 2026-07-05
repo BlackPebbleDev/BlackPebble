@@ -1,10 +1,10 @@
 /**
- * Account status — ONE of three separate identity axes (see lib/tiers.ts for the
+ * Account status - ONE of three separate identity axes (see lib/tiers.ts for the
  * full model). This axis answers a single question: does this person have a
  * registered BlackPebble account?
  *
- *   - "guest"  — exploring without signing in (client-only, no server account)
- *   - "member" — a registered account (signed in with X)
+ *   - "guest"  - exploring without signing in (client-only, no server account)
+ *   - "member" - a registered account (signed in with X)
  *
  * There is intentionally no paid/"Premium" status: membership is binary. The
  * single source of truth for the *current* viewer is `useAccount().isGuest`

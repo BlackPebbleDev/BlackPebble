@@ -1,5 +1,5 @@
 /**
- * PnLCard — PLACEHOLDER / TODO architecture for shareable trade PnL cards.
+ * PnLCard - PLACEHOLDER / TODO architecture for shareable trade PnL cards.
  *
  * ⚠️ Not wired into the app yet and intentionally renders nothing. This file
  * only defines the intended data contract and component surface so the social
@@ -22,7 +22,7 @@ export interface PnLCardData {
   tokenSymbol: string;
   tokenName?: string | null;
   tokenLogo?: string | null;
-  /** Identity overlay (optional — falls back to wallet display). */
+  /** Identity overlay (optional - falls back to wallet display). */
   avatarUrl?: string | null;
   xUsername?: string | null;
   /** Trade economics. */

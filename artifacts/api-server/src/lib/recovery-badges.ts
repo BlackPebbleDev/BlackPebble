@@ -1,5 +1,5 @@
 /**
- * Recovery Achievements — scaffold / hooks ONLY (Phase F).
+ * Recovery Achievements - scaffold / hooks ONLY (Phase F).
  *
  * This re-uses the EXISTING achievement architecture (the `BadgeDefinition`
  * shape and the derive-from-real-activity pattern from `badges.ts`). It is a
@@ -32,7 +32,7 @@ export type RecoveryBadgeKey =
   | "wallet_cleaner"
   | "elite_cleaner";
 
-/** Recovery badge catalogue — same shape as the core BADGE_DEFINITIONS. */
+/** Recovery badge catalogue - same shape as the core BADGE_DEFINITIONS. */
 export const RECOVERY_BADGE_DEFINITIONS: BadgeDefinition[] = [
   {
     key: "first_recovery",
@@ -105,7 +105,7 @@ export interface RecoveryBadgeEntry extends BadgeDefinition {
 
 /**
  * Pure hook: given lifetime recovery stats, return each recovery badge with its
- * earned flag. No DB access, no persistence, no reputation side effects — this
+ * earned flag. No DB access, no persistence, no reputation side effects - this
  * is the single place the unlock thresholds live.
  */
 export function deriveRecoveryBadges(
@@ -128,7 +128,7 @@ export function deriveRecoveryBadges(
 
 /**
  * Read-only hook: aggregate a wallet's real recovery totals from
- * `recovery_events` and derive its recovery badges. Read-only by design — it
+ * `recovery_events` and derive its recovery badges. Read-only by design - it
  * never writes to `user_achievements`, so it cannot affect the feed achievement
  * stream or any trust/reputation calculation. Returns all badges (earned +
  * locked) so a future UI can render the full set.
@@ -136,7 +136,7 @@ export function deriveRecoveryBadges(
 export async function getRecoveryBadgesForWallet(
   wallet: string,
 ): Promise<{ badges: RecoveryBadgeEntry[]; stats: RecoveryBadgeStats }> {
-  // Achievements derive ONLY from verified on-chain recovery — unverified
+  // Achievements derive ONLY from verified on-chain recovery - unverified
   // telemetry rows must never unlock a badge.
   const row = await dbGet<Record<string, number>>(
     `SELECT

@@ -1,5 +1,5 @@
 /**
- * Position Value Calculator — standalone section.
+ * Position Value Calculator - standalone section.
  * Shows what a position may be worth at a future market cap, independent of
  * the main Trade Setup. Shares the global Investment Unit toggle.
  */

@@ -50,7 +50,7 @@ describe("directionalMovePercent", () => {
 
 describe("movePercentFrom", () => {
   it("prefers market cap over SOL price", () => {
-    // MC +50% but SOL price flat — MC wins.
+    // MC +50% but SOL price flat - MC wins.
     expect(movePercentFrom("long", 1_000_000, 1_500_000, 1, 1)).toBeCloseTo(0.5, 10);
   });
 

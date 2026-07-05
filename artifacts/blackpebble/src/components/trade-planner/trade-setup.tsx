@@ -1,4 +1,4 @@
-/** Section 1 — Trade Setup. Input-mode toggle + entry/stop/target/current. */
+/** Section 1 - Trade Setup. Input-mode toggle + entry/stop/target/current. */
 import { SectionCard, SegmentedToggle, PlannerField, Stat } from "./primitives";
 import { fmtPct, fmtRR, fmtMult } from "./util";
 import type { InputMode, PlanErrors, PlanResult } from "@/lib/trade-planner";

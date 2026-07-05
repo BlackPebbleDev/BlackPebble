@@ -5,7 +5,7 @@ import { logger } from "./logger.js";
 /**
  * Per-token price/market-cap high-water mark ("ATH" for callout performance).
  *
- * IMPORTANT — honest semantics: this is the PEAK OBSERVED SINCE BLACKPEBBLE
+ * IMPORTANT - honest semantics: this is the PEAK OBSERVED SINCE BLACKPEBBLE
  * STARTED TRACKING the token, not a true historical all-time high. We have no
  * historical OHLCV source, so we never fabricate a pre-tracking ATH. The peak
  * only ratchets upward as we observe live prices (on feed/profile/token views
@@ -126,7 +126,7 @@ export async function getTokenPeaks(
 export async function refreshActiveCallPeaks(): Promise<void> {
   try {
     await ensurePeaksSchema();
-    // Tokens with a visible call in the last 30 days — the set whose reputation
+    // Tokens with a visible call in the last 30 days - the set whose reputation
     // we actually display. Older calls rarely change rank and aren't worth the
     // upstream calls every tick.
     const cutoff = Math.floor(Date.now() / 1000) - 30 * 24 * 60 * 60;

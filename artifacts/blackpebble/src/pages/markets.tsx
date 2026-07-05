@@ -361,7 +361,7 @@ function MigratedTab({ navigate }: { navigate: (p: string) => void }) {
           )}
         />
         {connected
-          ? "Live — recently graduated tokens, newest first"
+          ? "Live - recently graduated tokens, newest first"
           : "Connecting to live feed…"}
       </div>
       <MigratedTable tokens={tokens.slice(0, visible)} navigate={navigate} />
@@ -398,7 +398,7 @@ export default function Markets() {
             ? api.volume()
             : null,
     enabled: isListFeed,
-    // No background polling — feeds refresh only on page open / tab switch or
+    // No background polling - feeds refresh only on page open / tab switch or
     // when the user clicks Refresh (the server cache turns over every 30s).
     // Keep the previous tab's rows on screen while the next feed loads so
     // switching tabs / background refreshes never blank the list or jump scroll.
@@ -420,7 +420,7 @@ export default function Markets() {
       await api.refreshMarkets();
       await queryClient.invalidateQueries({ queryKey: ["markets"] });
     } catch {
-      // Surface nothing intrusive — the existing list stays on screen and the
+      // Surface nothing intrusive - the existing list stays on screen and the
       // user can retry. (Network errors already log to the console.)
     } finally {
       setIsRefreshing(false);
@@ -450,7 +450,7 @@ export default function Markets() {
         </button>
       </div>
       <p className="text-sm text-muted-foreground mb-1">
-        Discover opportunities — tap any token to open it on the Trading desk.
+        Discover opportunities - tap any token to open it on the Trading desk.
       </p>
       <p
         className="text-xs text-muted-foreground/70 mb-6"

@@ -20,7 +20,7 @@ import { getTokenIntelligence } from "../lib/tokenIntel.js";
 
 const router: IRouter = Router();
 
-/** Max tokens returned per feed — keeps mobile lists fast and bounded. */
+/** Max tokens returned per feed - keeps mobile lists fast and bounded. */
 const FEED_LIMIT = 50;
 
 /** Drop any repeated mints so a token never appears twice in one list. */
@@ -92,7 +92,7 @@ router.get(
 /**
  * Manual refresh for the Markets page. Bypasses the trending cache (refetches
  * upstream) and clears the migrated-feed cache so the user always gets fresh
- * listings on demand. There is no background worker — refresh only happens here
+ * listings on demand. There is no background worker - refresh only happens here
  * or when a feed cache naturally expires on page open.
  */
 router.post(
@@ -171,7 +171,7 @@ router.get(
  * Per-token "intelligence" roll-up for the Token Page V2 workstation:
  * trader sentiment (calls, callers, success rate, conviction split), community
  * stats (watchers, callers, journal entries, theses) and recent callouts/theses
- * graded live. Read-only over existing tables — never mutates callouts.
+ * graded live. Read-only over existing tables - never mutates callouts.
  */
 router.get(
   "/markets/:mint/intelligence",
@@ -193,7 +193,7 @@ router.get(
  * Batched sparkline history for token cards. The client sends every visible
  * mint in ONE request (`mints` = comma-separated) and an optional `window`
  * (1h/6h/24h, default 24h). Returns `{ window, sparklines: { [mint]: { points,
- * source } } }` — each entry carries a chronological close-price series (oldest
+ * source } } }` - each entry carries a chronological close-price series (oldest
  * first) plus the real source that produced it (`gecko|dexscreener|birdeye|
  * snapshot`), or `points: null, source: null` when no real data exists and the
  * client should draw an artificial placeholder. Resolved via an ordered
@@ -221,7 +221,7 @@ router.get(
 
 /**
  * The current SOL/USD rate (cached 30s upstream). Lets any page render USD
- * values even when it has no positions/trades to derive a rate from — needed
+ * values even when it has no positions/trades to derive a rate from - needed
  * because USD is the default display currency app-wide.
  */
 router.get(

@@ -8,7 +8,7 @@ import type { ReputationEntry, TrustLabel } from "@/lib/api";
 /**
  * Mirror of the server's Trust Score → label thresholds (badges.ts):
  *   0–15 New · 16–40 Building · 41–70 Established · 71–100 Proven.
- * Display-only — used where a row carries a score but not its label (e.g. feed).
+ * Display-only - used where a row carries a score but not its label (e.g. feed).
  */
 export function trustLabelFromScore(score: number): TrustLabel {
   if (score <= 15) return "New";
@@ -37,7 +37,7 @@ function trustTone(label: TrustLabel): string {
 
 /**
  * Compact Trust Score indicator. Reused on profiles, reputation cards, feed
- * cards and search rows so trust always looks identical. Display-only — it never
+ * cards and search rows so trust always looks identical. Display-only - it never
  * computes or alters a score.
  */
 export function TrustBadge({
@@ -91,7 +91,7 @@ function Field({
 }
 
 /**
- * Shared trader reputation card — one consistent shape used by Trader Discovery,
+ * Shared trader reputation card - one consistent shape used by Trader Discovery,
  * Top Rising Traders and Highest Trust Score. Reuses UserIdentity (shared) and
  * TrustBadge; tier/badges are decoration only, never a rank.
  */

@@ -22,7 +22,7 @@ export function fmtMarketCap(value: number | null | undefined): string {
 /** Same compact shorthand as fmtMarketCap, for volume columns. */
 export const fmtVolume = fmtMarketCap;
 
-/** Generic USD display — compact for large values, fixed decimals for small. Never scientific. */
+/** Generic USD display - compact for large values, fixed decimals for small. Never scientific. */
 export function fmtUsd(value: number | null | undefined): string {
   if (value == null || !Number.isFinite(value)) return "—";
   const abs = Math.abs(value);
@@ -53,7 +53,7 @@ export function fmtPercent(value: number | null | undefined, digits = 2): string
 }
 
 /**
- * Sanity ceiling for an *externally-sourced* market percentage — e.g. a token's
+ * Sanity ceiling for an *externally-sourced* market percentage - e.g. a token's
  * 24h price change pulled from DexScreener. A legitimate 24h move never reaches
  * this; a value beyond it means the upstream pair data is corrupt (wrong/junk
  * pool), so we surface "Data Error" instead of an impossible number like
@@ -88,20 +88,20 @@ export function fmtPercentSafe(
 
 /**
  * Shared premium V2 colour for a performance multiple. Restrained palette —
- * green for winners, rose for losers, neutral foreground near break-even — so
+ * green for winners, rose for losers, neutral foreground near break-even - so
  * the feed reads at a glance without a casino look. "Near 1.0x" (0.95–1.05) is
  * treated as neutral so noise around break-even doesn't flicker red/green.
  */
 export function multipleTone(value: number | null | undefined): string {
   if (value == null || !Number.isFinite(value) || value <= 0)
     return "text-muted-foreground";
-  if (value >= 1.05) return "text-emerald-400";
+  if (value >= 1.05) return "text-success";
   if (value <= 0.95) return "text-rose-400";
   return "text-foreground";
 }
 
 /**
- * Token price display — never scientific notation.
+ * Token price display - never scientific notation.
  * $0.0000118   $0.25   $1.42   $1,234
  */
 export function fmtPrice(value: number | null | undefined): string {
@@ -163,7 +163,7 @@ export function timeAgo(tsSeconds: number | null | undefined): string {
 
 export function pnlColor(value: number | null | undefined): string {
   if (value == null || value === 0) return "text-muted-foreground";
-  return value > 0 ? "text-emerald-400" : "text-red-400";
+  return value > 0 ? "text-success" : "text-danger";
 }
 
 /**

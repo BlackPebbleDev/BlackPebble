@@ -428,7 +428,7 @@ function JournalDashboard() {
           <button
             type="button"
             disabled
-            title="Coming soon — auto-fill an entry from one of your trades"
+            title="Coming soon - auto-fill an entry from one of your trades"
             className="inline-flex items-center gap-2 px-4 h-11 rounded-full bg-surface-2 text-muted-foreground text-sm font-medium cursor-not-allowed opacity-70"
             data-testid="button-create-from-trade"
           >
@@ -648,7 +648,7 @@ function JournalDashboard() {
                 onChange={(e) =>
                   setEditorForm((f) => ({ ...f, title: e.target.value }))
                 }
-                placeholder="e.g. BONK breakout — patience paid off"
+                placeholder="e.g. BONK breakout - patience paid off"
                 data-testid="input-title"
               />
             </Field>
@@ -787,7 +787,7 @@ function JournalDashboard() {
             </Field>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="Emotional State — Before">
+              <Field label="Emotional State - Before">
                 <Input
                   value={editorForm.emotionBefore}
                   onChange={(e) =>
@@ -800,7 +800,7 @@ function JournalDashboard() {
                   data-testid="input-emotion-before"
                 />
               </Field>
-              <Field label="Emotional State — After">
+              <Field label="Emotional State - After">
                 <Input
                   value={editorForm.emotionAfter}
                   onChange={(e) =>
@@ -952,8 +952,8 @@ function EntryViewer({ entry }: { entry: JournalEntry }) {
         <ReadField label="What Went Wrong" value={entry.went_wrong} />
         <ReadField label="Lessons Learned" value={entry.lessons} />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <ReadField label="Emotion — Before" value={entry.emotion_before} />
-          <ReadField label="Emotion — After" value={entry.emotion_after} />
+          <ReadField label="Emotion - Before" value={entry.emotion_before} />
+          <ReadField label="Emotion - After" value={entry.emotion_after} />
         </div>
         <ReadField label="Notes" value={entry.notes} />
       </div>

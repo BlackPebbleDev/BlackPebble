@@ -21,13 +21,13 @@ const FRONTEND_URL = process.env["FRONTEND_URL"] || "/";
 const TOKEN_URL = "https://api.x.com/2/oauth2/token";
 const AUTHORIZE_URL = "https://x.com/i/oauth2/authorize";
 // NOTE: X API v2's user lookup (`/2/users/me`) does not expose a banner/header
-// image field at all — `profile_banner_url` is silently ignored by v2 (it's
+// image field at all - `profile_banner_url` is silently ignored by v2 (it's
 // only present on the legacy v1.1 `users/show.json` response). We still ask
 // v2 for everything else here, and fetch the banner separately via
 // `fetchXBannerImage()` below using an app-only bearer token.
 const USER_URL =
   "https://api.x.com/2/users/me?user.fields=profile_image_url,public_metrics,created_at,verified";
-// Legacy v1.1 endpoint — the only place X still returns `profile_banner_url`.
+// Legacy v1.1 endpoint - the only place X still returns `profile_banner_url`.
 // Works with an app-only (client_credentials) bearer token for read-only
 // lookups; degrades gracefully (returns null) if the app's access tier
 // doesn't allow it.
@@ -138,7 +138,7 @@ function generateCodeVerifier(): string {
 }
 
 function generateCodeChallenge(verifier: string): string {
-  // BASE64URL(SHA256(ASCII(code_verifier))) — encode the raw digest bytes directly
+  // BASE64URL(SHA256(ASCII(code_verifier))) - encode the raw digest bytes directly
   const hash = createHash("sha256").update(verifier).digest();
   return base64URLEncode(hash);
 }
@@ -274,7 +274,7 @@ async function exchangeCode(
 }
 
 // ── App-only bearer token (client_credentials) ──────────────────────────────
-// Cached in-memory for the process lifetime — client_credentials app tokens
+// Cached in-memory for the process lifetime - client_credentials app tokens
 // for X don't expire on a fixed schedule, so we only refetch on a 401/403.
 let appBearerToken: string | null = null;
 // Once we've confirmed the app-only token endpoint rejects our credentials
@@ -334,7 +334,7 @@ async function getAppBearerToken(forceRefresh = false): Promise<string | null> {
 
   if (!appTokenKnownUnavailable) {
     logger.warn(
-      "X app-only token unavailable — banner fetch disabled (check API tier or set X_CONSUMER_KEY/X_CONSUMER_SECRET)",
+      "X app-only token unavailable - banner fetch disabled (check API tier or set X_CONSUMER_KEY/X_CONSUMER_SECRET)",
     );
     appTokenKnownUnavailable = true;
   }
@@ -348,7 +348,7 @@ async function getAppBearerToken(forceRefresh = false): Promise<string | null> {
 /**
  * Fetch the X profile banner (header) image URL for a username.
  *
- * X API v2 has no banner field at all — this data only exists on the legacy
+ * X API v2 has no banner field at all - this data only exists on the legacy
  * v1.1 `users/show.json` response, which we call here with an app-only
  * bearer token (read-only, no user context needed). Degrades gracefully to
  * null on any failure (unsupported access tier, rate limit, no banner set,
@@ -373,7 +373,7 @@ async function fetchXBannerImage(username: string): Promise<string | null> {
   try {
     let res = await call(token);
     if (res.status === 401 || res.status === 403) {
-      // Token may have been revoked/rotated — refresh once and retry.
+      // Token may have been revoked/rotated - refresh once and retry.
       token = await getAppBearerToken(true);
       if (!token) return null;
       res = await call(token);
@@ -389,7 +389,7 @@ async function fetchXBannerImage(username: string): Promise<string | null> {
     const data = (await res.json()) as { profile_banner_url?: string };
     if (!data.profile_banner_url) return null;
     // Request the highest-quality variant X serves (1500x500) while
-    // preserving the native aspect ratio — the base URL alone points at a
+    // preserving the native aspect ratio - the base URL alone points at a
     // smaller default size.
     return `${data.profile_banner_url}/1500x500`;
   } catch (err) {
@@ -413,7 +413,7 @@ async function upsertXUser(user: XUser): Promise<XSessionPayload> {
   const xCreatedAtValid =
     xCreatedAt != null && Number.isFinite(xCreatedAt) ? xCreatedAt : null;
 
-  // Best-effort banner fetch (see fetchXBannerImage — v2 has no banner field
+  // Best-effort banner fetch (see fetchXBannerImage - v2 has no banner field
   // at all, so this hits the legacy v1.1 endpoint separately). Never blocks
   // login: resolves to null on any failure and the profile page falls back
   // to the hero gradient.

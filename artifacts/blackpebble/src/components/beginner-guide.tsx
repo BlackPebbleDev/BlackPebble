@@ -3,7 +3,7 @@ import { GraduationCap, X } from "lucide-react";
 
 /**
  * Dismissible "New to Paper Trading?" onboarding card shown near the top of the
- * Trading Desk. Shown once — the dismissal is persisted to localStorage so it
+ * Trading Desk. Shown once - the dismissal is persisted to localStorage so it
  * never returns for a user who has closed it. Purely informational (UX pass
  * item 9): it adds no trading behaviour.
  */
@@ -43,9 +43,8 @@ export function BeginnerGuide() {
   return (
     <div
       data-testid="beginner-guide"
-      className="relative overflow-hidden rounded-2xl bg-card shadow-card p-5 sm:p-6 mb-4"
+      className="hairline-accent overflow-hidden rounded-2xl bg-card shadow-card p-5 sm:p-6 mb-4"
     >
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/40 to-transparent" />
       <button
         type="button"
         onClick={dismiss}

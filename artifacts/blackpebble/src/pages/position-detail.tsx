@@ -171,7 +171,7 @@ export default function PositionDetail() {
           <p className="text-foreground font-medium mb-1">Position not found</p>
           <p className="text-muted-foreground text-sm">
             This token isn't in your open positions. It may have been fully
-            closed — check your trade history on the Portfolio page.
+            closed - check your trade history on the Portfolio page.
           </p>
         </div>
       </div>
@@ -227,7 +227,7 @@ export default function PositionDetail() {
           )}
         </div>
         {isGuest && (
-          <span className="ml-auto text-[11px] font-medium uppercase tracking-wider text-amber-400 border border-amber-500/30 bg-amber-500/10 rounded-full px-2 py-1">
+          <span className="ml-auto text-[11px] font-medium uppercase tracking-wider text-warning border border-warning/30 bg-warning/10 rounded-full px-2 py-1">
             Guest
           </span>
         )}
@@ -239,7 +239,7 @@ export default function PositionDetail() {
         <LiveIndicator dataUpdatedAt={pfUpdatedAt} />
       </div>
 
-      {/* ── Market Cap Analytics — the signature view ──────────────────── */}
+      {/* ── Market Cap Analytics - the signature view ──────────────────── */}
       <section className="mb-6">
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-[11px] uppercase tracking-wider text-muted-foreground">

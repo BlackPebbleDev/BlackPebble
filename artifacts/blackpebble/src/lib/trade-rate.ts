@@ -1,5 +1,5 @@
 /**
- * Pure SOL/USD rate selection for the trade panels. No React, no I/O — unit-tested.
+ * Pure SOL/USD rate selection for the trade panels. No React, no I/O - unit-tested.
  *
  * The bug this guards against: the trade panels used to derive the SOL/USD rate
  * straight from the per-token quote (priceUsd / priceSol). When that quote is
@@ -13,7 +13,7 @@
 
 /** When the token-derived and authoritative rates diverge by more than this
  *  factor the token quote is treated as untrustworthy (anomaly) and never used
- *  for sizing — it only ever feeds USD display before the authoritative rate
+ *  for sizing - it only ever feeds USD display before the authoritative rate
  *  loads. */
 export const RATE_ANOMALY_FACTOR = 3;
 

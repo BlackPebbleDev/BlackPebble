@@ -78,7 +78,7 @@ interface UserResult {
 
 /**
  * X handle rules. We only attempt an (exact) profile lookup for an explicit
- * "@handle" query — there is no fuzzy user-search endpoint yet, so firing a
+ * "@handle" query - there is no fuzzy user-search endpoint yet, so firing a
  * lookup on every handle-shaped word would 404-spam the server/console.
  */
 const HANDLE_RE = /^[A-Za-z0-9_]{1,15}$/;
@@ -148,7 +148,7 @@ export function TokenSearch({
         setUser(null);
       }
       setLoading(false);
-      // Only (re)open if the user is still in the field — a debounced request
+      // Only (re)open if the user is still in the field - a debounced request
       // may resolve after they've already clicked away.
       if (focusedRef.current) setOpen(true);
     }, 300);
