@@ -56,3 +56,9 @@ Thumbs.db
 
 .cursor/rules/nx-rules.mdc
 .github/instructions/nx.instructions.md
+
+# TradingView Advanced Charts — private, non-redistributable library.
+# Dropped into public/charting_library/ after access is approved; it must NEVER
+# be committed (the TradingView license prohibits it in public repositories).
+artifacts/blackpebble/public/charting_library/
+artifacts/blackpebble/public/datafeeds/
