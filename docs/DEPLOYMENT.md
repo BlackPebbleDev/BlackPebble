@@ -112,8 +112,12 @@ the schema changes.
    - **Runtime:** Node
    - **Build Command:**
      ```
-     corepack enable && pnpm install --frozen-lockfile && pnpm --filter @workspace/api-server build
+     npm install -g pnpm@10.34.4 && pnpm install --frozen-lockfile && pnpm --filter @workspace/api-server build
      ```
+     > Do **not** use `corepack enable` on Render — it tries to symlink pnpm
+     > into the read-only `/usr/bin` and fails (`EROFS`). Installing pnpm
+     > globally via npm writes to a writable prefix and works. Keep the pinned
+     > version in sync with the root `packageManager` field.
    - **Start Command:**
      ```
      pnpm --filter @workspace/api-server start
