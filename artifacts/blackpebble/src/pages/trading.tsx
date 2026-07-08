@@ -106,7 +106,7 @@ import {
 } from "@/components/trade-warning-card";
 import { cn } from "@/lib/utils";
 import { AllOrders } from "@/components/position-orders";
-import { TradingViewChart } from "@/components/tradingview-chart";
+import { TokenChartPanel } from "@/components/tv-chart";
 import { TokenIntelligenceSection } from "@/components/token-intel";
 import { BeginnerGuide } from "@/components/beginner-guide";
 import { ImageLightbox } from "@/components/image-lightbox";
@@ -342,7 +342,7 @@ function PriceChart({ info }: { info: TokenInfo }) {
   });
 
   if (info.isMigrated && info.pairAddress) {
-    return <TradingViewChart pairAddress={info.pairAddress} />;
+    return <TokenChartPanel info={info} />;
   }
 
   const trades = (data?.trades ?? [])

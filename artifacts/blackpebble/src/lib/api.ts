@@ -483,6 +483,59 @@ export interface MarketFeedResponse {
   cacheAge: number | null;
 }
 
+// ── Token chart candles (Chart Intelligence Phase 1) ─────────────────────────
+
+export const CANDLE_RESOLUTIONS = [
+  "15s",
+  "30s",
+  "1m",
+  "5m",
+  "15m",
+  "1h",
+  "4h",
+  "1d",
+] as const;
+
+export type CandleResolution = (typeof CANDLE_RESOLUTIONS)[number];
+
+/** One OHLCV candle, USD-priced; `t` is the candle open time (unix seconds). */
+export interface Candle {
+  t: number;
+  o: number;
+  h: number;
+  l: number;
+  c: number;
+  v: number;
+}
+
+export interface CandlesResponse {
+  candles: Candle[];
+  /**
+   * Pinned on-chain supply. Multiplying price candles by this yields market-cap
+   * candles that stay consistent across timeframes. Null when unavailable.
+   */
+  supply: number | null;
+  poolAddress: string;
+  resolution: CandleResolution;
+  /** True when the server served expired-cache candles after an upstream failure. */
+  stale: boolean;
+}
+
+/**
+ * Range-based candle response backing the TradingView Advanced Charts Datafeed
+ * (`getBars`). Candles are oldest-first and MC-valued when `marketCap` is true.
+ */
+export interface CandleRangeResponse {
+  candles: Candle[];
+  supply: number | null;
+  poolAddress: string;
+  resolution: CandleResolution;
+  /** True only when the server actually applied market-cap units. */
+  marketCap: boolean;
+  /** True when the requested range has no more history. */
+  noData: boolean;
+}
+
 export interface SearchResult {
   mint: string;
   name: string | null;
@@ -538,6 +591,8 @@ export interface Trade {
   liquidity_usd_at_execution?: number | null;
   sol_usd_price_at_execution?: number | null;
   trade_usd_value?: number | null;
+  /** USD market cap at execution (null on pre-upgrade rows). */
+  market_cap_usd?: number | null;
 }
 
 export type OrderType = "take_profit" | "stop_loss" | "buy_limit";
@@ -1786,8 +1841,29 @@ export const api = {
     request<{ positions: Position[]; solUsd: number; orderFills?: OrderFill[] }>(
       `/trade/positions/${wallet}`,
     ),
-  history: (wallet: string) =>
-    request<{ trades: Trade[] }>(`/trade/history/${wallet}`),
+  history: (wallet: string, mint?: string) =>
+    request<{ trades: Trade[] }>(
+      `/trade/history/${wallet}${mint ? `?mint=${encodeURIComponent(mint)}` : ""}`,
+    ),
+
+  candles: (mint: string, resolution: CandleResolution) =>
+    request<CandlesResponse>(
+      `/markets/${encodeURIComponent(mint)}/candles?resolution=${resolution}`,
+    ),
+
+  candlesRange: (
+    mint: string,
+    resolution: CandleResolution,
+    opts?: { before?: number; countBack?: number; marketCap?: boolean },
+  ) => {
+    const qs = new URLSearchParams({ resolution });
+    if (opts?.before) qs.set("before", String(Math.floor(opts.before)));
+    if (opts?.countBack) qs.set("countBack", String(Math.floor(opts.countBack)));
+    if (opts?.marketCap) qs.set("marketCap", "1");
+    return request<CandleRangeResponse>(
+      `/markets/${encodeURIComponent(mint)}/candles/range?${qs.toString()}`,
+    );
+  },
 
   orders: (wallet: string, mint?: string) =>
     request<{ orders: PaperOrder[] }>(

@@ -432,3 +432,51 @@ export async function getMutableFlagsBatch(
 
   return out;
 }
+
+// Token supply changes rarely (only on mint/burn). Cache aggressively - a
+// stale supply is far less harmful than recomputing it per chart fetch, and
+// pinning it is what keeps market-cap candles consistent across timeframes.
+const SUPPLY_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
+
+function supplyCacheKey(mint: string): string {
+  return `supply:${mint}`;
+}
+
+/**
+ * The on-chain circulating/total token supply as a UI amount (decimals
+ * applied), via the Solana RPC `getTokenSupply`. This is the CONSTANT the chart
+ * multiplies price candles by to render market cap, so the MC axis stays
+ * identical across every timeframe. Returns null on failure (no key, RPC
+ * error, unparseable) so callers can fall back to a price-derived estimate.
+ */
+export async function getTokenSupply(mint: string): Promise<number | null> {
+  if (!mint) return null;
+  const key = supplyCacheKey(mint);
+  if (isCacheFresh(key, SUPPLY_TTL_MS)) {
+    const cached = getCacheValue(key);
+    if (cached) {
+      const n = Number(cached);
+      if (Number.isFinite(n) && n > 0) return n;
+    }
+  }
+  if (!HELIUS_API_KEY) return null;
+  try {
+    const res = await axios.post(
+      heliusRpcUrl(),
+      {
+        jsonrpc: "2.0",
+        id: "token-supply",
+        method: "getTokenSupply",
+        params: [mint, { commitment: "confirmed" }],
+      },
+      { timeout: 10000 },
+    );
+    const ui = res.data?.result?.value?.uiAmount;
+    const supply = typeof ui === "number" && Number.isFinite(ui) && ui > 0 ? ui : null;
+    if (supply != null) setCacheValue(supplyCacheKey(mint), String(supply));
+    return supply;
+  } catch (e) {
+    logger.warn({ err: e, mint }, "Helius getTokenSupply failed");
+    return null;
+  }
+}

@@ -238,7 +238,8 @@ router.get(
   asyncHandler(async (req, res) => {
     const wallet = String(req.params.wallet || "").trim();
     if (!wallet) return res.status(400).json({ error: "wallet is required" });
-    return res.json({ trades: await getHistory(wallet, 200) });
+    const mint = req.query.mint ? String(req.query.mint).trim() : undefined;
+    return res.json({ trades: await getHistory(wallet, 200, mint) });
   }),
 );
 

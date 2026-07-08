@@ -17,6 +17,7 @@ import {
 } from "../lib/sparklines.js";
 import { pumpportal } from "../lib/pumpportal.js";
 import { getTokenIntelligence } from "../lib/tokenIntel.js";
+import { getCandles, getCandleRange, isCandleResolution } from "../lib/candles.js";
 
 const router: IRouter = Router();
 
@@ -216,6 +217,69 @@ router.get(
     }
     const sparklines = await getSparklines(mints, window);
     return res.json({ window, sparklines });
+  }),
+);
+
+/**
+ * Full OHLCV candles for the native token chart (Chart Intelligence Phase 1).
+ * Resolution is one of 15s/30s/1m/5m/15m/1h/4h/1d; candles come from the same
+ * trusted pool the token's price/MC use, cached per (mint, resolution) with a
+ * serve-stale-on-failure fallback. 404 = pool unresolvable or no history at
+ * all (client renders an honest empty state, never synthetic candles).
+ */
+router.get(
+  "/markets/:mint/candles",
+  asyncHandler(async (req, res) => {
+    const mint = String(req.params.mint ?? "").trim();
+    if (!mint || mint.length > 64) {
+      return res.status(400).json({ error: "mint is required" });
+    }
+    const raw = String(req.query.resolution ?? "15m");
+    if (!isCandleResolution(raw)) {
+      return res.status(400).json({ error: "Invalid resolution" });
+    }
+    const result = await getCandles(mint, raw);
+    if (!result) {
+      return res.status(404).json({ error: "No candle data for this token" });
+    }
+    return res.json(result);
+  }),
+);
+
+/**
+ * Range-based OHLCV backing the TradingView Advanced Charts Datafeed API
+ * (`getBars`). Supports history paging via `before` (unix seconds) and a
+ * `marketCap=1` mode that returns candles in market-cap units using the same
+ * pinned on-chain supply as the rest of the app, so MC is identical across
+ * timeframes. Always 200 with `{ candles: [], noData: true }` when a range has
+ * no data (the datafeed contract expects an empty result, not a 404), and 404
+ * only when the pool itself can't be resolved.
+ */
+router.get(
+  "/markets/:mint/candles/range",
+  asyncHandler(async (req, res) => {
+    const mint = String(req.params.mint ?? "").trim();
+    if (!mint || mint.length > 64) {
+      return res.status(400).json({ error: "mint is required" });
+    }
+    const raw = String(req.query.resolution ?? "15m");
+    if (!isCandleResolution(raw)) {
+      return res.status(400).json({ error: "Invalid resolution" });
+    }
+    const beforeRaw = Number(req.query.before);
+    const countBackRaw = Number(req.query.countBack);
+    const result = await getCandleRange({
+      mint,
+      resolution: raw,
+      before: Number.isFinite(beforeRaw) && beforeRaw > 0 ? beforeRaw : undefined,
+      countBack:
+        Number.isFinite(countBackRaw) && countBackRaw > 0 ? countBackRaw : undefined,
+      marketCap: req.query.marketCap === "1" || req.query.marketCap === "true",
+    });
+    if (!result) {
+      return res.status(404).json({ error: "No candle data for this token" });
+    }
+    return res.json(result);
   }),
 );
 
