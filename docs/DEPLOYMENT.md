@@ -47,6 +47,35 @@ Browser ── https://staging.blackpebble.fun/         ──▶ Vercel static 
 - **DB schema:** applied with Drizzle **push** (schema sync, no migration files):
   `pnpm --filter @workspace/db push`.
 
+### Boot requirements (the API refuses to start without these)
+
+These are enforced in code and will crash-loop a deploy if missing:
+
+- **`DATABASE_URL`** — the DB module (`lib/db`) throws at import time if unset.
+- **`PORT`** — `index.ts` throws if unset (Render/Railway inject it automatically).
+- **`JWT_SECRET`** — hard-exits when `NODE_ENV=production` and it's unset.
+
+CORS in production: origins come from `CORS_ALLOWED_ORIGINS` + `FRONTEND_URL`.
+If **both** are unset it silently allows all origins (not a boot failure). With
+the Vercel `/api` rewrite, browser→API calls are same-origin, so this rarely
+bites — but set both for correctness.
+
+### Database SSL (Neon)
+
+Neon requires TLS. Keep the query params Neon gives you on the connection
+string:
+
+```
+DATABASE_URL=postgresql://user:pass@ep-xxx-pooler.region.aws.neon.tech/blackpebble?sslmode=require&channel_binding=require
+```
+
+`pg` honors `sslmode=require`, and Neon uses publicly-trusted certificates, so
+**no code change or extra `ssl` config is needed**. Use the **pooled** host
+(`-pooler`) for the running API; the **direct** host is only needed for
+`drizzle-kit push`. If you ever switch to a provider with self-signed certs
+(e.g. Render's own Postgres), you'd need `?sslmode=no-verify` instead — Neon
+does not require that.
+
 ---
 
 ## Step 1 — Provision PostgreSQL
@@ -118,6 +147,12 @@ commands and env vars, and expose the web port. Railway auto-provides `PORT`.
    ```
    Commit that change (the placeholder `REPLACE-WITH-YOUR-API-HOST` must be
    replaced or `/api` calls will fail).
+
+   > The second rewrite (`/(.*) → /index.html`) is the SPA fallback so deep
+   > links (`/u/:handle`, `/position/:mint`) don't 404. Order matters: `/api`
+   > is matched first, everything else falls through to the SPA. Vercel serves
+   > real static files (including the prerendered `/markets/index.html` etc.)
+   > **before** applying rewrites, so SEO pages are preserved.
 4. Add environment variables (see checklist — **Frontend (Vercel)** column).
    Keep **`VITE_TV_CHARTS=0`**.
 5. Deploy. When live, verify:
@@ -211,3 +246,65 @@ review. Save your review URL: `https://<staging>/?token=<migrated-mint>`.
    `docs/CHART_INTELLIGENCE_PLAN.md`.
 
 No Phase 2–4 chart overlays until the base chart is approved.
+
+---
+
+## Appendix — TradingView Advanced Charts application (ready to paste)
+
+Submit at <https://www.tradingview.com/advanced-charts/> → "Get the library".
+Replace `<staging-url>` with your live Vercel/staging URL before submitting.
+Only fill fields the form actually asks for; this covers the common ones.
+
+> **Two-stage process — do not conflate them:**
+>
+> 1. **Access application (now):** the staging URL only needs to prove
+>    BlackPebble is a real, public company web project. At this stage the token
+>    page shows the **temporary fallback chart** (`VITE_TV_CHARTS=0`). That is
+>    expected and fine for the application — it is **not** the chart being
+>    reviewed and must not be described as the final Advanced Charts integration.
+> 2. **Final review URL (later):** only submit/point to the review URL as the
+>    Advanced Charts implementation **after** the approved `charting_library`
+>    is installed and `VITE_TV_CHARTS=1`, so the token page renders the real
+>    TradingView terminal. Never present the fallback chart as the final
+>    product.
+
+| Field | Value |
+|---|---|
+| Name | *(your name)* |
+| Business email | *(a real inbox you monitor — not a noreply alias)* |
+| Company / Organization | BlackPebble |
+| Website / Product URL | `<staging-url>` |
+| Country | *(your country)* |
+| Is this a company / commercial public web project? | Yes |
+| Personal / hobby / study project? | No |
+| Which library? | Advanced Charts (self-hosted, free) |
+
+**Use-case / description** (paste):
+
+> BlackPebble is a public web platform for Solana token research and paper
+> trading. We want to embed TradingView Advanced Charts on our token detail
+> pages to give users professional candlestick charts with both price and
+> market-cap display modes, standard timeframes, indicators, and fullscreen.
+> We self-host the library and connect our own OHLCV datafeed via the Datafeed
+> API — historical bars and live updates come from our backend, which serves
+> candles for the token's primary Solana DEX pool. The chart sits beside our
+> order panel as the core of our trading terminal UI. We are not redistributing
+> the library; it will run only on our own public website. Our datafeed already
+> supports price and market-cap candles with a fixed on-chain supply so values
+> stay consistent across timeframes.
+
+**Notes for the reviewer, if there's a free-text/extra field:**
+
+> Our public web app is live at `<staging-url>`. We are requesting access so we
+> can install and enable the Advanced Charts library on our token pages; our
+> Datafeed API integration is already built and tested against our OHLCV
+> backend. Once access is granted we will self-host the library and turn the
+> real TradingView chart on. Attribution: we will keep the standard TradingView
+> logo visible in the chart; no removal requested.
+
+Do **not** describe the current staging chart as an Advanced Charts
+implementation — it is a temporary fallback until the library is installed.
+
+**After approval:** accept the GitHub invite, then follow "What happens after
+approval" above (install into `public/charting_library/`, set
+`VITE_TV_CHARTS=1`, redeploy, review).

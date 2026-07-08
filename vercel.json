@@ -8,6 +8,10 @@
     {
       "source": "/api/:path*",
       "destination": "https://REPLACE-WITH-YOUR-API-HOST.onrender.com/api/:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ]
 }
