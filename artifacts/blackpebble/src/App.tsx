@@ -40,8 +40,36 @@ import DiscoverPage from "@/pages/discover";
 import TradingJournal from "@/pages/journal";
 import TradingAnalysisPage from "@/pages/trading-analysis";
 import CampaignsPage, { CampaignDetailPage } from "@/pages/campaigns";
+import { api } from "@/lib/api";
 
-const queryClient = new QueryClient();
+// Sensible global cache defaults so navigating back to a page you just visited
+// paints instantly from cache instead of blanking to a spinner and refetching.
+// Queries that need fresher data (positions, quotes, live token) still opt in
+// via their own refetchInterval / staleTime, which override these.
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30_000,
+      gcTime: 5 * 60_000,
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+  },
+});
+
+// Warm the two feeds users hit first (Markets list + SOL price) as soon as the
+// app boots, so the data is already cached the moment they open Markets. This
+// also nudges the API awake, shrinking the first-paint wait after idle.
+function prefetchCommonData() {
+  void queryClient.prefetchQuery({
+    queryKey: ["markets", "trending"],
+    queryFn: () => api.trending(),
+  });
+  void queryClient.prefetchQuery({
+    queryKey: ["sol-usd"],
+    queryFn: () => api.solPrice(),
+  });
+}
 
 /** Scrolls to the top of the page on every route change. */
 function ScrollToTop() {
@@ -53,6 +81,9 @@ function ScrollToTop() {
 }
 
 function Router() {
+  useEffect(() => {
+    prefetchCommonData();
+  }, []);
   return (
     <AppShell>
       <ScrollToTop />

@@ -5,11 +5,12 @@ import {
   useQueryClient,
   keepPreviousData,
 } from "@tanstack/react-query";
-import { Loader2, TrendingUp, Sparkles, RefreshCw } from "lucide-react";
+import { TrendingUp, Sparkles, RefreshCw } from "lucide-react";
 import { LiveIndicator } from "@/components/live-indicator";
 import { Watchlist } from "@/components/watchlist";
 import { FilterPills } from "@/components/filter-pills";
 import { Sparkline } from "@/components/sparkline";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useSparklines } from "@/hooks/use-sparklines";
 import { api, type TokenInfo, type MigratedToken } from "@/lib/api";
 import {
@@ -62,6 +63,50 @@ function LoadMore({ onClick }: { onClick: () => void }) {
       >
         Load More
       </button>
+    </div>
+  );
+}
+
+/**
+ * Placeholder rows shown while the first feed loads. Mirrors the real table's
+ * shape so the page reserves its layout and never flashes empty - reads as
+ * "loading fast" instead of "nothing here yet".
+ */
+function MarketTableSkeleton({ rows = 8 }: { rows?: number }) {
+  return (
+    <div data-testid="markets-skeleton">
+      <div className="hidden md:block rounded-2xl bg-card shadow-card overflow-hidden">
+        <div className="divide-y divide-border">
+          {Array.from({ length: rows }).map((_, i) => (
+            <div key={i} className="flex items-center gap-4 px-4 py-3">
+              <Skeleton className="w-4 h-4 rounded" />
+              <Skeleton className="w-8 h-8 rounded-full" />
+              <div className="flex-1 space-y-1.5">
+                <Skeleton className="h-3.5 w-28" />
+                <Skeleton className="h-3 w-16" />
+              </div>
+              <Skeleton className="h-3.5 w-20" />
+              <Skeleton className="h-3.5 w-16" />
+              <Skeleton className="h-6 w-20 rounded" />
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="md:hidden space-y-3">
+        {Array.from({ length: rows }).map((_, i) => (
+          <div
+            key={i}
+            className="flex items-center gap-3 rounded-2xl bg-card shadow-card px-4 py-3"
+          >
+            <Skeleton className="w-9 h-9 rounded-full" />
+            <div className="flex-1 space-y-1.5">
+              <Skeleton className="h-3.5 w-24" />
+              <Skeleton className="h-3 w-14" />
+            </div>
+            <Skeleton className="h-3.5 w-16" />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -344,11 +389,7 @@ function MigratedTab({ navigate }: { navigate: (p: string) => void }) {
   const connected = data?.connected ?? false;
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <MarketTableSkeleton />;
   }
 
   return (
@@ -475,9 +516,7 @@ export default function Markets() {
       ) : tab === "watchlist" ? (
         <Watchlist onNavigate={(mint) => navigate(`/?token=${mint}`)} />
       ) : isLoading ? (
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-        </div>
+        <MarketTableSkeleton />
       ) : (
         <>
           <MarketTable tokens={tokens.slice(0, visible)} navigate={navigate} />

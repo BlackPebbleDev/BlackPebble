@@ -106,6 +106,7 @@ import {
 } from "@/components/trade-warning-card";
 import { cn } from "@/lib/utils";
 import { AllOrders } from "@/components/position-orders";
+import { Skeleton } from "@/components/ui/skeleton";
 import { TokenChartPanel } from "@/components/tv-chart";
 import { TokenIntelligenceSection } from "@/components/token-intel";
 import { BeginnerGuide } from "@/components/beginner-guide";
@@ -2819,8 +2820,23 @@ export default function TradingDesk() {
 
   if (isLoading) {
     return (
-      <div className="flex-1 flex items-center justify-center py-20">
-        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      <div className="flex-1 w-full max-w-6xl mx-auto px-4 md:px-6 py-6">
+        <div className="flex items-center gap-3 mb-6">
+          <Skeleton className="w-10 h-10 rounded-full" />
+          <div className="space-y-2">
+            <Skeleton className="h-5 w-40" />
+            <Skeleton className="h-3.5 w-24" />
+          </div>
+          <Skeleton className="h-7 w-28 ml-auto rounded" />
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-4">
+          <Skeleton className="h-[360px] w-full rounded-2xl" />
+          <div className="space-y-3">
+            <Skeleton className="h-10 w-full rounded" />
+            <Skeleton className="h-24 w-full rounded-2xl" />
+            <Skeleton className="h-12 w-full rounded" />
+          </div>
+        </div>
       </div>
     );
   }
