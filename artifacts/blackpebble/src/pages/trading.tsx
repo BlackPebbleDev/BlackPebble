@@ -48,7 +48,6 @@ import {
   THESIS_CONTENT_MAX,
 } from "@/lib/api";
 import { MoreMenu } from "@/components/more-menu";
-import { tradingViewSymbolForMint } from "@/lib/tradingview";
 import { ShareToken } from "@/components/share-token";
 import { TradeList } from "@/components/trade-list";
 import { OpenPositions } from "@/components/open-positions";
@@ -3003,7 +3002,6 @@ export default function TradingDesk() {
               mint={info.mint}
               pairAddress={info.pairAddress}
               isPumpFun={isPumpFunToken(info)}
-              tradingViewSymbol={tradingViewSymbolForMint(info.mint)}
             />
           </div>
           <div className="lg:order-2">
