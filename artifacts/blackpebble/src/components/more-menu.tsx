@@ -1,7 +1,13 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { CandlestickChart, ExternalLink, MoreHorizontal } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import {
+  BarChart3,
+  CandlestickChart,
+  ExternalLink,
+  MoreHorizontal,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
-import { tradingViewSymbolForMint, tradingViewUrl } from "@/lib/tradingview";
+import { api } from "@/lib/api";
 
 type ProviderCategory = "trading" | "analytics" | "research";
 
@@ -132,21 +138,6 @@ const PROVIDERS: ExternalProvider[] = [
     buildHref: (mint) => `https://birdeye.so/token/${mint}?chain=solana`,
   },
   {
-    label: "TradingView",
-    category: "analytics",
-    // No official TradingView brand mark - a neutral chart icon in the same
-    // circular slot as the other resources.
-    icon: <CandlestickChart className="w-3 h-3" />,
-    requiresPair: false,
-    // Only listed assets (curated allowlist) get a link; never fabricated for
-    // unlisted low-cap tokens - see isVisible.
-    buildHref: (mint) => {
-      const symbol = tradingViewSymbolForMint(mint);
-      return symbol ? tradingViewUrl(symbol) : null;
-    },
-    isVisible: ({ mint }) => tradingViewSymbolForMint(mint) != null,
-  },
-  {
     label: "GeckoTerminal",
     category: "analytics",
     logo: "/provider-logos/geckoterminal.jpg",
@@ -233,12 +224,15 @@ interface MoreMenuProps {
    * show it for tokens that never touched Pump.fun.
    */
   isPumpFun?: boolean;
+  /** Token ticker - helps resolve the correct TradingView pool (base match). */
+  symbol?: string | null;
 }
 
 export function MoreMenu({
   mint,
   pairAddress,
   isPumpFun = false,
+  symbol = null,
 }: MoreMenuProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
@@ -265,15 +259,72 @@ export function MoreMenu({
 
   const pairOrMint = pairAddress ?? mint;
 
-  const grouped = CATEGORY_ORDER.map((cat) => ({
-    category: cat,
-    label: CATEGORY_LABELS[cat],
-    providers: PROVIDERS.filter(
+  // Resolve the token's TradingView symbol page live (only while the menu is
+  // open). TradingView indexes on-chain Solana tokens by contract address, so
+  // this shows the link whenever the CA actually resolves there - and hides it
+  // otherwise. Never a fabricated URL.
+  const { data: tv } = useQuery({
+    queryKey: ["tradingview-resolve", mint, symbol],
+    queryFn: () => api.resolveTradingView(mint, symbol),
+    enabled: open && !!mint,
+    staleTime: 6 * 60 * 60 * 1000,
+    retry: false,
+  });
+  const tvUrl = tv?.url ?? null;
+
+  // Resolve the token's CoinMarketCap currency page (only while the menu is
+  // open). CoinMarketCap only lists a subset of tokens, so this shows the link
+  // when the CA maps to a real CMC listing and hides it otherwise. Never a
+  // fabricated or generic search URL.
+  const { data: cmc } = useQuery({
+    queryKey: ["coinmarketcap-resolve", mint],
+    queryFn: () => api.resolveCoinMarketCap(mint),
+    enabled: open && !!mint,
+    staleTime: 6 * 60 * 60 * 1000,
+    retry: false,
+  });
+  const cmcUrl = cmc?.url ?? null;
+
+  const grouped = CATEGORY_ORDER.map((cat) => {
+    let providers = PROVIDERS.filter(
       (p) =>
         p.category === cat &&
         (!p.isVisible || p.isVisible({ isPumpFun, mint })),
-    ),
-  })).filter((group) => group.providers.length > 0);
+    );
+    // TradingView and CoinMarketCap join the Analytics section as normal
+    // resource rows when the token resolves on each platform.
+    if (cat === "analytics") {
+      if (tvUrl) {
+        providers = [
+          ...providers,
+          {
+            label: "TradingView",
+            category: "analytics",
+            // No official TradingView brand mark - a neutral chart icon in the
+            // same circular slot as the other resources.
+            icon: <CandlestickChart className="w-3 h-3" />,
+            requiresPair: false,
+            buildHref: () => tvUrl,
+          },
+        ];
+      }
+      if (cmcUrl) {
+        providers = [
+          ...providers,
+          {
+            label: "CoinMarketCap",
+            category: "analytics",
+            // No official CoinMarketCap brand mark - a neutral chart icon in the
+            // same circular slot as the other resources.
+            icon: <BarChart3 className="w-3 h-3" />,
+            requiresPair: false,
+            buildHref: () => cmcUrl,
+          },
+        ];
+      }
+    }
+    return { category: cat, label: CATEGORY_LABELS[cat], providers };
+  }).filter((group) => group.providers.length > 0);
 
   return (
     <div className="relative" ref={ref}>
