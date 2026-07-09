@@ -195,6 +195,7 @@ function TokenHeader({
   const hasBanner = !!info.bannerUrl;
   const [bannerExpanded, setBannerExpanded] = useState(false);
   const [logoExpanded, setLogoExpanded] = useState(false);
+  const [logoFailed, setLogoFailed] = useState(false);
 
   return (
     <div className="space-y-3 lg:space-y-[26px]">
@@ -242,7 +243,7 @@ function TokenHeader({
 
           {/* LEFT - logo + name + ticker + LIVE */}
           <div className="flex items-center gap-2.5 lg:gap-3 min-w-0">
-            {info.logo ? (
+            {info.logo && !logoFailed ? (
               <img
                 src={info.logo}
                 alt=""
@@ -252,7 +253,7 @@ function TokenHeader({
                 }}
                 data-testid="button-expand-logo"
                 className="w-8 h-8 lg:w-11 lg:h-11 rounded-full object-cover shrink-0 cursor-zoom-in transition-transform duration-200 hover:scale-105"
-                onError={(e) => (e.currentTarget.style.visibility = "hidden")}
+                onError={() => setLogoFailed(true)}
               />
             ) : (
               <div className="w-8 h-8 lg:w-11 lg:h-11 rounded-full bg-secondary flex items-center justify-center text-[10px] lg:text-xs shrink-0 text-muted-foreground">
@@ -2830,6 +2831,8 @@ export default function TradingDesk() {
   const {
     data: info,
     isLoading,
+    isError,
+    refetch,
     dataUpdatedAt: tokenUpdatedAt,
   } = useQuery({
     queryKey: ["token", mint, wallet],
@@ -2929,16 +2932,39 @@ export default function TradingDesk() {
   }
 
   if (!info) {
+    // Distinguish a transient load failure (offer a retry) from a token that
+    // genuinely can't be resolved, so a reviewer never sees a dead-end screen
+    // on a flaky network.
     return (
       <div className="flex-1 flex items-center justify-center py-20 px-6">
-        <div className="text-center">
-          <p className="text-muted-foreground mb-2">Token not found.</p>
-          <button
-            onClick={() => navigate("/")}
-            className="text-accent text-sm hover:underline"
-          >
-            Back to Trading Desk
-          </button>
+        <div className="w-full max-w-sm rounded-2xl bg-card shadow-card px-6 py-8 text-center">
+          <p className="text-sm font-medium text-foreground">
+            {isError ? "Couldn't load this token" : "Token not found"}
+          </p>
+          <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+            {isError
+              ? "We hit a snag fetching this token's data. Check your connection and try again."
+              : "This token isn't available on BlackPebble right now."}
+          </p>
+          <div className="mt-4 flex items-center justify-center gap-2">
+            {isError && (
+              <button
+                type="button"
+                onClick={() => void refetch()}
+                data-testid="button-token-retry"
+                className="inline-flex h-9 items-center justify-center rounded-full bg-accent px-4 text-xs font-medium text-accent-foreground transition-colors hover:bg-accent/90"
+              >
+                Try again
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => navigate("/")}
+              className="inline-flex h-9 items-center justify-center rounded-full border border-border px-4 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground hover:bg-surface-2"
+            >
+              Back to Trading Desk
+            </button>
+          </div>
         </div>
       </div>
     );
