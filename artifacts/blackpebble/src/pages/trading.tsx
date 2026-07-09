@@ -112,7 +112,7 @@ import { AllOrders } from "@/components/position-orders";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TokenChartPanel } from "@/components/tv-chart";
 import { TokenIntelligenceSection } from "@/components/token-intel";
-import { BeginnerGuide } from "@/components/beginner-guide";
+import { TradingDeskOnboarding } from "@/components/trading-desk-onboarding";
 import { ImageLightbox } from "@/components/image-lightbox";
 import {
   Tooltip as UITooltip,
@@ -2888,7 +2888,7 @@ export default function TradingDesk() {
           <LineChart className="w-7 h-7 text-accent" />
           <h1 className="text-3xl md:text-4xl font-bold tracking-tight">Trading Desk</h1>
         </div>
-        <BeginnerGuide />
+        <TradingDeskOnboarding />
         <div className="rounded-2xl bg-card shadow-card p-8 text-center">
           <p className="text-muted-foreground mb-4">
             Search for a token above, or browse Markets to find something to
@@ -2972,7 +2972,6 @@ export default function TradingDesk() {
   return (
     <TooltipProvider delayDuration={0}>
     <div className="w-full max-w-7xl mx-auto px-4 md:px-6 py-6 space-y-4">
-      <BeginnerGuide />
       <div className="flex items-center gap-3">
         <div className="flex-1">
           <TokenHeader info={info} dataUpdatedAt={tokenUpdatedAt} />
