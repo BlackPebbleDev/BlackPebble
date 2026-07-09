@@ -2002,6 +2002,15 @@ export const api = {
   // Public feature flags (read-only) consumed by the trading UI.
   featureFlags: () => request<{ flags: FeatureFlags }>("/feature-flags"),
 
+  // Resolve a token's TradingView symbol page from its mint. Returns
+  // { url: null } when TradingView doesn't list the token.
+  resolveTradingView: (mint: string, symbol?: string | null) =>
+    request<{ url: string | null }>(
+      `/tradingview/resolve?mint=${encodeURIComponent(mint)}${
+        symbol ? `&sym=${encodeURIComponent(symbol)}` : ""
+      }`,
+    ),
+
   // Real Trading Analysis - read-only on-chain intelligence (gated by feature flag).
   realAnalysis: {
     get: (wallet: string, refresh?: boolean) =>

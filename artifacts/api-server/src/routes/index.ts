@@ -19,6 +19,7 @@ import feedRouter from "./feed.js";
 import journalRouter from "./journal.js";
 import realAnalysisRouter from "./real-analysis.js";
 import campaignsRouter from "./campaigns.js";
+import tradingviewRouter from "./tradingview.js";
 
 const router: IRouter = Router();
 
@@ -42,5 +43,6 @@ router.use(feedRouter);
 router.use(journalRouter);
 router.use(realAnalysisRouter);
 router.use(campaignsRouter);
+router.use(tradingviewRouter);
 
 export default router;

@@ -3002,6 +3002,7 @@ export default function TradingDesk() {
               mint={info.mint}
               pairAddress={info.pairAddress}
               isPumpFun={isPumpFunToken(info)}
+              symbol={info.symbol}
             />
           </div>
           <div className="lg:order-2">
