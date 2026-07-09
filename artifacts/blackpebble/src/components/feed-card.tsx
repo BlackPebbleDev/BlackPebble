@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import {
   ArrowDownRight,
   ArrowUpRight,
+  BookPlus,
   ChevronDown,
   Crown,
   ExternalLink,
@@ -22,6 +23,12 @@ import type {
   FeedAggMeta,
 } from "@/lib/api";
 import { ReactionBar } from "@/components/feed-reactions";
+import { useXAuth } from "@/hooks/use-x-auth";
+import type { PickedTrade } from "@/components/journal/trade-picker";
+import {
+  JournalEntryDialog,
+  formFromPickedTrade,
+} from "@/components/journal/journal-entry-dialog";
 import {
   fmtMarketCap,
   fmtMultiple,
@@ -31,7 +38,10 @@ import {
   xProfileUrl,
 } from "@/lib/format";
 import { PnlAmount } from "@/components/pnl-amount";
+import { CurrencyAmount } from "@/components/currency-amount";
 import { UserIdentity } from "@/components/user-identity";
+import { AccountStatusChip } from "@/components/account-status-chip";
+import { TierBadge } from "@/components/tier-badge";
 import { TrustBadge, trustLabelFromScore } from "@/components/reputation-card";
 import { trackXProfileLinkClicked } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
@@ -67,14 +77,62 @@ function TokenLink({ token }: { token: FeedActivityItem["token"] }) {
   );
 }
 
-/** One labelled stat in a callout performance block. */
+/** A small "trade this token" affordance appended to a verb line. */
+function TradeLink({ token }: { token: FeedActivityItem["token"] }) {
+  if (!token.mint) return null;
+  return (
+    <Link
+      href={`/?token=${token.mint}`}
+      onClick={(e) => e.stopPropagation()}
+      className="ml-1 text-[11px] text-accent/80 hover:text-accent"
+    >
+      trade
+    </Link>
+  );
+}
+
+/** Right-aligned "View on X" link, shared by every card that has a handle. */
+function ViewOnX({ handle }: { handle: string | null }) {
+  const profileUrl = xProfileUrl(handle);
+  if (!profileUrl) return null;
+  return (
+    <a
+      href={profileUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={(e) => {
+        e.stopPropagation();
+        trackXProfileLinkClicked();
+      }}
+      className="ml-auto flex items-center gap-1 text-[11px] text-muted-foreground hover:text-accent transition-colors"
+    >
+      View on X <ExternalLink className="w-3 h-3" />
+    </a>
+  );
+}
+
+/** A small uppercase category chip (Spot, Perps, Callout, Recovery…). */
+function Chip({ label, className }: { label: string; className?: string }) {
+  return (
+    <span
+      className={cn(
+        "uppercase tracking-wider text-[10px] font-semibold rounded-full px-2 py-0.5",
+        className ?? "bg-secondary text-muted-foreground",
+      )}
+    >
+      {label}
+    </span>
+  );
+}
+
+/** One labelled stat in a callout performance / recovery block. */
 function PerfStat({
   label,
   value,
   valueClass,
 }: {
   label: string;
-  value: string;
+  value: React.ReactNode;
   valueClass?: string;
 }) {
   return (
@@ -130,7 +188,8 @@ function CalloutPerformance({ item }: { item: FeedActivityItem }) {
 /**
  * Premium metric tile — rounded, slightly darker than the parent card, subtle
  * border, clean label over a strong number. The reusable building block for
- * all data-dense feed cards.
+ * all data-dense feed cards. `value` accepts a node so tiles can host the
+ * tappable SOL/USD <CurrencyAmount>.
  */
 function MetricTile({
   label,
@@ -138,7 +197,7 @@ function MetricTile({
   valueClass,
 }: {
   label: string;
-  value: string;
+  value: React.ReactNode;
   valueClass?: string;
 }) {
   return (
@@ -168,114 +227,301 @@ function windowLabel(startSec: number, endSec: number): string {
   return `${h} hour${h === 1 ? "" : "s"}`;
 }
 
-/** Format SOL with sensible precision for feed tiles. */
-function fmtSolAmt(v: number | null | undefined): string {
-  if (v == null || !Number.isFinite(v)) return "—";
-  const abs = Math.abs(v);
-  const digits = abs >= 100 ? 1 : abs >= 1 ? 2 : 3;
-  return `${Number(v.toFixed(digits)).toLocaleString("en-US")} SOL`;
+/** Format a SOL amount for cards: trim trailing zeros, max 4 dp. */
+function fmtSol(v: number | null | undefined): string {
+  if (v == null || !Number.isFinite(v)) return "0";
+  return Number(v.toFixed(4)).toString();
 }
 
-/**
- * Metric tiles for perps events, from the structured meta payload: entry/exit
- * market cap, margin, position size, and the liquidation trigger when the
- * position was liquidated. Renders nothing for pre-upgrade rows without meta.
- */
-function LeverageMetrics({ item }: { item: FeedActivityItem }) {
-  const meta = (item.meta ?? {}) as {
-    marginSol?: number | null;
-    notionalSol?: number | null;
-    marketCapUsd?: number | null;
-    triggerMc?: number | null;
-  };
-  const isOpen = item.action === "open";
-  const isLiq = item.action === "liquidated";
-  const tiles: { label: string; value: string; valueClass?: string }[] = [];
-  if (meta.marketCapUsd != null && meta.marketCapUsd > 0) {
-    tiles.push({
-      label: isOpen ? "Entry MC" : "Exit MC",
-      value: `${fmtMarketCap(meta.marketCapUsd)}`,
-    });
-  }
-  if (isLiq && meta.triggerMc != null && meta.triggerMc > 0) {
-    tiles.push({
-      label: "Liq. Trigger",
-      value: `${fmtMarketCap(meta.triggerMc)}`,
-      valueClass: "text-danger",
-    });
-  }
-  if (meta.marginSol != null && meta.marginSol > 0) {
-    tiles.push({ label: "Margin", value: fmtSolAmt(meta.marginSol) });
-  }
-  if (meta.notionalSol != null && meta.notionalSol > 0) {
-    tiles.push({ label: "Position Size", value: fmtSolAmt(meta.notionalSol) });
-  }
-  if (tiles.length === 0) return null;
+// ── Event visuals (the small badge overlaid on the identity avatar) ──────────
+
+interface EventVisual {
+  icon: React.ComponentType<{ className?: string }>;
+  /** Tailwind classes for the corner badge (background + icon color). */
+  tone: string;
+}
+
+const BUY_EVENT: EventVisual = { icon: ArrowUpRight, tone: "bg-success text-white" };
+const SELL_EVENT: EventVisual = { icon: ArrowDownRight, tone: "bg-danger text-white" };
+const PERPS_EVENT: EventVisual = { icon: Zap, tone: "bg-accent text-accent-foreground" };
+const CALLOUT_EVENT: EventVisual = { icon: Megaphone, tone: "bg-accent text-accent-foreground" };
+const THESIS_EVENT: EventVisual = { icon: ScrollText, tone: "bg-accent text-accent-foreground" };
+const RECOVERY_EVENT: EventVisual = { icon: Sparkles, tone: "bg-accent text-accent-foreground" };
+const CAMPAIGN_EVENT: EventVisual = { icon: Megaphone, tone: "bg-accent text-accent-foreground" };
+
+function EventBadge({ visual }: { visual: EventVisual }) {
+  const Icon = visual.icon;
   return (
-    <div
+    <span
       className={cn(
-        "mt-2.5 grid grid-cols-2 gap-2",
-        tiles.length >= 3 ? "sm:grid-cols-4" : "sm:grid-cols-2",
+        "flex h-[22px] w-[22px] lg:h-7 lg:w-7 items-center justify-center rounded-full",
+        visual.tone,
       )}
     >
-      {tiles.map((t) => (
-        <MetricTile
-          key={t.label}
-          label={t.label}
-          value={t.value}
-          valueClass={t.valueClass}
-        />
-      ))}
-    </div>
+      <Icon className="h-3.5 w-3.5 lg:h-4 lg:w-4" />
+    </span>
   );
 }
 
-/** Avatar + display name/handle that links to the in-app profile. */
+/**
+ * Avatar + display name/handle that links to the in-app profile. The event
+ * icon rides in the avatar's corner (single strong identity anchor instead of
+ * a competing medallion).
+ */
 export function FeedUserLink({
   user,
+  event,
 }: {
   user: FeedActivityItem["user"];
+  event?: EventVisual;
 }) {
   const handle = user.x_username?.trim().replace(/^@+/, "") || null;
+  const hasTrust = user.trustScore != null && user.trustScore > 0;
   return (
     <UserIdentity
       avatarUrl={user.x_avatar_url}
       displayName={user.x_display_name}
       handle={user.x_username}
       officialBadges={user.official_badges}
-      accountStatus="member"
-      tier={user.graduation_tier}
-      size="md"
+      size="feed"
       badgeSize="xs"
-      tierVariant="plain"
-      tierPosition="below"
+      pinNameRow
+      tierPosition="none"
+      align="start"
+      avatarBadge={event ? <EventBadge visual={event} /> : undefined}
       nameLink={
         handle
           ? { type: "internal", href: `/u/${encodeURIComponent(handle)}` }
           : undefined
       }
       testIdName={handle ? `link-profile-${handle}` : undefined}
+      // MEMBER sits beside the @handle (not the name) to save a row.
+      handleTrailing={<AccountStatusChip status="member" />}
+      // Trust score + progression tier share one line under the handle.
       subline={
-        user.trustScore != null && user.trustScore > 0 ? (
-          <div className="mt-0.5">
+        <div className="mt-1 flex items-center gap-2 min-w-0">
+          {hasTrust && (
             <TrustBadge
-              score={user.trustScore}
-              label={trustLabelFromScore(user.trustScore)}
+              score={user.trustScore as number}
+              label={trustLabelFromScore(user.trustScore as number)}
               size="xs"
               showLabel={false}
             />
-          </div>
-        ) : undefined
+          )}
+          <TierBadge tier={user.graduation_tier} size="sm" variant="plain" />
+        </div>
       }
     />
   );
 }
 
 /**
- * Renders a single piece of public trading activity (spot or leverage). This is
- * the primary reusable feed card; callout / thesis / achievement cards are
- * placeholders below until those engines exist.
+ * Desktop-only right-shift for a card's "lead" block (identity header + the
+ * descriptive "what they did" line). On desktop the cards are wide, so nudging
+ * the lead inward — while the metric tiles and everything below stay full
+ * width — gives a premium staggered/offset dashboard look instead of a flat
+ * left-aligned column. Mobile is untouched (base = no indent). Tunable here.
  */
+const LEAD_INDENT = "lg:pl-[15%]";
+
+/**
+ * The shared premium shell for every feed card. Two slots:
+ *  - `lead`  — the identity header (avatar + event badge + name/tier +
+ *    timestamp) plus the card's descriptive line(s); indented right on desktop.
+ *  - `children` — the full-width data region (metric tiles, breakdowns, and the
+ *    trailing chip/PnL row) that stays flush so numbers get the full width.
+ * Nothing else re-implements the chrome, so spacing/hierarchy stay identical
+ * everywhere. Tile-less cards pass all their content as `lead`.
+ */
+function CardShell({
+  item,
+  event,
+  className,
+  lead,
+  children,
+}: {
+  item: FeedActivityItem;
+  event?: EventVisual;
+  className?: string;
+  lead?: React.ReactNode;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div
+      data-testid={`feed-card-${item.id}`}
+      className={cn(
+        "rounded-xl bg-card shadow-card p-4 transition-colors hover:bg-surface-3",
+        className,
+      )}
+    >
+      <div className={LEAD_INDENT}>
+        <div className="flex items-start justify-between gap-3">
+          <FeedUserLink user={item.user} event={event} />
+          <span className="text-[11px] text-muted-foreground whitespace-nowrap flex-shrink-0">
+            {timeAgo(item.timestamp)}
+          </span>
+        </div>
+        {lead != null && <div className="mt-2.5">{lead}</div>}
+      </div>
+
+      {children}
+
+      <ReactionBar item={item} trailing={<JournalTradeButton item={item} />} />
+    </div>
+  );
+}
+
+/** win/loss/neutral from a realized PnL, for the journal prefill outcome. */
+function outcomeFromPnl(pnl: number | null): PickedTrade["outcome"] {
+  if (pnl == null) return null;
+  if (pnl > 0) return "win";
+  if (pnl < 0) return "loss";
+  return "neutral";
+}
+
+/**
+ * Build a journal prefill (PickedTrade) straight from the feed item's own data
+ * — no extra fetch. Only spot buys/sells, perps, and accumulation cards map to
+ * a journalable trade; everything else returns null. Buys/opens carry entry MC
+ * only; sells/closes carry exit MC + realized PnL.
+ */
+function feedItemToPickedTrade(item: FeedActivityItem): PickedTrade | null {
+  const token =
+    item.token.symbol?.trim() ||
+    item.token.name?.trim() ||
+    shortAddr(item.token.mint, 4) ||
+    "token";
+  const tokenMint = item.token.mint;
+  // Feed timestamps are unix seconds (tolerating an accidental ms value).
+  const ts =
+    item.timestamp > 1e12 ? Math.floor(item.timestamp / 1000) : item.timestamp;
+
+  if (item.kind === "spot") {
+    const isSell = item.action === "sell";
+    const mc = item.tradeMarketCapUsd ?? null;
+    const pnl = isSell ? (item.pnlSol ?? null) : null;
+    return {
+      source: "spot",
+      tradeType: "spot",
+      direction: "long",
+      token,
+      tokenMint,
+      ts,
+      entryMc: isSell ? null : mc,
+      exitMc: isSell ? mc : null,
+      pnlSol: pnl,
+      roiPct: null,
+      outcome: outcomeFromPnl(pnl),
+      detail: isSell ? "Sell" : "Buy",
+      leverage: null,
+    };
+  }
+
+  if (item.kind === "leverage") {
+    const meta = (item.meta ?? {}) as { marketCapUsd?: number | null };
+    const isOpen = item.action === "open";
+    const pnl = isOpen ? null : (item.pnlSol ?? null);
+    return {
+      source: "leverage",
+      tradeType: "leverage",
+      direction: item.direction === "short" ? "short" : "long",
+      token,
+      tokenMint,
+      ts,
+      entryMc: isOpen ? (meta.marketCapUsd ?? null) : null,
+      exitMc: isOpen ? null : (meta.marketCapUsd ?? null),
+      pnlSol: pnl,
+      roiPct: null,
+      outcome: outcomeFromPnl(pnl),
+      detail:
+        item.action === "liquidated"
+          ? "Liquidated"
+          : isOpen
+            ? "Opened"
+            : "Closed",
+      leverage: item.leverage ?? null,
+    };
+  }
+
+  if (item.kind === "agg") {
+    const meta = (item.meta ?? {}) as unknown as FeedAggMeta;
+    const isBuy = item.action === "accumulated";
+    const pnl = isBuy ? null : (meta.totalPnlSol ?? null);
+    return {
+      source: "spot",
+      tradeType: "spot",
+      direction: "long",
+      token,
+      tokenMint,
+      ts: meta.windowEnd ?? ts,
+      entryMc: isBuy ? (meta.avgMarketCapUsd ?? null) : null,
+      exitMc: isBuy ? null : (meta.avgMarketCapUsd ?? null),
+      pnlSol: pnl,
+      roiPct: null,
+      outcome: outcomeFromPnl(pnl),
+      detail: isBuy ? "Accumulation" : "Exit",
+      leverage: null,
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Inline "Journal this trade" affordance on the reaction row. Mirrors the
+ * reaction "React" trigger (ghost pill, tiny icon + label) but with a journal
+ * book icon, and is pinned opposite the reactions. Only shown on the viewer's
+ * OWN spot/perps/accumulation cards; opens the shared journal editor prefilled
+ * from the trade. Renders nothing (self-gates) otherwise.
+ */
+function JournalTradeButton({ item }: { item: FeedActivityItem }) {
+  const { user } = useXAuth();
+  const [open, setOpen] = useState(false);
+
+  const myHandle = user?.x_username?.trim().replace(/^@+/, "").toLowerCase();
+  const cardHandle = item.user.x_username?.trim().replace(/^@+/, "").toLowerCase();
+  const isMine = !!myHandle && myHandle === cardHandle;
+
+  const picked = useMemo(
+    () => (isMine ? feedItemToPickedTrade(item) : null),
+    [isMine, item],
+  );
+  const seed = useMemo(
+    () => (picked ? formFromPickedTrade(picked) : null),
+    [picked],
+  );
+
+  if (!seed) return null;
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen(true);
+        }}
+        data-testid={`journal-trade-${item.id}`}
+        aria-label="Journal this trade"
+        title="Journal this trade"
+        className={cn(
+          "ml-auto inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] transition-colors border border-transparent",
+          "text-muted-foreground/70 hover:text-foreground hover:bg-secondary/60",
+        )}
+      >
+        <BookPlus className="w-3.5 h-3.5" />
+        <span>Journal</span>
+      </button>
+      <JournalEntryDialog
+        open={open}
+        onOpenChange={setOpen}
+        seed={seed}
+        editingId={null}
+      />
+    </>
+  );
+}
+
 const CONVICTION_TONE: Record<string, string> = {
   low: "bg-secondary text-muted-foreground",
   medium: "bg-accent/12 text-accent",
@@ -285,80 +531,39 @@ const CONVICTION_TONE: Record<string, string> = {
 /** A callout feed item: a trader putting a token call on the record. */
 function CalloutActivityCard({ item }: { item: FeedActivityItem }) {
   const handle = item.user.x_username?.trim().replace(/^@+/, "") || null;
-  const profileUrl = xProfileUrl(handle);
   const conviction = item.conviction?.toLowerCase() || null;
 
   return (
-    <div
-      data-testid={`feed-card-${item.id}`}
-      className="rounded-xl bg-card shadow-card p-4 flex items-start gap-3 transition-colors hover:bg-surface-3"
-    >
-      <div className="mt-0.5 flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-full bg-accent/12 text-accent">
-        <Megaphone className="w-[18px] h-[18px]" />
-      </div>
-
-      <div className="min-w-0 flex-1">
-        <div className="flex items-start justify-between gap-3">
-          <FeedUserLink user={item.user} />
-          <span className="text-[11px] text-muted-foreground whitespace-nowrap flex-shrink-0">
-            {timeAgo(item.timestamp)}
-          </span>
-        </div>
-
-        <p className="mt-1.5 text-sm text-muted-foreground">
-          called <TokenLink token={item.token} />
-          {item.token.mint && (
-            <Link
-              href={`/?token=${item.token.mint}`}
-              onClick={(e) => e.stopPropagation()}
-              className="ml-1 text-[11px] text-accent/80 hover:text-accent"
-            >
-              trade
-            </Link>
-          )}
-        </p>
-
-        {item.thesis && (
-          <p className="mt-1.5 text-sm text-foreground/90 whitespace-pre-wrap break-words">
-            {item.thesis}
+    <CardShell
+      item={item}
+      event={CALLOUT_EVENT}
+      lead={
+        <>
+          <p className="text-sm text-muted-foreground">
+            called <TokenLink token={item.token} />
+            <TradeLink token={item.token} />
           </p>
+          {item.thesis && (
+            <p className="mt-1.5 text-sm text-foreground/90 whitespace-pre-wrap break-words">
+              {item.thesis}
+            </p>
+          )}
+        </>
+      }
+    >
+      <CalloutPerformance item={item} />
+
+      <div className="mt-2 flex items-center gap-2 text-xs flex-wrap">
+        <Chip label="Callout" className="bg-accent/12 text-accent" />
+        {conviction && CONVICTION_TONE[conviction] && (
+          <Chip
+            label={`${conviction} conviction`}
+            className={CONVICTION_TONE[conviction]}
+          />
         )}
-
-        <CalloutPerformance item={item} />
-
-        <div className="mt-1.5 flex items-center gap-3 text-xs flex-wrap">
-          <span className="uppercase tracking-wider text-[10px] font-semibold rounded-full px-2 py-0.5 bg-accent/12 text-accent">
-            Callout
-          </span>
-          {conviction && CONVICTION_TONE[conviction] && (
-            <span
-              className={cn(
-                "uppercase tracking-wider text-[10px] font-semibold rounded-full px-2 py-0.5",
-                CONVICTION_TONE[conviction],
-              )}
-            >
-              {conviction} conviction
-            </span>
-          )}
-          {profileUrl && (
-            <a
-              href={profileUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => {
-                e.stopPropagation();
-                trackXProfileLinkClicked();
-              }}
-              className="ml-auto flex items-center gap-1 text-[11px] text-muted-foreground hover:text-accent transition-colors"
-            >
-              View on X <ExternalLink className="w-3 h-3" />
-            </a>
-          )}
-        </div>
-
-        <ReactionBar item={item} />
+        <ViewOnX handle={handle} />
       </div>
-    </div>
+    </CardShell>
   );
 }
 
@@ -371,138 +576,88 @@ const SENTIMENT_TONE: Record<string, { label: string; cls: string }> = {
 /** A standalone thesis feed item: published research, not graded as a call. */
 function ThesisActivityCard({ item }: { item: FeedActivityItem }) {
   const handle = item.user.x_username?.trim().replace(/^@+/, "") || null;
-  const profileUrl = xProfileUrl(handle);
   const conviction = item.conviction?.toLowerCase() || null;
   const sentiment = item.sentiment?.toLowerCase() || null;
   const sent = sentiment ? SENTIMENT_TONE[sentiment] : null;
 
   return (
-    <div
-      data-testid={`feed-card-${item.id}`}
-      className="rounded-xl bg-card shadow-card p-4 flex items-start gap-3 transition-colors hover:bg-surface-3"
-    >
-      <div className="mt-0.5 flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-full bg-accent/12 text-accent">
-        <ScrollText className="w-[18px] h-[18px]" />
-      </div>
-
-      <div className="min-w-0 flex-1">
-        <div className="flex items-start justify-between gap-3">
-          <FeedUserLink user={item.user} />
-          <span className="text-[11px] text-muted-foreground whitespace-nowrap flex-shrink-0">
-            {timeAgo(item.timestamp)}
-          </span>
-        </div>
-
-        <p className="mt-1.5 text-sm text-muted-foreground">
-          published a thesis on{" "}
-          <TokenLink token={item.token} />
-          {item.token.mint && (
-            <Link
-              href={`/?token=${item.token.mint}`}
-              onClick={(e) => e.stopPropagation()}
-              className="ml-1 text-[11px] text-accent/80 hover:text-accent"
-            >
-              trade
-            </Link>
-          )}
-        </p>
-
-        {item.thesisTitle && (
-          <p className="mt-1.5 text-sm font-semibold text-foreground break-words">
-            {item.thesisTitle}
+    <CardShell
+      item={item}
+      event={THESIS_EVENT}
+      lead={
+        <>
+          <p className="text-sm text-muted-foreground">
+            published a thesis on <TokenLink token={item.token} />
+            <TradeLink token={item.token} />
           </p>
-        )}
-        {item.thesis && (
-          <p className="mt-1 text-sm text-foreground/90 whitespace-pre-wrap break-words line-clamp-4">
-            {item.thesis}
-          </p>
-        )}
 
-        <div className="mt-1.5 flex items-center gap-3 text-xs flex-wrap">
-          <span className="uppercase tracking-wider text-[10px] font-semibold rounded-full px-2 py-0.5 bg-accent/12 text-accent">
-            Thesis
-          </span>
-          {sent && (
-            <span
-              className={cn(
-                "uppercase tracking-wider text-[10px] font-semibold rounded-full px-2 py-0.5",
-                sent.cls,
-              )}
-            >
-              {sent.label}
-            </span>
+          {item.thesisTitle && (
+            <p className="mt-1.5 text-sm font-semibold text-foreground break-words">
+              {item.thesisTitle}
+            </p>
           )}
-          {conviction && CONVICTION_TONE[conviction] && (
-            <span
-              className={cn(
-                "uppercase tracking-wider text-[10px] font-semibold rounded-full px-2 py-0.5",
-                CONVICTION_TONE[conviction],
-              )}
-            >
-              {conviction} conviction
-            </span>
+          {item.thesis && (
+            <p className="mt-1 text-sm text-foreground/90 whitespace-pre-wrap break-words line-clamp-4">
+              {item.thesis}
+            </p>
           )}
-          {profileUrl && (
-            <a
-              href={profileUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => {
-                e.stopPropagation();
-                trackXProfileLinkClicked();
-              }}
-              className="ml-auto flex items-center gap-1 text-[11px] text-muted-foreground hover:text-accent transition-colors"
-            >
-              View on X <ExternalLink className="w-3 h-3" />
-            </a>
-          )}
-        </div>
 
-        <ReactionBar item={item} />
-      </div>
-    </div>
+          <div className="mt-2 flex items-center gap-2 text-xs flex-wrap">
+            <Chip label="Thesis" className="bg-accent/12 text-accent" />
+            {sent && <Chip label={sent.label} className={sent.cls} />}
+            {conviction && CONVICTION_TONE[conviction] && (
+              <Chip
+                label={`${conviction} conviction`}
+                className={CONVICTION_TONE[conviction]}
+              />
+            )}
+            <ViewOnX handle={handle} />
+          </div>
+        </>
+      }
+    />
   );
 }
 
 /**
- * Premium feed tint per achievement rarity. Higher rarities read richer (icon
- * medallion, glow, chip) so a legendary unlock feels premium in the feed.
- * Falls back to the neutral gold treatment when rarity is absent.
+ * Premium feed tint per achievement rarity. Higher rarities read richer (glow
+ * + chip) so a legendary unlock feels premium in the feed. Falls back to the
+ * neutral gold treatment when rarity is absent.
  */
 const FEED_RARITY_TINT: Record<
   BadgeRarity,
-  { icon: string; chip: string; card: string }
+  { badge: string; chip: string; card: string }
 > = {
   common: {
-    icon: "bg-zinc-500/12 text-zinc-300",
+    badge: "bg-zinc-400 text-zinc-900",
     chip: "bg-zinc-500/12 text-zinc-300",
     card: "",
   },
   rare: {
-    icon: "bg-sky-500/12 text-sky-300",
+    badge: "bg-sky-500 text-white",
     chip: "bg-sky-500/12 text-sky-300",
     card: "shadow-[0_0_12px_rgba(56,189,248,0.12)]",
   },
   epic: {
-    icon: "bg-violet-500/12 text-violet-300",
+    badge: "bg-violet-500 text-white",
     chip: "bg-violet-500/12 text-violet-300",
     card: "shadow-[0_0_14px_rgba(167,139,250,0.16)]",
   },
   legendary: {
-    icon: "bg-amber-400/14 text-amber-300",
+    badge: "bg-amber-400 text-amber-950",
     chip: "bg-amber-400/14 text-amber-300",
     card: "shadow-[0_0_16px_rgba(251,191,36,0.2)]",
   },
 };
 
 const FEED_RARITY_DEFAULT = {
-  icon: "bg-yellow-500/12 text-yellow-400",
+  badge: "bg-yellow-500 text-yellow-950",
   chip: "bg-yellow-500/12 text-yellow-400",
   card: "",
 };
 
-/** Rarity-flavored medallion icon so a legendary unlock reads richer in feed. */
-const FEED_RARITY_ICON: Record<BadgeRarity, typeof Medal> = {
+/** Rarity-flavored icon so a legendary unlock reads richer in feed. */
+const FEED_RARITY_ICON: Record<BadgeRarity, EventVisual["icon"]> = {
   common: Medal,
   rare: Medal,
   epic: Gem,
@@ -511,7 +666,6 @@ const FEED_RARITY_ICON: Record<BadgeRarity, typeof Medal> = {
 
 function AchievementActivityCard({ item }: { item: FeedActivityItem }) {
   const handle = item.user.x_username?.trim().replace(/^@+/, "") || null;
-  const profileUrl = xProfileUrl(handle);
   const badgeName = item.badgeName || item.badgeKey || "Achievement";
   const description = item.thesis;
   const tint = item.badgeRarity
@@ -525,143 +679,74 @@ function AchievementActivityCard({ item }: { item: FeedActivityItem }) {
     : Medal;
 
   return (
-    <div
-      data-testid={`feed-card-${item.id}`}
-      className={cn(
-        "rounded-xl bg-card shadow-card p-4 flex items-start gap-3 transition-colors hover:bg-surface-3",
-        tint.card,
-      )}
-    >
-      <div
-        className={cn(
-          "mt-0.5 flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-full",
-          tint.icon,
-        )}
-      >
-        <RarityIcon className="w-[18px] h-[18px]" />
-      </div>
-
-      <div className="min-w-0 flex-1">
-        <div className="flex items-start justify-between gap-3">
-          <FeedUserLink user={item.user} />
-          <span className="text-[11px] text-muted-foreground whitespace-nowrap flex-shrink-0">
-            {timeAgo(item.timestamp)}
-          </span>
-        </div>
-
-        <p className="mt-1.5 text-sm text-muted-foreground">
-          earned the{" "}
-          <span className="text-foreground font-medium">{badgeName}</span>{" "}
-          badge
-        </p>
-
-        {description && (
-          <p className="mt-1 text-sm text-foreground/70 italic">
-            {description}
+    <CardShell
+      item={item}
+      event={{ icon: RarityIcon, tone: tint.badge }}
+      className={tint.card}
+      lead={
+        <>
+          <p className="text-sm text-muted-foreground">
+            earned the{" "}
+            <span className="text-foreground font-medium">{badgeName}</span>{" "}
+            badge
           </p>
-        )}
 
-        <div className="mt-1.5 flex items-center gap-3 text-xs flex-wrap">
-          <span
-            className={cn(
-              "uppercase tracking-wider text-[10px] font-semibold rounded-full px-2 py-0.5",
-              tint.chip,
-            )}
-          >
-            {rarityLabel ?? "Achievement"}
-          </span>
-          {profileUrl && (
-            <a
-              href={profileUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => {
-                e.stopPropagation();
-                trackXProfileLinkClicked();
-              }}
-              className="ml-auto flex items-center gap-1 text-[11px] text-muted-foreground hover:text-accent transition-colors"
-            >
-              View on X <ExternalLink className="w-3 h-3" />
-            </a>
+          {description && (
+            <p className="mt-1 text-sm text-foreground/70 italic">
+              {description}
+            </p>
           )}
-        </div>
 
-        <ReactionBar item={item} />
-      </div>
-    </div>
+          <div className="mt-2 flex items-center gap-2 text-xs flex-wrap">
+            <Chip label={rarityLabel ?? "Achievement"} className={tint.chip} />
+            <ViewOnX handle={handle} />
+          </div>
+        </>
+      }
+    />
   );
-}
-
-/** Format a SOL amount for the recovery card: trim trailing zeros, max 4 dp. */
-function fmtSol(v: number | null | undefined): string {
-  if (v == null || !Number.isFinite(v)) return "0";
-  return Number(v.toFixed(4)).toString();
 }
 
 /**
  * A recovery feed item: a trader completing a wallet cleanup. Sourced from real
  * recovery_events only (successful cleanups that closed accounts). Surfaces the
- * SOL recovered and accounts closed, reusing the standard feed card styling.
+ * SOL recovered and accounts closed.
  */
-function RecoveryActivityCard({ item }: { item: FeedActivityItem }) {
+function RecoveryActivityCard({
+  item,
+  solUsd,
+}: {
+  item: FeedActivityItem;
+  solUsd: number;
+}) {
   const handle = item.user.x_username?.trim().replace(/^@+/, "") || null;
-  const profileUrl = xProfileUrl(handle);
   const sol = item.recoveredSol ?? 0;
   const closed = item.accountsClosed ?? 0;
 
   return (
-    <div
-      data-testid={`feed-card-${item.id}`}
-      className="rounded-xl bg-card shadow-card p-4 flex items-start gap-3 transition-colors hover:bg-surface-3"
-    >
-      <div className="mt-0.5 flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-full bg-accent/12 text-accent">
-        <Sparkles className="w-[18px] h-[18px]" />
-      </div>
-
-      <div className="min-w-0 flex-1">
-        <div className="flex items-start justify-between gap-3">
-          <FeedUserLink user={item.user} />
-          <span className="text-[11px] text-muted-foreground whitespace-nowrap flex-shrink-0">
-            {timeAgo(item.timestamp)}
-          </span>
-        </div>
-
-        <p className="mt-1.5 text-sm text-muted-foreground">
+    <CardShell
+      item={item}
+      event={RECOVERY_EVENT}
+      lead={
+        <p className="text-sm text-muted-foreground">
           completed a wallet cleanup
         </p>
-
-        <div className="mt-2.5 grid grid-cols-2 gap-x-4 gap-y-2 rounded-lg bg-secondary/40 px-3 py-2.5">
-          <PerfStat
-            label="SOL recovered"
-            value={`${fmtSol(sol)} SOL`}
-            valueClass="text-success"
-          />
-          <PerfStat label="Accounts closed" value={closed.toLocaleString()} />
-        </div>
-
-        <div className="mt-1.5 flex items-center gap-3 text-xs flex-wrap">
-          <span className="uppercase tracking-wider text-[10px] font-semibold rounded-full px-2 py-0.5 bg-accent/12 text-accent">
-            Recovery
-          </span>
-          {profileUrl && (
-            <a
-              href={profileUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => {
-                e.stopPropagation();
-                trackXProfileLinkClicked();
-              }}
-              className="ml-auto flex items-center gap-1 text-[11px] text-muted-foreground hover:text-accent transition-colors"
-            >
-              View on X <ExternalLink className="w-3 h-3" />
-            </a>
-          )}
-        </div>
-
-        <ReactionBar item={item} />
+      }
+    >
+      <div className="mt-2.5 grid grid-cols-2 gap-2">
+        <MetricTile
+          label="SOL recovered"
+          value={<CurrencyAmount sol={sol} solUsd={solUsd} />}
+          valueClass="text-success"
+        />
+        <MetricTile label="Accounts closed" value={closed.toLocaleString()} />
       </div>
-    </div>
+
+      <div className="mt-2 flex items-center gap-2 text-xs flex-wrap">
+        <Chip label="Recovery" className="bg-accent/12 text-accent" />
+        <ViewOnX handle={handle} />
+      </div>
+    </CardShell>
   );
 }
 
@@ -679,56 +764,42 @@ function CampaignActivityCard({ item }: { item: FeedActivityItem }) {
   const goal = item.campaignGoalSol;
 
   return (
-    <div
-      data-testid={`feed-card-${item.id}`}
-      className="rounded-xl bg-card shadow-card p-4 flex items-start gap-3 transition-colors hover:bg-surface-3"
-    >
-      <div className="mt-0.5 flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-full bg-accent/12 text-accent">
-        <Megaphone className="w-[18px] h-[18px]" />
-      </div>
+    <CardShell
+      item={item}
+      event={CAMPAIGN_EVENT}
+      lead={
+        <>
+          <p className="text-sm text-muted-foreground">
+            {verb}
+            {item.thesisTitle && (
+              <>
+                {": "}
+                <span className="text-foreground font-medium">
+                  {item.thesisTitle}
+                </span>
+              </>
+            )}
+          </p>
 
-      <div className="min-w-0 flex-1">
-        <div className="flex items-start justify-between gap-3">
-          <FeedUserLink user={item.user} />
-          <span className="text-[11px] text-muted-foreground whitespace-nowrap flex-shrink-0">
-            {timeAgo(item.timestamp)}
-          </span>
-        </div>
-
-        <p className="mt-1.5 text-sm text-muted-foreground">
-          {verb}
-          {item.thesisTitle && (
-            <>
-              {": "}
-              <span className="text-foreground font-medium">
-                {item.thesisTitle}
+          <div className="mt-2 flex items-center gap-2 text-xs flex-wrap">
+            <Chip label="Campaign" className="bg-accent/12 text-accent" />
+            {goal != null && goal > 0 && (
+              <span className="text-muted-foreground">
+                Goal {fmtSol(goal)} SOL
               </span>
-            </>
-          )}
-        </p>
-
-        <div className="mt-1.5 flex items-center gap-3 text-xs flex-wrap">
-          <span className="uppercase tracking-wider text-[10px] font-semibold rounded-full px-2 py-0.5 bg-accent/12 text-accent">
-            Campaign
-          </span>
-          {goal != null && goal > 0 && (
-            <span className="text-muted-foreground">
-              Goal {fmtSol(goal)} SOL
-            </span>
-          )}
-          {item.campaignPublicId && (
-            <Link
-              href={`/campaigns/${item.campaignPublicId}`}
-              className="ml-auto flex items-center gap-1 text-[11px] text-muted-foreground hover:text-accent transition-colors"
-            >
-              View campaign <ExternalLink className="w-3 h-3" />
-            </Link>
-          )}
-        </div>
-
-        <ReactionBar item={item} />
-      </div>
-    </div>
+            )}
+            {item.campaignPublicId && (
+              <Link
+                href={`/campaigns/${item.campaignPublicId}`}
+                className="ml-auto flex items-center gap-1 text-[11px] text-muted-foreground hover:text-accent transition-colors"
+              >
+                View campaign <ExternalLink className="w-3 h-3" />
+              </Link>
+            )}
+          </div>
+        </>
+      }
+    />
   );
 }
 
@@ -761,157 +832,134 @@ function AggTradeCard({
   const breakdown = Array.isArray(meta.breakdown) ? meta.breakdown : [];
 
   return (
-    <div
-      data-testid={`feed-card-${item.id}`}
-      className="rounded-xl bg-card shadow-card p-4 flex items-start gap-3 transition-colors hover:bg-surface-3"
+    <CardShell
+      item={item}
+      event={isBuy ? BUY_EVENT : SELL_EVENT}
+      lead={
+        <>
+          <p className="text-sm text-muted-foreground">
+            {verb} <TokenLink token={item.token} />
+          </p>
+          <p className="mt-0.5 text-xs text-muted-foreground/70">{subtitle}</p>
+        </>
+      }
     >
-      <div
-        className={cn(
-          "mt-0.5 flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-full",
-          isBuy
-            ? "bg-success/12 text-success"
-            : "bg-danger/12 text-danger",
-        )}
-      >
+      <div className="mt-2.5 grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <MetricTile
+          label={isBuy ? "Avg Entry" : "Avg Exit"}
+          value={
+            meta.avgMarketCapUsd != null
+              ? `${fmtMarketCap(meta.avgMarketCapUsd)} MC`
+              : "—"
+          }
+        />
+        <MetricTile
+          label="Total Size"
+          value={<CurrencyAmount sol={meta.totalSol} solUsd={solUsd} />}
+        />
+        <MetricTile label={isBuy ? "Buys" : "Sells"} value={String(count)} />
         {isBuy ? (
-          <ArrowUpRight className="w-[18px] h-[18px]" />
-        ) : (
-          <ArrowDownRight className="w-[18px] h-[18px]" />
-        )}
-      </div>
-
-      <div className="min-w-0 flex-1">
-        <div className="flex items-start justify-between gap-3">
-          <FeedUserLink user={item.user} />
-          <span className="text-[11px] text-muted-foreground whitespace-nowrap flex-shrink-0">
-            {timeAgo(item.timestamp)}
-          </span>
-        </div>
-
-        <p className="mt-1.5 text-sm text-muted-foreground">
-          {verb} <TokenLink token={item.token} />
-        </p>
-        <p className="mt-0.5 text-xs text-muted-foreground/70">{subtitle}</p>
-
-        <div className="mt-2.5 grid grid-cols-2 sm:grid-cols-4 gap-2">
           <MetricTile
-            label={isBuy ? "Avg Entry" : "Avg Exit"}
+            label="Window"
+            value={windowLabel(
+              meta.windowStart ?? item.timestamp,
+              meta.windowEnd ?? item.timestamp,
+            )}
+          />
+        ) : (
+          <MetricTile
+            label="Realized PnL"
             value={
-              meta.avgMarketCapUsd != null
-                ? `${fmtMarketCap(meta.avgMarketCapUsd)} MC`
-                : "—"
+              meta.totalPnlSol != null ? (
+                <PnlAmount sol={meta.totalPnlSol} solUsd={solUsd} />
+              ) : (
+                "—"
+              )
+            }
+            valueClass={
+              meta.totalPnlSol == null
+                ? undefined
+                : meta.totalPnlSol > 0
+                  ? "text-success"
+                  : meta.totalPnlSol < 0
+                    ? "text-danger"
+                    : undefined
             }
           />
-          <MetricTile label="Total Size" value={fmtSolAmt(meta.totalSol)} />
-          <MetricTile
-            label={isBuy ? "Buys" : "Sells"}
-            value={String(count)}
-          />
-          {isBuy ? (
-            <MetricTile
-              label="Window"
-              value={windowLabel(
-                meta.windowStart ?? item.timestamp,
-                meta.windowEnd ?? item.timestamp,
+        )}
+      </div>
+
+      {breakdown.length > 0 && (
+        <div className="mt-2">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setExpanded((v) => !v);
+            }}
+            data-testid={`agg-expand-${item.id}`}
+            className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-accent transition-colors"
+          >
+            <ChevronDown
+              className={cn(
+                "w-3.5 h-3.5 transition-transform",
+                expanded && "rotate-180",
               )}
             />
-          ) : (
-            <MetricTile
-              label="Realized PnL"
-              value={
-                meta.totalPnlSol != null ? fmtSolAmt(meta.totalPnlSol) : "—"
-              }
-              valueClass={
-                meta.totalPnlSol == null
-                  ? undefined
-                  : meta.totalPnlSol > 0
-                    ? "text-success"
-                    : meta.totalPnlSol < 0
-                      ? "text-danger"
-                      : undefined
-              }
-            />
+            {expanded ? "Hide breakdown" : "View breakdown"}
+          </button>
+          {expanded && (
+            <div className="mt-2 rounded-lg bg-secondary/30 border border-border/40 divide-y divide-border/40">
+              {breakdown.map((t, i) => (
+                <div
+                  key={t.id}
+                  className="flex items-center justify-between gap-3 px-3 py-2 text-xs"
+                >
+                  <span className="text-muted-foreground/70 flex-shrink-0">
+                    {isBuy ? "Buy" : "Sell"} {i + 1}
+                  </span>
+                  <span className="font-mono tabular-nums text-muted-foreground">
+                    {t.marketCapUsd != null
+                      ? `${fmtMarketCap(t.marketCapUsd)} MC`
+                      : "—"}
+                  </span>
+                  <span className="font-mono tabular-nums text-foreground">
+                    <CurrencyAmount sol={t.solAmount} solUsd={solUsd} />
+                  </span>
+                  {!isBuy && (
+                    <span
+                      className={cn(
+                        "font-mono tabular-nums",
+                        t.pnlSol != null && t.pnlSol > 0
+                          ? "text-success"
+                          : t.pnlSol != null && t.pnlSol < 0
+                            ? "text-danger"
+                            : "text-muted-foreground",
+                      )}
+                    >
+                      {t.pnlSol != null ? (
+                        <PnlAmount sol={t.pnlSol} solUsd={solUsd} unit={false} />
+                      ) : (
+                        "—"
+                      )}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
           )}
         </div>
+      )}
 
-        {breakdown.length > 0 && (
-          <div className="mt-2">
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setExpanded((v) => !v);
-              }}
-              data-testid={`agg-expand-${item.id}`}
-              className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-accent transition-colors"
-            >
-              <ChevronDown
-                className={cn(
-                  "w-3.5 h-3.5 transition-transform",
-                  expanded && "rotate-180",
-                )}
-              />
-              {expanded ? "Hide breakdown" : "View breakdown"}
-            </button>
-            {expanded && (
-              <div className="mt-2 rounded-lg bg-secondary/30 border border-border/40 divide-y divide-border/40">
-                {breakdown.map((t, i) => (
-                  <div
-                    key={t.id}
-                    className="flex items-center justify-between gap-3 px-3 py-2 text-xs"
-                  >
-                    <span className="text-muted-foreground/70 flex-shrink-0">
-                      {isBuy ? "Buy" : "Sell"} {i + 1}
-                    </span>
-                    <span className="font-mono tabular-nums text-muted-foreground">
-                      {t.marketCapUsd != null
-                        ? `${fmtMarketCap(t.marketCapUsd)} MC`
-                        : "—"}
-                    </span>
-                    <span className="font-mono tabular-nums text-foreground">
-                      {fmtSolAmt(t.solAmount)}
-                    </span>
-                    {!isBuy && (
-                      <span
-                        className={cn(
-                          "font-mono tabular-nums",
-                          t.pnlSol != null && t.pnlSol > 0
-                            ? "text-success"
-                            : t.pnlSol != null && t.pnlSol < 0
-                              ? "text-danger"
-                              : "text-muted-foreground",
-                        )}
-                      >
-                        {t.pnlSol != null ? (
-                          <PnlAmount sol={t.pnlSol} solUsd={solUsd} unit={false} />
-                        ) : (
-                          "—"
-                        )}
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        <div className="mt-1.5 flex items-center gap-3 text-xs">
-          <span
-            className={cn(
-              "uppercase tracking-wider text-[10px] font-semibold rounded-full px-2 py-0.5",
-              isBuy
-                ? "bg-success/12 text-success"
-                : "bg-danger/12 text-danger",
-            )}
-          >
-            {isBuy ? "Accumulation" : "Exit"}
-          </span>
-        </div>
-
-        <ReactionBar item={item} />
+      <div className="mt-2 flex items-center gap-2 text-xs">
+        <Chip
+          label={isBuy ? "Accumulation" : "Exit"}
+          className={
+            isBuy ? "bg-success/12 text-success" : "bg-danger/12 text-danger"
+          }
+        />
       </div>
-    </div>
+    </CardShell>
   );
 }
 
@@ -922,18 +970,18 @@ function AggTradeCard({
  */
 const MILESTONE_STYLE: Record<
   string,
-  { icon: typeof Trophy; iconCls: string; chip: string; chipCls: string; glow: string }
+  { icon: EventVisual["icon"]; badge: string; chip: string; chipCls: string; glow: string }
 > = {
   tier_up: {
     icon: Flame,
-    iconCls: "bg-amber-400/14 text-amber-300",
+    badge: "bg-amber-400 text-amber-950",
     chip: "Milestone",
     chipCls: "bg-amber-400/14 text-amber-300",
     glow: "shadow-[0_0_14px_rgba(251,191,36,0.14)]",
   },
   follower_milestone: {
     icon: Users,
-    iconCls: "bg-sky-500/12 text-sky-300",
+    badge: "bg-sky-500 text-white",
     chip: "Community",
     chipCls: "bg-sky-500/12 text-sky-300",
     glow: "",
@@ -942,7 +990,7 @@ const MILESTONE_STYLE: Record<
 
 const MILESTONE_DEFAULT = {
   icon: Trophy,
-  iconCls: "bg-accent/12 text-accent",
+  badge: "bg-accent text-accent-foreground",
   chip: "Milestone",
   chipCls: "bg-accent/12 text-accent",
   glow: "",
@@ -950,59 +998,161 @@ const MILESTONE_DEFAULT = {
 
 function MilestoneCard({ item }: { item: FeedActivityItem }) {
   const style = MILESTONE_STYLE[item.action] ?? MILESTONE_DEFAULT;
-  const Icon = style.icon;
 
   return (
+    <CardShell
+      item={item}
+      event={{ icon: style.icon, tone: style.badge }}
+      className={style.glow}
+      lead={
+        <>
+          {item.thesisTitle && (
+            <p className="text-sm font-semibold text-foreground">
+              {item.thesisTitle}
+            </p>
+          )}
+          {item.thesis && (
+            <p className="mt-0.5 text-sm text-muted-foreground">{item.thesis}</p>
+          )}
+
+          <div className="mt-2 flex items-center gap-2 text-xs flex-wrap">
+            <Chip label={style.chip} className={style.chipCls} />
+          </div>
+        </>
+      }
+    />
+  );
+}
+
+/**
+ * Metric tiles for perps events, from the structured meta payload: entry/exit
+ * market cap, margin, position size, and the liquidation trigger when the
+ * position was liquidated. Renders nothing for pre-upgrade rows without meta.
+ */
+function LeverageMetrics({
+  item,
+  solUsd,
+}: {
+  item: FeedActivityItem;
+  solUsd: number;
+}) {
+  const meta = (item.meta ?? {}) as {
+    marginSol?: number | null;
+    notionalSol?: number | null;
+    marketCapUsd?: number | null;
+    triggerMc?: number | null;
+  };
+  const isOpen = item.action === "open";
+  const isLiq = item.action === "liquidated";
+  const tiles: { label: string; value: React.ReactNode; valueClass?: string }[] = [];
+  if (meta.marketCapUsd != null && meta.marketCapUsd > 0) {
+    tiles.push({
+      label: isOpen ? "Entry MC" : "Exit MC",
+      value: `${fmtMarketCap(meta.marketCapUsd)}`,
+    });
+  }
+  if (isLiq && meta.triggerMc != null && meta.triggerMc > 0) {
+    tiles.push({
+      label: "Liq. Trigger",
+      value: `${fmtMarketCap(meta.triggerMc)}`,
+      valueClass: "text-danger",
+    });
+  }
+  if (meta.marginSol != null && meta.marginSol > 0) {
+    tiles.push({
+      label: "Margin",
+      value: <CurrencyAmount sol={meta.marginSol} solUsd={solUsd} />,
+    });
+  }
+  if (meta.notionalSol != null && meta.notionalSol > 0) {
+    tiles.push({
+      label: "Position Size",
+      value: <CurrencyAmount sol={meta.notionalSol} solUsd={solUsd} />,
+    });
+  }
+  if (tiles.length === 0) return null;
+  return (
     <div
-      data-testid={`feed-card-${item.id}`}
       className={cn(
-        "rounded-xl bg-card shadow-card p-4 flex items-start gap-3 transition-colors hover:bg-surface-3",
-        style.glow,
+        "mt-2.5 grid grid-cols-2 gap-2",
+        tiles.length >= 3 ? "sm:grid-cols-4" : "sm:grid-cols-2",
       )}
     >
-      <div
-        className={cn(
-          "mt-0.5 flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-full",
-          style.iconCls,
-        )}
-      >
-        <Icon className="w-[18px] h-[18px]" />
-      </div>
-
-      <div className="min-w-0 flex-1">
-        <div className="flex items-start justify-between gap-3">
-          <FeedUserLink user={item.user} />
-          <span className="text-[11px] text-muted-foreground whitespace-nowrap flex-shrink-0">
-            {timeAgo(item.timestamp)}
-          </span>
-        </div>
-
-        {item.thesisTitle && (
-          <p className="mt-1.5 text-sm font-semibold text-foreground">
-            {item.thesisTitle}
-          </p>
-        )}
-        {item.thesis && (
-          <p className="mt-0.5 text-sm text-muted-foreground">{item.thesis}</p>
-        )}
-
-        <div className="mt-1.5 flex items-center gap-3 text-xs flex-wrap">
-          <span
-            className={cn(
-              "uppercase tracking-wider text-[10px] font-semibold rounded-full px-2 py-0.5",
-              style.chipCls,
-            )}
-          >
-            {style.chip}
-          </span>
-        </div>
-
-        <ReactionBar item={item} />
-      </div>
+      {tiles.map((t) => (
+        <MetricTile
+          key={t.label}
+          label={t.label}
+          value={t.value}
+          valueClass={t.valueClass}
+        />
+      ))}
     </div>
   );
 }
 
+/**
+ * Metric tiles for a spot buy/sell, from values captured at execution: the SOL
+ * size (with SOL/USD toggle), the market cap at fill (entry for buys, exit for
+ * sells) and — sells only — realized PnL. Renders nothing for legacy rows that
+ * predate these columns, so the card stays honest instead of showing zeros.
+ */
+function SpotMetrics({
+  item,
+  solUsd,
+}: {
+  item: FeedActivityItem;
+  solUsd: number;
+}) {
+  const isBuy = item.action === "buy";
+  const amount = item.tradeSolAmount;
+  const mc = item.tradeMarketCapUsd;
+  const pnl = item.pnlSol;
+  const tiles: { label: string; value: React.ReactNode; valueClass?: string }[] = [];
+  if (amount != null && amount > 0) {
+    tiles.push({
+      label: isBuy ? "Bought" : "Sold",
+      value: <CurrencyAmount sol={amount} solUsd={solUsd} />,
+    });
+  }
+  if (mc != null && mc > 0) {
+    tiles.push({
+      label: isBuy ? "Entry MC" : "Exit MC",
+      value: fmtMarketCap(mc),
+    });
+  }
+  if (!isBuy && pnl != null && Number.isFinite(pnl)) {
+    tiles.push({
+      label: "Realized PnL",
+      value: <PnlAmount sol={pnl} solUsd={solUsd} unit={false} />,
+      valueClass:
+        pnl > 0 ? "text-success" : pnl < 0 ? "text-danger" : undefined,
+    });
+  }
+  if (tiles.length === 0) return null;
+  return (
+    <div
+      className={cn(
+        "mt-2.5 grid grid-cols-2 gap-2",
+        tiles.length >= 3 && "sm:grid-cols-3",
+      )}
+    >
+      {tiles.map((t) => (
+        <MetricTile
+          key={t.label}
+          label={t.label}
+          value={t.value}
+          valueClass={t.valueClass}
+        />
+      ))}
+    </div>
+  );
+}
+
+/**
+ * The spot/leverage trade card (the default, highest-volume card). Buys, sells,
+ * perps opens/closes/liquidations. All other kinds are dispatched to their own
+ * card above.
+ */
 export function TradeActivityCard({
   item,
   solUsd,
@@ -1026,17 +1176,16 @@ export function TradeActivityCard({
     return <AchievementActivityCard item={item} />;
   }
   if (item.kind === "recovery") {
-    return <RecoveryActivityCard item={item} />;
+    return <RecoveryActivityCard item={item} solUsd={solUsd} />;
   }
   if (item.kind === "campaign") {
     return <CampaignActivityCard item={item} />;
   }
 
   const handle = item.user.x_username?.trim().replace(/^@+/, "") || null;
-  const profileUrl = xProfileUrl(handle);
 
   let verb: React.ReactNode;
-  let tone: "buy" | "sell" | "neutral" = "neutral";
+  let event: EventVisual;
   if (item.kind === "spot") {
     if (item.action === "buy") {
       verb = (
@@ -1044,138 +1193,84 @@ export function TradeActivityCard({
           bought <TokenLink token={item.token} />
         </>
       );
-      tone = "buy";
+      event = BUY_EVENT;
     } else {
       verb = (
         <>
           sold <TokenLink token={item.token} />
         </>
       );
-      tone = "sell";
+      event = SELL_EVENT;
     }
   } else {
     const lev = item.leverage ? `${item.leverage}×` : "";
     const dir = (item.direction || "").toUpperCase();
+    event = PERPS_EVENT;
     if (item.action === "open") {
       verb = (
         <>
-          opened a {lev} {dir} on{" "}
-          <TokenLink token={item.token} />
+          opened a {lev} {dir} on <TokenLink token={item.token} />
         </>
       );
-      tone = "buy";
     } else if (item.action === "liquidated") {
       verb = (
         <>
-          was liquidated on{" "}
-          <TokenLink token={item.token} />
+          was liquidated on <TokenLink token={item.token} />
         </>
       );
-      tone = "sell";
     } else {
       verb = (
         <>
-          closed a {lev} {dir} on{" "}
-          <TokenLink token={item.token} />
+          closed a {lev} {dir} on <TokenLink token={item.token} />
         </>
       );
-      tone = "sell";
     }
   }
 
   const showPnl = item.pnlSol != null && Number.isFinite(item.pnlSol);
 
   return (
-    <div
-      data-testid={`feed-card-${item.id}`}
-      className="rounded-xl bg-card shadow-card p-4 flex items-start gap-3 transition-colors hover:bg-surface-3"
-    >
-      <div
-        className={cn(
-          "mt-0.5 flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-full",
-          tone === "buy"
-            ? "bg-success/12 text-success"
-            : tone === "sell"
-              ? "bg-danger/12 text-danger"
-              : "bg-secondary text-muted-foreground",
-        )}
-      >
-        {item.kind === "leverage" ? (
-          <Zap className="w-[18px] h-[18px]" />
-        ) : tone === "buy" ? (
-          <ArrowUpRight className="w-[18px] h-[18px]" />
-        ) : (
-          <ArrowDownRight className="w-[18px] h-[18px]" />
-        )}
-      </div>
-
-      <div className="min-w-0 flex-1">
-        <div className="flex items-start justify-between gap-3">
-          <FeedUserLink user={item.user} />
-          <span className="text-[11px] text-muted-foreground whitespace-nowrap flex-shrink-0">
-            {timeAgo(item.timestamp)}
-          </span>
-        </div>
-
-        <p className="mt-1.5 text-sm text-muted-foreground">
+    <CardShell
+      item={item}
+      event={event}
+      lead={
+        <p className="text-sm text-muted-foreground">
           {verb}
-          {item.token.mint && (
-            <Link
-              href={`/?token=${item.token.mint}`}
-              onClick={(e) => e.stopPropagation()}
-              className="ml-1 text-[11px] text-accent/80 hover:text-accent"
-            >
-              trade
-            </Link>
-          )}
+          <TradeLink token={item.token} />
         </p>
+      }
+    >
+      {item.kind === "leverage" && (
+        <LeverageMetrics item={item} solUsd={solUsd} />
+      )}
+      {item.kind === "spot" && <SpotMetrics item={item} solUsd={solUsd} />}
 
-        {item.kind === "leverage" && <LeverageMetrics item={item} />}
-
-        <div className="mt-1.5 flex items-center gap-3 text-xs">
+      <div className="mt-2 flex items-center gap-2 text-xs">
+        <Chip
+          label={item.kind === "leverage" ? "Perps" : "Spot"}
+          className={
+            item.kind === "leverage"
+              ? "bg-accent/12 text-accent"
+              : "bg-secondary text-muted-foreground"
+          }
+        />
+        {showPnl && item.kind === "leverage" && (
           <span
             className={cn(
-              "uppercase tracking-wider text-[10px] font-semibold rounded-full px-2 py-0.5",
-              item.kind === "leverage"
-                ? "bg-accent/12 text-accent"
-                : "bg-secondary text-muted-foreground",
+              "font-mono",
+              (item.pnlSol as number) > 0
+                ? "text-success"
+                : (item.pnlSol as number) < 0
+                  ? "text-danger"
+                  : "text-muted-foreground",
             )}
           >
-            {item.kind === "leverage" ? "Perps" : "Spot"}
+            <PnlAmount sol={item.pnlSol} solUsd={solUsd} unit={false} />
           </span>
-          {showPnl && (
-            <span
-              className={cn(
-                "font-mono",
-                (item.pnlSol as number) > 0
-                  ? "text-success"
-                  : (item.pnlSol as number) < 0
-                    ? "text-danger"
-                    : "text-muted-foreground",
-              )}
-            >
-              <PnlAmount sol={item.pnlSol} solUsd={solUsd} unit={false} />
-            </span>
-          )}
-          {profileUrl && (
-            <a
-              href={profileUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => {
-                e.stopPropagation();
-                trackXProfileLinkClicked();
-              }}
-              className="ml-auto flex items-center gap-1 text-[11px] text-muted-foreground hover:text-accent transition-colors"
-            >
-              View on X <ExternalLink className="w-3 h-3" />
-            </a>
-          )}
-        </div>
-
-        <ReactionBar item={item} />
+        )}
+        <ViewOnX handle={handle} />
       </div>
-    </div>
+    </CardShell>
   );
 }
 

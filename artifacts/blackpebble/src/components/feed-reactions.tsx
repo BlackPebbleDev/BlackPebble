@@ -16,10 +16,11 @@ import {
 } from "@/components/ui/popover";
 
 /**
- * Premium reaction pills for feed cards. A fixed reaction vocabulary, one per
- * user per event: tapping a pill toggles it, tapping a different one moves the
- * reaction. Counts are rendered top-first; a subtle "React" affordance opens
- * the full palette when the card has no visible reactions yet.
+ * Premium reaction pills for feed cards. A fixed reaction vocabulary (16), one
+ * per user per event: tapping a pill toggles it, tapping a different one moves
+ * the reaction. The three most-used reactions show as compact pills; any
+ * further reactions collapse behind a "+N" pill that opens a full breakdown,
+ * so a heavily-reacted card never turns into a cluttered wall of pills.
  *
  * Updates are optimistic (local state), then reconciled by invalidating the
  * feed queries in the background.
@@ -32,12 +33,23 @@ const LABEL: Record<string, string> = Object.fromEntries(
   FEED_REACTIONS.map((r) => [r.key, r.label]),
 );
 
+/** How many reaction pills render inline before the rest collapse behind +N. */
+const TOP_PILLS = 3;
+
 interface LocalState {
   counts: Record<string, number>;
   mine: string | null;
 }
 
-export function ReactionBar({ item }: { item: FeedActivityItem }) {
+export function ReactionBar({
+  item,
+  trailing,
+}: {
+  item: FeedActivityItem;
+  /** Optional right-aligned action rendered opposite the reactions (e.g. the
+   *  feed's inline "Journal this trade" button). Self-gates to null when N/A. */
+  trailing?: React.ReactNode;
+}) {
   const { loggedIn, login } = useXAuth();
   const queryClient = useQueryClient();
   const [local, setLocal] = useState<LocalState>({
@@ -45,6 +57,7 @@ export function ReactionBar({ item }: { item: FeedActivityItem }) {
     mine: item.viewerReaction ?? null,
   });
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [breakdownOpen, setBreakdownOpen] = useState(false);
 
   const mutation = useMutation({
     mutationFn: (reaction: FeedReactionKey | null) =>
@@ -61,6 +74,7 @@ export function ReactionBar({ item }: { item: FeedActivityItem }) {
       return;
     }
     setPickerOpen(false);
+    setBreakdownOpen(false);
     setLocal((prev) => {
       const counts = { ...prev.counts };
       const next: FeedReactionKey | null = prev.mine === key ? null : key;
@@ -71,38 +85,110 @@ export function ReactionBar({ item }: { item: FeedActivityItem }) {
     });
   }
 
+  // Every reaction with a live count, most-used first. The viewer's own
+  // reaction is pinned into the visible pills so they can always un-toggle it.
   const visible = FEED_REACTIONS.filter(
     (r) => (local.counts[r.key] ?? 0) > 0,
   ).sort((a, b) => (local.counts[b.key] ?? 0) - (local.counts[a.key] ?? 0));
 
+  const mineIndex = local.mine
+    ? visible.findIndex((r) => r.key === local.mine)
+    : -1;
+  let top = visible.slice(0, TOP_PILLS);
+  // Keep the viewer's own reaction visible even when it isn't a top-3 count.
+  if (mineIndex >= TOP_PILLS) {
+    top = [...visible.slice(0, TOP_PILLS - 1), visible[mineIndex]];
+  }
+  const topKeys = new Set(top.map((r) => r.key));
+  const overflow = visible.filter((r) => !topKeys.has(r.key));
+
+  function Pill({ rKey }: { rKey: string }) {
+    const active = local.mine === rKey;
+    return (
+      <button
+        type="button"
+        title={LABEL[rKey]}
+        onClick={(e) => {
+          e.stopPropagation();
+          toggle(rKey as FeedReactionKey);
+        }}
+        data-testid={`reaction-${rKey}-${item.id}`}
+        className={cn(
+          "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs transition-colors border",
+          active
+            ? "bg-accent/15 border-accent/40 text-accent"
+            : "bg-secondary/50 border-transparent text-muted-foreground hover:bg-secondary hover:text-foreground",
+        )}
+      >
+        <span className="text-[13px] leading-none">{EMOJI[rKey]}</span>
+        <span className="font-mono tabular-nums text-[11px]">
+          {local.counts[rKey]}
+        </span>
+      </button>
+    );
+  }
+
   return (
     <div className="mt-2.5 flex items-center gap-1.5 flex-wrap">
-      {visible.map((r) => {
-        const active = local.mine === r.key;
-        return (
-          <button
-            key={r.key}
-            type="button"
-            title={LABEL[r.key]}
-            onClick={(e) => {
-              e.stopPropagation();
-              toggle(r.key);
-            }}
-            data-testid={`reaction-${r.key}-${item.id}`}
-            className={cn(
-              "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs transition-colors border",
-              active
-                ? "bg-accent/15 border-accent/40 text-accent"
-                : "bg-secondary/50 border-transparent text-muted-foreground hover:bg-secondary hover:text-foreground",
-            )}
+      {top.map((r) => (
+        <Pill key={r.key} rKey={r.key} />
+      ))}
+
+      {overflow.length > 0 && (
+        <Popover open={breakdownOpen} onOpenChange={setBreakdownOpen}>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              onClick={(e) => e.stopPropagation()}
+              data-testid={`reaction-overflow-${item.id}`}
+              title="Show all reactions"
+              className={cn(
+                "inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-mono tabular-nums transition-colors border border-transparent",
+                "bg-secondary/50 text-muted-foreground hover:bg-secondary hover:text-foreground",
+              )}
+            >
+              +{overflow.length}
+            </button>
+          </PopoverTrigger>
+          <PopoverContent
+            align="start"
+            sideOffset={6}
+            className="w-56 p-2 rounded-xl bg-surface-2 border-border shadow-card"
+            onClick={(e) => e.stopPropagation()}
           >
-            <span className="text-[13px] leading-none">{r.emoji}</span>
-            <span className="font-mono tabular-nums text-[11px]">
-              {local.counts[r.key]}
-            </span>
-          </button>
-        );
-      })}
+            <p className="px-1 pb-1.5 text-[10px] uppercase tracking-wider text-muted-foreground/60">
+              Reactions
+            </p>
+            <div className="space-y-0.5">
+              {visible.map((r) => {
+                const active = local.mine === r.key;
+                return (
+                  <button
+                    key={r.key}
+                    type="button"
+                    onClick={() => toggle(r.key)}
+                    data-testid={`reaction-breakdown-${r.key}-${item.id}`}
+                    className={cn(
+                      "flex w-full items-center gap-2 rounded-lg px-2 py-1 text-xs transition-colors",
+                      active
+                        ? "bg-accent/15 text-accent"
+                        : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                    )}
+                  >
+                    <span className="text-[14px] leading-none">{r.emoji}</span>
+                    <span className="flex-1 text-left truncate">
+                      {r.label}
+                    </span>
+                    <span className="font-mono tabular-nums text-[11px]">
+                      {local.counts[r.key]}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </PopoverContent>
+        </Popover>
+      )}
 
       <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
         <PopoverTrigger asChild>
@@ -137,9 +223,7 @@ export function ReactionBar({ item }: { item: FeedActivityItem }) {
                 data-testid={`reaction-pick-${r.key}-${item.id}`}
                 className={cn(
                   "flex items-center justify-center w-8 h-8 rounded-lg text-base transition-colors",
-                  local.mine === r.key
-                    ? "bg-accent/15"
-                    : "hover:bg-secondary",
+                  local.mine === r.key ? "bg-accent/15" : "hover:bg-secondary",
                 )}
               >
                 {r.emoji}
@@ -148,6 +232,8 @@ export function ReactionBar({ item }: { item: FeedActivityItem }) {
           </div>
         </PopoverContent>
       </Popover>
+
+      {trailing}
     </div>
   );
 }
