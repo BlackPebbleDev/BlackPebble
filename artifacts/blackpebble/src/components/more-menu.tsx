@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ExternalLink, MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { tradingViewUrl } from "@/lib/tradingview";
 
 type ProviderCategory = "trading" | "analytics" | "research";
 
@@ -211,9 +212,20 @@ interface MoreMenuProps {
    * show it for tokens that never touched Pump.fun.
    */
   isPumpFun?: boolean;
+  /**
+   * TradingView symbol for this asset (from the curated allowlist), or null.
+   * When present, a subtle "View on TradingView" resource link is shown. Never
+   * fabricated for unlisted tokens.
+   */
+  tradingViewSymbol?: string | null;
 }
 
-export function MoreMenu({ mint, pairAddress, isPumpFun = false }: MoreMenuProps) {
+export function MoreMenu({
+  mint,
+  pairAddress,
+  isPumpFun = false,
+  tradingViewSymbol = null,
+}: MoreMenuProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
 
@@ -329,6 +341,31 @@ export function MoreMenu({ mint, pairAddress, isPumpFun = false }: MoreMenuProps
                 })}
               </div>
             ))}
+
+            {tradingViewSymbol && (
+              <div>
+                <div className="mx-3 my-1 border-t border-border/40" />
+                <div className="px-3 pt-1.5 pb-0.5">
+                  <span className="text-[9px] font-semibold uppercase tracking-widest text-muted-foreground/50 select-none">
+                    Resources
+                  </span>
+                </div>
+                <a
+                  href={tradingViewUrl(tradingViewSymbol)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => setOpen(false)}
+                  data-testid="link-tradingview"
+                  className="flex items-center gap-2.5 px-3 py-[7px] text-xs text-muted-foreground hover:text-foreground hover:bg-secondary/60 cursor-pointer transition-colors"
+                >
+                  <span className="flex w-[18px] h-[18px] shrink-0 items-center justify-center rounded-sm bg-secondary text-[9px] font-semibold text-muted-foreground uppercase">
+                    TV
+                  </span>
+                  <span className="flex-1 truncate">View on TradingView</span>
+                  <ExternalLink className="w-3 h-3 shrink-0 opacity-60" />
+                </a>
+              </div>
+            )}
           </div>
         </div>
       )}
