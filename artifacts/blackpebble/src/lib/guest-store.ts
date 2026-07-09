@@ -12,6 +12,8 @@ import {
   type OrderType,
   type TriggerType,
   type TriggerDirection,
+  type LeverageDirection,
+  type LeveragePosition,
 } from "@/lib/api";
 import { tierFromRealizedPnl } from "@/lib/tiers";
 
@@ -104,12 +106,38 @@ export interface GuestOrderRow {
   fill_reason: string | null;
 }
 
+/**
+ * A guest (demo) perps position. Kept deliberately close to the server's
+ * LeveragePosition columns so `useGuestValuedLeverage` can hydrate the same
+ * LeveragePosition shape the signed-in UI expects. Demo-only: never persisted
+ * server-side, never counts toward public reputation / leaderboards.
+ */
+export interface GuestLeverageRow {
+  id: number;
+  token_mint: string;
+  token_name: string | null;
+  token_symbol: string | null;
+  token_logo: string | null;
+  direction: LeverageDirection;
+  leverage: number;
+  margin_sol: number;
+  notional_sol: number;
+  tokens: number;
+  entry_price_sol: number;
+  entry_market_cap: number | null;
+  liq_price_sol: number;
+  liq_market_cap: number | null;
+  opened_at: number;
+}
+
 export interface GuestState {
   balance: number;
   positions: GuestPositionRow[];
   trades: GuestTrade[];
   watchlist: GuestWatchRow[];
   orders: GuestOrderRow[];
+  // Demo perps positions (public paper trading). Absent on legacy states.
+  leverage: GuestLeverageRow[];
   lastSolUsd: number;
   nextId: number;
   created_at: number;
@@ -127,6 +155,7 @@ function freshState(): GuestState {
     trades: [],
     watchlist: [],
     orders: [],
+    leverage: [],
     lastSolUsd: 0,
     nextId: 1,
     created_at: Math.floor(Date.now() / 1000),
@@ -173,6 +202,7 @@ function load(): GuestState {
       trades: parsed.trades ?? [],
       watchlist: parsed.watchlist ?? [],
       orders: parsed.orders ?? [],
+      leverage: parsed.leverage ?? [],
     };
     // A traded guest portfolio older than the reset window starts over (keeping
     // the same anon_id so funnel analytics still dedupe to one device).
@@ -1041,6 +1071,309 @@ export function useGuestValuedPositions(opts?: {
       netResultSol,
       currentMarketCapUsd,
       marketCapChangePercent,
+    };
+  });
+
+  return {
+    positions,
+    solUsd,
+    isLoading: results.some((r) => r.isLoading),
+  };
+}
+
+// --- Guest (demo) perps engine ---------------------------------------------
+//
+// Client-side mirror of the server's paper perps math (leverage-math.ts /
+// leverage.ts open + valuePositions + close). Used ONLY when the admin has
+// enabled public paper trading, so a reviewer can open, watch and close a demo
+// perps position without an X sign-in. Demo positions live in localStorage and
+// never touch the server, public profiles, reputation or the leaderboard.
+
+export const GUEST_LEVERAGE_MIN_MARGIN_SOL = 0.1;
+export const GUEST_MAX_LEVERAGE_POSITIONS = 10;
+/** Mirror of the server's MAINTENANCE_BUFFER so liq levels match exactly. */
+const GUEST_MAINTENANCE_BUFFER = 0.005;
+
+function guestLiqPriceSol(
+  entryPriceSol: number,
+  leverage: number,
+  direction: LeverageDirection,
+): number {
+  const move = 1 / leverage - GUEST_MAINTENANCE_BUFFER;
+  return direction === "short"
+    ? entryPriceSol * (1 + move)
+    : entryPriceSol * (1 - move);
+}
+
+/** Signed move oriented so a positive value is always a profit. */
+function guestDirectionalMove(
+  direction: LeverageDirection,
+  entry: number,
+  current: number,
+): number {
+  if (!(entry > 0)) return 0;
+  const raw = (current - entry) / entry;
+  return direction === "short" ? -raw : raw;
+}
+
+/** Directional move by market cap, falling back to SOL price. Null if unknown. */
+function guestMovePercent(
+  direction: LeverageDirection,
+  entryMc: number | null,
+  currentMc: number | null,
+  entryPriceSol: number,
+  currentPriceSol: number | null,
+): number | null {
+  if (currentMc != null && entryMc != null && entryMc > 0) {
+    return guestDirectionalMove(direction, entryMc, currentMc);
+  }
+  if (currentPriceSol != null && entryPriceSol > 0) {
+    return guestDirectionalMove(direction, entryPriceSol, currentPriceSol);
+  }
+  return null;
+}
+
+export interface GuestLeverageResult {
+  ok: boolean;
+  error?: string;
+  position?: GuestLeverageRow;
+  realizedPnlSol?: number;
+  balance?: number;
+}
+
+/**
+ * Open a demo perps position. `quote` must come from /trade/quote (the same
+ * slippage-adjusted price a real open uses) so the demo entry matches the
+ * server's executeOpen math exactly.
+ */
+export function guestOpenLeverage(params: {
+  mint: string;
+  name: string | null;
+  symbol: string | null;
+  logo: string | null;
+  direction: LeverageDirection;
+  leverage: number;
+  marginSol: number;
+  quote: TradeQuote;
+  marketCapUsd: number | null;
+}): GuestLeverageResult {
+  const { mint, name, symbol, logo, direction, leverage, marginSol, quote } =
+    params;
+
+  if (!Number.isFinite(marginSol) || marginSol < GUEST_LEVERAGE_MIN_MARGIN_SOL) {
+    return {
+      ok: false,
+      error: `Minimum margin is ${GUEST_LEVERAGE_MIN_MARGIN_SOL} SOL`,
+    };
+  }
+  if (!Number.isFinite(leverage) || leverage < 1) {
+    return { ok: false, error: "Invalid leverage" };
+  }
+  if (!quote.ok) {
+    return { ok: false, error: quote.error || "Position not opened." };
+  }
+  const { solUsd, effectivePriceUsd } = quote;
+  if (![effectivePriceUsd, solUsd].every((v) => Number.isFinite(v) && v > 0)) {
+    return { ok: false, error: "Price data unavailable. Position not opened." };
+  }
+  if (current.balance < marginSol) {
+    return { ok: false, error: "Margin exceeds your cash balance." };
+  }
+  if (current.leverage.length >= GUEST_MAX_LEVERAGE_POSITIONS) {
+    return {
+      ok: false,
+      error: `Maximum of ${GUEST_MAX_LEVERAGE_POSITIONS} open perps positions reached`,
+    };
+  }
+
+  const notionalSol = marginSol * leverage;
+  const notionalUsd = notionalSol * solUsd;
+  const entryPriceSol = effectivePriceUsd / solUsd;
+  const tokens = notionalUsd / effectivePriceUsd;
+  if (
+    !Number.isFinite(entryPriceSol) ||
+    entryPriceSol <= 0 ||
+    !Number.isFinite(tokens) ||
+    tokens <= 0
+  ) {
+    return { ok: false, error: "Price data unavailable. Position not opened." };
+  }
+
+  const entryMc =
+    params.marketCapUsd != null &&
+    Number.isFinite(params.marketCapUsd) &&
+    params.marketCapUsd > 0
+      ? params.marketCapUsd
+      : null;
+  const liqPriceSol = guestLiqPriceSol(entryPriceSol, leverage, direction);
+  const liqMc = entryMc != null ? entryMc * (liqPriceSol / entryPriceSol) : null;
+  const now = Math.floor(Date.now() / 1000);
+
+  let nextId = current.nextId;
+  const position: GuestLeverageRow = {
+    id: nextId++,
+    token_mint: mint,
+    token_name: name,
+    token_symbol: symbol,
+    token_logo: logo,
+    direction,
+    leverage,
+    margin_sol: marginSol,
+    notional_sol: notionalSol,
+    tokens,
+    entry_price_sol: entryPriceSol,
+    entry_market_cap: entryMc,
+    liq_price_sol: liqPriceSol,
+    liq_market_cap: liqMc,
+    opened_at: now,
+  };
+
+  setState({
+    ...current,
+    balance: current.balance - marginSol,
+    leverage: [...current.leverage, position],
+    lastSolUsd: solUsd,
+    nextId,
+    first_trade_at: current.first_trade_at ?? now,
+  });
+
+  return { ok: true, position, balance: current.balance };
+}
+
+/**
+ * Close a demo perps position at the given live price / market cap. Loss is
+ * capped at the margin (equity can never go negative), mirroring the server.
+ */
+export function guestCloseLeverage(
+  id: number,
+  currentPriceSol: number | null,
+  currentMarketCapUsd: number | null,
+): GuestLeverageResult {
+  const idx = current.leverage.findIndex((p) => p.id === id);
+  if (idx === -1) return { ok: false, error: "Position not found" };
+  const p = current.leverage[idx];
+
+  const move = guestMovePercent(
+    p.direction,
+    p.entry_market_cap,
+    currentMarketCapUsd,
+    p.entry_price_sol,
+    currentPriceSol,
+  );
+  if (move == null) {
+    return { ok: false, error: "Price data unavailable. Try again shortly." };
+  }
+  const rawPnl = p.notional_sol * move;
+  const realizedPnlSol = Math.max(rawPnl, -p.margin_sol);
+  const creditSol = Math.max(0, p.margin_sol + realizedPnlSol);
+
+  const leverage = current.leverage.slice();
+  leverage.splice(idx, 1);
+  setState({ ...current, balance: current.balance + creditSol, leverage });
+
+  return { ok: true, realizedPnlSol, balance: current.balance };
+}
+
+/**
+ * Value open demo perps positions against live token prices, producing the same
+ * LeveragePosition shape the signed-in UI consumes. Unrealized loss is floored
+ * at the margin so a demo position can never show more loss than the margin.
+ */
+export function useGuestValuedLeverage(): {
+  positions: LeveragePosition[];
+  solUsd: number;
+  isLoading: boolean;
+} {
+  const state = useGuestStore();
+  const mints = Array.from(new Set(state.leverage.map((p) => p.token_mint)));
+
+  const results = useQueries({
+    queries: mints.map((mint) => ({
+      queryKey: ["token", mint, null],
+      queryFn: () => api.getToken(mint),
+      refetchInterval: 15_000,
+      staleTime: 10_000,
+    })),
+  });
+
+  const byMint = new Map<string, (typeof results)[number]["data"]>();
+  mints.forEach((m, i) => byMint.set(m, results[i]?.data));
+
+  let solUsd = state.lastSolUsd;
+  for (const info of byMint.values()) {
+    if (info && info.priceUsd && info.priceSol && info.priceSol > 0) {
+      solUsd = info.priceUsd / info.priceSol;
+      break;
+    }
+  }
+
+  const positions: LeveragePosition[] = state.leverage.map((p) => {
+    const info = byMint.get(p.token_mint);
+    const currentPriceSol = info?.priceSol ?? null;
+    const currentMarketCapUsd = info?.marketCapUsd ?? null;
+    const direction: LeverageDirection =
+      p.direction === "short" ? "short" : "long";
+    const priceMovePercent = guestMovePercent(
+      direction,
+      p.entry_market_cap,
+      currentMarketCapUsd,
+      p.entry_price_sol,
+      currentPriceSol,
+    );
+    const rawPnl =
+      priceMovePercent != null ? p.notional_sol * priceMovePercent : null;
+    // Floor the demo loss at the margin (max loss = margin), matching the close
+    // path and the perps education copy.
+    const unrealizedPnlSol =
+      rawPnl != null ? Math.max(rawPnl, -p.margin_sol) : null;
+    const roiOnMargin =
+      unrealizedPnlSol != null && p.margin_sol > 0
+        ? unrealizedPnlSol / p.margin_sol
+        : null;
+    const positionEquitySol =
+      unrealizedPnlSol != null ? p.margin_sol + unrealizedPnlSol : null;
+    const marketCapChangePercent =
+      p.entry_market_cap != null &&
+      p.entry_market_cap > 0 &&
+      currentMarketCapUsd != null
+        ? ((currentMarketCapUsd - p.entry_market_cap) / p.entry_market_cap) * 100
+        : null;
+    return {
+      id: p.id,
+      wallet: "guest",
+      token_mint: p.token_mint,
+      token_name: p.token_name,
+      token_symbol: p.token_symbol,
+      token_logo: p.token_logo,
+      direction: p.direction,
+      leverage: p.leverage,
+      margin_sol: p.margin_sol,
+      notional_sol: p.notional_sol,
+      tokens: p.tokens,
+      entry_price_sol: p.entry_price_sol,
+      entry_market_cap: p.entry_market_cap,
+      liq_price_sol: p.liq_price_sol,
+      liq_market_cap: p.liq_market_cap,
+      tp_trigger_mc: null,
+      sl_trigger_mc: null,
+      status: "open",
+      realized_pnl_sol: null,
+      exit_price_sol: null,
+      exit_market_cap: null,
+      close_reason: null,
+      entry_slippage_percent: null,
+      entry_trade_impact_percent: null,
+      opened_at: p.opened_at,
+      updated_at: p.opened_at,
+      closed_at: null,
+      currentPriceSol,
+      currentMarketCapUsd,
+      priceMovePercent,
+      unrealizedPnlSol,
+      roiOnMargin,
+      positionEquitySol,
+      marketCapChangePercent,
+      exitOrders: [],
     };
   });
 

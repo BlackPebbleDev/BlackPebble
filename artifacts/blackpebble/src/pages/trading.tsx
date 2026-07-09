@@ -69,8 +69,10 @@ import { LiveIndicator } from "@/components/live-indicator";
 import {
   useGuestStore,
   useGuestValuedPositions,
+  useGuestValuedLeverage,
   guestBuy,
   guestSell,
+  guestCloseLeverage,
   guestCreateOrder,
   guestCreateBuyLimitOrder,
   guestWatchAdd,
@@ -78,6 +80,7 @@ import {
   guestHistory,
   getGuestState,
 } from "@/lib/guest-store";
+import { usePaperTradingAccess } from "@/lib/paper-trading-access";
 import {
   trackGuestFirstTrade,
   trackGuestSecondTrade,
@@ -191,6 +194,7 @@ function TokenHeader({
   const hasBanner = !!info.bannerUrl;
   const [bannerExpanded, setBannerExpanded] = useState(false);
   const [logoExpanded, setLogoExpanded] = useState(false);
+  const [logoFailed, setLogoFailed] = useState(false);
 
   return (
     <div className="space-y-3 lg:space-y-[26px]">
@@ -238,7 +242,7 @@ function TokenHeader({
 
           {/* LEFT - logo + name + ticker + LIVE */}
           <div className="flex items-center gap-2.5 lg:gap-3 min-w-0">
-            {info.logo ? (
+            {info.logo && !logoFailed ? (
               <img
                 src={info.logo}
                 alt=""
@@ -248,7 +252,7 @@ function TokenHeader({
                 }}
                 data-testid="button-expand-logo"
                 className="w-8 h-8 lg:w-11 lg:h-11 rounded-full object-cover shrink-0 cursor-zoom-in transition-transform duration-200 hover:scale-105"
-                onError={(e) => (e.currentTarget.style.visibility = "hidden")}
+                onError={() => setLogoFailed(true)}
               />
             ) : (
               <div className="w-8 h-8 lg:w-11 lg:h-11 rounded-full bg-secondary flex items-center justify-center text-[10px] lg:text-xs shrink-0 text-muted-foreground">
@@ -474,7 +478,7 @@ function TradeEstimate({
 
   return (
     <div
-      className="border border-border bg-background text-xs"
+      className="overflow-hidden rounded-2xl border border-border bg-surface-1 text-xs"
       data-testid="trade-estimate"
     >
       {quote.lowData && (
@@ -993,10 +997,13 @@ function LeverageSummary({
   p,
   unit,
   solUsd,
+  onClose,
 }: {
   p: LeveragePosition;
   unit: Unit;
   solUsd: number | null;
+  /** When provided, renders a Close button (used for guest demo positions). */
+  onClose?: (p: LeveragePosition) => void;
 }) {
   const curVal =
     p.unrealizedPnlSol != null ? p.notional_sol + p.unrealizedPnlSol : null;
@@ -1004,25 +1011,43 @@ function LeverageSummary({
   const liq = p.liq_market_cap;
   const dist =
     cur != null && liq != null && cur > 0 ? ((cur - liq) / cur) * 100 : null;
+  const isShort = p.direction === "short";
+  const directionLabel = isShort ? "Short" : "Long";
+  const directionColor = isShort ? "text-danger" : "text-accent";
+  const size = `${fmtTokenAmount(p.tokens)} ${p.token_symbol ?? ""}`.trim();
   return (
     <div className="space-y-1.5" data-testid="summary-leverage">
       <div className="flex items-center justify-between">
         <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-          Leverage Position
+          Perps Position
         </span>
-        <span className="text-[11px] font-semibold uppercase text-accent">
-          {p.leverage}x Long
+        <span className={cn("text-[11px] font-semibold uppercase", directionColor)}>
+          {p.leverage}x {directionLabel}
         </span>
       </div>
       <div className="flex justify-between">
-        <span className="text-muted-foreground">Margin used</span>
-        <span className="font-mono">{fmtUnitValue(p.margin_sol, unit, solUsd)}</span>
+        <span className="text-muted-foreground">Direction</span>
+        <span className={cn("font-mono font-semibold", directionColor)}>
+          {directionLabel}
+        </span>
       </div>
       <div className="flex justify-between">
-        <span className="text-muted-foreground">Position size</span>
+        <span className="text-muted-foreground">Size</span>
+        <span className="font-mono text-foreground">{size}</span>
+      </div>
+      <div className="flex justify-between">
+        <span className="text-muted-foreground">Notional</span>
         <span className="font-mono">
           {fmtUnitValue(p.notional_sol, unit, solUsd)}
         </span>
+      </div>
+      <div className="flex justify-between">
+        <span className="text-muted-foreground">Margin</span>
+        <span className="font-mono">{fmtUnitValue(p.margin_sol, unit, solUsd)}</span>
+      </div>
+      <div className="flex justify-between">
+        <span className="text-muted-foreground">Leverage</span>
+        <span className="font-mono">{p.leverage}x</span>
       </div>
       <div className="flex justify-between">
         <span className="text-muted-foreground">Current value</span>
@@ -1031,23 +1056,9 @@ function LeverageSummary({
         </span>
       </div>
       <div className="flex justify-between">
-        <span className="text-muted-foreground">Unrealized P&L</span>
-        <span className={cn("font-mono", pnlColor(p.unrealizedPnlSol ?? 0))}>
-          {p.unrealizedPnlSol != null
-            ? fmtUnitPnl(p.unrealizedPnlSol, unit, solUsd)
-            : "—"}
-        </span>
-      </div>
-      <div className="flex justify-between">
-        <span className="text-muted-foreground">ROI</span>
-        <span className={cn("font-mono", pnlColor(p.roiOnMargin ?? 0))}>
-          {p.roiOnMargin != null ? fmtPercent(p.roiOnMargin * 100) : "—"}
-        </span>
-      </div>
-      <div className="flex justify-between">
-        <span className="text-muted-foreground">Liquidation MC</span>
+        <span className="text-muted-foreground">Liq</span>
         <span className="font-mono text-danger">
-          {fmtMarketCap(p.liq_market_cap)}
+          {p.liq_market_cap != null ? `${fmtMarketCap(p.liq_market_cap)} MC` : "—"}
         </span>
       </div>
       <div className="flex justify-between">
@@ -1061,6 +1072,28 @@ function LeverageSummary({
           {dist != null ? `${dist.toFixed(1)}%` : "—"}
         </span>
       </div>
+      <div className="flex justify-between">
+        <span className="text-muted-foreground">Unrealized P&L</span>
+        <span className={cn("font-mono", pnlColor(p.unrealizedPnlSol ?? 0))}>
+          {p.unrealizedPnlSol != null
+            ? `${fmtUnitPnl(p.unrealizedPnlSol, unit, solUsd)}${
+                p.roiOnMargin != null
+                  ? ` (${fmtPercent(p.roiOnMargin * 100)})`
+                  : ""
+              }`
+            : "—"}
+        </span>
+      </div>
+      {onClose && (
+        <button
+          type="button"
+          onClick={() => onClose(p)}
+          data-testid="button-guest-leverage-close"
+          className="mt-1 flex h-9 w-full items-center justify-center rounded-xl border border-danger/40 text-xs font-medium text-danger transition-colors hover:bg-danger/15"
+        >
+          Close position
+        </button>
+      )}
     </div>
   );
 }
@@ -1094,6 +1127,7 @@ function TradePanel({
   const qc = useQueryClient();
   const flags = useFeatureFlags();
   const { login } = useXAuth();
+  const { showXAuthNudge, isGuestDemo } = usePaperTradingAccess();
   const [tradeMode, setTradeMode] = useState<"spot" | "leverage">("spot");
   const [side, setSide] = useState<"buy" | "sell">("buy");
   const [solAmount, setSolAmount] = useState("");
@@ -1171,8 +1205,9 @@ function TradePanel({
   // If the leverage feature flag is off (or turned off), never leave the panel
   // stuck in leverage mode - fall back to the spot experience.
   useEffect(() => {
-    if (!flags.leverage && tradeMode === "leverage") setTradeMode("spot");
-  }, [flags.leverage, tradeMode]);
+    if (!flags.leverage && !isGuestDemo && tradeMode === "leverage")
+      setTradeMode("spot");
+  }, [flags.leverage, isGuestDemo, tradeMode]);
 
   // Create a buy-limit entry order immediately from the Automated Orders
   // section. Spends the current buy-box Amount (converted to SOL) and delegates
@@ -1206,15 +1241,44 @@ function TradePanel({
     ? guestValued.positions.find((p) => p.token_mint === info.mint)
     : posData?.positions.find((p) => p.token_mint === info.mint);
 
-  // Leverage position for this token (signed-in only). Read-only here - the
-  // token-page Leverage box owns liquidation/TP/SL toasts, so don't announce.
+  // Leverage position for this token. Signed-in positions come from the server
+  // (read-only here - the token-page Leverage box owns liquidation/TP/SL
+  // toasts). Guest demo positions (public paper trading) come from the local
+  // guest engine so a reviewer can open, watch and close a perps position
+  // without an X sign-in.
   const { data: levData } = useQuery({
     queryKey: ["leverage-positions", wallet],
     queryFn: () => api.leverage.positions(wallet!),
     enabled: !!wallet && !isGuest && flags.leverage,
     refetchInterval: LIVE_MS.leverage,
   });
-  const levPosition = levData?.positions.find((p) => p.token_mint === info.mint);
+  const guestLev = useGuestValuedLeverage();
+  const levPosition = isGuestDemo
+    ? guestLev.positions.find((p) => p.token_mint === info.mint)
+    : levData?.positions.find((p) => p.token_mint === info.mint);
+
+  function closeGuestLeverage(p: LeveragePosition) {
+    const res = guestCloseLeverage(
+      p.id,
+      p.currentPriceSol,
+      p.currentMarketCapUsd,
+    );
+    if (!res.ok) {
+      toast({
+        title: "Close failed",
+        description: res.error,
+        variant: "destructive",
+      });
+      return;
+    }
+    toast({
+      title: "Position closed",
+      description:
+        res.realizedPnlSol != null
+          ? `P&L ${fmtUnitPnl(res.realizedPnlSol, unit, solUsd)}`
+          : undefined,
+    });
+  }
 
   const cashBalance = isGuest ? guestState.balance : account?.paper_balance;
 
@@ -1524,7 +1588,7 @@ function TradePanel({
 
   return (
     <div className="rounded-xl bg-card shadow-card overflow-hidden">
-      {isGuest && (
+      {showXAuthNudge && (
         <div
           data-testid="banner-guest-trade"
           className="border-b border-accent/30 bg-accent/10 px-4 py-3"
@@ -1540,7 +1604,7 @@ function TradePanel({
         </div>
       )}
 
-      {isGuest && savePromptOpen && (
+      {showXAuthNudge && savePromptOpen && (
         <div
           data-testid="prompt-save-guest"
           className="border-b border-accent/30 bg-accent/10 px-4 py-3"
@@ -1573,7 +1637,7 @@ function TradePanel({
         </div>
       )}
 
-      {flags.leverage && (
+      {(flags.leverage || isGuestDemo) && (
         <div className="p-3 pb-0">
           <div
             role="tablist"
@@ -1603,7 +1667,19 @@ function TradePanel({
       )}
 
       {tradeMode === "leverage" ? (
-        <LeveragePanel info={info} />
+        <>
+          <LeveragePanel info={info} />
+          {isGuestDemo && levPosition && (
+            <div className="px-4 pb-4 text-xs">
+              <LeverageSummary
+                p={levPosition}
+                unit={unit}
+                solUsd={solUsd}
+                onClose={closeGuestLeverage}
+              />
+            </div>
+          )}
+        </>
       ) : (
         <>
       <div className="px-4 pt-4">
@@ -2074,6 +2150,12 @@ function TradePanel({
                   Spot Position
                 </div>
                 <div className="flex justify-between">
+                  <span className="text-muted-foreground">Holdings</span>
+                  <span className="font-mono text-foreground">
+                    {`${fmtTokenAmount(position.total_tokens)} ${info.symbol ?? ""}`.trim()}
+                  </span>
+                </div>
+                <div className="flex justify-between">
                   <span className="text-muted-foreground">Position value</span>
                   <span className="font-mono">
                     {fmtUnitValue(position.currentValueSol, unit, solUsd)}
@@ -2091,7 +2173,12 @@ function TradePanel({
               </div>
             )}
             {levPosition && (
-              <LeverageSummary p={levPosition} unit={unit} solUsd={solUsd} />
+              <LeverageSummary
+                p={levPosition}
+                unit={unit}
+                solUsd={solUsd}
+                onClose={isGuestDemo ? closeGuestLeverage : undefined}
+              />
             )}
             {unit === "USD" && (solUsd == null || solUsd <= 0) && (
               <p className="text-[11px] text-muted-foreground">
@@ -2743,6 +2830,8 @@ export default function TradingDesk() {
   const {
     data: info,
     isLoading,
+    isError,
+    refetch,
     dataUpdatedAt: tokenUpdatedAt,
   } = useQuery({
     queryKey: ["token", mint, wallet],
@@ -2846,16 +2935,39 @@ export default function TradingDesk() {
   }
 
   if (!info) {
+    // Distinguish a transient load failure (offer a retry) from a token that
+    // genuinely can't be resolved, so a reviewer never sees a dead-end screen
+    // on a flaky network.
     return (
       <div className="flex-1 flex items-center justify-center py-20 px-6">
-        <div className="text-center">
-          <p className="text-muted-foreground mb-2">Token not found.</p>
-          <button
-            onClick={() => navigate("/")}
-            className="text-accent text-sm hover:underline"
-          >
-            Back to Trading Desk
-          </button>
+        <div className="w-full max-w-sm rounded-2xl bg-card shadow-card px-6 py-8 text-center">
+          <p className="text-sm font-medium text-foreground">
+            {isError ? "Couldn't load this token" : "Token not found"}
+          </p>
+          <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+            {isError
+              ? "We hit a snag fetching this token's data. Check your connection and try again."
+              : "This token isn't available on BlackPebble right now."}
+          </p>
+          <div className="mt-4 flex items-center justify-center gap-2">
+            {isError && (
+              <button
+                type="button"
+                onClick={() => void refetch()}
+                data-testid="button-token-retry"
+                className="inline-flex h-9 items-center justify-center rounded-full bg-accent px-4 text-xs font-medium text-accent-foreground transition-colors hover:bg-accent/90"
+              >
+                Try again
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => navigate("/")}
+              className="inline-flex h-9 items-center justify-center rounded-full border border-border px-4 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground hover:bg-surface-2"
+            >
+              Back to Trading Desk
+            </button>
+          </div>
         </div>
       </div>
     );

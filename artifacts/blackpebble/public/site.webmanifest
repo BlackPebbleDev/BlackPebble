@@ -1,7 +1,7 @@
 {
   "name": "BlackPebble",
   "short_name": "BlackPebble",
-  "description": "Professional Solana Trading, Recovery, Analytics & Utility Platform.",
+  "description": "Zero-fee Solana memecoin trading intelligence hub: paper trading, perps, wallet review, profiles, reputation, and wallet utilities.",
   "start_url": "/",
   "display": "standalone",
   "theme_color": "#000000",

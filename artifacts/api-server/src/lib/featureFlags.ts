@@ -14,6 +14,7 @@ export const FEATURE_FLAG_KEYS = [
   "leverage",
   "real_trading_analysis",
   "community_campaigns",
+  "public_paper_trading",
 ] as const;
 
 export type FeatureFlagKey = (typeof FEATURE_FLAG_KEYS)[number];
@@ -33,6 +34,11 @@ export const DEFAULT_FLAGS: FeatureFlags = {
   real_trading_analysis: false,
   // Community Campaigns - escrow-backed goal campaigns. Ships dark.
   community_campaigns: false,
+  // Public Paper Trading - lets visitors use Spot + Perps paper trading without
+  // an X sign-in (guest/demo trades stay client-side and never touch public
+  // profiles, reputation or leaderboards). Ships off; an admin enables it,
+  // typically during external review.
+  public_paper_trading: false,
 };
 
 function isFlagKey(v: string): v is FeatureFlagKey {
