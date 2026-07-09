@@ -8,68 +8,68 @@
     },
     {
       "path": "/markets",
-      "title": "Markets — Trending Solana Tokens & Analytics | BlackPebble",
-      "description": "Discover trending Solana tokens with live price, market cap, liquidity, and volume. Token analytics, watchlists, and new token discovery for memecoin traders."
+      "title": "Markets: Live Solana Tokens & Token Pages | BlackPebble",
+      "description": "Explore active Solana memecoins with live price, market cap, liquidity, charts, and token pages built for paper trading and perps practice."
     },
     {
       "path": "/discover",
-      "title": "Discover Traders & Opportunities | BlackPebble",
-      "description": "Find top Solana traders, trending tokens, and new opportunities. Explore the BlackPebble reputation network and market discovery tools."
+      "title": "Discover Traders & Profiles | BlackPebble",
+      "description": "Find Solana traders, browse public profiles, compare performance and reputation, and connect trading activity across the BlackPebble network."
     },
     {
       "path": "/leaderboard",
-      "title": "Solana Trader Leaderboard — Rankings by P&L | BlackPebble",
-      "description": "Trader leaderboards ranking Solana memecoin traders by realized profit and loss across daily, weekly, and all-time periods."
+      "title": "Solana Trader Leaderboard & Reputation | BlackPebble",
+      "description": "Rank Solana memecoin traders by realized P&L across daily, weekly, and all-time periods, with reputation, streaks, and achievements."
     },
     {
       "path": "/portfolio",
-      "title": "Portfolio Tracking — Positions & P&L | BlackPebble",
-      "description": "Track open Solana positions, realized and unrealized P&L, ROI, and full trade history in one professional paper-trading dashboard."
+      "title": "Portfolio & P&L | BlackPebble",
+      "description": "Track token holdings, position value, realized and unrealized P&L, open and closed trades, and performance trends in one place."
     },
     {
       "path": "/feed",
-      "title": "Trader Activity Feed | BlackPebble",
-      "description": "Follow public trader activity, calls, and performance across the BlackPebble Solana trading community."
+      "title": "Social Trading Feed | BlackPebble",
+      "description": "Follow trader activity, calls, theses, achievements, and market signals across the BlackPebble Solana trading community."
     },
     {
       "path": "/utilities",
       "title": "Solana Wallet Utilities & Trader Tools | BlackPebble",
-      "description": "Standalone Solana wallet utilities and trader tools: SOL recovery, wallet cleanup, trade planner, and trading journal."
+      "description": "Zero-fee Solana wallet tools and trader utilities: SOL recovery, wallet cleanup, burns, account closing, trade planner, and trading journal."
     },
     {
       "path": "/utilities/sol-recovery",
-      "title": "SOL Recovery — Recover Rent SOL from Token Accounts | BlackPebble",
-      "description": "Recover trapped rent SOL from unused and empty Solana token accounts. Scan your wallet, see recoverable SOL, and close accounts on-chain with recovery history and wallet health analytics."
+      "title": "SOL Recovery: Reclaim Rent from Token Accounts | BlackPebble",
+      "description": "Recover trapped rent SOL from unused and empty Solana token accounts. Scan your wallet, preview actions, and close accounts on-chain. Zero platform fees, no custody, no seed phrases."
     },
     {
       "path": "/utilities/wallet-cleaner",
-      "title": "Solana Wallet Cleanup — Close Empty Token Accounts | BlackPebble",
-      "description": "Clean up your Solana wallet by reviewing and closing empty token accounts, surfacing dust and recoverable rent, and keeping your wallet healthy. Manual, user-initiated cleanup."
+      "title": "Solana Wallet Cleanup & Burn Tools | BlackPebble",
+      "description": "Clean up your Solana wallet: close empty token accounts, burn junk tokens and NFTs, surface recoverable rent, and manage actions with transparent previews."
     },
     {
       "path": "/utilities/trade-planner",
-      "title": "Trade Planner — Plan Entries, Size & Exits | BlackPebble",
-      "description": "Plan Solana trades with position sizing, risk, buy limit orders, and automated take-profit and stop-loss multi-target exits."
+      "title": "Trade Planner & Calculator | BlackPebble",
+      "description": "Plan Solana entries, position size, targets, stop loss, risk, reward, liquidation levels, and perps scenarios before you trade."
     },
     {
       "path": "/utilities/journal",
-      "title": "Trading Journal — Record & Review Trades | BlackPebble",
-      "description": "Keep a Solana trading journal to record trades and review your performance and decisions over time."
+      "title": "Trading Journal | BlackPebble",
+      "description": "Track trades, setups, notes, mistakes, wins, losses, and performance over time so you can learn from your own decisions."
     },
     {
       "path": "/about",
-      "title": "About BlackPebble — Solana Paper Trading & Utilities",
-      "description": "Learn what BlackPebble is: a professional Solana trading and utility platform for memecoin traders combining paper trading, reputation, recovery, and wallet tools."
+      "title": "About BlackPebble | Solana Memecoin Trading Intelligence",
+      "description": "What BlackPebble is: a zero-fee Solana memecoin trading intelligence hub for paper trading, perps, wallet review, profiles, reputation, and wallet utilities."
     },
     {
       "path": "/features",
-      "title": "Features — Solana Trading, Reputation & Wallet Tools | BlackPebble",
-      "description": "Explore BlackPebble's features: live paper trading, market discovery, portfolio tracking, trade planning, leaderboards, trader reputation, SOL recovery, and wallet cleanup."
+      "title": "Features: Trading, Intelligence & Wallet Tools | BlackPebble",
+      "description": "Paper trading, paper perps, live token pages, trade planning, journaling, wallet-linked trade review, trader intelligence, profiles, reputation, and zero-fee wallet utilities."
     },
     {
       "path": "/roadmap",
       "title": "Vision & Roadmap | BlackPebble",
-      "description": "BlackPebble's vision and roadmap: the tools that are live today and the future direction for Solana traders and communities."
+      "description": "What is live today and what BlackPebble is building toward: community campaigns, Telegram community tools, and a full Solana trading terminal."
     }
   ]
 }
