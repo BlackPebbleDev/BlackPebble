@@ -1172,6 +1172,10 @@ export interface FeedActivityItem {
   campaignPublicId?: string | null;
   /** Campaign only: funding goal in SOL. */
   campaignGoalSol?: number | null;
+  /** Spot only: SOL size of the trade (buys and sells). */
+  tradeSolAmount?: number | null;
+  /** Spot only: market cap in USD at execution (entry for buys, exit for sells). */
+  tradeMarketCapUsd?: number | null;
   /**
    * Structured payload: FeedAggMeta for aggregates, margin/notional/MC data
    * for leverage, tokensBurned/netSol for recovery, publisher metadata for

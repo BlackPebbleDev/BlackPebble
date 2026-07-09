@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { asyncHandler } from "../lib/asyncHandler.js";
 import {
   getTrendingTokens,
+  getRankedTrendingTokens,
   forceRefreshTrending,
   getMarketStatus,
   getTokenStatsBatch,
@@ -39,7 +40,7 @@ function dedupe(tokens: MarketToken[]): MarketToken[] {
 // All three list feeds share one cached upstream fetch (getTrendingTokens,
 // TRENDING_CACHE_MS / 30s cache) but each derives a genuinely distinct ranking
 // so the tabs don't mirror each other:
-//   • trending → most active right now (24h transaction count)
+//   • trending → hottest right now (quality-floored + multi-signal trending score)
 //   • gainers  → biggest positive 24h price movers
 //   • volume   → highest 24h USD volume
 /** Attach feed freshness (when the upstream feed was last fetched) so the
@@ -56,11 +57,10 @@ function withFreshness(tokens: MarketToken[]) {
 router.get(
   "/markets/trending",
   asyncHandler(async (_req, res) => {
-    const tokens = dedupe(await getTrendingTokens());
-    const sorted = [...tokens].sort(
-      (a, b) => (b.txns24h ?? 0) - (a.txns24h ?? 0),
-    );
-    return res.json(withFreshness(sorted));
+    // Quality-floored + scored: drops dead/micro-cap/sell-dominated tokens and
+    // ranks the rest on momentum + buy pressure + breadth (see prices.ts).
+    const tokens = dedupe(await getRankedTrendingTokens());
+    return res.json(withFreshness(tokens));
   }),
 );
 

@@ -465,18 +465,38 @@ export async function searchTokens(query: string): Promise<SearchResult[]> {
 
 export interface MarketToken extends SearchResult {
   txns24h: number | null;
+  // ── Trending-quality signals (all already present in the DexScreener pair we
+  //    fetch; surfaced so the trending ranker can score momentum + buy pressure
+  //    without any extra upstream calls). All optional / display-only. ──
+  buys24h?: number | null;
+  sells24h?: number | null;
+  buys1h?: number | null;
+  sells1h?: number | null;
+  volume6hUsd?: number | null;
+  volume1hUsd?: number | null;
+  pairCreatedAt?: number | null;
+  /** Server-computed trending score (0..100). Higher = hotter right now. */
+  trendingScore?: number | null;
 }
 
-function pairToMarketToken(p: DexPair & { txns?: { h24?: { buys?: number; sells?: number } } }): MarketToken {
+function pairToMarketToken(p: DexPair): MarketToken {
   const base = pairToSearchResult(p);
-  const txns = p.txns?.h24;
+  const h24 = p.txns?.h24;
+  const h1 = p.txns?.h1;
   // Feed the sparkline snapshot store (L5) from the trending price we already have.
   if (base.priceUsd != null) {
     recordPriceSnapshot(base.mint, base.priceUsd, base.marketCapUsd);
   }
   return {
     ...base,
-    txns24h: txns ? (txns.buys ?? 0) + (txns.sells ?? 0) : null,
+    txns24h: h24 ? (h24.buys ?? 0) + (h24.sells ?? 0) : null,
+    buys24h: h24?.buys ?? null,
+    sells24h: h24?.sells ?? null,
+    buys1h: h1?.buys ?? null,
+    sells1h: h1?.sells ?? null,
+    volume6hUsd: p.volume?.h6 ?? null,
+    volume1hUsd: p.volume?.h1 ?? null,
+    pairCreatedAt: p.pairCreatedAt ?? null,
   };
 }
 
@@ -729,6 +749,139 @@ function isDeadToken(t: MarketToken): boolean {
   if (t.liquidityUsd == null || t.liquidityUsd < MIN_LIQUIDITY_USD) return true;
   if (t.volume24hUsd == null || t.volume24hUsd < MIN_VOLUME_24H_USD) return true;
   return false;
+}
+
+// ── "Hot right now" trending ranker ─────────────────────────────────────────
+// The Markets "Trending" tab and the Feed "Hot Tokens" rail must read like a
+// credible read on what serious traders are actually piling into RIGHT NOW —
+// not "whatever paid for a boost and once had volume". Volume alone is a bad
+// signal: a token can post huge 24h volume that has entirely rolled over into
+// sells (a dying pump). So we (1) apply stricter quality FLOORS than the base
+// dead-token filter to drop dead/rug/micro-cap noise, then (2) SCORE the
+// survivors on the signals the big platforms weight — recent momentum, buy
+// pressure, transaction breadth, liquidity health and bounded price action.
+// Every signal comes from the DexScreener pair we already fetched, so ranking
+// is effectively free (no extra upstream calls). Unique makers / holder growth
+// (which DexScreener/Pump.fun weight heavily) aren't in our data, so buy/sell
+// balance + txn breadth stand in as the "organic interest" proxy.
+
+/** Stricter floors for the trending/hot list — kills the embarrassing micro-cap
+ *  corpses that clear the base dead-token bar but nobody would call "hot". */
+const TRENDING_MIN_LIQUIDITY_USD = 15_000;
+const TRENDING_MIN_VOLUME_24H_USD = 10_000;
+const TRENDING_MIN_MARKET_CAP_USD = 50_000;
+/** A 24h book more than ~70% sells is a token being dumped, not a hot one. */
+const TRENDING_MIN_BUY_RATIO = 0.3;
+
+/** 24h buy pressure in 0..1 (buys / total txns), or null when unknown. */
+function buyRatio24h(t: MarketToken): number | null {
+  const buys = t.buys24h;
+  const sells = t.sells24h;
+  if (buys == null || sells == null) return null;
+  const total = buys + sells;
+  if (total <= 0) return null;
+  return buys / total;
+}
+
+/**
+ * Whether a token is credible enough to appear in the trending/hot list. Beyond
+ * the base dead-token bar this requires real market cap + liquidity + volume,
+ * that it isn't a stale pair (no recent volume while posting 24h volume), and
+ * that it isn't overwhelmingly being sold off.
+ */
+export function passesTrendingFloor(t: MarketToken): boolean {
+  if (isDeadToken(t)) return false;
+  if ((t.marketCapUsd ?? 0) < TRENDING_MIN_MARKET_CAP_USD) return false;
+  if ((t.liquidityUsd ?? 0) < TRENDING_MIN_LIQUIDITY_USD) return false;
+  if ((t.volume24hUsd ?? 0) < TRENDING_MIN_VOLUME_24H_USD) return false;
+  // Stale/dead: reports 24h volume but has gone quiet across the last 6h.
+  if (
+    t.volume1hUsd != null &&
+    t.volume6hUsd != null &&
+    t.volume1hUsd <= 0 &&
+    t.volume6hUsd <= 0
+  ) {
+    return false;
+  }
+  // Sell-dominated: mostly exits, so not "hot" in any real sense.
+  const ratio = buyRatio24h(t);
+  if (ratio != null && ratio < TRENDING_MIN_BUY_RATIO) return false;
+  return true;
+}
+
+const clamp01 = (n: number) => (n < 0 ? 0 : n > 1 ? 1 : n);
+
+/**
+ * Trending score in 0..100 for a token that already cleared the floor. Weighted
+ * blend of the signals the major platforms rank on:
+ *  - momentum/velocity 32% — recent hourly trade rate vs the 24h baseline
+ *    (acceleration is what "trending" really means),
+ *  - buy pressure 24% — recent buys / total (real demand, not a dump),
+ *  - txn breadth 18% — log-scaled 24h transaction count (proxy for wide interest),
+ *  - liquidity health 14% — log-scaled liquidity (deep enough to be real),
+ *  - price action 12% — bounded 24h change (reward up-moves, cap blow-off spikes).
+ */
+export function scoreTrending(t: MarketToken): number {
+  const vol24 = t.volume24hUsd ?? 0;
+
+  // 1) Momentum: recent hourly volume rate ÷ 24h average hourly rate. >1 means
+  //    it's heating up. Prefer the 1h window; fall back to 6h; neutral if blind.
+  let momentum = 0.3;
+  if (vol24 > 0) {
+    const baseHourly = vol24 / 24;
+    if (t.volume1hUsd != null) {
+      momentum = clamp01(t.volume1hUsd / baseHourly / 3);
+    } else if (t.volume6hUsd != null) {
+      momentum = clamp01(t.volume6hUsd / 6 / baseHourly / 3);
+    }
+  }
+
+  // 2) Buy pressure: prefer the 1h book, fall back to 24h, neutral if unknown.
+  let buyPressure = 0.5;
+  const b1 = t.buys1h;
+  const s1 = t.sells1h;
+  if (b1 != null && s1 != null && b1 + s1 > 0) {
+    buyPressure = b1 / (b1 + s1);
+  } else {
+    const r = buyRatio24h(t);
+    if (r != null) buyPressure = r;
+  }
+
+  // 3) Transaction breadth: log-scaled toward ~5k txns/24h (Solana-competitive).
+  const txns = t.txns24h ?? 0;
+  const breadth = clamp01(Math.log10(txns + 1) / Math.log10(5000));
+
+  // 4) Liquidity health: log-scaled toward ~$250k (deep, not necessarily huge).
+  const liq = t.liquidityUsd ?? 0;
+  const liquidity = liq > 0 ? clamp01(Math.log10(liq) / Math.log10(250_000)) : 0;
+
+  // 5) Price action: flat = 0.5, +100% → 1, −50% → 0. Positive favoured, spikes capped.
+  const pc = t.priceChange24h ?? 0;
+  const price =
+    pc >= 0 ? clamp01(0.5 + Math.min(pc / 200, 0.5)) : clamp01(0.5 + pc / 100);
+
+  const score =
+    0.32 * momentum +
+    0.24 * buyPressure +
+    0.18 * breadth +
+    0.14 * liquidity +
+    0.12 * price;
+  return Math.round(score * 1000) / 10;
+}
+
+/**
+ * The ranked trending/hot list: dead + micro-cap + sell-dominated tokens
+ * filtered out, survivors scored and sorted hottest-first, each tagged with its
+ * `trendingScore`. Reads the same 30s-cached candidate set as everything else,
+ * so this adds no upstream cost. Powers both the Markets "Trending" tab and the
+ * Feed "Hot Tokens" rail.
+ */
+export async function getRankedTrendingTokens(): Promise<MarketToken[]> {
+  const tokens = await getTrendingTokens();
+  return tokens
+    .filter(passesTrendingFloor)
+    .map((t) => ({ ...t, trendingScore: scoreTrending(t) }))
+    .sort((a, b) => (b.trendingScore ?? 0) - (a.trendingScore ?? 0));
 }
 
 /**

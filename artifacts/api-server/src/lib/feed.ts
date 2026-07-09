@@ -93,6 +93,10 @@ export interface FeedActivityItem {
   /** Campaign only: public id + goal. */
   campaignPublicId: string | null;
   campaignGoalSol: number | null;
+  /** Spot only: SOL size of the trade (buys and sells). */
+  tradeSolAmount: number | null;
+  /** Spot only: market cap in USD at execution (entry for buys, exit for sells). */
+  tradeMarketCapUsd: number | null;
   /**
    * Structured payload. Aggregates: { tradeCount, windowStart, windowEnd,
    * totalSol, avgMarketCapUsd, totalPnlSol, breakdown[] }. Leverage:
@@ -627,6 +631,8 @@ function mapRow(r: ActivityRow): FeedActivityItem {
     accountsClosed: isRecovery ? r.leverage : null,
     campaignPublicId: isCampaign ? r.token_mint : null,
     campaignGoalSol: isCampaign ? r.pnl_sol : null,
+    tradeSolAmount: r.kind === "spot" ? r.sol_amount : null,
+    tradeMarketCapUsd: r.kind === "spot" ? r.mcap : null,
     meta: r.meta ?? null,
     reactions: {},
     viewerReaction: null,
@@ -679,6 +685,8 @@ function mapAggGroup(
     accountsClosed: null,
     campaignPublicId: null,
     campaignGoalSol: null,
+    tradeSolAmount: null,
+    tradeMarketCapUsd: null,
     meta: {
       tradeCount: g.tradeCount,
       windowStart: g.windowStart,
