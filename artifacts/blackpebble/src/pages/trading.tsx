@@ -474,7 +474,7 @@ function TradeEstimate({
 
   return (
     <div
-      className="border border-border bg-background text-xs"
+      className="overflow-hidden rounded-2xl border border-border bg-surface-1 text-xs"
       data-testid="trade-estimate"
     >
       {quote.lowData && (
@@ -1004,25 +1004,43 @@ function LeverageSummary({
   const liq = p.liq_market_cap;
   const dist =
     cur != null && liq != null && cur > 0 ? ((cur - liq) / cur) * 100 : null;
+  const isShort = p.direction === "short";
+  const directionLabel = isShort ? "Short" : "Long";
+  const directionColor = isShort ? "text-danger" : "text-accent";
+  const size = `${fmtTokenAmount(p.tokens)} ${p.token_symbol ?? ""}`.trim();
   return (
     <div className="space-y-1.5" data-testid="summary-leverage">
       <div className="flex items-center justify-between">
         <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-          Leverage Position
+          Perps Position
         </span>
-        <span className="text-[11px] font-semibold uppercase text-accent">
-          {p.leverage}x Long
+        <span className={cn("text-[11px] font-semibold uppercase", directionColor)}>
+          {p.leverage}x {directionLabel}
         </span>
       </div>
       <div className="flex justify-between">
-        <span className="text-muted-foreground">Margin used</span>
-        <span className="font-mono">{fmtUnitValue(p.margin_sol, unit, solUsd)}</span>
+        <span className="text-muted-foreground">Direction</span>
+        <span className={cn("font-mono font-semibold", directionColor)}>
+          {directionLabel}
+        </span>
       </div>
       <div className="flex justify-between">
-        <span className="text-muted-foreground">Position size</span>
+        <span className="text-muted-foreground">Size</span>
+        <span className="font-mono text-foreground">{size}</span>
+      </div>
+      <div className="flex justify-between">
+        <span className="text-muted-foreground">Notional</span>
         <span className="font-mono">
           {fmtUnitValue(p.notional_sol, unit, solUsd)}
         </span>
+      </div>
+      <div className="flex justify-between">
+        <span className="text-muted-foreground">Margin</span>
+        <span className="font-mono">{fmtUnitValue(p.margin_sol, unit, solUsd)}</span>
+      </div>
+      <div className="flex justify-between">
+        <span className="text-muted-foreground">Leverage</span>
+        <span className="font-mono">{p.leverage}x</span>
       </div>
       <div className="flex justify-between">
         <span className="text-muted-foreground">Current value</span>
@@ -1031,23 +1049,9 @@ function LeverageSummary({
         </span>
       </div>
       <div className="flex justify-between">
-        <span className="text-muted-foreground">Unrealized P&L</span>
-        <span className={cn("font-mono", pnlColor(p.unrealizedPnlSol ?? 0))}>
-          {p.unrealizedPnlSol != null
-            ? fmtUnitPnl(p.unrealizedPnlSol, unit, solUsd)
-            : "—"}
-        </span>
-      </div>
-      <div className="flex justify-between">
-        <span className="text-muted-foreground">ROI</span>
-        <span className={cn("font-mono", pnlColor(p.roiOnMargin ?? 0))}>
-          {p.roiOnMargin != null ? fmtPercent(p.roiOnMargin * 100) : "—"}
-        </span>
-      </div>
-      <div className="flex justify-between">
-        <span className="text-muted-foreground">Liquidation MC</span>
+        <span className="text-muted-foreground">Liq</span>
         <span className="font-mono text-danger">
-          {fmtMarketCap(p.liq_market_cap)}
+          {p.liq_market_cap != null ? `${fmtMarketCap(p.liq_market_cap)} MC` : "—"}
         </span>
       </div>
       <div className="flex justify-between">
@@ -1059,6 +1063,18 @@ function LeverageSummary({
           )}
         >
           {dist != null ? `${dist.toFixed(1)}%` : "—"}
+        </span>
+      </div>
+      <div className="flex justify-between">
+        <span className="text-muted-foreground">Unrealized P&L</span>
+        <span className={cn("font-mono", pnlColor(p.unrealizedPnlSol ?? 0))}>
+          {p.unrealizedPnlSol != null
+            ? `${fmtUnitPnl(p.unrealizedPnlSol, unit, solUsd)}${
+                p.roiOnMargin != null
+                  ? ` (${fmtPercent(p.roiOnMargin * 100)})`
+                  : ""
+              }`
+            : "—"}
         </span>
       </div>
     </div>
@@ -2072,6 +2088,12 @@ function TradePanel({
               <div className="space-y-1.5" data-testid="summary-spot">
                 <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
                   Spot Position
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Holdings</span>
+                  <span className="font-mono text-foreground">
+                    {`${fmtTokenAmount(position.total_tokens)} ${info.symbol ?? ""}`.trim()}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Position value</span>
