@@ -19,6 +19,7 @@ import { SeasonResetPrompt } from "@/components/season-reset-prompt";
 import { useAccount } from "@/hooks/use-account";
 import { useAdmin } from "@/hooks/use-admin";
 import { useOrderFillToasts } from "@/hooks/use-order-fills";
+import { useActivityToasts } from "@/hooks/use-activity-toasts";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -78,6 +79,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { isAdmin } = useAdmin();
   // Drive automatic TP/SL fill toasts for both signed-in and guest sessions.
   useOrderFillToasts();
+  // ME-scoped milestone/liquidation toasts from the viewer's own timeline.
+  useActivityToasts();
 
   // Admins get an extra nav entry to the dashboard; everyone else sees the
   // standard set unchanged.

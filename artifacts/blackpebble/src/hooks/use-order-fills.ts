@@ -2,7 +2,8 @@ import { useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, type OrderFill, type Position } from "@/lib/api";
 import { useAccount } from "@/hooks/use-account";
-import { useToast } from "@/hooks/use-toast";
+import { activityToast } from "@/lib/activity-toast";
+import type { ToastChip } from "@/hooks/use-toast";
 import {
   useGuestStore,
   useGuestValuedPositions,
@@ -10,30 +11,56 @@ import {
 } from "@/lib/guest-store";
 import { fmtMarketCap, fmtSol } from "@/lib/format";
 
-/** Toast copy + invalidations shared by all fill paths (TP/SL and buy limits). */
+/** Build metric chips from the real fields an OrderFill actually carries. */
+function fillChips(f: OrderFill): ToastChip[] {
+  const chips: ToastChip[] = [];
+  if (f.orderType === "buy_limit") {
+    if (f.solAmount != null)
+      chips.push({ label: `${fmtSol(f.solAmount)} SOL`, tone: "neutral" });
+    if (f.fillMarketCap != null)
+      chips.push({ label: `Entry ${fmtMarketCap(f.fillMarketCap)}`, tone: "neutral" });
+  } else {
+    if (f.pnl != null)
+      chips.push({
+        label: `${f.pnl >= 0 ? "+" : ""}${fmtSol(f.pnl)} SOL`,
+        tone: f.pnl >= 0 ? "up" : "down",
+      });
+    if (f.fillMarketCap != null)
+      chips.push({ label: `${fmtMarketCap(f.fillMarketCap)} MC`, tone: "neutral" });
+  }
+  return chips;
+}
+
+/**
+ * Premium typed toast + invalidations shared by all fill paths (TP/SL and buy
+ * limits). Copy only uses fields the fill actually has — no fabricated token
+ * counts / USD.
+ */
 function useFillReporter() {
-  const { toast } = useToast();
   const qc = useQueryClient();
   return (fills: OrderFill[]) => {
     for (const f of fills) {
+      const sym = f.tokenSymbol ?? "position";
       if (f.orderType === "buy_limit") {
-        toast({
-          title: `Buy Limit filled${f.tokenSymbol ? ` - ${f.tokenSymbol}` : ""}`,
-          description: `Bought ${fmtSol(f.solAmount ?? 0)} SOL at ${fmtMarketCap(f.fillMarketCap)} MC`,
+        activityToast({
+          kind: "buy_fill",
+          title: "Buy limit filled",
+          description: sym,
+          chips: fillChips(f),
+        });
+      } else if (f.orderType === "take_profit") {
+        activityToast({
+          kind: "tp_hit",
+          title: "Take profit hit",
+          description: `Sold ${f.percent}% of ${sym}`,
+          chips: fillChips(f),
         });
       } else {
-        const isTp = f.orderType === "take_profit";
-        const pnl =
-          f.pnl != null
-            ? ` · P&L ${fmtSol(f.pnl)} SOL`
-            : "";
-        toast({
-          title: `${isTp ? "Take Profit" : "Stop Loss"} filled${
-            f.tokenSymbol ? ` - ${f.tokenSymbol}` : ""
-          }`,
-          description: `Sold ${f.percent}% at ${fmtMarketCap(
-            f.fillMarketCap,
-          )} MC${pnl}`,
+        activityToast({
+          kind: "sl_hit",
+          title: "Stop loss triggered",
+          description: `Sold ${f.percent}% of ${sym}`,
+          chips: fillChips(f),
         });
       }
     }

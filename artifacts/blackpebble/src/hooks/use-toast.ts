@@ -5,14 +5,32 @@ import type {
   ToastProps,
 } from "@/components/ui/toast"
 
-const TOAST_LIMIT = 1
+// A small stack so premium activity toasts don't instantly clobber each other,
+// while still staying calm (never a wall of toasts).
+const TOAST_LIMIT = 3
 const TOAST_REMOVE_DELAY = 1000000
+
+/** A compact metric chip rendered inside a premium/activity toast. */
+export type ToastChip = {
+  label: string
+  /** Subtle tone for the value (green up / red down / neutral). */
+  tone?: "up" | "down" | "neutral"
+}
 
 type ToasterToast = ToastProps & {
   id: string
   title?: React.ReactNode
   description?: React.ReactNode
   action?: ToastActionElement
+  // ── Optional rich/typed activity fields (backward-compatible extras) ──
+  /** Leading status icon (lucide node). */
+  icon?: React.ReactNode
+  /** Sender avatar URL for social/activity toasts. */
+  pfp?: string | null
+  /** Token logo URL for trade toasts. */
+  tokenLogo?: string | null
+  /** Compact metric chips (PnL, MC, SOL, %). */
+  chips?: ToastChip[]
 }
 
 const actionTypes = {
