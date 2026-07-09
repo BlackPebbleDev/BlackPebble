@@ -109,7 +109,7 @@ import { AllOrders } from "@/components/position-orders";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TokenChartPanel } from "@/components/tv-chart";
 import { TokenIntelligenceSection } from "@/components/token-intel";
-import { BeginnerGuide } from "@/components/beginner-guide";
+import { TradingDeskOnboarding } from "@/components/trading-desk-onboarding";
 import { ImageLightbox } from "@/components/image-lightbox";
 import {
   Tooltip as UITooltip,
@@ -2799,20 +2799,24 @@ export default function TradingDesk() {
           <LineChart className="w-7 h-7 text-accent" />
           <h1 className="text-3xl md:text-4xl font-bold tracking-tight">Trading Desk</h1>
         </div>
-        <BeginnerGuide />
-        <div className="rounded-2xl bg-card shadow-card p-8 text-center">
-          <p className="text-muted-foreground mb-4">
-            Search for a token above, or browse Markets to find something to
-            paper trade.
-          </p>
-          <button
-            onClick={() => navigate("/markets")}
-            data-testid="button-browse-markets"
-            className="inline-flex items-center gap-1.5 h-10 px-4 rounded-lg text-sm font-semibold border border-accent/50 text-accent hover:bg-accent/10 transition-colors"
-          >
-            Browse Markets
-            <ArrowRight className="w-4 h-4" />
-          </button>
+        {/* Relative anchor so the onboarding overlay can float over the top of
+            the content area without pushing anything down. */}
+        <div className="relative">
+          <TradingDeskOnboarding />
+          <div className="rounded-2xl bg-card shadow-card p-8 text-center">
+            <p className="text-muted-foreground mb-4">
+              Search for a token above, or browse Markets to find something to
+              paper trade.
+            </p>
+            <button
+              onClick={() => navigate("/markets")}
+              data-testid="button-browse-markets"
+              className="inline-flex items-center gap-1.5 h-10 px-4 rounded-lg text-sm font-semibold border border-accent/50 text-accent hover:bg-accent/10 transition-colors"
+            >
+              Browse Markets
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -2860,7 +2864,6 @@ export default function TradingDesk() {
   return (
     <TooltipProvider delayDuration={0}>
     <div className="w-full max-w-7xl mx-auto px-4 md:px-6 py-6 space-y-4">
-      <BeginnerGuide />
       <div className="flex items-center gap-3">
         <div className="flex-1">
           <TokenHeader info={info} dataUpdatedAt={tokenUpdatedAt} />
@@ -2890,6 +2893,7 @@ export default function TradingDesk() {
               mint={info.mint}
               pairAddress={info.pairAddress}
               isPumpFun={isPumpFunToken(info)}
+              symbol={info.symbol}
             />
           </div>
           <div className="lg:order-2">

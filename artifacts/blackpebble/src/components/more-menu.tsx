@@ -1,6 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { ExternalLink, MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { api } from "@/lib/api";
 
 type ProviderCategory = "trading" | "analytics" | "research";
 
@@ -8,7 +10,13 @@ interface ExternalProvider {
   label: string;
   category: ProviderCategory;
   /** Absolute path from public root, e.g. "/provider-logos/axiom.jpg" */
-  logo: string;
+  logo?: string;
+  /**
+   * Neutral inline icon rendered in the circular logo slot instead of a `logo`
+   * image. Used for resources without a safe brand mark. Exactly one of `logo`
+   * or `icon` must be set.
+   */
+  icon?: ReactNode;
   /**
    * When true the provider needs a DEX pair/pool address, not just a mint.
    * If pairAddress is null the row is rendered disabled.
@@ -25,7 +33,7 @@ interface ExternalProvider {
    * If provided, the row is only rendered when this returns true.
    * Omit for providers that should always be shown.
    */
-  isVisible?: (ctx: { isPumpFun: boolean }) => boolean;
+  isVisible?: (ctx: { isPumpFun: boolean; mint: string }) => boolean;
 }
 
 /**
@@ -211,9 +219,16 @@ interface MoreMenuProps {
    * show it for tokens that never touched Pump.fun.
    */
   isPumpFun?: boolean;
+  /** Token ticker - helps resolve the correct TradingView pool (base match). */
+  symbol?: string | null;
 }
 
-export function MoreMenu({ mint, pairAddress, isPumpFun = false }: MoreMenuProps) {
+export function MoreMenu({
+  mint,
+  pairAddress,
+  isPumpFun = false,
+  symbol = null,
+}: MoreMenuProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
 
@@ -239,13 +254,68 @@ export function MoreMenu({ mint, pairAddress, isPumpFun = false }: MoreMenuProps
 
   const pairOrMint = pairAddress ?? mint;
 
-  const grouped = CATEGORY_ORDER.map((cat) => ({
-    category: cat,
-    label: CATEGORY_LABELS[cat],
-    providers: PROVIDERS.filter(
-      (p) => p.category === cat && (!p.isVisible || p.isVisible({ isPumpFun })),
-    ),
-  })).filter((group) => group.providers.length > 0);
+  // Resolve the token's TradingView symbol page live (only while the menu is
+  // open). TradingView indexes on-chain Solana tokens by contract address, so
+  // this shows the link whenever the CA actually resolves there - and hides it
+  // otherwise. Never a fabricated URL.
+  const { data: tv } = useQuery({
+    queryKey: ["tradingview-resolve", mint, symbol],
+    queryFn: () => api.resolveTradingView(mint, symbol),
+    enabled: open && !!mint,
+    staleTime: 6 * 60 * 60 * 1000,
+    retry: false,
+  });
+  const tvUrl = tv?.url ?? null;
+
+  // Resolve the token's CoinMarketCap currency page (only while the menu is
+  // open). CoinMarketCap only lists a subset of tokens, so this shows the link
+  // when the CA maps to a real CMC listing and hides it otherwise. Never a
+  // fabricated or generic search URL.
+  const { data: cmc } = useQuery({
+    queryKey: ["coinmarketcap-resolve", mint],
+    queryFn: () => api.resolveCoinMarketCap(mint),
+    enabled: open && !!mint,
+    staleTime: 6 * 60 * 60 * 1000,
+    retry: false,
+  });
+  const cmcUrl = cmc?.url ?? null;
+
+  const grouped = CATEGORY_ORDER.map((cat) => {
+    let providers = PROVIDERS.filter(
+      (p) =>
+        p.category === cat &&
+        (!p.isVisible || p.isVisible({ isPumpFun, mint })),
+    );
+    // TradingView and CoinMarketCap join the Analytics section as normal
+    // resource rows when the token resolves on each platform.
+    if (cat === "analytics") {
+      if (tvUrl) {
+        providers = [
+          ...providers,
+          {
+            label: "TradingView",
+            category: "analytics",
+            logo: "/provider-logos/tradingview.svg",
+            requiresPair: false,
+            buildHref: () => tvUrl,
+          },
+        ];
+      }
+      if (cmcUrl) {
+        providers = [
+          ...providers,
+          {
+            label: "CoinMarketCap",
+            category: "analytics",
+            logo: "/provider-logos/coinmarketcap.svg",
+            requiresPair: false,
+            buildHref: () => cmcUrl,
+          },
+        ];
+      }
+    }
+    return { category: cat, label: CATEGORY_LABELS[cat], providers };
+  }).filter((group) => group.providers.length > 0);
 
   return (
     <div className="relative" ref={ref}>
@@ -294,7 +364,16 @@ export function MoreMenu({ mint, pairAddress, isPumpFun = false }: MoreMenuProps
 
                   const inner = (
                     <>
-                      <ProviderLogo src={provider.logo} label={provider.label} />
+                      {provider.icon ? (
+                        <span className="flex w-[18px] h-[18px] shrink-0 items-center justify-center rounded-sm bg-secondary text-muted-foreground">
+                          {provider.icon}
+                        </span>
+                      ) : (
+                        <ProviderLogo
+                          src={provider.logo!}
+                          label={provider.label}
+                        />
+                      )}
                       <span className="flex-1 truncate">{provider.label}</span>
                       {!disabled && (
                         <ExternalLink className="w-3 h-3 shrink-0 opacity-60" />
@@ -319,7 +398,7 @@ export function MoreMenu({ mint, pairAddress, isPumpFun = false }: MoreMenuProps
                       key={provider.label}
                       href={href}
                       target="_blank"
-                      rel="noreferrer"
+                      rel="noopener noreferrer"
                       onClick={() => setOpen(false)}
                       className={rowClass}
                     >
