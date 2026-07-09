@@ -20,6 +20,7 @@ import journalRouter from "./journal.js";
 import realAnalysisRouter from "./real-analysis.js";
 import campaignsRouter from "./campaigns.js";
 import tradingviewRouter from "./tradingview.js";
+import coinmarketcapRouter from "./coinmarketcap.js";
 
 const router: IRouter = Router();
 
@@ -44,5 +45,6 @@ router.use(journalRouter);
 router.use(realAnalysisRouter);
 router.use(campaignsRouter);
 router.use(tradingviewRouter);
+router.use(coinmarketcapRouter);
 
 export default router;
