@@ -1,8 +1,10 @@
 # BlackPebble Feed — Activity Intelligence Engine
 
 Status: Phase 1 shipped (aggregation, reactions, milestone events, tabs).
-Owner doc for the feed upgrade. Read alongside `lib/feed.ts`,
-`lib/feed-aggregate.ts`, `lib/feed-service.ts`, `lib/feed-schema.ts`.
+Phase 2 shipped (canonical Activity Layer taxonomy + publisher router + noise
+toolbox — additive, no schema change). Owner doc for the feed upgrade. Read
+alongside `lib/feed.ts`, `lib/feed-aggregate.ts`, `lib/feed-service.ts`,
+`lib/feed-schema.ts`, and `lib/activity/*` (taxonomy, publishers, rate-limit).
 
 ---
 
@@ -132,6 +134,75 @@ Future publishers (designed for, not yet wired): trader DNA archetype change
 (real-trading engine), consistency/risk score milestones, campaign
 participation once task campaigns ship, AI coaching insights.
 
+### Activity Layer normalization (`lib/activity/*`, Phase 2)
+
+One structured activity vocabulary that every current and future surface reads
+from (feed, and later premium toasts, notification center, profile activity,
+reputation, share cards). Additive over the existing model — the read model and
+publishers are unchanged in behavior; a normalization layer sits on top.
+
+- **`lib/activity/taxonomy.ts` (pure, unit-tested)** — `classifyActivity(kind,
+  action)` maps every feed item's loose `(kind, action)` onto a canonical
+  namespaced `ActivityType`. The vocabulary is split into **WIRED** (a source
+  today produces it) and **PREPARED** (part of the contract, but no publisher
+  emits it yet — reserved so Phase 3/4 consume a stable vocabulary):
+
+  | Domain | WIRED (produced today) | PREPARED (contract only, not emitted) |
+  |---|---|---|
+  | trade | `trade.buy` `trade.sell` `trade.accumulation` `trade.exit` `trade.perp_opened` `trade.perp_closed` `trade.liquidation` | `trade.tp_hit` `trade.sl_hit` `trade.pnl_milestone` `trade.best_trade` |
+  | social | `social.call` `social.thesis` `social.follower_milestone` | `social.follow` `social.reaction` `social.reaction_aggregate` `social.reply` `social.mention` |
+  | progression | `progression.achievement_unlocked` `progression.tier_upgraded` | `progression.rank_changed` `progression.score_changed` `progression.streak_milestone` |
+  | campaign | `campaign.created` `campaign.goal_hit` `campaign.executed` | `campaign.contribution` `campaign.goal_progress` `campaign.failed` `campaign.expired` `campaign.refunded` |
+  | wallet | `wallet.cleanup_completed` | `wallet.recovered_sol` `wallet.burn_completed` `wallet.burn_proof` `wallet.account_closed` `wallet.safety_warning` |
+  | fallback | — | `progression.milestone` `social.milestone` `activity.other` |
+
+  (`campaign.goal_hit` was renamed from the earlier `campaign.funded` — clearer
+  alongside contribution / goal_progress / executed / failed / expired /
+  refunded.)
+
+  Each type carries a `surfaces` descriptor — `{ feed, toast (none|low|normal|
+  high), notify, aggregate (none|trade_burst|reaction|campaign_progress) }` —
+  the event's *intrinsic* importance. **`toast` and `notify` are intent only —
+  nothing consumes them yet (no premium toasts, no notification center).**
+  Recipient/viewer routing (self vs follower vs global) is NOT expressible in
+  `surfaces` yet; Phase 3/4 must add an audience/visibility layer (see below).
+  `buildAggregateKey(policy, ctx)` turns a policy into a concrete roll-up key
+  (e.g. `trade:{user}:{mint}:{side}`).
+
+  **Aggregation status:** only `trade_burst` is live (read-time spot collapse,
+  `feed-aggregate.ts`). `reaction` and `campaign_progress` are declared
+  policies with no consumer yet.
+
+  **`activity.other` is a hardened safety net:** `{ feed: false, toast: none,
+  notify: false, aggregate: none }` — an unrecognized event must never leak
+  into the public feed. (No current source classifies to it; the UNION only
+  emits known kinds.)
+
+  **Audience layer (not built — Phase 3/4):** `surfaces` encodes *importance*,
+  not *who sees it*. Notify-only interactions (`social.follow/reaction/reply/
+  mention`, `campaign.contribution/refunded`, `wallet.account_closed/
+  safety_warning`) are marked `feed: false` here, but true actor-only vs
+  follower vs global targeting needs a dedicated audience/visibility field
+  layered on later. Do not infer audience from `surfaces` today.
+
+- **`lib/activity/publishers.ts`** — `recordActivity()` is the single publish
+  entry point for milestone-type events with no source table. It derives
+  `feed_events.category` from the type, stamps the canonical `activityType`
+  into `meta` (self-describing rows), and delegates durable storage +
+  idempotency to `feedService.publishEvent()`. The two wired publishers
+  (`publishTierMilestone`, `publishFollowerMilestone`) were relocated here and
+  now route through `recordActivity()` — same categories, same dedupe keys.
+
+- **`lib/activity/rate-limit.ts` (pure, unit-tested)** — the noise toolbox for
+  future publishers: a sliding-window `createRateLimiter({ windowSec, max })`
+  and `dedupeKey`/`createDeduper` helpers. Built, not yet applied — durable
+  dedupe is still the `feed_events.dedupe_key` unique constraint.
+
+- **Read model** attaches an additive `type` + `surfaces` to each item
+  (`FeedActivityItem`) via the classifier — no query change, no schema change.
+  The frontend `FeedActivityItem` type gained optional `type`/`surfaces`;
+  current UI ignores them (reserved for Phase 3).
+
 ### API surface (`routes/feed.ts`)
 
 - `GET /feed/global?kinds=spot,leverage&limit=60` — server-side kind filter +
@@ -185,9 +256,24 @@ participation once task campaigns ship, AI coaching insights.
 - **Phase 1 (this build):** meta payloads, aggregation, reactions, milestone
   events (tier + followers), tabs with server filtering, My Activity,
   premium cards.
-- **Phase 2:** comments (lightweight trader commentary), user privacy
-  opt-out toggle, DNA/consistency publishers, campaign participation events.
-- **Phase 3:** trending tab (reaction-quality ranking), share-card generation
-  from `meta`, notifications fed by `feed_events`.
-- **Phase 4:** relevance-scored discover feed, AI-generated weekly summaries
+- **Phase 2 (this build):** Activity Layer foundation — canonical taxonomy
+  (`ActivityType` + `surfaces`), the `recordActivity()` publisher router
+  (relocating the tier/follower publishers), and the pure noise toolbox
+  (rate-limiter + dedupe). Additive normalization on the read model; zero
+  schema/API-breaking changes. Prepares Phase 3 without touching the UI.
+  Hardening pass: full PREPARED vocabulary (TP/SL/PnL/best-trade, follow/
+  reaction/reply/mention, rank/score/streak, campaign contribution/progress/
+  failed/expired/refunded, wallet recovered/burn/account/safety), renamed
+  `campaign.funded` → `campaign.goal_hit`, hardened `activity.other` to
+  `feed:false`. **No new events were wired** — PREPARED types have no
+  publisher and are not produced by any source.
+- **Phase 3:** premium toast system (consumes `surfaces.toast`) + notification
+  center (consumes `surfaces.notify`, fed by `feed_events` / a notifications
+  table), reaction/campaign roll-ups (consume `surfaces.aggregate`),
+  share-card generation from `meta`. Needs schema (proposed at that point).
+- **Phase 4:** wire the new publishers through `recordActivity()` (best-trade /
+  PnL milestones, TP/SL/liquidation notifications, rank/score changes, win
+  streaks, campaign goal-progress/expired, individual follow notifications),
+  each gated by the rate-limiter. Privacy opt-out toggle, comments.
+- **Phase 5:** relevance-scored discover feed, AI-generated weekly summaries
   consuming the same structured events.

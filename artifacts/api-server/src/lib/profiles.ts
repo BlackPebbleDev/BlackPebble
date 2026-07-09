@@ -1,5 +1,5 @@
 import { dbAll, dbGet, dbRun } from "./database.js";
-import { publishFollowerMilestone } from "./feed-service.js";
+import { publishFollowerMilestone } from "./activity/publishers.js";
 import {
   getAccount,
   getClosedTradeStats,

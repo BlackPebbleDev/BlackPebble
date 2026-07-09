@@ -15,6 +15,11 @@ import {
 } from "./feed-aggregate.js";
 import { getUserTiers } from "./trading.js";
 import { computeReputationBoard } from "./reputation.js";
+import {
+  classifyActivity,
+  type ActivityType,
+  type ActivitySurfaces,
+} from "./activity/taxonomy.js";
 
 /**
  * Activity Intelligence Engine — the feed read model.
@@ -105,6 +110,14 @@ export interface FeedActivityItem {
    * { category }.
    */
   meta: Record<string, unknown> | null;
+  /**
+   * Canonical Activity Layer type (e.g. "trade.buy", "social.call"). Additive
+   * normalization over kind/action — see lib/activity/taxonomy.ts. Consumed by
+   * future toast / notification / profile / share-card surfaces.
+   */
+  type?: ActivityType;
+  /** Surface routing (feed/toast/notify/aggregate) for this event type. */
+  surfaces?: ActivitySurfaces;
   /** Reaction counts by key (only keys with count > 0). */
   reactions: Record<string, number>;
   /** The viewer's own reaction, when a session was present. */
@@ -572,6 +585,10 @@ export async function getActivity(opts: {
     if (b && b.length > 0) item.user.official_badges = b;
     const trust = trustMap.get(item.user.user_id);
     if (trust != null) item.user.trustScore = trust;
+    // Additive Activity Layer normalization (pure; no query change).
+    const c = classifyActivity(item.kind, item.action);
+    item.type = c.type;
+    item.surfaces = c.surfaces;
   }
 
   // Attach reactions (best-effort; feed still renders without them).

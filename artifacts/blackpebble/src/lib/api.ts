@@ -1182,6 +1182,19 @@ export interface FeedActivityItem {
    * milestones.
    */
   meta?: Record<string, unknown> | null;
+  /**
+   * Canonical Activity Layer type (e.g. "trade.buy", "social.call"). Additive
+   * normalization sent by the API; not yet consumed by the current UI, reserved
+   * for Phase 3 toasts / notification center / profile activity.
+   */
+  type?: string;
+  /** Surface routing (feed/toast/notify/aggregate) for this event type. */
+  surfaces?: {
+    feed: boolean;
+    toast: "none" | "low" | "normal" | "high";
+    notify: boolean;
+    aggregate: "none" | "trade_burst" | "reaction" | "campaign_progress";
+  };
   /** Reaction counts by key (only keys with count > 0). */
   reactions?: Record<string, number>;
   /** The viewer's own reaction, when signed in. */

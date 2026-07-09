@@ -179,57 +179,6 @@ export async function getReactionsForEvents(
   return out;
 }
 
-// ── Milestone helpers ────────────────────────────────────────────────────────
-
-/** Follower counts that publish a milestone (fixed thresholds — no spam). */
-export const FOLLOWER_MILESTONES = [10, 25, 50, 100, 250, 500, 1000, 5000];
-
-/** Graduation tiers that deserve a feed milestone, in ascending order. */
-export const TIER_MILESTONES = [
-  "Bronze",
-  "Silver",
-  "Gold",
-  "Diamond",
-  "Legend",
-];
-
-/**
- * Publish a tier-promotion milestone. Dedupe key ensures each user posts a
- * given tier at most once, ever.
- */
-export async function publishTierMilestone(
-  userId: number,
-  tier: string,
-  realizedPnlSol: number,
-): Promise<void> {
-  if (!TIER_MILESTONES.includes(tier)) return;
-  await publishEvent({
-    actorUserId: userId,
-    kind: "tier_up",
-    category: "reputation",
-    title: `Reached ${tier} Trader`,
-    summary: null,
-    meta: { tier, realizedPnlSol: Number(realizedPnlSol.toFixed(4)) },
-    dedupeKey: `tier:${userId}:${tier}`,
-  });
-}
-
-/**
- * Publish a follower-count milestone for the user who was just followed.
- * Called with the post-follow count; publishes only on exact thresholds.
- */
-export async function publishFollowerMilestone(
-  userId: number,
-  followerCount: number,
-): Promise<void> {
-  if (!FOLLOWER_MILESTONES.includes(followerCount)) return;
-  await publishEvent({
-    actorUserId: userId,
-    kind: "follower_milestone",
-    category: "social",
-    title: `Reached ${followerCount.toLocaleString("en-US")} followers`,
-    summary: null,
-    meta: { followers: followerCount },
-    dedupeKey: `followers:${userId}:${followerCount}`,
-  });
-}
+// Milestone publishers moved to lib/activity/publishers.ts (the Activity Layer
+// router). Import { publishTierMilestone, publishFollowerMilestone,
+// recordActivity } from "./activity/publishers.js".

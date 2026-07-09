@@ -1,7 +1,7 @@
 import { dbAll, dbGet, dbRun, withTx } from "./database.js";
 import { getSolPriceUsd, getExecutionPrice } from "./prices.js";
 import { computeSlippage, type WarningLevel } from "./slippage.js";
-import { publishTierMilestone } from "./feed-service.js";
+import { publishTierMilestone } from "./activity/publishers.js";
 import { logger } from "./logger.js";
 
 const DEV = process.env.NODE_ENV !== "production";
