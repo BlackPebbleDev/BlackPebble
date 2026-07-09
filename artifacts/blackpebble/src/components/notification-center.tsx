@@ -18,10 +18,12 @@ import { useXAuth } from "@/hooks/use-x-auth";
 import { timeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
+// Keep chip toning identical to the toast chips (components/ui/toaster.tsx)
+// so a metric looks the same whether it appears in a toast or the center.
 const CHIP_TONE: Record<string, string> = {
-  up: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
-  down: "text-orange-400 bg-orange-500/10 border-orange-500/20",
-  neutral: "text-muted-foreground bg-white/5 border-white/10",
+  up: "text-emerald-300 border-emerald-400/25 bg-emerald-400/10",
+  down: "text-orange-300 border-orange-400/25 bg-orange-400/10",
+  neutral: "text-foreground/70 border-white/10 bg-white/[0.04]",
 };
 
 function NotificationRow({

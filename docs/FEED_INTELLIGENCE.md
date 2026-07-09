@@ -162,10 +162,13 @@ publishers are unchanged in behavior; a normalization layer sits on top.
 
   Each type carries a `surfaces` descriptor — `{ feed, toast (none|low|normal|
   high), notify, aggregate (none|trade_burst|reaction|campaign_progress) }` —
-  the event's *intrinsic* importance. **`toast` and `notify` are intent only —
-  nothing consumes them yet (no premium toasts, no notification center).**
-  Recipient/viewer routing (self vs follower vs global) is NOT expressible in
-  `surfaces` yet; Phase 3/4 must add an audience/visibility layer (see below).
+  the event's *intrinsic* importance. **`toast` and `notify` remain intent
+  only — the shipped Phase 3 premium toasts / notification center do NOT read
+  `surfaces`; they decide surfacing client-side from ME-scoped signals
+  (`/feed/mine`, fills) — so this field is still advisory for a future
+  server-driven router.** Recipient/viewer routing (self vs follower vs global)
+  is NOT expressible in `surfaces` yet; a later phase must add an
+  audience/visibility layer (see below).
   `buildAggregateKey(policy, ctx)` turns a policy into a concrete roll-up key
   (e.g. `trade:{user}:{mint}:{side}`).
 
@@ -200,8 +203,9 @@ publishers are unchanged in behavior; a normalization layer sits on top.
 
 - **Read model** attaches an additive `type` + `surfaces` to each item
   (`FeedActivityItem`) via the classifier — no query change, no schema change.
-  The frontend `FeedActivityItem` type gained optional `type`/`surfaces`;
-  current UI ignores them (reserved for Phase 3).
+  The frontend `FeedActivityItem` type gained optional `type`/`surfaces`. The
+  feed UI still ignores them; the Phase 3 toast hooks read `type` (e.g.
+  `trade.liquidation`) to pick ME-scoped toasts, but not `surfaces`.
 
 ### API surface (`routes/feed.ts`)
 
@@ -267,10 +271,45 @@ publishers are unchanged in behavior; a normalization layer sits on top.
   `campaign.funded` → `campaign.goal_hit`, hardened `activity.other` to
   `feed:false`. **No new events were wired** — PREPARED types have no
   publisher and are not produced by any source.
-- **Phase 3:** premium toast system (consumes `surfaces.toast`) + notification
-  center (consumes `surfaces.notify`, fed by `feed_events` / a notifications
-  table), reaction/campaign roll-ups (consume `surfaces.aggregate`),
-  share-card generation from `meta`. Needs schema (proposed at that point).
+- **Phase 3 (shipped — frontend only, no schema/API changes):** premium toast +
+  notification-center foundation, built entirely on existing read-only
+  endpoints (`/feed/mine`, `/trade/positions` fills) and `localStorage`.
+  - **3A — shared premium toast system.** `components/ui/toast.tsx` upgraded to
+    a dark-glass base with semantic accent variants (`positive`, `exit`,
+    `profit`, `loss`, `critical`, `reputation`, `campaign`, `recovery`,
+    `social`, `warning`) plus legacy `default`/`destructive`. Rich fields
+    (icon, pfp, tokenLogo, chips) via `hooks/use-toast.ts`; typed adapter
+    `lib/activity-toast.tsx` (`activityToast`). ME-scoped only.
+  - **3B — notification center + ME-scoped trade toasts.** Header bell + unread
+    badge + premium glass panel (`components/notification-center.tsx`), backed
+    by a `localStorage` store (`lib/notifications-store.ts`). Every ME toast is
+    also eligible to become a center item (deduped by `sourceActivityId`).
+    Manual spot buy/sell fire premium confirmation toasts (`pages/trading.tsx`);
+    fills (`hooks/use-order-fills.ts`) and milestone/liquidation
+    (`hooks/use-activity-toasts.ts`) flow through the same adapter.
+  - **3C — reaction rollups (real data).** `hooks/use-reaction-rollups.ts`
+    aggregates OTHER traders' reactions on the viewer's OWN content by reading
+    the authoritative reaction counts already on `/feed/mine`. Because
+    `feed_reactions` is UNIQUE per (event, user), total == unique reactors, so
+    "N traders reacted to your MANIFEST call" is exact. One rollup per content
+    item, updated in place (`upsertNotification`), silent center updates with a
+    threshold-/cooldown-gated toast. All 16 reactions preserved.
+  - **Active now:** ME-scoped toasts (my buys/sells, fills, TP/SL, liquidation,
+    tier upgrade, achievement) and reaction rollups on my content.
+  - **Local-only (not durable):** the notification center + rollup baseline
+    live in per-user `localStorage`
+    (`blackpebble.notifications.v1.<uid>`, `blackpebble.activityToasts.seen.v1.<uid>`,
+    `blackpebble.reactionRollups.v1.<uid>`; guests use `<uid> = "guest"` and are
+    never merged into a signed-in user's list). No cross-device sync, no push.
+  - **Prepared for backend later (NOT built):** durable `notifications` /
+    `reaction_events` tables, server-side rollup/rate-limit, cross-device
+    read-state, reactor identities/avatars, mobile push, and the
+    `surfaces.notify` / audience layer. `surfaces.toast`/`notify` remain
+    intent-only — the Phase 3 hooks decide surfacing client-side.
+- **Phase 4:** wire the new publishers through `recordActivity()` (best-trade /
+  PnL milestones, TP/SL/liquidation notifications, rank/score changes, win
+  streaks, campaign goal-progress/expired, individual follow notifications),
+  each gated by the rate-limiter. Privacy opt-out toggle, comments.
 - **Phase 4:** wire the new publishers through `recordActivity()` (best-trade /
   PnL milestones, TP/SL/liquidation notifications, rank/score changes, win
   streaks, campaign goal-progress/expired, individual follow notifications),
