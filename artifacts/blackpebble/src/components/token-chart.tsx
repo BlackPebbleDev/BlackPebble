@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { Loader2, RefreshCw, ExternalLink } from "lucide-react";
 import {
   createChart,
@@ -189,6 +189,10 @@ export function TokenChart({ info }: { info: TokenInfo }) {
     refetchInterval: REFETCH_MS[resolution],
     retry: 1,
     staleTime: 5_000,
+    // Keep the current candles on screen while a new timeframe (or a background
+    // refresh) loads, so switching resolution never blanks the chart to a
+    // spinner - the old bars stay put and swap in place the moment data lands.
+    placeholderData: keepPreviousData,
   });
 
   const rawCandles: Candle[] = candlesQuery.data?.candles ?? [];
