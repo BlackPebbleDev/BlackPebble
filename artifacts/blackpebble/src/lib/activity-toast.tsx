@@ -8,6 +8,7 @@ import {
   AlertTriangle,
   Medal,
   Trophy,
+  Sparkles,
   type LucideIcon,
 } from "lucide-react";
 import { toast, type ToastChip } from "@/hooks/use-toast";
@@ -37,7 +38,8 @@ export type ActivityToastKind =
   | "sl_hit"
   | "liquidation"
   | "tier_upgrade"
-  | "achievement";
+  | "achievement"
+  | "reaction_rollup";
 
 export const KIND_STYLE: Record<
   ActivityToastKind,
@@ -51,6 +53,7 @@ export const KIND_STYLE: Record<
   liquidation: { variant: "critical", icon: AlertTriangle },
   tier_upgrade: { variant: "reputation", icon: Medal },
   achievement: { variant: "reputation", icon: Trophy },
+  reaction_rollup: { variant: "social", icon: Sparkles },
 };
 
 export interface ActivityToastInput {

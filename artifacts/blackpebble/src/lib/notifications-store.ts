@@ -118,6 +118,59 @@ export function pushNotification(input: PushInput): void {
   emit();
 }
 
+export interface UpsertOptions {
+  /**
+   * When a rollup grows meaningfully, re-surface a previously read item as
+   * unread. Left false, updates are silent (chips/title refresh only).
+   */
+  resurfaceUnread?: boolean;
+}
+
+/**
+ * Create-or-update a notification keyed by `sourceActivityId`. Used by rollups
+ * (e.g. reaction aggregates) so repeated growth updates ONE item in place
+ * instead of stacking duplicates. Any update moves the item to the top.
+ */
+export function upsertNotification(
+  input: PushInput & { sourceActivityId: string },
+  opts: UpsertOptions = {},
+): void {
+  const idx = memoryState.items.findIndex(
+    (i) => i.sourceActivityId === input.sourceActivityId,
+  );
+  if (idx === -1) {
+    // First sighting → create like a normal push (unread by default).
+    const item: NotificationItem = {
+      ...input,
+      id: genId(),
+      timestamp: input.timestamp ?? Date.now(),
+      read: false,
+    };
+    memoryState = { items: [item, ...memoryState.items].slice(0, MAX_ITEMS) };
+    persist();
+    emit();
+    return;
+  }
+  const existing = memoryState.items[idx];
+  const updated: NotificationItem = {
+    ...existing,
+    kind: input.kind,
+    title: input.title,
+    description: input.description,
+    chips: input.chips,
+    tokenSymbol: input.tokenSymbol ?? existing.tokenSymbol,
+    tokenLogo: input.tokenLogo ?? existing.tokenLogo,
+    pfp: input.pfp ?? existing.pfp,
+    href: input.href ?? existing.href,
+    timestamp: input.timestamp ?? Date.now(),
+    read: opts.resurfaceUnread ? false : existing.read,
+  };
+  const rest = memoryState.items.filter((_, i) => i !== idx);
+  memoryState = { items: [updated, ...rest].slice(0, MAX_ITEMS) };
+  persist();
+  emit();
+}
+
 export function markNotificationRead(id: string): void {
   memoryState = {
     items: memoryState.items.map((i) => (i.id === id ? { ...i, read: true } : i)),

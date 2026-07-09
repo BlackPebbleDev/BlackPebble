@@ -21,6 +21,7 @@ import { useAccount } from "@/hooks/use-account";
 import { useAdmin } from "@/hooks/use-admin";
 import { useOrderFillToasts } from "@/hooks/use-order-fills";
 import { useActivityToasts } from "@/hooks/use-activity-toasts";
+import { useReactionRollups } from "@/hooks/use-reaction-rollups";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -82,6 +83,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useOrderFillToasts();
   // ME-scoped milestone/liquidation toasts from the viewer's own timeline.
   useActivityToasts();
+  // Aggregated reaction rollups on the viewer's own content (center + toast).
+  useReactionRollups();
 
   // Admins get an extra nav entry to the dashboard; everyone else sees the
   // standard set unchanged.
