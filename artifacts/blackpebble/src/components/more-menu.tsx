@@ -1,11 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import {
-  BarChart3,
-  CandlestickChart,
-  ExternalLink,
-  MoreHorizontal,
-} from "lucide-react";
+import { ExternalLink, MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 
@@ -300,9 +295,7 @@ export function MoreMenu({
           {
             label: "TradingView",
             category: "analytics",
-            // No official TradingView brand mark - a neutral chart icon in the
-            // same circular slot as the other resources.
-            icon: <CandlestickChart className="w-3 h-3" />,
+            logo: "/provider-logos/tradingview.svg",
             requiresPair: false,
             buildHref: () => tvUrl,
           },
@@ -314,9 +307,7 @@ export function MoreMenu({
           {
             label: "CoinMarketCap",
             category: "analytics",
-            // No official CoinMarketCap brand mark - a neutral chart icon in the
-            // same circular slot as the other resources.
-            icon: <BarChart3 className="w-3 h-3" />,
+            logo: "/provider-logos/coinmarketcap.svg",
             requiresPair: false,
             buildHref: () => cmcUrl,
           },
