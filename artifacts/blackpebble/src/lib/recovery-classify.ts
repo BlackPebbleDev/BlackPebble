@@ -132,7 +132,8 @@ export function enrichToken(
     realizableUsd < valueUsd * 0.5;
 
   // NFTs/collectibles use 0 decimals (Metaplex convention). NFT cleanup is
-  // "Coming Soon" in V1, so these are protected by default and never burnable.
+  // read-only (burn transactions not built), so these are protected by
+  // default and never burnable.
   const isLikelyNft = asset.decimals === 0;
 
   const protectedByDefault =

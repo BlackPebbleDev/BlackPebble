@@ -1055,6 +1055,7 @@ export interface JournalInput {
   direction?: string | null;
   outcome?: string | null;
   token?: string | null;
+  tokenMint?: string | null;
   tradeDate?: number | null;
   entryReason?: string | null;
   exitReason?: string | null;
@@ -1066,6 +1067,12 @@ export interface JournalInput {
   rating?: number | null;
   notes?: string | null;
   template?: string | null;
+  /** Where the structured trade data came from: manual | spot | leverage. */
+  source?: string | null;
+  entryMc?: number | null;
+  exitMc?: number | null;
+  roi?: number | null;
+  pnl?: number | null;
 }
 
 export interface JournalStats {
@@ -1096,7 +1103,7 @@ export interface FeedAggMeta {
   breakdown: FeedTradeBreakdownRow[];
 }
 
-/** The ten reaction keys, in display order (matches the backend vocabulary). */
+/** The reaction keys, in display order (matches the backend vocabulary). */
 export const FEED_REACTIONS = [
   { key: "rocket", emoji: "🚀", label: "Bullish" },
   { key: "fire", emoji: "🔥", label: "Hot Trade" },
@@ -1108,6 +1115,12 @@ export const FEED_REACTIONS = [
   { key: "flag", emoji: "🚩", label: "Red Flag" },
   { key: "poop", emoji: "💩", label: "Bad Call" },
   { key: "target", emoji: "🎯", label: "Accurate Call" },
+  { key: "raise", emoji: "🙌", label: "Respect" },
+  { key: "salute", emoji: "🫡", label: "Salute" },
+  { key: "thinking", emoji: "🤔", label: "Not Sure" },
+  { key: "heart", emoji: "❤️", label: "Love" },
+  { key: "thumbs_up", emoji: "👍", label: "Agree" },
+  { key: "thumbs_down", emoji: "👎", label: "Disagree" },
 ] as const;
 
 export type FeedReactionKey = (typeof FEED_REACTIONS)[number]["key"];
@@ -2001,6 +2014,22 @@ export const api = {
   // Public feature flags (read-only) consumed by the trading UI.
   featureFlags: () => request<{ flags: FeatureFlags }>("/feature-flags"),
 
+  // Resolve a token's TradingView symbol page from its mint. Returns
+  // { url: null } when TradingView doesn't list the token on-chain.
+  resolveTradingView: (mint: string, symbol?: string | null) =>
+    request<{ url: string | null }>(
+      `/tradingview/resolve?mint=${encodeURIComponent(mint)}${
+        symbol ? `&sym=${encodeURIComponent(symbol)}` : ""
+      }`,
+    ),
+
+  // Resolve a token's CoinMarketCap currency page from its mint. Returns
+  // { url: null } when CoinMarketCap doesn't list the token.
+  resolveCoinMarketCap: (mint: string) =>
+    request<{ url: string | null }>(
+      `/coinmarketcap/resolve?mint=${encodeURIComponent(mint)}`,
+    ),
+
   // Real Trading Analysis - read-only on-chain intelligence (gated by feature flag).
   realAnalysis: {
     get: (wallet: string, refresh?: boolean) =>
@@ -2251,6 +2280,8 @@ export const api = {
         types: CampaignTypeDef[];
         solPriceUsd: number;
         escrowReady: boolean;
+        /** Platform fee in bps of the goal, taken only at settlement. */
+        feeBps: number;
       }>("/campaigns/config"),
     validateToken: (mint: string) =>
       request<{ token: CampaignTokenValidation }>(

@@ -16,8 +16,8 @@ import {
 } from "@/components/ui/popover";
 
 /**
- * Premium reaction pills for feed cards. Ten fixed reactions, one per user
- * per event: tapping a pill toggles it, tapping a different one moves the
+ * Premium reaction pills for feed cards. A fixed reaction vocabulary, one per
+ * user per event: tapping a pill toggles it, tapping a different one moves the
  * reaction. Counts are rendered top-first; a subtle "React" affordance opens
  * the full palette when the card has no visible reactions yet.
  *
@@ -126,7 +126,8 @@ export function ReactionBar({ item }: { item: FeedActivityItem }) {
           className="w-auto p-1.5 rounded-xl bg-surface-2 border-border shadow-card"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="flex items-center gap-0.5">
+          {/* 16 reactions wrap into a clean 8-per-row grid. */}
+          <div className="grid grid-cols-8 gap-0.5">
             {FEED_REACTIONS.map((r) => (
               <button
                 key={r.key}

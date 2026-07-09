@@ -61,14 +61,14 @@ import { cn } from "@/lib/utils";
 const SOL = LAMPORTS_PER_SOL;
 
 const TYPE_LABELS: Record<string, string> = {
-  dex_listing: "DEXScreener Listing",
-  dex_boost: "DEXScreener Boost",
-  dex_ads: "DEXScreener Advertising",
-  dex_trending: "DEXScreener Trending Bar",
+  dex_listing: "DEX Screener Listing",
+  dex_boost: "DEX Screener Boost",
+  dex_ads: "DEX Screener Ads",
+  dex_trending: "DEX Screener Trending Bar",
   dextools_listing: "DEXTools Listing",
-  dextools_nitro: "DEXTools Nitro Boost",
+  dextools_nitro: "DEXTools Nitro",
   dextools_ads: "DEXTools Ads",
-  community_takeover: "CTO (Community Takeover)",
+  community_takeover: "Community Takeover",
   // Legacy keys from early campaigns.
   listing: "DEX Listing",
   marketing: "Token Advertising",
@@ -381,7 +381,7 @@ const SAFETY_META: Record<
 
 function CreateCampaignDialog() {
   const [open, setOpen] = useState(false);
-  const [step, setStep] = useState<"type" | "details">("type");
+  const [step, setStep] = useState<"type" | "details" | "review">("type");
   const [typeKey, setTypeKey] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [brief, setBrief] = useState("");
@@ -404,7 +404,10 @@ function CreateCampaignDialog() {
   });
   const types = config?.types ?? [];
   const solPrice = config?.solPriceUsd ?? 0;
+  const feeBps = config?.feeBps ?? 0;
   const selectedType = types.find((t) => t.key === typeKey) ?? null;
+  const selectedTier =
+    selectedType?.goalOptions.find((o) => o.usd === goalUsd) ?? null;
 
   const usdToSol = (usd: number) => (solPrice > 0 ? usd / solPrice : null);
 
@@ -554,12 +557,12 @@ function CreateCampaignDialog() {
                           className="text-left rounded-xl bg-surface-2 border border-white/[0.05] hover:border-accent/40 hover:bg-surface-2/80 transition-colors p-4 flex flex-col gap-2 group"
                           data-testid={`type-${def.key}`}
                         >
-                          <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-start justify-between gap-2">
                             <div className="flex items-center gap-2 min-w-0">
                               <div className="w-8 h-8 rounded-full bg-accent/12 flex items-center justify-center shrink-0">
                                 <Icon className="w-4 h-4 text-accent" />
                               </div>
-                              <span className="font-bold text-sm truncate">
+                              <span className="font-bold text-sm leading-snug">
                                 {def.label}
                               </span>
                             </div>
@@ -592,7 +595,7 @@ function CreateCampaignDialog() {
               )}
             </div>
           </>
-        ) : (
+        ) : step === "details" ? (
           <>
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
@@ -790,6 +793,12 @@ function CreateCampaignDialog() {
                       ))}
                     </div>
                   ))}
+                {typeKey === "dex_listing" && (
+                  <p className="text-[11px] text-accent/90 leading-relaxed">
+                    Bundle tiers fund the listing and boost together so
+                    supporters do not need to start two separate campaigns.
+                  </p>
+                )}
                 <p className="text-[11px] text-muted-foreground leading-relaxed">
                   Priced to the real service cost plus processing, converted to
                   SOL at the live price when the campaign launches. Funded
@@ -853,15 +862,146 @@ function CreateCampaignDialog() {
               </div>
               <Button
                 className="w-full"
-                disabled={create.isPending || !canSubmit}
-                onClick={() => create.mutate()}
-                data-testid="button-submit-campaign"
+                disabled={!canSubmit}
+                onClick={() => setStep("review")}
+                data-testid="button-review-campaign"
               >
-                {create.isPending ? "Creating…" : "Create Campaign"}
+                Review Campaign
               </Button>
               <p className="text-[11px] text-muted-foreground leading-relaxed">
                 Requires an X-linked BlackPebble account. Your platform
                 reputation determines the campaign's starting trust score.
+              </p>
+            </div>
+          </>
+        ) : (
+          <>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setStep("details")}
+                  className="text-muted-foreground hover:text-accent transition-colors"
+                  data-testid="button-back-to-details"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                Review &amp; Confirm
+              </DialogTitle>
+              <DialogDescription>
+                Check every detail before your campaign goes live - the goal
+                and tier are locked once created.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-3" data-testid="campaign-review">
+              <div className="rounded-xl bg-surface-2 border border-white/[0.05] overflow-hidden divide-y divide-white/[0.05]">
+                {[
+                  {
+                    label: "Campaign type",
+                    value: selectedType
+                      ? (TYPE_LABELS[selectedType.key] ?? selectedType.label)
+                      : "—",
+                  },
+                  { label: "Selected tier", value: selectedTier?.label ?? "—" },
+                  {
+                    label: "Service funded",
+                    value: selectedTier?.description ?? "—",
+                  },
+                  {
+                    label: "Goal (USD)",
+                    value: goalUsd != null ? fmtUsd(goalUsd) : "—",
+                  },
+                  {
+                    label: "Estimated SOL",
+                    value:
+                      goalUsd != null && usdToSol(goalUsd) != null
+                        ? `≈ ${usdToSol(goalUsd)!.toFixed(3)} SOL at the live price`
+                        : "Converted at the live price on launch",
+                  },
+                  { label: "Duration", value: `${durationHours} hours` },
+                  ...(token?.valid
+                    ? [
+                        {
+                          label: "Token",
+                          value: `${token.symbol ?? token.name ?? "Token"} · ${token.mint.slice(0, 6)}…${token.mint.slice(-6)}`,
+                        },
+                      ]
+                    : []),
+                  { label: "Title", value: title },
+                  ...(linkUrl.trim()
+                    ? [{ label: "Proof / details URL", value: linkUrl.trim() }]
+                    : []),
+                ].map((row) => (
+                  <div
+                    key={row.label}
+                    className="flex items-start justify-between gap-4 px-4 py-2.5"
+                  >
+                    <span className="text-xs text-muted-foreground shrink-0">
+                      {row.label}
+                    </span>
+                    <span className="text-xs font-medium text-right break-words min-w-0">
+                      {row.value}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="rounded-xl border border-accent/20 bg-accent/5 p-4 space-y-2">
+                <div className="stat-label text-accent">
+                  What happens after launch
+                </div>
+                <ul className="space-y-1.5 text-[11px] text-muted-foreground leading-relaxed list-none">
+                  <li className="flex gap-2">
+                    <ShieldCheck className="w-3.5 h-3.5 text-accent shrink-0 mt-0.5" />
+                    <span>
+                      A dedicated escrow address is created. Every deposit,
+                      payout, and refund is recorded in a public append-only
+                      ledger with on-chain signatures.
+                    </span>
+                  </li>
+                  <li className="flex gap-2">
+                    <CircleCheck className="w-3.5 h-3.5 text-accent shrink-0 mt-0.5" />
+                    <span>
+                      If the goal is reached, BlackPebble purchases{" "}
+                      {selectedTier
+                        ? `"${selectedTier.label}"`
+                        : "the service"}{" "}
+                      directly from the provider and posts fulfillment proof on
+                      the campaign page.
+                    </span>
+                  </li>
+                  <li className="flex gap-2">
+                    <RefreshCw className="w-3.5 h-3.5 text-accent shrink-0 mt-0.5" />
+                    <span>
+                      If the goal is not reached by the deadline, every
+                      contribution is automatically refunded in full to the
+                      sending wallet (network fee only, no platform fee).
+                      Overfunding is returned pro-rata.
+                    </span>
+                  </li>
+                  <li className="flex gap-2">
+                    <Shield className="w-3.5 h-3.5 text-accent shrink-0 mt-0.5" />
+                    <span>
+                      {feeBps > 0
+                        ? `BlackPebble takes a ${(feeBps / 100).toFixed(1).replace(/\.0$/, "")}% platform fee from the goal at settlement - already included in the tier price, only on successful campaigns.`
+                        : "No platform fee is charged on this campaign."}
+                    </span>
+                  </li>
+                </ul>
+              </div>
+
+              <Button
+                className="w-full"
+                disabled={create.isPending || !canSubmit}
+                onClick={() => create.mutate()}
+                data-testid="button-submit-campaign"
+              >
+                {create.isPending ? "Creating…" : "Confirm & Create Campaign"}
+              </Button>
+              <p className="text-[11px] text-muted-foreground leading-relaxed text-center">
+                Campaign funding pays for a real third-party service - it never
+                buys tokens or generates trading activity.
               </p>
             </div>
           </>
@@ -1334,6 +1474,54 @@ export function CampaignDetailPage() {
             )}
           </div>
         )}
+      </div>
+
+      {/* Transparency: every campaign answers the six trust questions. */}
+      <div className="rounded-2xl bg-card shadow-card p-5 md:p-6 space-y-3">
+        <h2 className="font-bold flex items-center gap-2">
+          <ShieldCheck className="w-4 h-4 text-accent" />
+          How this campaign works
+        </h2>
+        <div className="grid sm:grid-cols-2 gap-2.5">
+          {[
+            {
+              q: "What is being funded?",
+              a: c.goalLabel
+                ? `${TYPE_LABELS[c.typeKey] ?? c.typeKey} - "${c.goalLabel}"${c.goalUsd != null ? ` (${fmtUsd(c.goalUsd)})` : ""}, a real third-party service. Funding never buys tokens or creates trading activity.`
+                : "A real third-party service priced at the campaign goal. Funding never buys tokens or creates trading activity.",
+            },
+            {
+              q: "Who fulfills it?",
+              a: "BlackPebble purchases the service directly from the provider once the goal is reached - the creator never touches the funds.",
+            },
+            {
+              q: "What proves completion?",
+              a: "A fulfillment note and proof link are posted on this page, and the payout appears in the ledger below with an on-chain signature.",
+            },
+            {
+              q: "What if it fails?",
+              a: "If the goal isn't reached by the deadline, the campaign fails and no service is purchased. Escrow never pays out on a failed campaign.",
+            },
+            {
+              q: "What gets refunded?",
+              a: "Failed campaigns refund every contribution in full to the sending wallet automatically (network fee only). Overfunding on successful campaigns is returned pro-rata.",
+            },
+            {
+              q: "Are there platform fees?",
+              a: "Only on success: a small platform fee (included in the tier price) is taken from the goal at settlement and recorded in the ledger. Failed campaigns pay no fee.",
+            },
+          ].map((item) => (
+            <div
+              key={item.q}
+              className="rounded-xl bg-surface-2 border border-white/[0.05] p-3.5 space-y-1"
+            >
+              <div className="text-xs font-semibold">{item.q}</div>
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                {item.a}
+              </p>
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className="rounded-2xl bg-card shadow-card p-5 md:p-6 space-y-3">

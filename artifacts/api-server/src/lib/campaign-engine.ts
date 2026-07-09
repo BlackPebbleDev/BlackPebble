@@ -47,7 +47,8 @@ import {
 } from "./campaign-escrow.js";
 import { ensureCampaignSchema } from "./campaign-schema.js";
 
-const FEE_BPS = Math.min(
+/** Platform fee in basis points of the GOAL, taken only at settlement. */
+export const FEE_BPS = Math.min(
   2_000,
   Math.max(0, Number(process.env["CAMPAIGN_FEE_BPS"] ?? 300)),
 );

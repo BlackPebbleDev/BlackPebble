@@ -736,20 +736,56 @@ function isDeadToken(t: MarketToken): boolean {
  * boosts (sustained momentum), hydrates via DexScreener pair stats, then
  * filters dead tokens. Result is cached for TRENDING_CACHE_MS.
  */
+// Singleflight for the trending refresh so concurrent cache-misses (and
+// background revalidations) collapse into ONE upstream hydration instead of
+// stampeding DexScreener.
+let trendingRefreshInFlight: Promise<MarketToken[]> | null = null;
+
+function ensureTrendingRefresh(): Promise<MarketToken[]> {
+  if (!trendingRefreshInFlight) {
+    trendingRefreshInFlight = fetchTrendingFromUpstream().finally(() => {
+      trendingRefreshInFlight = null;
+    });
+  }
+  return trendingRefreshInFlight;
+}
+
 export async function getTrendingTokens(): Promise<MarketToken[]> {
   const key = "market_trending";
+  const parseCached = (raw: string | null): MarketToken[] | null => {
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw) as MarketToken[];
+    } catch {
+      return null;
+    }
+  };
+
+  // Fresh cache: serve immediately.
   if (isCacheFresh(key, TRENDING_CACHE_MS)) {
-    const v = getCacheValue(key);
-    if (v) {
-      try {
-        const cached = JSON.parse(v) as MarketToken[];
-        trendingTokenCount = cached.length;
-        return cached;
-      } catch {
-        // refetch
-      }
+    const fresh = parseCached(getCacheValue(key));
+    if (fresh) {
+      trendingTokenCount = fresh.length;
+      return fresh;
     }
   }
+
+  // Stale-while-revalidate: if we still hold a usable list, serve it instantly
+  // and refresh in the background so NO user request pays the multi-second
+  // hydration cost. Only block on the network when we have nothing to show.
+  const stale = parseCached(getCacheValue(key));
+  if (stale && stale.length > 0) {
+    trendingTokenCount = stale.length;
+    void ensureTrendingRefresh();
+    return stale;
+  }
+
+  // Cold start: no usable cache, so fetch synchronously (singleflight).
+  return ensureTrendingRefresh();
+}
+
+async function fetchTrendingFromUpstream(): Promise<MarketToken[]> {
+  const key = "market_trending";
   try {
     // Pull from both endpoints concurrently: latest = freshest activity,
     // top = tokens with sustained community boost spend.
@@ -808,6 +844,23 @@ export async function getTrendingTokens(): Promise<MarketToken[]> {
 
     // Strip dead / incomplete tokens before caching.
     const live = results.filter((t) => !isDeadToken(t));
+    // Never overwrite a good feed with an empty one: if upstream hiccupped and
+    // yielded nothing but we still hold a cached list, keep serving that. This
+    // is what stops the page from flashing "No tokens available" on a blip.
+    if (live.length === 0) {
+      try {
+        const prev = getCacheValue(key);
+        if (prev) {
+          const cached = JSON.parse(prev) as MarketToken[];
+          if (cached.length > 0) {
+            trendingTokenCount = cached.length;
+            return cached;
+          }
+        }
+      } catch {
+        // fall through and cache the empty result below
+      }
+    }
     setCacheValue(key, JSON.stringify(live));
     lastTrendingUpdate = Date.now();
     trendingTokenCount = live.length;

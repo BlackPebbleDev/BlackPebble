@@ -39,6 +39,19 @@ export default function About() {
           BlackPebble is for entertainment and education only. Nothing here is
           financial advice.
         </p>
+        {/* Apache 2.0 attribution notice required by the charting library. */}
+        <p className="text-xs text-muted-foreground/60">
+          Charts powered by{" "}
+          <a
+            href="https://www.tradingview.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline hover:text-foreground transition-colors"
+          >
+            TradingView
+          </a>{" "}
+          Lightweight Charts™, © TradingView, Inc.
+        </p>
       </div>
 
       <div className="flex flex-wrap gap-3">

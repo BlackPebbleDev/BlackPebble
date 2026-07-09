@@ -22,6 +22,10 @@ const X_REQUIRED = "Connect X to unlock your Trading Journal";
 const TEXT_MAX = 4000;
 const TITLE_MAX = 200;
 const TOKEN_MAX = 120;
+const MINT_MAX = 64;
+
+/** Where an entry's structured trade data came from. */
+const SOURCES = ["manual", "spot", "leverage"] as const;
 
 type ValidationError = { error: string };
 
@@ -40,9 +44,9 @@ function num(v: unknown): number | null {
 /**
  * Build a sanitized JournalInput from the request body. Returns a
  * ValidationError string when an enum / rating / length constraint is violated.
- * Only owner-supplied reflection fields are accepted; auto-import numeric fields
- * (entry_mc/exit_mc/roi/pnl/source) are reserved for the future
- * "Create From Trade" flow and are not writable via this endpoint yet.
+ * Structured trade fields (tokenMint/source/entryMc/exitMc/roi/pnl) power the
+ * "Create From Trade" flow - they are prefilled client-side from the user's own
+ * trade history and stored verbatim on the private entry.
  */
 function parseBody(body: unknown): JournalInput | ValidationError {
   const b = (body ?? {}) as Record<string, unknown>;
@@ -54,6 +58,14 @@ function parseBody(body: unknown): JournalInput | ValidationError {
   const token = str(b.token);
   if (token && token.length > TOKEN_MAX) {
     return { error: `Token must be ${TOKEN_MAX} characters or fewer` };
+  }
+  const tokenMint = str(b.tokenMint);
+  if (tokenMint && tokenMint.length > MINT_MAX) {
+    return { error: "Invalid token mint" };
+  }
+  const source = str(b.source);
+  if (source && !SOURCES.includes(source as (typeof SOURCES)[number])) {
+    return { error: "Invalid source" };
   }
 
   const tradeTypeRaw = str(b.tradeType);
@@ -90,9 +102,15 @@ function parseBody(body: unknown): JournalInput | ValidationError {
     direction: directionRaw,
     outcome: outcomeRaw,
     token,
+    tokenMint,
     tradeDate: num(b.tradeDate),
     rating,
     template: str(b.template),
+    source: source ?? "manual",
+    entryMc: num(b.entryMc),
+    exitMc: num(b.exitMc),
+    roi: num(b.roi),
+    pnl: num(b.pnl),
   };
   for (const [key, raw] of longText) {
     const v = str(raw);

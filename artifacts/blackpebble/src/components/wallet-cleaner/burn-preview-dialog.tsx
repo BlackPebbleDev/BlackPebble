@@ -110,8 +110,11 @@ export function BurnPreviewDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => (isBurning ? null : onOpenChange(o))}>
-      <DialogContent className="max-w-md" data-testid="dialog-burn-preview">
-        <DialogHeader>
+      <DialogContent
+        className="max-w-md max-h-[85vh] flex flex-col p-0 gap-0"
+        data-testid="dialog-burn-preview"
+      >
+        <DialogHeader className="p-6 pb-4">
           <DialogTitle className="flex items-center gap-2">
             <Flame className="w-4 h-4 text-danger" />
             {isBurning ? "Burning tokens" : "Confirm token burn"}
@@ -123,6 +126,7 @@ export function BurnPreviewDialog({
           </DialogDescription>
         </DialogHeader>
 
+        <div className="flex-1 overflow-y-auto px-6 min-h-0 pb-1">
         {isBurning && burnProgress ? (
           <div className="space-y-4 py-2" data-testid="burn-progress">
             <div className="space-y-1.5">
@@ -228,8 +232,9 @@ export function BurnPreviewDialog({
             </label>
           </div>
         )}
+        </div>
 
-        <DialogFooter className="gap-2 sm:gap-2">
+        <DialogFooter className="gap-2 sm:gap-2 border-t border-border px-6 py-4">
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}

@@ -439,11 +439,18 @@ export default function Markets() {
             ? api.volume()
             : null,
     enabled: isListFeed,
-    // No background polling - feeds refresh only on page open / tab switch or
-    // when the user clicks Refresh (the server cache turns over every 30s).
     // Keep the previous tab's rows on screen while the next feed loads so
     // switching tabs / background refreshes never blank the list or jump scroll.
     placeholderData: keepPreviousData,
+    // Retry transient failures with a short backoff so a network/edge blip
+    // shows a brief skeleton and recovers, instead of dropping to the empty
+    // "No tokens available" state (which otherwise sticks with no polling).
+    retry: 3,
+    retryDelay: (attempt) => Math.min(500 * 2 ** attempt, 3_000),
+    // No background polling while healthy (the server cache turns over every
+    // 30s) - but if the last fetch errored, poll fast so the feed self-heals
+    // within seconds rather than sitting broken until a manual refresh.
+    refetchInterval: (query) => (query.state.status === "error" ? 8_000 : false),
   });
 
   const feed = data as

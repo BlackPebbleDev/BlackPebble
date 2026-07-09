@@ -320,10 +320,10 @@ export interface CampaignTypeDef {
 export const CAMPAIGN_TYPE_DEFS: CampaignTypeDef[] = [
   {
     key: "dex_listing",
-    group: "DEXScreener",
-    label: "DEX Listing",
+    group: "DEX Screener",
+    label: "DEX Screener Listing",
     description:
-      "Get your token listed on DEXScreener with Enhanced Token Info. Choose listing only, or a combo that adds a trending boost the moment the listing goes live.",
+      "Get your token listed on DEX Screener with Enhanced Token Info. Choose listing only, or a bundle that adds a trending boost the moment the listing goes live.",
     goalOptions: [
       {
         label: "Listing Only",
@@ -356,10 +356,10 @@ export const CAMPAIGN_TYPE_DEFS: CampaignTypeDef[] = [
   },
   {
     key: "dex_boost",
-    group: "DEXScreener",
-    label: "DEX Boost",
+    group: "DEX Screener",
+    label: "DEX Screener Boost",
     description:
-      "Golden flame placement in the DEXScreener Boosted section. Pick the multiplier; 10x to 50x run 12 hours, 100x and up run a full 24 hours.",
+      "Golden flame placement in the DEX Screener Boosted section. Pick the multiplier; 10x to 50x run 12 hours, 100x and up run a full 24 hours.",
     goalOptions: [
       {
         label: "10x Boost",
@@ -392,10 +392,10 @@ export const CAMPAIGN_TYPE_DEFS: CampaignTypeDef[] = [
   },
   {
     key: "dex_ads",
-    group: "DEXScreener",
-    label: "Token Advertising",
+    group: "DEX Screener",
+    label: "DEX Screener Ads",
     description:
-      "Targeted display advertising on DEXScreener. Tiers are sized by guaranteed impressions in front of the most active traders in crypto.",
+      "Targeted display advertising on DEX Screener. Tiers are sized by guaranteed impressions in front of the most active traders in crypto.",
     goalOptions: [
       {
         label: "20K Views",
@@ -433,10 +433,10 @@ export const CAMPAIGN_TYPE_DEFS: CampaignTypeDef[] = [
   },
   {
     key: "dex_trending",
-    group: "DEXScreener",
-    label: "Trending Bar Placement",
+    group: "DEX Screener",
+    label: "DEX Screener Trending Bar",
     description:
-      "Showcase your token in the DEXScreener trending bar alongside the top tokens on the platform.",
+      "Showcase your token in the DEX Screener trending bar alongside the top tokens on the platform.",
     goalOptions: [
       {
         label: "24 Hours",
@@ -476,7 +476,7 @@ export const CAMPAIGN_TYPE_DEFS: CampaignTypeDef[] = [
   {
     key: "dextools_nitro",
     group: "DEXTools",
-    label: "Nitro Boost",
+    label: "DEXTools Nitro",
     description:
       "NITRO packs push your token up the DEXTboard Token Race. Every pack is a 24-hour visibility boost; bigger packs climb higher.",
     goalOptions: [
@@ -533,7 +533,7 @@ export const CAMPAIGN_TYPE_DEFS: CampaignTypeDef[] = [
   {
     key: "community_takeover",
     group: "Community",
-    label: "CTO (Community Takeover)",
+    label: "Community Takeover",
     description:
       "Fund a community takeover for a token the original team abandoned. Covers new socials, updated listings, and fresh momentum.",
     goalOptions: [

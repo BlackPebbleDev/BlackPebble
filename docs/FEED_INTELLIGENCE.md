@@ -91,8 +91,9 @@ feed_reactions(
   `lev-5`, `ach-9`, `camp-2`, `fe-14`) — reactions attach to *any* feed item,
   derived or published, without foreign keys into seven tables.
 - One reaction per user per event (upsert replaces; delete on toggle-off).
-- Exactly 10 reaction kinds: `rocket fire gem brain clap eyes moneybag flag
-  poop target` (🚀 🔥 💎 🧠 👏 👀 💰 🚩 💩 🎯).
+- 16 reaction kinds: `rocket fire gem brain clap eyes moneybag flag poop
+  target raise salute thinking heart thumbs_up thumbs_down`
+  (🚀 🔥 💎 🧠 👏 👀 💰 🚩 💩 🎯 🙌 🫡 🤔 ❤️ 👍 👎).
 
 ### Trade aggregation (`lib/feed-aggregate.ts`, pure + unit-tested)
 

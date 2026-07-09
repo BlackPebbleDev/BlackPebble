@@ -18,33 +18,23 @@ function Tile({
   value,
   sub,
   accent = false,
-  soon = false,
   testId,
 }: {
   label: string;
   value: string;
   sub?: string;
   accent?: boolean;
-  soon?: boolean;
   testId: string;
 }) {
   return (
     <div
-      className={cn(
-        "rounded-2xl border border-border bg-card px-3.5 py-3",
-        soon && "opacity-70",
-      )}
+      className="rounded-2xl border border-border bg-card px-3.5 py-3"
       data-testid={testId}
     >
       <div className="flex items-center justify-between gap-2 mb-1">
         <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
           {label}
         </div>
-        {soon && (
-          <span className="rounded-md bg-muted-foreground/10 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wider text-muted-foreground/70">
-            Soon
-          </span>
-        )}
       </div>
       <div
         className={cn(
@@ -81,9 +71,7 @@ function GroupLabel({
  * Expanded Wallet Health Dashboard. Surfaces the real 0–100 health score
  * alongside the live scan breakdown and lifetime recovery totals. Every figure
  * comes from real data - the live wallet scan (via the cleaner hook) or the
- * stored recovery history (via the shared react-query cache). Cleanup modules
- * that are not built yet (dust / burn / small-balance) are shown explicitly as
- * "coming soon" and never given a fabricated count.
+ * stored recovery history (via the shared react-query cache).
  */
 export function WalletHealthDashboard({
   cleaner,

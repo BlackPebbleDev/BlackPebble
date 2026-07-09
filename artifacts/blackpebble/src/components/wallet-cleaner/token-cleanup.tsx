@@ -157,7 +157,14 @@ export function ProtectedAssets({ cleaner }: { cleaner: UseWalletCleaner }) {
  * is per-token - only confirmed dust/burn rows are selectable, so a valuable
  * "keep" token can never be staged for burning from here.
  */
-export function AllTokensAnalysis({ cleaner }: { cleaner: UseWalletCleaner }) {
+export function AllTokensAnalysis({
+  cleaner,
+  onlyJunk = false,
+}: {
+  cleaner: UseWalletCleaner;
+  /** Junk Tokens tab: restrict to burn/dust buckets only. */
+  onlyJunk?: boolean;
+}) {
   const {
     allTokens,
     burnCandidates,
@@ -171,8 +178,9 @@ export function AllTokensAnalysis({ cleaner }: { cleaner: UseWalletCleaner }) {
     () =>
       allTokens
         .filter((t) => !t.isProtected)
+        .filter((t) => !onlyJunk || t.bucket === "burn" || t.bucket === "dust")
         .sort((a, b) => reviewRank(a) - reviewRank(b)),
-    [allTokens],
+    [allTokens, onlyJunk],
   );
   const mints = useMemo(
     () => unprotected.map((t) => t.asset.mint),
@@ -194,7 +202,9 @@ export function AllTokensAnalysis({ cleaner }: { cleaner: UseWalletCleaner }) {
       <div className="p-4 text-center text-sm text-muted-foreground" data-testid="no-tokens">
         {intelLoading
           ? "Analyzing your tokens…"
-          : "No unprotected tokens - everything you hold is protected."}
+          : onlyJunk
+            ? "No junk tokens detected - nothing here is a burn or dust candidate."
+            : "No unprotected tokens - everything you hold is protected."}
       </div>
     );
   }
@@ -239,34 +249,6 @@ export function AllTokensAnalysis({ cleaner }: { cleaner: UseWalletCleaner }) {
         onConfirm={confirmUnprotect}
       />
     </div>
-  );
-}
-
-/** Coming-soon advanced cleanup modules - never fabricated counts. */
-export function FutureCleanupModules() {
-  return (
-    <ul className="space-y-2 p-4" data-testid="future-cleanup-modules">
-      {[
-        "NFTs & collectibles",
-        "Compressed NFTs (cNFT)",
-        "LP positions",
-        "Advanced recovery",
-      ].map((item) => (
-        <li
-          key={item}
-          className="flex items-center justify-between gap-3 text-sm text-muted-foreground"
-        >
-          <span className="flex items-center gap-2.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/50 flex-shrink-0" />
-            {item}
-          </span>
-          <span className="inline-flex items-center gap-1 rounded-md bg-muted-foreground/10 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wider text-muted-foreground/60">
-            <Lock className="w-2.5 h-2.5" />
-            Soon
-          </span>
-        </li>
-      ))}
-    </ul>
   );
 }
 

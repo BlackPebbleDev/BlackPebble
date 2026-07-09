@@ -4,6 +4,7 @@ import { asyncHandler } from "../lib/asyncHandler.js";
 import { isAdmin, sessionFromRequest } from "../lib/auth.js";
 import { getFeatureFlags } from "../lib/featureFlags.js";
 import {
+  FEE_BPS,
   createCampaign,
   getCampaign,
   getCampaignLedger,
@@ -68,6 +69,9 @@ router.get(
       types: CAMPAIGN_TYPE_DEFS,
       solPriceUsd,
       escrowReady: escrowConfigured(),
+      // Platform fee (bps of the goal, taken only at settlement) so the create
+      // flow can disclose the exact fee up front.
+      feeBps: FEE_BPS,
     });
   }),
 );

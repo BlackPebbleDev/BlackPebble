@@ -69,7 +69,7 @@ export async function publishEvent(input: PublishEventInput): Promise<boolean> {
 
 // ── Reactions ────────────────────────────────────────────────────────────────
 
-/** The complete reaction vocabulary — exactly these ten, in display order. */
+/** The complete reaction vocabulary, in display order. */
 export const REACTION_KEYS = [
   "rocket", // 🚀 Bullish / Moon
   "fire", // 🔥 Hot Trade
@@ -81,6 +81,12 @@ export const REACTION_KEYS = [
   "flag", // 🚩 Red Flag
   "poop", // 💩 Bad Call
   "target", // 🎯 Accurate Call
+  "raise", // 🙌 Respect / Big Win
+  "salute", // 🫡 Salute
+  "thinking", // 🤔 Thinking / Not Sure
+  "heart", // ❤️ Love
+  "thumbs_up", // 👍 Agree
+  "thumbs_down", // 👎 Disagree
 ] as const;
 
 export type ReactionKey = (typeof REACTION_KEYS)[number];

@@ -12,6 +12,11 @@ import {
   Lock,
 } from "lucide-react";
 import { api, type JournalEntry, type JournalInput, type JournalStats } from "@/lib/api";
+import {
+  TradePickerDialog,
+  type PickedTrade,
+} from "@/components/journal/trade-picker";
+import { fmtMarketCap, fmtSignedSol, pnlColor } from "@/lib/format";
 import { useXAuth } from "@/hooks/use-x-auth";
 import { useToast } from "@/hooks/use-toast";
 import { XLoginButton } from "@/components/x-login-button";
@@ -72,6 +77,14 @@ type FormState = {
   rating: number;
   notes: string;
   template: string;
+  // Structured trade link - populated by the "From Trade" flow, preserved on
+  // edit so the linked trade data survives round-trips.
+  tokenMint: string;
+  source: string;
+  entryMc: number | null;
+  exitMc: number | null;
+  roi: number | null;
+  pnl: number | null;
 };
 
 const EMPTY_FORM: FormState = {
@@ -91,6 +104,12 @@ const EMPTY_FORM: FormState = {
   rating: 0,
   notes: "",
   template: "",
+  tokenMint: "",
+  source: "manual",
+  entryMc: null,
+  exitMc: null,
+  roi: null,
+  pnl: null,
 };
 
 type TemplateKey = "winning" | "losing" | "quick";
@@ -314,6 +333,7 @@ function JournalDashboard() {
   const entries = listData?.entries ?? [];
 
   const [editorOpen, setEditorOpen] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [editing, setEditing] = useState<JournalEntry | null>(null);
   const [viewing, setViewing] = useState<JournalEntry | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<JournalEntry | null>(null);
@@ -346,6 +366,34 @@ function JournalDashboard() {
   function openEdit(entry: JournalEntry) {
     setEditing(entry);
     setEditorForm(entryToForm(entry));
+    setEditorOpen(true);
+  }
+
+  /** "From Trade" - prefill the editor from a real trade the user picked. */
+  function openFromTrade(t: PickedTrade) {
+    const outcomeWord =
+      t.outcome === "win" ? "Win" : t.outcome === "loss" ? "Loss" : "Review";
+    const typeWord =
+      t.tradeType === "leverage"
+        ? `${t.leverage ?? "?"}x ${t.direction}`
+        : `spot ${t.detail.toLowerCase()}`;
+    setEditing(null);
+    setEditorForm({
+      ...EMPTY_FORM,
+      title: `${t.token} ${typeWord} - ${outcomeWord}`,
+      tradeType: t.tradeType,
+      direction: t.direction,
+      outcome: t.outcome ?? "",
+      token: t.token,
+      tradeDate: toDateInput(t.ts),
+      tokenMint: t.tokenMint,
+      source: t.source,
+      entryMc: t.entryMc,
+      exitMc: t.exitMc,
+      roi: t.roiPct,
+      pnl: t.pnlSol,
+    });
+    setPickerOpen(false);
     setEditorOpen(true);
   }
 
@@ -408,6 +456,12 @@ function JournalDashboard() {
       rating: editorForm.rating || null,
       notes: editorForm.notes || null,
       template: editorForm.template || null,
+      tokenMint: editorForm.tokenMint || null,
+      source: editorForm.source || "manual",
+      entryMc: editorForm.entryMc,
+      exitMc: editorForm.exitMc,
+      roi: editorForm.roi,
+      pnl: editorForm.pnl,
     };
     saveMutation.mutate({ id: editing?.id ?? null, input });
   }
@@ -427,12 +481,11 @@ function JournalDashboard() {
         <div className="flex items-center gap-2">
           <button
             type="button"
-            disabled
-            title="Coming soon - auto-fill an entry from one of your trades"
-            className="inline-flex items-center gap-2 px-4 h-11 rounded-full bg-surface-2 text-muted-foreground text-sm font-medium cursor-not-allowed opacity-70"
+            onClick={() => setPickerOpen(true)}
+            className="inline-flex items-center gap-2 px-4 h-11 rounded-full bg-surface-2 text-foreground hover:bg-surface-3 text-sm font-medium transition-colors"
             data-testid="button-create-from-trade"
           >
-            <Sparkles className="w-4 h-4" />
+            <Sparkles className="w-4 h-4 text-accent" />
             From Trade
           </button>
           <button
@@ -642,6 +695,57 @@ function JournalDashboard() {
           </DialogHeader>
 
           <div className="space-y-5 py-2">
+            {editorForm.source !== "manual" && editorForm.source !== "" && (
+              <div
+                className="rounded-xl border border-accent/20 bg-accent/5 px-4 py-3"
+                data-testid="linked-trade-summary"
+              >
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">
+                  Linked {editorForm.source === "leverage" ? "perps" : "spot"}{" "}
+                  trade
+                </div>
+                <div className="flex items-center gap-x-4 gap-y-1 flex-wrap text-xs">
+                  {editorForm.entryMc != null && (
+                    <span className="text-muted-foreground">
+                      Entry{" "}
+                      <span className="font-mono text-foreground">
+                        {fmtMarketCap(editorForm.entryMc)}
+                      </span>
+                    </span>
+                  )}
+                  {editorForm.exitMc != null && (
+                    <span className="text-muted-foreground">
+                      Exit{" "}
+                      <span className="font-mono text-foreground">
+                        {fmtMarketCap(editorForm.exitMc)}
+                      </span>
+                    </span>
+                  )}
+                  {editorForm.pnl != null && (
+                    <span className="text-muted-foreground">
+                      PnL{" "}
+                      <span
+                        className={cn("font-mono", pnlColor(editorForm.pnl))}
+                      >
+                        {fmtSignedSol(editorForm.pnl)} SOL
+                      </span>
+                    </span>
+                  )}
+                  {editorForm.roi != null && (
+                    <span className="text-muted-foreground">
+                      ROI{" "}
+                      <span
+                        className={cn("font-mono", pnlColor(editorForm.roi))}
+                      >
+                        {editorForm.roi >= 0 ? "+" : ""}
+                        {editorForm.roi.toFixed(1)}%
+                      </span>
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
             <Field label="Entry Title">
               <Input
                 value={editorForm.title}
@@ -861,6 +965,13 @@ function JournalDashboard() {
         </DialogContent>
       </Dialog>
 
+      {/* From Trade picker */}
+      <TradePickerDialog
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        onPick={openFromTrade}
+      />
+
       {/* Viewer */}
       <Dialog open={!!viewing} onOpenChange={(o) => !o && setViewing(null)}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -946,6 +1057,48 @@ function EntryViewer({ entry }: { entry: JournalEntry }) {
         {entry.rating ? (
           <StarRating value={entry.rating} readonly />
         ) : null}
+        {entry.source && entry.source !== "manual" ? (
+          <div className="rounded-xl border border-accent/20 bg-accent/5 px-4 py-3">
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">
+              Linked {entry.source === "leverage" ? "perps" : "spot"} trade
+            </div>
+            <div className="flex items-center gap-x-4 gap-y-1 flex-wrap text-xs">
+              {entry.entry_mc != null && (
+                <span className="text-muted-foreground">
+                  Entry{" "}
+                  <span className="font-mono text-foreground">
+                    {fmtMarketCap(entry.entry_mc)}
+                  </span>
+                </span>
+              )}
+              {entry.exit_mc != null && (
+                <span className="text-muted-foreground">
+                  Exit{" "}
+                  <span className="font-mono text-foreground">
+                    {fmtMarketCap(entry.exit_mc)}
+                  </span>
+                </span>
+              )}
+              {entry.pnl != null && (
+                <span className="text-muted-foreground">
+                  PnL{" "}
+                  <span className={cn("font-mono", pnlColor(entry.pnl))}>
+                    {fmtSignedSol(entry.pnl)} SOL
+                  </span>
+                </span>
+              )}
+              {entry.roi != null && (
+                <span className="text-muted-foreground">
+                  ROI{" "}
+                  <span className={cn("font-mono", pnlColor(entry.roi))}>
+                    {entry.roi >= 0 ? "+" : ""}
+                    {entry.roi.toFixed(1)}%
+                  </span>
+                </span>
+              )}
+            </div>
+          </div>
+        ) : null}
         <ReadField label="Entry Reason" value={entry.entry_reason} />
         <ReadField label="Exit Reason" value={entry.exit_reason} />
         <ReadField label="What Went Right" value={entry.went_right} />
@@ -979,5 +1132,11 @@ function entryToForm(e: JournalEntry): FormState {
     rating: e.rating ?? 0,
     notes: e.notes ?? "",
     template: e.template ?? "",
+    tokenMint: e.token_mint ?? "",
+    source: e.source ?? "manual",
+    entryMc: e.entry_mc,
+    exitMc: e.exit_mc,
+    roi: e.roi,
+    pnl: e.pnl,
   };
 }

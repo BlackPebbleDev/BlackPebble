@@ -75,7 +75,7 @@ router.get(
 
 /**
  * React to a feed item. Body: { eventId, reaction } where reaction is one of
- * the ten keys, or null to clear. One reaction per user per event.
+ * the REACTION_KEYS, or null to clear. One reaction per user per event.
  */
 router.post(
   "/feed/react",

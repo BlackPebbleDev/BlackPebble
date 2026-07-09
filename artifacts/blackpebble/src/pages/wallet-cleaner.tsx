@@ -9,10 +9,7 @@ import {
   CheckCircle2,
   AlertTriangle,
   Wallet,
-  ChevronDown,
   Coins,
-  Activity,
-  Lock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -28,43 +25,31 @@ import { ScanResults } from "@/components/wallet-cleaner/scan-results";
 import { RecoverySuccess } from "@/components/wallet-cleaner/recovery-success";
 import { RecoveryHistory } from "@/components/wallet-cleaner/recovery-history";
 import { ClosePreviewDialog } from "@/components/wallet-cleaner/close-preview-dialog";
+import { NftAnalysis } from "@/components/wallet-cleaner/nft-analysis";
 import {
   ProtectedAssets,
   ValueSummary,
   AllTokensAnalysis,
-  FutureCleanupModules,
   BurnSuccessBanner,
 } from "@/components/wallet-cleaner/token-cleanup";
 import { BurnPreviewDialog } from "@/components/wallet-cleaner/burn-preview-dialog";
 
-/** A labeled sub-block inside the Advanced Analysis container. */
-function AdvancedBlock({
-  icon,
-  title,
-  children,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-muted-foreground px-1">
-        <span className="text-accent">{icon}</span>
-        {title}
-      </div>
-      {children}
-    </div>
-  );
-}
+type CleanupTab =
+  | "overview"
+  | "assets"
+  | "recoverable"
+  | "junk"
+  | "protected"
+  | "history"
+  | "metrics";
 
 export default function WalletCleaner() {
   const { connected } = useWallet();
   const cleaner = useWalletCleaner();
   const [previewOpen, setPreviewOpen] = useState(false);
   const [burnPreviewOpen, setBurnPreviewOpen] = useState(false);
-  const [advancedOpen, setAdvancedOpen] = useState(false);
-  const advancedRef = useRef<HTMLDivElement>(null);
+  const [tab, setTab] = useState<CleanupTab>("overview");
+  const tabsRef = useRef<HTMLDivElement>(null);
 
   const {
     status,
@@ -72,6 +57,9 @@ export default function WalletCleaner() {
     owner,
     accounts,
     tokens,
+    burnCandidates,
+    dustTokens,
+    protectedTokens,
     intelLoading,
     scan,
     selectAll,
@@ -101,9 +89,12 @@ export default function WalletCleaner() {
     setBurnPreviewOpen(true);
   }
   function handleReview() {
-    setAdvancedOpen(true);
+    goToTab("assets");
+  }
+  function goToTab(next: CleanupTab) {
+    setTab(next);
     requestAnimationFrame(() =>
-      advancedRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+      tabsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
     );
   }
 
@@ -115,6 +106,18 @@ export default function WalletCleaner() {
     accounts.length === 0 &&
     tokens.length === 0 &&
     !intelLoading;
+
+  const junkCount = burnCandidates.length + dustTokens.length;
+
+  const tabs: { key: CleanupTab; label: string; count?: number }[] = [
+    { key: "overview", label: "Overview" },
+    { key: "assets", label: "Assets", count: tokens.length },
+    { key: "recoverable", label: "Recoverable", count: accounts.length },
+    { key: "junk", label: "Junk Tokens", count: junkCount },
+    { key: "protected", label: "Protected", count: protectedTokens.length },
+    { key: "history", label: "History" },
+    { key: "metrics", label: "Metrics" },
+  ];
 
   return (
     <div className="flex flex-col gap-6 px-4 py-6 sm:py-10 max-w-3xl mx-auto pb-32 sm:pb-10">
@@ -174,7 +177,7 @@ export default function WalletCleaner() {
           <div className="space-y-6">
             <WalletStatusCard cleaner={cleaner} />
 
-            {/* SECTION 1 - Wallet Health Hero (the centerpiece summary). */}
+            {/* Wallet Health Hero (the centerpiece summary). */}
             <WalletHealthHero cleaner={cleaner} onScan={scan} />
 
             {status === "scanning" && (
@@ -213,101 +216,106 @@ export default function WalletCleaner() {
                     </Button>
                   </div>
                 ) : (
-                  <>
-                    {/* SECTION 2 - Recommended Actions. */}
-                    <RecommendedActions
-                      cleaner={cleaner}
-                      onRecover={handleRecover}
-                      onBurn={handleBurn}
-                      onReview={handleReview}
-                    />
-
-                    {/* SECTION 3 - Protected Assets (always visible, trust). */}
-                    <ProtectedAssets cleaner={cleaner} />
-
-                    {/* SECTION 4 - Advanced Analysis (collapsed by default). */}
-                    <section
-                      ref={advancedRef}
-                      className="rounded-xl bg-card shadow-card overflow-hidden"
-                      data-testid="advanced-analysis"
+                  <div ref={tabsRef} className="space-y-4 scroll-mt-4">
+                    {/* Section navigation - metrics and history are one tap
+                        away instead of buried under long token lists. */}
+                    <div
+                      role="tablist"
+                      aria-label="Wallet cleanup sections"
+                      className="flex gap-1.5 overflow-x-auto pb-0.5 -mx-1 px-1"
+                      data-testid="cleanup-tabs"
                     >
-                      <button
-                        type="button"
-                        onClick={() => setAdvancedOpen((o) => !o)}
-                        className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-secondary/50 transition-colors"
-                        aria-expanded={advancedOpen}
-                        data-testid="advanced-analysis-toggle"
-                      >
-                        <div className="w-9 h-9 rounded-full bg-accent/12 flex items-center justify-center flex-shrink-0 text-accent">
-                          <Activity className="w-4 h-4" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="font-semibold text-sm">
-                            Advanced analysis
-                          </div>
-                          <div className="text-xs text-muted-foreground leading-snug">
-                            All tokens, value & sellability, scam detection,
-                            metrics and recovery history
-                          </div>
-                        </div>
-                        <ChevronDown
+                      {tabs.map((t) => (
+                        <button
+                          key={t.key}
+                          type="button"
+                          role="tab"
+                          aria-selected={tab === t.key}
+                          onClick={() => setTab(t.key)}
                           className={cn(
-                            "w-4 h-4 text-muted-foreground flex-shrink-0 transition-transform",
-                            advancedOpen && "rotate-180",
+                            "rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors whitespace-nowrap border flex items-center gap-1.5",
+                            tab === t.key
+                              ? "bg-accent/15 text-accent border-accent/30"
+                              : "bg-surface-2 text-muted-foreground border-white/[0.05] hover:border-white/[0.12]",
                           )}
+                          data-testid={`cleanup-tab-${t.key}`}
+                        >
+                          {t.label}
+                          {t.count != null && t.count > 0 && (
+                            <span className="font-mono text-[10px] opacity-80">
+                              {t.count}
+                            </span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+
+                    {tab === "overview" && (
+                      <div className="space-y-6">
+                        <RecommendedActions
+                          cleaner={cleaner}
+                          onRecover={handleRecover}
+                          onBurn={handleBurn}
+                          onReview={handleReview}
                         />
-                      </button>
-                      {advancedOpen && (
-                        <div className="border-t border-border p-4 space-y-6">
-                          <AdvancedBlock
-                            icon={<Coins className="w-3.5 h-3.5" />}
-                            title="Value analysis"
-                          >
-                            <ValueSummary cleaner={cleaner} />
-                          </AdvancedBlock>
-
-                          {accounts.length > 0 && (
-                            <AdvancedBlock
-                              icon={<Sparkles className="w-3.5 h-3.5" />}
-                              title="Empty accounts · recoverable rent"
-                            >
-                              <div className="rounded-2xl border border-border overflow-hidden">
-                                <ScanResults cleaner={cleaner} />
-                              </div>
-                            </AdvancedBlock>
-                          )}
-
-                          {hasTokens && (
-                            <AdvancedBlock
-                              icon={<Coins className="w-3.5 h-3.5" />}
-                              title="All tokens · risk & sellability"
-                            >
-                              <div className="rounded-2xl border border-border overflow-hidden">
-                                <AllTokensAnalysis cleaner={cleaner} />
-                              </div>
-                            </AdvancedBlock>
-                          )}
-
-                          <WalletHealthDashboard
-                            cleaner={cleaner}
-                            wallet={owner}
-                            variant="detail"
-                          />
-
-                          {owner && <RecoveryHistory wallet={owner} />}
-
-                          <AdvancedBlock
-                            icon={<Lock className="w-3.5 h-3.5" />}
-                            title="More cleanup modules"
-                          >
-                            <div className="rounded-2xl border border-border">
-                              <FutureCleanupModules />
-                            </div>
-                          </AdvancedBlock>
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-muted-foreground px-1">
+                            <Coins className="w-3.5 h-3.5 text-accent" />
+                            Value analysis
+                          </div>
+                          <ValueSummary cleaner={cleaner} />
                         </div>
-                      )}
-                    </section>
-                  </>
+                      </div>
+                    )}
+
+                    {tab === "assets" && (
+                      <div className="space-y-6">
+                        {hasTokens ? (
+                          <div className="rounded-xl bg-card shadow-card overflow-hidden">
+                            <AllTokensAnalysis cleaner={cleaner} />
+                          </div>
+                        ) : (
+                          <div className="rounded-xl bg-card shadow-card p-6 text-center text-sm text-muted-foreground">
+                            No token holdings found in this wallet.
+                          </div>
+                        )}
+                        <NftAnalysis owner={owner} />
+                      </div>
+                    )}
+
+                    {tab === "recoverable" &&
+                      (accounts.length > 0 ? (
+                        <div className="rounded-xl bg-card shadow-card overflow-hidden">
+                          <ScanResults cleaner={cleaner} />
+                        </div>
+                      ) : (
+                        <div className="rounded-xl bg-card shadow-card p-6 text-center text-sm text-muted-foreground">
+                          No empty token accounts - there is no trapped rent to
+                          recover right now.
+                        </div>
+                      ))}
+
+                    {tab === "junk" && (
+                      <div className="rounded-xl bg-card shadow-card overflow-hidden">
+                        <AllTokensAnalysis cleaner={cleaner} onlyJunk />
+                      </div>
+                    )}
+
+                    {tab === "protected" && <ProtectedAssets cleaner={cleaner} />}
+
+                    {tab === "history" &&
+                      (owner ? (
+                        <RecoveryHistory wallet={owner} />
+                      ) : null)}
+
+                    {tab === "metrics" && (
+                      <WalletHealthDashboard
+                        cleaner={cleaner}
+                        wallet={owner}
+                        variant="detail"
+                      />
+                    )}
+                  </div>
                 )}
 
                 {status === "error" && accounts.length > 0 && error && (

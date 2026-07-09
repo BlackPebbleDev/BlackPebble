@@ -112,12 +112,15 @@ the schema changes.
    - **Runtime:** Node
    - **Build Command:**
      ```
-     npm install -g pnpm@10.34.4 && pnpm install --frozen-lockfile && pnpm --filter @workspace/api-server build
+     pnpm install --frozen-lockfile && pnpm --filter @workspace/api-server build
      ```
-     > Do **not** use `corepack enable` on Render — it tries to symlink pnpm
-     > into the read-only `/usr/bin` and fails (`EROFS`). Installing pnpm
-     > globally via npm writes to a writable prefix and works. Keep the pinned
-     > version in sync with the root `packageManager` field.
+     > Do **not** install pnpm in the build command on Render. Its Node 24 image
+     > has a **read-only `/usr/lib/node_modules` and `/usr/bin`**, so both
+     > `corepack enable` and `npm install -g pnpm` fail with `EROFS`. Render
+     > auto-provisions pnpm from the root `packageManager` field
+     > (`pnpm@10.34.4`), so just call `pnpm` directly. If `pnpm` is somehow not
+     > on PATH, fall back to `corepack pnpm install ...` with
+     > `COREPACK_HOME=$HOME/.corepack` set as an env var (writable location).
    - **Start Command:**
      ```
      pnpm --filter @workspace/api-server start
@@ -256,7 +259,8 @@ No Phase 2–4 chart overlays until the base chart is approved.
 ## Appendix — TradingView Advanced Charts application (ready to paste)
 
 Submit at <https://www.tradingview.com/advanced-charts/> → "Get the library".
-Replace `<staging-url>` with your live Vercel/staging URL before submitting.
+Live staging URL: <https://blackpebble-staging.vercel.app>
+Review token page: <https://blackpebble-staging.vercel.app/?token=5UUH9RTDiSpq6HKS6bp4NdU9PNJpXRXuiw6ShBTBhgH2>
 Only fill fields the form actually asks for; this covers the common ones.
 
 > **Two-stage process — do not conflate them:**
@@ -277,7 +281,7 @@ Only fill fields the form actually asks for; this covers the common ones.
 | Name | *(your name)* |
 | Business email | *(a real inbox you monitor — not a noreply alias)* |
 | Company / Organization | BlackPebble |
-| Website / Product URL | `<staging-url>` |
+| Website / Product URL | `https://blackpebble-staging.vercel.app` |
 | Country | *(your country)* |
 | Is this a company / commercial public web project? | Yes |
 | Personal / hobby / study project? | No |
@@ -299,7 +303,9 @@ Only fill fields the form actually asks for; this covers the common ones.
 
 **Notes for the reviewer, if there's a free-text/extra field:**
 
-> Our public web app is live at `<staging-url>`. We are requesting access so we
+> Our public web app is live at `https://blackpebble-staging.vercel.app` (an
+> example token detail page: `https://blackpebble-staging.vercel.app/?token=5UUH9RTDiSpq6HKS6bp4NdU9PNJpXRXuiw6ShBTBhgH2`).
+> We are requesting access so we
 > can install and enable the Advanced Charts library on our token pages; our
 > Datafeed API integration is already built and tested against our OHLCV
 > backend. Once access is granted we will self-host the library and turn the

@@ -120,6 +120,12 @@ export interface UseWalletCleaner {
   recoveredNet: number;
   txCount: number;
   progress: CloseProgress | null;
+  /** Accounts that could not be closed in the last run (still selected). */
+  failedCount: number;
+  /** True when the wallet supports signAllTransactions (one approval total). */
+  supportsBatchSigning: boolean;
+  /** Wallet approvals the pending recovery will request (1 with batch signing). */
+  expectedApprovals: number;
   // ── Full wallet assets + intelligence ──
   assets: WalletAsset[];
   tokens: EnrichedToken[];
@@ -168,7 +174,8 @@ const INTEL_BATCH = 100;
 
 export function useWalletCleaner(): UseWalletCleaner {
   const { connection } = useConnection();
-  const { publicKey, sendTransaction } = useWallet();
+  const { publicKey, sendTransaction, signAllTransactions } = useWallet();
+  const supportsBatchSigning = !!signAllTransactions;
 
   const [status, setStatus] = useState<CleanerStatus>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -179,6 +186,7 @@ export function useWalletCleaner(): UseWalletCleaner {
   const [recoveredSol, setRecoveredSol] = useState(0);
   const [signatures, setSignatures] = useState<string[]>([]);
   const [progress, setProgress] = useState<CloseProgress | null>(null);
+  const [failedCount, setFailedCount] = useState(0);
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
   const [balanceStatus, setBalanceStatus] = useState<BalanceStatus>("idle");
 
@@ -270,6 +278,7 @@ export function useWalletCleaner(): UseWalletCleaner {
     setRecoveredSol(0);
     setSignatures([]);
     setProgress(null);
+    setFailedCount(0);
     setIntelByMint({});
     setBurnSelected(new Set());
     setBurnStatus("idle");
@@ -283,6 +292,9 @@ export function useWalletCleaner(): UseWalletCleaner {
       const closeable = closeableFromAssets(allAssets);
       setAssets(allAssets);
       setAccounts(closeable);
+      // Empty accounts are selected by default: one "Recover SOL" tap covers
+      // the whole wallet, no per-account flow required.
+      setSelected(new Set(closeable.map((a) => a.pubkey)));
       setStatus("scanned");
       trackRecovery({
         eventType: "scan",
@@ -302,6 +314,15 @@ export function useWalletCleaner(): UseWalletCleaner {
     }
   }, [connection, publicKey, refreshBalance, fetchIntel]);
 
+  /**
+   * One recovery session, many transactions under the hood. The selected
+   * accounts are chunked into MAX_CLOSES_PER_TX-sized close transactions.
+   * Wallets that support signAllTransactions get ONE approval for the whole
+   * run (transactions are then submitted and confirmed automatically);
+   * otherwise we fall back to one sequential approval per transaction.
+   * Failed batches never lose progress: closed accounts are pruned, failed
+   * ones stay selected so Retry only re-attempts what's left.
+   */
   const closeSelected = useCallback(async (): Promise<boolean> => {
     if (!publicKey) return false;
     const toClose = accounts.filter((a) => selected.has(a.pubkey));
@@ -309,79 +330,68 @@ export function useWalletCleaner(): UseWalletCleaner {
 
     setStatus("closing");
     setError(null);
+    setFailedCount(0);
+    setClosedCount(0);
+    setRecoveredSol(0);
+    setSignatures([]);
 
-    const totalBatches = Math.ceil(toClose.length / MAX_CLOSES_PER_TX);
+    const batches: CloseableAccount[][] = [];
+    for (let i = 0; i < toClose.length; i += MAX_CLOSES_PER_TX) {
+      batches.push(toClose.slice(i, i + MAX_CLOSES_PER_TX));
+    }
+    const totalBatches = batches.length;
+
     let closed = 0;
     let recovered = 0;
+    let failed = 0;
     const closedPubkeys = new Set<string>();
+    const failedPubkeys = new Set<string>();
     const sigs: string[] = [];
 
-    try {
-      for (let i = 0; i < toClose.length; i += MAX_CLOSES_PER_TX) {
-        const batch = toClose.slice(i, i + MAX_CLOSES_PER_TX);
-        setProgress({
-          batchIndex: Math.floor(i / MAX_CLOSES_PER_TX) + 1,
-          totalBatches,
-          fromIndex: i + 1,
-          toIndex: i + batch.length,
-          total: toClose.length,
-        });
-        const tx = new Transaction();
-        for (const acc of batch) {
-          tx.add(
-            createCloseAccountInstruction(
-              new PublicKey(acc.pubkey),
-              publicKey,
-              publicKey,
-              [],
-              new PublicKey(acc.programId),
-            ),
-          );
-        }
-
-        const { blockhash, lastValidBlockHeight } =
-          await connection.getLatestBlockhash();
-        tx.recentBlockhash = blockhash;
-        tx.feePayer = publicKey;
-
-        const signature = await sendTransaction(tx, connection);
-        await connection.confirmTransaction(
-          { signature, blockhash, lastValidBlockHeight },
-          "confirmed",
+    const buildTx = (batch: CloseableAccount[], blockhash: string) => {
+      const tx = new Transaction();
+      for (const acc of batch) {
+        tx.add(
+          createCloseAccountInstruction(
+            new PublicKey(acc.pubkey),
+            publicKey,
+            publicKey,
+            [],
+            new PublicKey(acc.programId),
+          ),
         );
-
-        sigs.push(signature);
-        closed += batch.length;
-        recovered += batch.reduce((sum, a) => sum + a.sol, 0);
-        for (const a of batch) closedPubkeys.add(a.pubkey);
       }
+      tx.recentBlockhash = blockhash;
+      tx.feePayer = publicKey;
+      return tx;
+    };
 
-      const networkFee = sigs.length * FEE_SOL_PER_TX;
-      const net = Math.max(0, recovered - networkFee);
+    const showBatch = (index: number) => {
+      const from = index * MAX_CLOSES_PER_TX;
+      setProgress({
+        batchIndex: index + 1,
+        totalBatches,
+        fromIndex: from + 1,
+        toIndex: from + batches[index].length,
+        total: toClose.length,
+      });
+    };
 
+    const recordSuccess = (batch: CloseableAccount[], signature: string) => {
+      sigs.push(signature);
+      closed += batch.length;
+      recovered += batch.reduce((sum, a) => sum + a.sol, 0);
+      for (const a of batch) closedPubkeys.add(a.pubkey);
+      // Live counters so the progress UI shows accounts closed / SOL
+      // recovered as the session runs.
       setClosedCount(closed);
       setRecoveredSol(recovered);
-      setSignatures(sigs);
-      setAccounts((prev) => prev.filter((a) => !closedPubkeys.has(a.pubkey)));
-      setAssets((prev) => prev.filter((a) => !closedPubkeys.has(a.pubkey)));
-      setSelected(new Set());
-      setProgress(null);
-      setStatus("done");
-      trackRecovery({
-        eventType: "cleanup",
-        wallet: publicKey.toBase58(),
-        status: "success",
-        accountsFound: toClose.length,
-        accountsClosed: closed,
-        recoverableSol: toClose.reduce((sum, a) => sum + a.sol, 0),
-        recoveredSol: recovered,
-        txSignatures: sigs,
-        networkFeeSol: networkFee,
-        netSol: net,
-      });
-      void refreshBalance();
-      return true;
-    } catch (e) {
+      setSignatures([...sigs]);
+    };
+
+    const finalize = (interrupted: string | null): boolean => {
+      // Never lose progress: prune what actually closed, keep everything
+      // else selected so Retry re-attempts only the remaining accounts.
       if (closedPubkeys.size > 0) {
         setAccounts((prev) => prev.filter((a) => !closedPubkeys.has(a.pubkey)));
         setAssets((prev) => prev.filter((a) => !closedPubkeys.has(a.pubkey)));
@@ -390,34 +400,123 @@ export function useWalletCleaner(): UseWalletCleaner {
           for (const pk of closedPubkeys) next.delete(pk);
           return next;
         });
-        setClosedCount(closed);
-        setRecoveredSol(recovered);
-        setSignatures(sigs);
       }
-      const prefix =
-        closed > 0
-          ? `Closed ${closed} account${closed === 1 ? "" : "s"} before stopping. `
-          : "";
-      const message =
-        e instanceof Error ? e.message : "Failed to close the selected accounts.";
-      setError(prefix + message);
-      setStatus("error");
+      setClosedCount(closed);
+      setRecoveredSol(recovered);
+      setSignatures([...sigs]);
+      setFailedCount(failed);
+      setProgress(null);
+
+      const networkFee = sigs.length * FEE_SOL_PER_TX;
+      const net = Math.max(0, recovered - networkFee);
+      const ok = interrupted == null && failed === 0;
+
+      if (ok) {
+        setStatus("done");
+      } else {
+        const closedNote =
+          closed > 0
+            ? `Recovered from ${closed} account${closed === 1 ? "" : "s"}. `
+            : "";
+        const failNote = interrupted
+          ? interrupted
+          : `${failed} account${failed === 1 ? "" : "s"} could not be closed. They stay selected - tap Retry to close the rest.`;
+        setError(closedNote + failNote);
+        setStatus("error");
+      }
+      // Every signature is persisted to recovery history, success or not.
       trackRecovery({
         eventType: "cleanup",
         wallet: publicKey.toBase58(),
-        status: "failed",
+        status: ok ? "success" : "failed",
         accountsFound: toClose.length,
         accountsClosed: closed,
         recoverableSol: toClose.reduce((sum, a) => sum + a.sol, 0),
         recoveredSol: recovered,
         txSignatures: sigs,
-        networkFeeSol: sigs.length * FEE_SOL_PER_TX,
-        netSol: Math.max(0, recovered - sigs.length * FEE_SOL_PER_TX),
-        error: message,
+        networkFeeSol: networkFee,
+        netSol: net,
+        ...(ok ? {} : { error: interrupted ?? `${failed} accounts failed` }),
       });
-      return false;
+      void refreshBalance();
+      return ok;
+    };
+
+    // ── Preferred path: one batch-signing approval for the whole session ──
+    if (signAllTransactions) {
+      let signedTxs: Transaction[];
+      let blockhash: string;
+      let lastValidBlockHeight: number;
+      try {
+        ({ blockhash, lastValidBlockHeight } =
+          await connection.getLatestBlockhash());
+        signedTxs = await signAllTransactions(
+          batches.map((b) => buildTx(b, blockhash)),
+        );
+      } catch (e) {
+        // Signing rejected/failed before anything was submitted.
+        setProgress(null);
+        setStatus("error");
+        setError(
+          e instanceof Error ? e.message : "Wallet did not sign the recovery.",
+        );
+        return false;
+      }
+      for (let bi = 0; bi < signedTxs.length; bi++) {
+        showBatch(bi);
+        const batch = batches[bi];
+        try {
+          const signature = await connection.sendRawTransaction(
+            signedTxs[bi].serialize(),
+          );
+          await connection.confirmTransaction(
+            { signature, blockhash, lastValidBlockHeight },
+            "confirmed",
+          );
+          recordSuccess(batch, signature);
+        } catch {
+          // Isolated failure (expiry/network): skip and continue with the
+          // remaining batches instead of aborting the session.
+          failed += batch.length;
+          for (const a of batch) failedPubkeys.add(a.pubkey);
+          setFailedCount(failed);
+        }
+      }
+      return finalize(null);
     }
-  }, [accounts, selected, publicKey, connection, sendTransaction, refreshBalance]);
+
+    // ── Fallback: sequential signing, one wallet approval per transaction ──
+    try {
+      for (let bi = 0; bi < batches.length; bi++) {
+        showBatch(bi);
+        const batch = batches[bi];
+        const { blockhash, lastValidBlockHeight } =
+          await connection.getLatestBlockhash();
+        const tx = buildTx(batch, blockhash);
+        const signature = await sendTransaction(tx, connection);
+        await connection.confirmTransaction(
+          { signature, blockhash, lastValidBlockHeight },
+          "confirmed",
+        );
+        recordSuccess(batch, signature);
+      }
+      return finalize(null);
+    } catch (e) {
+      const message =
+        e instanceof Error
+          ? e.message
+          : "Failed to close the selected accounts.";
+      return finalize(message);
+    }
+  }, [
+    accounts,
+    selected,
+    publicKey,
+    connection,
+    sendTransaction,
+    signAllTransactions,
+    refreshBalance,
+  ]);
 
   // ── Enriched tokens + classification ──────────────────────────────────────
   const tokens = useMemo<EnrichedToken[]>(() => {
@@ -757,6 +856,7 @@ export function useWalletCleaner(): UseWalletCleaner {
     setRecoveredSol(0);
     setSignatures([]);
     setProgress(null);
+    setFailedCount(0);
     setIntelByMint({});
     setBurnStatus("idle");
     setBurnError(null);
@@ -785,6 +885,10 @@ export function useWalletCleaner(): UseWalletCleaner {
   const txCount = Math.ceil(selectedAccounts.length / MAX_CLOSES_PER_TX);
   const estimatedFee = txCount * FEE_SOL_PER_TX;
   const estimatedNet = Math.max(0, selectedRecoverable - estimatedFee);
+  // With batch signing the whole session is a single wallet approval; without
+  // it every transaction needs its own approval.
+  const expectedApprovals =
+    txCount === 0 ? 0 : supportsBatchSigning ? 1 : txCount;
 
   const totalTxCount = Math.ceil(accounts.length / MAX_CLOSES_PER_TX);
   const totalFee = totalTxCount * FEE_SOL_PER_TX;
@@ -816,6 +920,9 @@ export function useWalletCleaner(): UseWalletCleaner {
     recoveredNet,
     txCount,
     progress,
+    failedCount,
+    supportsBatchSigning,
+    expectedApprovals,
     assets,
     tokens,
     intelLoading,
