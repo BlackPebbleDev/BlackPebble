@@ -7,6 +7,8 @@ import { useAccount } from "@/hooks/use-account";
 import { useTradeRate } from "@/hooks/use-sol-usd";
 import { useToast } from "@/hooks/use-toast";
 import { useXAuth } from "@/hooks/use-x-auth";
+import { usePaperTradingAccess } from "@/lib/paper-trading-access";
+import { useGuestStore, guestOpenLeverage } from "@/lib/guest-store";
 import { fmtSol, fmtMarketCap, fmtPercent, fmtPrice } from "@/lib/format";
 import { fmtUnitAmt } from "@/components/trade-planner/util";
 import { parseAbbreviatedNumber, type Unit } from "@/lib/trade-planner";
@@ -45,6 +47,8 @@ function unitAmt(solValue: number, unit: Unit, solUsd: number | null): string {
 export function LeveragePanel({ info }: { info: TokenInfo }) {
   const { wallet, account, isGuest, loading: accountLoading, refresh } =
     useAccount();
+  const { isGuestDemo } = usePaperTradingAccess();
+  const guestState = useGuestStore();
   const { toast } = useToast();
   const qc = useQueryClient();
   const { login } = useXAuth();
@@ -76,7 +80,9 @@ export function LeveragePanel({ info }: { info: TokenInfo }) {
   const [tpMc, setTpMc] = useState("");
   const [slMc, setSlMc] = useState("");
 
-  const cashBalance = account?.paper_balance ?? 0;
+  const cashBalance = isGuestDemo
+    ? guestState.balance
+    : account?.paper_balance ?? 0;
   // Authoritative SOL/USD rate (position-independent). `rate` is the trusted value
   // used for sizing + validation; `solUsd` is the best-effort display value; the
   // panel disables submission until `rateReady` so an order is never sized against
@@ -183,7 +189,28 @@ export function LeveragePanel({ info }: { info: TokenInfo }) {
         (isShort ? slMcNum >= liqMarketCap : slMcNum <= liqMarketCap)));
 
   const mutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (): Promise<{ ok: boolean; error?: string }> => {
+      // Guest demo path (public paper trading): open the position entirely
+      // client-side using a fresh quote for the exact notional, mirroring the
+      // server's open math. Never touches the server / public systems.
+      if (isGuestDemo) {
+        const q = await api.quote({
+          mint: info.mint,
+          side: isShort ? "sell" : "buy",
+          solAmount: notionalSol,
+        });
+        return guestOpenLeverage({
+          mint: info.mint,
+          name: info.name,
+          symbol: info.symbol,
+          logo: info.logo,
+          direction,
+          leverage,
+          marginSol,
+          quote: q,
+          marketCapUsd: info.marketCapUsd,
+        });
+      }
       // Refetch the balance immediately before submitting so the client gate is
       // checked against the freshest cash balance (the server re-validates FOR
       // UPDATE regardless, so this is purely for an accurate pre-submit UI).
@@ -236,7 +263,7 @@ export function LeveragePanel({ info }: { info: TokenInfo }) {
       }),
   });
 
-  if (isGuest || !wallet) {
+  if ((isGuest || !wallet) && !isGuestDemo) {
     return (
       <div className="p-4">
         <div className="rounded-xl border border-warning/20 bg-gradient-to-br from-amber-500/[0.12] to-amber-500/[0.04] px-4 py-4 shadow-card">
@@ -269,7 +296,7 @@ export function LeveragePanel({ info }: { info: TokenInfo }) {
     !tpInvalid &&
     !slInvalid &&
     !accountLoading &&
-    !!account &&
+    (isGuestDemo || !!account) &&
     !mutation.isPending;
 
   return (
@@ -397,7 +424,23 @@ export function LeveragePanel({ info }: { info: TokenInfo }) {
       </div>
 
       {/* Optional Take Profit / Stop Loss - collapsed by default to keep the
-          panel compact. Both are market-cap triggers evaluated server-side. */}
+          panel compact. Both are market-cap triggers evaluated server-side.
+          Guest demo positions can't attach server-evaluated exits, so the
+          section is replaced with a subtle sign-in note. */}
+      {isGuestDemo ? (
+        <div className="rounded-xl border border-border/60 px-3 py-2.5 text-[11px] leading-relaxed text-muted-foreground">
+          Automated Take Profit / Stop Loss are saved with your account.{" "}
+          <button
+            type="button"
+            onClick={() => login()}
+            className="font-medium text-accent hover:underline"
+          >
+            Sign in with X
+          </button>{" "}
+          to attach them. You can still close this demo position manually
+          anytime.
+        </div>
+      ) : (
       <div className="rounded-xl border border-border/60 overflow-hidden">
         <button
           type="button"
@@ -484,6 +527,7 @@ export function LeveragePanel({ info }: { info: TokenInfo }) {
           </div>
         )}
       </div>
+      )}
 
       <div className="space-y-1.5 rounded-xl border border-border bg-background/50 p-3 text-xs">
         <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
@@ -594,6 +638,8 @@ export function LeveragePanel({ info }: { info: TokenInfo }) {
           Simulated perps - no real funds are at risk. Your position is
           force-closed at the liquidation level, losing the full margin. Perps
           P&L is tracked separately from your spot stats and the leaderboard.
+          {isGuestDemo &&
+            " This is a demo position stored on this device only - sign in with X to save perps to your profile."}
         </p>
         <PerpsInfoSheet />
       </div>

@@ -60,7 +60,8 @@ export type FeatureFlagKey =
   | "experimental_utilities"
   | "leverage"
   | "real_trading_analysis"
-  | "community_campaigns";
+  | "community_campaigns"
+  | "public_paper_trading";
 
 export type FeatureFlags = Record<FeatureFlagKey, boolean>;
 

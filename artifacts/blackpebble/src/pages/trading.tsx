@@ -69,8 +69,10 @@ import { LiveIndicator } from "@/components/live-indicator";
 import {
   useGuestStore,
   useGuestValuedPositions,
+  useGuestValuedLeverage,
   guestBuy,
   guestSell,
+  guestCloseLeverage,
   guestCreateOrder,
   guestCreateBuyLimitOrder,
   guestWatchAdd,
@@ -78,6 +80,7 @@ import {
   guestHistory,
   getGuestState,
 } from "@/lib/guest-store";
+import { usePaperTradingAccess } from "@/lib/paper-trading-access";
 import {
   trackGuestFirstTrade,
   trackGuestSecondTrade,
@@ -993,10 +996,13 @@ function LeverageSummary({
   p,
   unit,
   solUsd,
+  onClose,
 }: {
   p: LeveragePosition;
   unit: Unit;
   solUsd: number | null;
+  /** When provided, renders a Close button (used for guest demo positions). */
+  onClose?: (p: LeveragePosition) => void;
 }) {
   const curVal =
     p.unrealizedPnlSol != null ? p.notional_sol + p.unrealizedPnlSol : null;
@@ -1077,6 +1083,16 @@ function LeverageSummary({
             : "—"}
         </span>
       </div>
+      {onClose && (
+        <button
+          type="button"
+          onClick={() => onClose(p)}
+          data-testid="button-guest-leverage-close"
+          className="mt-1 flex h-9 w-full items-center justify-center rounded-xl border border-danger/40 text-xs font-medium text-danger transition-colors hover:bg-danger/15"
+        >
+          Close position
+        </button>
+      )}
     </div>
   );
 }
@@ -1110,6 +1126,7 @@ function TradePanel({
   const qc = useQueryClient();
   const flags = useFeatureFlags();
   const { login } = useXAuth();
+  const { showXAuthNudge, isGuestDemo } = usePaperTradingAccess();
   const [tradeMode, setTradeMode] = useState<"spot" | "leverage">("spot");
   const [side, setSide] = useState<"buy" | "sell">("buy");
   const [solAmount, setSolAmount] = useState("");
@@ -1187,8 +1204,9 @@ function TradePanel({
   // If the leverage feature flag is off (or turned off), never leave the panel
   // stuck in leverage mode - fall back to the spot experience.
   useEffect(() => {
-    if (!flags.leverage && tradeMode === "leverage") setTradeMode("spot");
-  }, [flags.leverage, tradeMode]);
+    if (!flags.leverage && !isGuestDemo && tradeMode === "leverage")
+      setTradeMode("spot");
+  }, [flags.leverage, isGuestDemo, tradeMode]);
 
   // Create a buy-limit entry order immediately from the Automated Orders
   // section. Spends the current buy-box Amount (converted to SOL) and delegates
@@ -1222,15 +1240,44 @@ function TradePanel({
     ? guestValued.positions.find((p) => p.token_mint === info.mint)
     : posData?.positions.find((p) => p.token_mint === info.mint);
 
-  // Leverage position for this token (signed-in only). Read-only here - the
-  // token-page Leverage box owns liquidation/TP/SL toasts, so don't announce.
+  // Leverage position for this token. Signed-in positions come from the server
+  // (read-only here - the token-page Leverage box owns liquidation/TP/SL
+  // toasts). Guest demo positions (public paper trading) come from the local
+  // guest engine so a reviewer can open, watch and close a perps position
+  // without an X sign-in.
   const { data: levData } = useQuery({
     queryKey: ["leverage-positions", wallet],
     queryFn: () => api.leverage.positions(wallet!),
     enabled: !!wallet && !isGuest && flags.leverage,
     refetchInterval: LIVE_MS.leverage,
   });
-  const levPosition = levData?.positions.find((p) => p.token_mint === info.mint);
+  const guestLev = useGuestValuedLeverage();
+  const levPosition = isGuestDemo
+    ? guestLev.positions.find((p) => p.token_mint === info.mint)
+    : levData?.positions.find((p) => p.token_mint === info.mint);
+
+  function closeGuestLeverage(p: LeveragePosition) {
+    const res = guestCloseLeverage(
+      p.id,
+      p.currentPriceSol,
+      p.currentMarketCapUsd,
+    );
+    if (!res.ok) {
+      toast({
+        title: "Close failed",
+        description: res.error,
+        variant: "destructive",
+      });
+      return;
+    }
+    toast({
+      title: "Position closed",
+      description:
+        res.realizedPnlSol != null
+          ? `P&L ${fmtUnitPnl(res.realizedPnlSol, unit, solUsd)}`
+          : undefined,
+    });
+  }
 
   const cashBalance = isGuest ? guestState.balance : account?.paper_balance;
 
@@ -1540,7 +1587,7 @@ function TradePanel({
 
   return (
     <div className="rounded-xl bg-card shadow-card overflow-hidden">
-      {isGuest && (
+      {showXAuthNudge && (
         <div
           data-testid="banner-guest-trade"
           className="border-b border-accent/30 bg-accent/10 px-4 py-3"
@@ -1556,7 +1603,7 @@ function TradePanel({
         </div>
       )}
 
-      {isGuest && savePromptOpen && (
+      {showXAuthNudge && savePromptOpen && (
         <div
           data-testid="prompt-save-guest"
           className="border-b border-accent/30 bg-accent/10 px-4 py-3"
@@ -1589,7 +1636,7 @@ function TradePanel({
         </div>
       )}
 
-      {flags.leverage && (
+      {(flags.leverage || isGuestDemo) && (
         <div className="p-3 pb-0">
           <div
             role="tablist"
@@ -1619,7 +1666,19 @@ function TradePanel({
       )}
 
       {tradeMode === "leverage" ? (
-        <LeveragePanel info={info} />
+        <>
+          <LeveragePanel info={info} />
+          {isGuestDemo && levPosition && (
+            <div className="px-4 pb-4 text-xs">
+              <LeverageSummary
+                p={levPosition}
+                unit={unit}
+                solUsd={solUsd}
+                onClose={closeGuestLeverage}
+              />
+            </div>
+          )}
+        </>
       ) : (
         <>
       <div className="px-4 pt-4">
@@ -2113,7 +2172,12 @@ function TradePanel({
               </div>
             )}
             {levPosition && (
-              <LeverageSummary p={levPosition} unit={unit} solUsd={solUsd} />
+              <LeverageSummary
+                p={levPosition}
+                unit={unit}
+                solUsd={solUsd}
+                onClose={isGuestDemo ? closeGuestLeverage : undefined}
+              />
             )}
             {unit === "USD" && (solUsd == null || solUsd <= 0) && (
               <p className="text-[11px] text-muted-foreground">

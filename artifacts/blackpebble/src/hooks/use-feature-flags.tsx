@@ -11,6 +11,8 @@ const DEFAULT_FLAGS: FeatureFlags = {
   leverage: false,
   real_trading_analysis: false,
   community_campaigns: false,
+  // Public paper trading is off unless an admin turns it on.
+  public_paper_trading: false,
 };
 
 /**
