@@ -99,6 +99,8 @@ import {
   shortAddr,
   timeAgo,
 } from "@/lib/format";
+import { activityToast } from "@/lib/activity-toast";
+import type { ToastChip } from "@/hooks/use-toast";
 import { fmtUnitAmt } from "@/components/trade-planner/util";
 import { parseAbbreviatedNumber } from "@/lib/trade-planner";
 import type { Unit } from "@/lib/trade-planner";
@@ -1508,15 +1510,44 @@ function TradePanel({
         return;
       }
       const t = res.trade!;
-      toast({
-        title: `${t.side === "buy" ? "Bought" : "Sold"} ${info.symbol ?? "token"}`,
-        description:
-          t.side === "buy"
-            ? `${fmtSol(t.solAmount)} SOL → ${fmtTokenAmount(t.tokenAmount)} tokens`
-            : `${fmtTokenAmount(t.tokenAmount)} tokens → ${fmtSol(t.solAmount)} SOL${
-                t.pnl != null ? ` (P&L ${fmtSol(t.pnl)} SOL)` : ""
-              }`,
-      });
+      const sym = info.symbol ?? "token";
+      const usd = solUsd != null && solUsd > 0 ? solUsd : null;
+      const value = [
+        `${fmtSol(t.solAmount)} SOL`,
+        usd ? fmtUsd(t.solAmount * usd) : null,
+      ]
+        .filter(Boolean)
+        .join(" / ");
+      if (t.side === "buy") {
+        const mc =
+          info.marketCapUsd != null
+            ? ` • Entry ${fmtMarketCap(info.marketCapUsd)}`
+            : "";
+        activityToast({
+          kind: "spot_buy",
+          title: `Bought ${fmtTokenAmount(t.tokenAmount)} ${sym}`,
+          description: `${value}${mc}`,
+          tokenLogo: info.logo ?? null,
+          sourceActivityId: `trade-buy-${t.mint}-${Date.now()}`,
+        });
+      } else {
+        const chips: ToastChip[] = [];
+        if (t.pnl != null)
+          chips.push({
+            label: `${t.pnl >= 0 ? "+" : ""}${fmtSol(t.pnl)} SOL`,
+            tone: t.pnl >= 0 ? "up" : "down",
+          });
+        if (sellPercent < 100)
+          chips.push({ label: `${100 - sellPercent}% left`, tone: "neutral" });
+        activityToast({
+          kind: "spot_sell",
+          title: `Sold ${fmtTokenAmount(t.tokenAmount)} ${sym}`,
+          description: `${sellPercent}% of position • ${value}`,
+          chips: chips.length > 0 ? chips : undefined,
+          tokenLogo: info.logo ?? null,
+          sourceActivityId: `trade-sell-${t.mint}-${Date.now()}`,
+        });
+      }
       setSolAmount("");
       setConfirmOpen(false);
       // Create exit orders after a successful buy. Combines planner attachments

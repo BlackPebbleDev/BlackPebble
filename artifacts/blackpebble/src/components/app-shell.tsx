@@ -12,6 +12,7 @@ import {
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import logoFlat from "@/assets/bp-wordmark.png";
 import { TokenSearch } from "@/components/token-search";
+import { NotificationCenter } from "@/components/notification-center";
 import { XLoginButton } from "@/components/x-login-button";
 import { GuestMigrationPrompt } from "@/components/guest-migration-prompt";
 import { RecoveryNotification } from "@/components/recovery-notification";
@@ -122,6 +123,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 Connect X to rank
               </span>
             )}
+            <NotificationCenter />
             <XLoginButton />
             <WalletMultiButton />
           </div>

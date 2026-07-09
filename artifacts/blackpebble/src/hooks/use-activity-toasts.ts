@@ -67,6 +67,7 @@ function emitToast(kind: ActivityToastKind, it: FeedActivityItem) {
       kind,
       title: it.thesisTitle ?? "New tier reached",
       pfp: avatar,
+      sourceActivityId: it.id,
     });
     return;
   }
@@ -76,6 +77,7 @@ function emitToast(kind: ActivityToastKind, it: FeedActivityItem) {
       title: "Achievement unlocked",
       description: it.badgeName ?? it.thesisTitle ?? undefined,
       pfp: avatar,
+      sourceActivityId: it.id,
     });
     return;
   }
@@ -97,6 +99,7 @@ function emitToast(kind: ActivityToastKind, it: FeedActivityItem) {
     description: `Closed ${sym}`,
     chips: chips.length > 0 ? chips : undefined,
     tokenLogo: it.token.logo ?? null,
+    sourceActivityId: it.id,
   });
 }
 

@@ -41,12 +41,14 @@ function useFillReporter() {
   return (fills: OrderFill[]) => {
     for (const f of fills) {
       const sym = f.tokenSymbol ?? "position";
+      const src = `fill-${f.orderId}`;
       if (f.orderType === "buy_limit") {
         activityToast({
           kind: "buy_fill",
           title: "Buy limit filled",
           description: sym,
           chips: fillChips(f),
+          sourceActivityId: src,
         });
       } else if (f.orderType === "take_profit") {
         activityToast({
@@ -54,6 +56,7 @@ function useFillReporter() {
           title: "Take profit hit",
           description: `Sold ${f.percent}% of ${sym}`,
           chips: fillChips(f),
+          sourceActivityId: src,
         });
       } else {
         activityToast({
@@ -61,6 +64,7 @@ function useFillReporter() {
           title: "Stop loss triggered",
           description: `Sold ${f.percent}% of ${sym}`,
           chips: fillChips(f),
+          sourceActivityId: src,
         });
       }
     }
