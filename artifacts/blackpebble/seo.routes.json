@@ -3,8 +3,8 @@
   "routes": [
     {
       "path": "/",
-      "title": "BlackPebble — Professional Solana Trading & Utility Platform",
-      "description": "A professional Solana trading and utility platform for memecoin traders: paper trading, market discovery, trader reputation and trust scores, leaderboards, portfolio tracking, SOL recovery, and wallet cleanup tools."
+      "title": "BlackPebble | Solana Memecoin Trading Intelligence Hub",
+      "description": "Paper trade Solana memecoins, review wallet history, plan trades, create campaigns, build reputation, grow communities, and recover SOL."
     },
     {
       "path": "/markets",
