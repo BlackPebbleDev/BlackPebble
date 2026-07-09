@@ -186,8 +186,17 @@ export function TokenChart({ info }: { info: TokenInfo }) {
   const candlesQuery = useQuery({
     queryKey: ["candles", mint, resolution],
     queryFn: () => api.candles(mint, resolution),
-    refetchInterval: REFETCH_MS[resolution],
-    retry: 1,
+    // The upstream OHLCV provider (GeckoTerminal/DexScreener) occasionally
+    // rate-limits or blips, which the backend surfaces as a 404. Retry a few
+    // times with a short backoff so a transient failure shows a brief spinner
+    // and recovers on its own instead of hard-failing to the empty state.
+    retry: 3,
+    retryDelay: (attempt) => Math.min(500 * 2 ** attempt, 3_000),
+    // While healthy, poll at the per-resolution cadence. If the last fetch
+    // errored, poll fast so a transient blip self-heals within seconds rather
+    // than waiting out the (up to 10-minute) normal interval.
+    refetchInterval: (query) =>
+      query.state.status === "error" ? 8_000 : REFETCH_MS[resolution],
     staleTime: 5_000,
     // Keep the current candles on screen while a new timeframe (or a background
     // refresh) loads, so switching resolution never blanks the chart to a
