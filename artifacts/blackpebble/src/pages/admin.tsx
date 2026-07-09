@@ -128,6 +128,14 @@ const FLAG_LABELS: Record<FeatureFlagKey, string> = {
   leverage: "Leverage trading (longs)",
   real_trading_analysis: "Real Trading Analysis (on-chain intelligence)",
   community_campaigns: "Community Campaigns (escrow-backed funding)",
+  public_paper_trading: "Enable Public Paper Trading + Perps",
+};
+
+// Optional one-line help shown under a flag's label in the admin panel. Only the
+// flags that need extra context appear here; the rest render label-only.
+const FLAG_DESCRIPTIONS: Partial<Record<FeatureFlagKey, string>> = {
+  public_paper_trading:
+    "Allows visitors to use Spot and Perps paper trading without X login. Hides X auth walls/nudges. Guest trades are demo/review trades and do not count toward public profiles, reputation, or leaderboards unless the user signs in.",
 };
 
 const STATS_WINDOWS: { key: AdminStatsWindow; label: string }[] = [
@@ -506,14 +514,22 @@ function FlagsSection() {
         {(Object.keys(FLAG_LABELS) as FeatureFlagKey[]).map((key) => (
           <div
             key={key}
-            className="flex items-center justify-between border-b border-border/60 py-2 last:border-0"
+            className="flex items-start justify-between gap-3 border-b border-border/60 py-2 last:border-0"
           >
-            <span className="text-sm">{FLAG_LABELS[key]}</span>
+            <div className="min-w-0">
+              <span className="text-sm">{FLAG_LABELS[key]}</span>
+              {FLAG_DESCRIPTIONS[key] && (
+                <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
+                  {FLAG_DESCRIPTIONS[key]}
+                </p>
+              )}
+            </div>
             <Switch
               checked={!!flags?.[key]}
               disabled={!flags || setFlag.isPending}
               onCheckedChange={(enabled) => setFlag.mutate({ key, enabled })}
               data-testid={`switch-flag-${key}`}
+              className="mt-0.5 shrink-0"
             />
           </div>
         ))}

@@ -1,42 +1,48 @@
 # BlackPebble
 
-> BlackPebble is a professional Solana trading and utility platform built for memecoin traders. It combines paper trading, market discovery, trader reputation and trust scores, public profiles, leaderboards, portfolio tracking, a recovery suite, wallet cleanup tools, and analytics into a single dashboard. Market data (price, market cap, liquidity, volume) is live and on-chain; paper-trading balances and trades are simulated. BlackPebble never takes custody of real funds in paper trading and never executes real swaps. The only feature that touches a real wallet is SOL Recovery, which operates on-chain and separately from paper trading.
+> BlackPebble is a zero-fee Solana memecoin trading intelligence hub built to help traders practice, analyze, improve, build reputation, and manage Solana wallet clutter, with community campaigns and Telegram community tools building toward launch. Paper trading and paper perps use virtual funds; market data (price, market cap, liquidity, volume) is live and on-chain. Core tools are zero-fee. BlackPebble takes no custody, never asks for seed phrases, has no approval traps, uses read-only wallet review where applicable, and shows transparent previews before wallet cleanup, burn, or account-closing actions.
 
 ## Live features
 
-- Paper Trading: buy and sell real, live Solana tokens with virtual SOL at on-chain prices — risk-free trading practice.
-- Market Discovery: trending Solana tokens with live price, market cap, liquidity, and volume; token analytics, watchlists, and new token discovery.
-- Trader Reputation & Trust Scores: a transparent reputation network with trust scores derived from public, recorded trading activity.
-- Public Trader Profiles & Social Feed: public profiles, performance tracking, and an activity feed to follow and compare traders.
-- Leaderboards: trader rankings by realized P&L across daily, weekly, and all-time periods.
-- Portfolio Tracking: open positions, realized and unrealized P&L, ROI, and full trade history.
-- Trade Planning & Smart Exits: position sizing and risk, buy limit orders, and automated take-profit / stop-loss with multi-target exits.
-- Recovery Suite (SOL Recovery): reclaim rent SOL from unused or empty token accounts on-chain, with recovery history and wallet health analytics.
-- Wallet Cleanup Tools: review and close empty token accounts, surface dust and recoverable rent; manual, user-initiated actions.
-- Trading Journal & Analytics: record trades and review performance over time.
+- Paper Trading: practice Solana memecoin trades with virtual funds using live market data, token pages, chart views, trade panels, position summaries, token holdings, and P&L tracking.
+- Paper Perps & Shorting: practice long and short setups with leverage planning, liquidation estimates, margin tracking, position sizing, risk controls, and perps P&L without real funds.
+- Live Markets & Token Pages: active Solana tokens with market data, charts, market cap, liquidity, token details, trading controls, and position info in one view.
+- Advanced Trade Planner & Calculator: plan entries, position size, targets, stop loss, risk, reward, liquidation levels, and perps scenarios.
+- Trading Journal: track trades, setups, notes, mistakes, wins, losses, strategy changes, and performance over time.
+- Wallet-Linked Trade Review: connect a wallet in read-only mode to review past trades, hold time, token selection, sell timing, and risk behavior. No custody, seed phrases, or approvals.
+- Trader Intelligence: turn trading history into insights about patterns like selling winners early, holding losers too long, chasing pumps, sizing, exits, patience, conviction, and risk control.
+- Trading Identities, Strengths & Weaknesses: behavior-based trader profiles and a read on what a trader does well and where they struggle.
+- Portfolio & P&L: token holdings, position value, realized and unrealized P&L, open/closed trades, trade history, and performance trends.
+- Public Trader Profiles: profiles with performance, wallet-linked insights where enabled, P&L history, achievements, reputation signals, badges, followers, and profile stats.
+- Trader Network, Leaderboards & Reputation: follow traders, compare performance, view trader cards, earn achievements, climb rankings, and build public reputation.
+- Social Trading Feed: follow trader activity, calls, theses, achievements, reactions, follows, and profile updates.
+- Wallet Cleanup & SOL Recovery: recover SOL from empty accounts, close unused token accounts, burn unwanted tokens or NFTs, and manage wallet actions with safer previews.
 
 ## Pages
 
-- [Home / Trading Desk](https://blackpebble.fun/): Paper-trade live Solana tokens with virtual SOL.
-- [Markets](https://blackpebble.fun/markets): Trending Solana tokens with live price, market cap, liquidity, and volume.
-- [Discover](https://blackpebble.fun/discover): Find traders, trending tokens, and new opportunities.
-- [Leaderboard](https://blackpebble.fun/leaderboard): Traders ranked by realized P&L across daily, weekly, and all-time periods.
-- [Portfolio](https://blackpebble.fun/portfolio): Open positions, realized and unrealized P&L, ROI, and trade history.
-- [Feed](https://blackpebble.fun/feed): Public trader activity and calls.
-- [SOL Recovery](https://blackpebble.fun/utilities/sol-recovery): Reclaim trapped rent SOL from unused token accounts.
-- [Wallet Cleanup](https://blackpebble.fun/utilities/wallet-cleaner): Review and close empty Solana token accounts.
-- [Trade Planner](https://blackpebble.fun/utilities/trade-planner): Plan entries, position size, and automated exits.
+- [Home / Trading Desk](https://blackpebble.fun/): Paper-trade live Solana tokens with virtual funds.
+- [Markets](https://blackpebble.fun/markets): Live Solana tokens and token pages.
+- [Discover](https://blackpebble.fun/discover): Find traders and profiles.
+- [Leaderboard](https://blackpebble.fun/leaderboard): Trader rankings and reputation.
+- [Portfolio](https://blackpebble.fun/portfolio): Holdings, P&L, and trade history.
+- [Feed](https://blackpebble.fun/feed): Social trading activity.
+- [Trade Planner](https://blackpebble.fun/utilities/trade-planner): Plan entries, size, and exits.
 - [Trading Journal](https://blackpebble.fun/utilities/journal): Record and review trades.
+- [SOL Recovery](https://blackpebble.fun/utilities/sol-recovery): Reclaim trapped rent SOL.
+- [Wallet Cleanup](https://blackpebble.fun/utilities/wallet-cleaner): Close unused accounts and burn junk.
 - [About](https://blackpebble.fun/about): What BlackPebble is and how it works.
 - [Features](https://blackpebble.fun/features): The full set of live features.
 - [Vision / Roadmap](https://blackpebble.fun/roadmap): What is live today and the future direction.
 
-## Planned (not yet live)
+## Building toward (not yet fully live)
 
-- Telegram utilities, community funding systems, a professional trading terminal, and a broader BlackPebble ecosystem and rewards. These are future directions and are not currently available.
+- Campaign Creation & Crowdfunding: create and support community campaigns for marketing goals (DEX boosts, trending pushes, ads, listings, CTO efforts, promotions) with transparent progress and contributor tracking.
+- Telegram & Community Tools: a Telegram/community tool layer connected to the campaign and reputation flywheel, including buy bots, raid bots, airdrop/reward bots, follow-gates and verification, campaign update bots, trending/boost pool tools, and custom/white-label community bots.
+- Trading Terminal Direction: a full Solana memecoin trading terminal with cleaner charts, smarter overlays, and live market feeds tied into the rest of the hub.
 
 ## Notes
 
 - BlackPebble is for entertainment and education only and is not financial advice.
-- Paper trading uses virtual SOL; no real money is at risk in the paper-trading experience.
-- SOL Recovery is the only feature that interacts with a real wallet, and it operates entirely on-chain and separately from paper trading.
+- Paper trading and paper perps use virtual funds; no real money is at risk in the practice experience.
+- Read-only wallet review and the wallet utilities are the only features that touch a real wallet, and they operate without custody or seed phrases.
+- Core tools are zero-fee. Optional future premium products or paid marketing/campaign services may exist, but core paper trading, wallet cleanup, and SOL recovery are zero-fee.

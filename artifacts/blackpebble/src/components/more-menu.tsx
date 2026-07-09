@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
-import { ExternalLink, MoreHorizontal } from "lucide-react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { CandlestickChart, ExternalLink, MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { tradingViewSymbolForMint, tradingViewUrl } from "@/lib/tradingview";
 
 type ProviderCategory = "trading" | "analytics" | "research";
 
@@ -8,7 +9,13 @@ interface ExternalProvider {
   label: string;
   category: ProviderCategory;
   /** Absolute path from public root, e.g. "/provider-logos/axiom.jpg" */
-  logo: string;
+  logo?: string;
+  /**
+   * Neutral inline icon rendered in the circular logo slot instead of a `logo`
+   * image. Used for resources without a safe brand mark. Exactly one of `logo`
+   * or `icon` must be set.
+   */
+  icon?: ReactNode;
   /**
    * When true the provider needs a DEX pair/pool address, not just a mint.
    * If pairAddress is null the row is rendered disabled.
@@ -25,7 +32,7 @@ interface ExternalProvider {
    * If provided, the row is only rendered when this returns true.
    * Omit for providers that should always be shown.
    */
-  isVisible?: (ctx: { isPumpFun: boolean }) => boolean;
+  isVisible?: (ctx: { isPumpFun: boolean; mint: string }) => boolean;
 }
 
 /**
@@ -125,6 +132,21 @@ const PROVIDERS: ExternalProvider[] = [
     buildHref: (mint) => `https://birdeye.so/token/${mint}?chain=solana`,
   },
   {
+    label: "TradingView",
+    category: "analytics",
+    // No official TradingView brand mark - a neutral chart icon in the same
+    // circular slot as the other resources.
+    icon: <CandlestickChart className="w-3 h-3" />,
+    requiresPair: false,
+    // Only listed assets (curated allowlist) get a link; never fabricated for
+    // unlisted low-cap tokens - see isVisible.
+    buildHref: (mint) => {
+      const symbol = tradingViewSymbolForMint(mint);
+      return symbol ? tradingViewUrl(symbol) : null;
+    },
+    isVisible: ({ mint }) => tradingViewSymbolForMint(mint) != null,
+  },
+  {
     label: "GeckoTerminal",
     category: "analytics",
     logo: "/provider-logos/geckoterminal.jpg",
@@ -213,7 +235,11 @@ interface MoreMenuProps {
   isPumpFun?: boolean;
 }
 
-export function MoreMenu({ mint, pairAddress, isPumpFun = false }: MoreMenuProps) {
+export function MoreMenu({
+  mint,
+  pairAddress,
+  isPumpFun = false,
+}: MoreMenuProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
 
@@ -243,7 +269,9 @@ export function MoreMenu({ mint, pairAddress, isPumpFun = false }: MoreMenuProps
     category: cat,
     label: CATEGORY_LABELS[cat],
     providers: PROVIDERS.filter(
-      (p) => p.category === cat && (!p.isVisible || p.isVisible({ isPumpFun })),
+      (p) =>
+        p.category === cat &&
+        (!p.isVisible || p.isVisible({ isPumpFun, mint })),
     ),
   })).filter((group) => group.providers.length > 0);
 
@@ -294,7 +322,16 @@ export function MoreMenu({ mint, pairAddress, isPumpFun = false }: MoreMenuProps
 
                   const inner = (
                     <>
-                      <ProviderLogo src={provider.logo} label={provider.label} />
+                      {provider.icon ? (
+                        <span className="flex w-[18px] h-[18px] shrink-0 items-center justify-center rounded-sm bg-secondary text-muted-foreground">
+                          {provider.icon}
+                        </span>
+                      ) : (
+                        <ProviderLogo
+                          src={provider.logo!}
+                          label={provider.label}
+                        />
+                      )}
                       <span className="flex-1 truncate">{provider.label}</span>
                       {!disabled && (
                         <ExternalLink className="w-3 h-3 shrink-0 opacity-60" />
@@ -319,7 +356,7 @@ export function MoreMenu({ mint, pairAddress, isPumpFun = false }: MoreMenuProps
                       key={provider.label}
                       href={href}
                       target="_blank"
-                      rel="noreferrer"
+                      rel="noopener noreferrer"
                       onClick={() => setOpen(false)}
                       className={rowClass}
                     >
