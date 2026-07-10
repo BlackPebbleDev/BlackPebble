@@ -11,9 +11,15 @@ import { fmtSol, fmtMarketCap } from "@/lib/format";
  *
  * Watches the signed-in user's own timeline (/feed/mine — X-auth only, so
  * guests are skipped and there are no 401s) and pops a premium toast ONLY for
- * high-signal personal milestones: tier upgrade, achievement unlocked, and
- * liquidation. Everything else in the timeline (buys/sells/calls/etc.) is
+ * high-signal personal events:
+ *   - perps auto-closes: stop-loss, take-profit, liquidation
+ *   - tier upgrade, achievement unlocked
+ * Everything else in the timeline (buys/sells/calls/follows/reactions/etc.) is
  * ignored — no per-trade spam, no global/follower toasts.
+ *
+ * Perps closes fire from a server cron even when the owner is on another page or
+ * offline, so /feed/mine (polled globally here) is the ONLY reliable surface for
+ * them — a page-scoped watcher would miss cron-triggered fills entirely.
  *
  * Safety:
  *  - The first successful load is a silent BASELINE (records current ids, never
@@ -21,19 +27,34 @@ import { fmtSol, fmtMarketCap } from "@/lib/format";
  *  - Seen ids persist in per-user localStorage so a refresh never re-toasts.
  *  - Fed by the existing /feed/mine endpoint — no new backend, no schema.
  *
- * TP/SL/buy-limit fills are handled separately (real-time) by
- * useOrderFillToasts(); they do not overlap with the types surfaced here.
+ * Spot TP/SL/buy-limit fills are handled separately (real-time) by
+ * useOrderFillToasts(); manual perp closes toast at the moment of action. None
+ * of those overlap with the events surfaced here.
  */
 
 const SEEN_KEY = (uid: string) => `blackpebble.activityToasts.seen.v1.${uid}`;
 const SEEN_CAP = 300;
 
-/** /feed/mine item types we surface as toasts, mapped to the toast kind. */
-const TOASTABLE: Record<string, ActivityToastKind> = {
-  "progression.tier_upgraded": "tier_upgrade",
-  "progression.achievement_unlocked": "achievement",
-  "trade.liquidation": "liquidation",
-};
+/**
+ * Decide whether a /feed/mine item should pop a ME-scoped toast, and which kind.
+ * Perps auto-closes are detected by kind/action/closeReason (manual + system
+ * closes are intentionally skipped — those aren't automated exit events). Tier
+ * and achievement milestones use the normalized Activity Layer type.
+ */
+function toastKindFor(it: FeedActivityItem): ActivityToastKind | undefined {
+  if (it.kind === "leverage") {
+    if (it.action === "liquidated") return "liquidation";
+    if (it.action === "close") {
+      const reason = (it.meta as Record<string, unknown> | null)?.closeReason;
+      if (reason === "stop_loss") return "sl_hit";
+      if (reason === "take_profit") return "tp_hit";
+    }
+    return undefined;
+  }
+  if (it.type === "progression.tier_upgraded") return "tier_upgrade";
+  if (it.type === "progression.achievement_unlocked") return "achievement";
+  return undefined;
+}
 
 function loadSeen(uid: string): Set<string> {
   try {
@@ -81,22 +102,33 @@ function emitToast(kind: ActivityToastKind, it: FeedActivityItem) {
     });
     return;
   }
-  // liquidation
+  // Perps auto-close: sl_hit | tp_hit | liquidation.
   const sym = it.token.symbol ?? "position";
   const meta = (it.meta ?? {}) as Record<string, unknown>;
-  const liqMc = num(meta.triggerMc) ?? num(meta.marketCapUsd);
+  const mc = num(meta.marketCapUsd) ?? num(meta.triggerMc);
+  const dir =
+    it.direction === "short" ? "Short" : it.direction === "long" ? "Long" : null;
   const chips: ToastChip[] = [];
   if (it.pnlSol != null)
     chips.push({
       label: `${it.pnlSol >= 0 ? "+" : ""}${fmtSol(it.pnlSol)} SOL`,
       tone: it.pnlSol >= 0 ? "up" : "down",
     });
-  if (liqMc != null)
-    chips.push({ label: `Liq ${fmtMarketCap(liqMc)}`, tone: "neutral" });
+  if (mc != null)
+    chips.push({
+      label: kind === "liquidation" ? `Liq ${fmtMarketCap(mc)}` : `${fmtMarketCap(mc)} MC`,
+      tone: "neutral",
+    });
+  const title =
+    kind === "liquidation"
+      ? "Position liquidated"
+      : kind === "sl_hit"
+        ? "Stop loss triggered"
+        : "Take profit hit";
   activityToast({
     kind,
-    title: "Position liquidated",
-    description: `Closed ${sym}`,
+    title,
+    description: dir ? `${sym} · ${dir}` : sym,
     chips: chips.length > 0 ? chips : undefined,
     tokenLogo: it.token.logo ?? null,
     sourceActivityId: it.id,
@@ -145,14 +177,13 @@ export function useActivityToasts() {
     for (const it of items) {
       if (seenRef.current.has(it.id)) continue;
       seenRef.current.add(it.id); // mark seen regardless of toastability
-      const kind = it.type ? TOASTABLE[it.type] : undefined;
-      if (kind) fresh.push(it);
+      if (toastKindFor(it)) fresh.push(it);
     }
     if (fresh.length > 0) {
       // Oldest-first so the newest ends up on top of the stack.
       fresh.sort((a, b) => a.timestamp - b.timestamp);
       for (const it of fresh) {
-        const kind = TOASTABLE[it.type as string];
+        const kind = toastKindFor(it);
         if (kind) emitToast(kind, it);
       }
     }

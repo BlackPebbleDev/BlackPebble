@@ -5,7 +5,6 @@ import {
   api,
   type LeverageExitKind,
   type LeverageExitOrder,
-  type LeverageFill,
   type LeveragePosition,
   type LeverageTrade,
 } from "@/lib/api";
@@ -28,14 +27,6 @@ function parseMc(raw: string): number | null {
   const mult = m[2] === "b" ? 1e9 : m[2] === "m" ? 1e6 : m[2] === "k" ? 1e3 : 1;
   return n * mult;
 }
-
-const FILL_LABELS: Record<string, string> = {
-  liquidated: "Liquidated",
-  take_profit: "Take-profit hit",
-  stop_loss: "Stop-loss hit",
-  manual: "Closed",
-  system_correction: "Closed (system)",
-};
 
 /** Human labels + colors for a close reason in history. */
 const REASON_BADGES: Record<string, { label: string; className: string }> = {
@@ -85,7 +76,7 @@ function fmtDistance(d: number | null): string {
  * and a close mutation. Exactly one mounted consumer should announce fills, so
  * pass `announce: false` for read-only consumers (e.g. summaries).
  */
-function useLeverageData(wallet: string, announce = true) {
+function useLeverageData(wallet: string) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const seenFills = useRef<Set<number>>(new Set());
@@ -102,12 +93,16 @@ function useLeverageData(wallet: string, announce = true) {
     enabled: !!wallet,
   });
 
-  // On the very first response, mark everything already-seen without toasting:
-  // the server returns recent fills from the last ~90s, which would otherwise
-  // replay stale events on every page load.
+  // Perps positions can auto-close from the server cron (TP / SL / liquidation).
+  // We deliberately do NOT toast here: the global /feed/mine watcher
+  // (useActivityToasts) owns the premium toast + notification for auto-closes so
+  // they fire on every page (and even after the fill happened while away), and
+  // manual closes toast from the close mutation below. This effect only keeps
+  // the balance + history fresh when a fill lands while a leverage view is open.
+  // The first payload is a silent baseline: the server replays recent (~90s)
+  // fills, which would otherwise re-invalidate on every mount.
   const fillsPrimed = useRef(false);
   useEffect(() => {
-    if (!announce) return;
     const fills = posData?.fills ?? [];
     if (!fillsPrimed.current) {
       if (posData) {
@@ -122,13 +117,10 @@ function useLeverageData(wallet: string, announce = true) {
       (f) => !seenFills.current.has(f.tradeId ?? f.positionId),
     );
     if (fresh.length === 0) return;
-    for (const f of fresh) {
-      seenFills.current.add(f.tradeId ?? f.positionId);
-      announceFill(f, toast);
-    }
+    for (const f of fresh) seenFills.current.add(f.tradeId ?? f.positionId);
     qc.invalidateQueries({ queryKey: ["account"] });
     qc.invalidateQueries({ queryKey: ["leverage-history", wallet] });
-  }, [posData, qc, toast, wallet, announce]);
+  }, [posData, qc, wallet]);
 
   const closeMutation = useMutation({
     mutationFn: ({ id, percent }: { id: number; percent?: number }) =>
@@ -1072,18 +1064,3 @@ function LeverageHistoryRow({
   );
 }
 
-function announceFill(
-  f: LeverageFill,
-  toast: ReturnType<typeof useToast>["toast"],
-) {
-  const label = FILL_LABELS[f.reason] ?? "Closed";
-  const sym = f.tokenSymbol ?? "position";
-  toast({
-    title: `${label}: ${sym}`,
-    description:
-      f.realizedPnlSol != null
-        ? `P&L ${fmtSol(f.realizedPnlSol)} SOL`
-        : undefined,
-    variant: f.reason === "liquidated" ? "destructive" : undefined,
-  });
-}
