@@ -22,6 +22,7 @@ import {
   UserCheck,
   UserPlus,
   Users,
+  Wallet,
 } from "lucide-react";
 import {
   api,
@@ -290,6 +291,7 @@ export function FeedUserLink({
 }) {
   const handle = user.x_username?.trim().replace(/^@+/, "") || null;
   const hasTrust = user.trustScore != null && user.trustScore > 0;
+  const hasEquity = user.equityUsd != null && user.equityUsd > 0;
   return (
     <UserIdentity
       avatarUrl={user.x_avatar_url}
@@ -322,6 +324,19 @@ export function FeedUserLink({
             />
           )}
           <TierBadge tier={user.graduation_tier} size="sm" variant="plain" />
+          {hasEquity && (
+            <span
+              className="inline-flex items-center gap-1 whitespace-nowrap text-[11px] font-medium text-muted-foreground/80"
+              title="Paper portfolio value"
+              data-testid={`feed-equity-${user.user_id}`}
+            >
+              <Wallet
+                className="h-3 w-3 text-muted-foreground/60"
+                aria-hidden="true"
+              />
+              {fmtMarketCap(user.equityUsd)}
+            </span>
+          )}
         </div>
       }
     />

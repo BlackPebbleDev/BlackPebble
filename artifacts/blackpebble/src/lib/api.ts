@@ -1209,6 +1209,8 @@ export interface FeedActivityItem {
     official_badges?: OfficialBadgeType[];
     /** Shared Trust Score (decorative; from the cached reputation board). */
     trustScore?: number;
+    /** Total paper equity in USD (decorative). Omitted when unavailable. */
+    equityUsd?: number;
   };
 }
 

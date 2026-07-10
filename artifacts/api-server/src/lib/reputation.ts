@@ -62,6 +62,8 @@ export interface ReputationEntry {
   trustGrowth30d: number;
   /** Composite freshness score used to rank Top Rising Traders. */
   risingScore: number;
+  /** Total paper equity in USD (display-only; 0 when no account). */
+  equityUsd: number;
 }
 
 interface PopRow {
@@ -305,6 +307,7 @@ export async function computeReputationBoard(): Promise<ReputationEntry[]> {
       callerScore: caller?.callerScore ?? 0,
       trustGrowth30d,
       risingScore,
+      equityUsd: stats.equityUsd,
     };
     return entry;
   });

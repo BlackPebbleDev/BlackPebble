@@ -132,6 +132,11 @@ export interface FeedActivityItem {
     official_badges?: string[];
     /** Shared Trust Score (decorative; from the cached reputation board). */
     trustScore?: number;
+    /**
+     * Total paper equity in USD (decorative; from the cached reputation board).
+     * Omitted when the poster has no account / no equity to show.
+     */
+    equityUsd?: number;
   };
 }
 
@@ -578,6 +583,9 @@ export async function getActivity(opts: {
     computeReputationBoard().catch(() => []),
   ]);
   const trustMap = new Map(reputation.map((e) => [e.user_id, e.trustScore]));
+  // Paper equity comes from the same cached reputation board (no extra query /
+  // no per-card fetch). Only surfaced when it's a real, positive value.
+  const equityMap = new Map(reputation.map((e) => [e.user_id, e.equityUsd]));
   for (const item of page) {
     const t = tierMap.get(item.user.user_id);
     if (t) item.user.graduation_tier = t;
@@ -585,6 +593,9 @@ export async function getActivity(opts: {
     if (b && b.length > 0) item.user.official_badges = b;
     const trust = trustMap.get(item.user.user_id);
     if (trust != null) item.user.trustScore = trust;
+    const equity = equityMap.get(item.user.user_id);
+    if (equity != null && Number.isFinite(equity) && equity > 0)
+      item.user.equityUsd = equity;
     // Additive Activity Layer normalization (pure; no query change).
     const c = classifyActivity(item.kind, item.action);
     item.type = c.type;

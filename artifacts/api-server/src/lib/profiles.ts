@@ -48,6 +48,11 @@ export interface ProfileStats {
    */
   spotRoiPercent: number;
   spotClosedTrades: number;
+  /**
+   * Total paper equity in USD (spot cash + open positions + open perps equity)
+   * at current SOL price. Display-only; 0 when the user has no account yet.
+   */
+  equityUsd: number;
 }
 
 /**
@@ -284,6 +289,7 @@ const EMPTY_STATS: ProfileStats = {
   graduationTier: "Unranked",
   spotRoiPercent: 0,
   spotClosedTrades: 0,
+  equityUsd: 0,
 };
 
 /**
@@ -351,6 +357,9 @@ export async function getProfileStats(wallet: string): Promise<ProfileStats> {
     graduationTier: account.graduation_tier,
     spotRoiPercent,
     spotClosedTrades: cs.closedTrades,
+    // Reuses values already computed above (no extra query): total paper equity
+    // converted to USD at the current SOL price.
+    equityUsd: totalEquitySol * portfolio.solUsd,
   };
 }
 
