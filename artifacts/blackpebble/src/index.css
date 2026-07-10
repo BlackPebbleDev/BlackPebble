@@ -313,3 +313,17 @@
     padding-right: 8px !important;
   }
 }
+
+/* ── Hidden-scrollbar scroll container ─────────────────────────────────────
+   Internal scrolling with no visible scrollbar, preserving native iOS momentum
+   scrolling and containing overscroll so a parent (e.g. a popover) doesn't
+   scroll behind it. Used by the notification center. */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}

@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
 import {
+  AlertTriangle,
   ArrowDownRight,
   ArrowUpRight,
   BookPlus,
@@ -9,21 +11,27 @@ import {
   ExternalLink,
   Flame,
   Gem,
+  Loader2,
   Megaphone,
   Medal,
   ScrollText,
   Sparkles,
+  TrendingDown,
+  TrendingUp,
   Trophy,
+  UserCheck,
+  UserPlus,
   Users,
-  Zap,
 } from "lucide-react";
-import type {
-  BadgeRarity,
-  FeedActivityItem,
-  FeedAggMeta,
+import {
+  api,
+  type BadgeRarity,
+  type FeedActivityItem,
+  type FeedAggMeta,
 } from "@/lib/api";
 import { ReactionBar } from "@/components/feed-reactions";
 import { useXAuth } from "@/hooks/use-x-auth";
+import { useToast } from "@/hooks/use-toast";
 import type { PickedTrade } from "@/components/journal/trade-picker";
 import {
   JournalEntryDialog,
@@ -243,7 +251,12 @@ interface EventVisual {
 
 const BUY_EVENT: EventVisual = { icon: ArrowUpRight, tone: "bg-success text-white" };
 const SELL_EVENT: EventVisual = { icon: ArrowDownRight, tone: "bg-danger text-white" };
-const PERPS_EVENT: EventVisual = { icon: Zap, tone: "bg-accent text-accent-foreground" };
+// Perps get a directional treatment so LONG / SHORT / LIQUIDATED read distinctly
+// at a glance (icon + corner-badge tone), instead of one generic perps badge.
+// Cyan-up for longs, orange-down for shorts, critical red for liquidations.
+const PERPS_LONG_EVENT: EventVisual = { icon: TrendingUp, tone: "bg-cyan-500 text-white" };
+const PERPS_SHORT_EVENT: EventVisual = { icon: TrendingDown, tone: "bg-orange-500 text-white" };
+const PERPS_LIQ_EVENT: EventVisual = { icon: AlertTriangle, tone: "bg-red-600 text-white" };
 const CALLOUT_EVENT: EventVisual = { icon: Megaphone, tone: "bg-accent text-accent-foreground" };
 const THESIS_EVENT: EventVisual = { icon: ScrollText, tone: "bg-accent text-accent-foreground" };
 const RECOVERY_EVENT: EventVisual = { icon: Sparkles, tone: "bg-accent text-accent-foreground" };
@@ -366,8 +379,23 @@ function CardShell({
 
       {children}
 
-      <ReactionBar item={item} trailing={<JournalTradeButton item={item} />} />
+      <ReactionBar item={item} trailing={<CardTrailing item={item} />} />
     </div>
+  );
+}
+
+/**
+ * The right-aligned footer action opposite the reactions. On the viewer's OWN
+ * cards this is the "Journal" button; on other traders' cards it's "Follow".
+ * Both self-gate to null, so exactly one (or neither, for a guest viewing
+ * someone else's card) renders.
+ */
+function CardTrailing({ item }: { item: FeedActivityItem }) {
+  return (
+    <>
+      <JournalTradeButton item={item} />
+      <FollowTradeButton item={item} />
+    </>
   );
 }
 
@@ -519,6 +547,117 @@ function JournalTradeButton({ item }: { item: FeedActivityItem }) {
         editingId={null}
       />
     </>
+  );
+}
+
+/**
+ * Real follow state for feed cards. The feed payload does NOT inline the
+ * viewer's follow relationship, so instead of faking it we derive it from the
+ * viewer's own following list — one shared React Query (deduped across every
+ * card by its stable key). Follow/unfollow optimistically update that shared
+ * set and reconcile against the real API result.
+ */
+function useFollowState(targetUserId: number, handle: string | null) {
+  const { user, loggedIn } = useXAuth();
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const viewerRef = user?.x_username || user?.id || null;
+  const key = ["following-set", user?.id ?? null] as const;
+
+  const { data: set } = useQuery({
+    queryKey: key,
+    enabled: loggedIn && !!viewerRef,
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const res = await api.profiles.following(viewerRef as string | number);
+      return new Set<number>(res.users.map((u) => u.user_id));
+    },
+  });
+
+  const mut = useMutation({
+    mutationFn: (follow: boolean) =>
+      follow
+        ? api.profiles.follow(handle ?? targetUserId)
+        : api.profiles.unfollow(handle ?? targetUserId),
+    onMutate: async (follow) => {
+      await qc.cancelQueries({ queryKey: key });
+      const prev = qc.getQueryData<Set<number>>(key);
+      const next = new Set(prev ?? []);
+      if (follow) next.add(targetUserId);
+      else next.delete(targetUserId);
+      qc.setQueryData(key, next);
+      return { prev };
+    },
+    onError: (_e, _follow, ctx) => {
+      if (ctx?.prev) qc.setQueryData(key, ctx.prev);
+      toast({ variant: "destructive", title: "Couldn't update follow" });
+    },
+    onSuccess: (res, follow, ctx) => {
+      if (!res.ok) {
+        if (ctx?.prev) qc.setQueryData(key, ctx.prev);
+        toast({
+          variant: "destructive",
+          title: res.error || "Couldn't update follow",
+        });
+        return;
+      }
+      if (follow && handle) {
+        toast({
+          variant: "social",
+          icon: <UserPlus className="h-4 w-4" />,
+          title: `Following @${handle}`,
+          duration: 4000,
+        });
+      }
+    },
+  });
+
+  const following = set?.has(targetUserId) ?? false;
+  return { following, loggedIn, pending: mut.isPending, toggle: () => mut.mutate(!following) };
+}
+
+/**
+ * Inline "Follow" affordance on the reaction row, mirroring the Journal button
+ * (ghost pill, tiny icon + label, pinned opposite the reactions) but shown on
+ * OTHER traders' cards. Self-gates to null on the viewer's own cards, for
+ * guests (the follow graph is X-scoped), and when there's no author id.
+ */
+function FollowTradeButton({ item }: { item: FeedActivityItem }) {
+  const { user, loggedIn } = useXAuth();
+  const handle = item.user.x_username?.trim().replace(/^@+/, "") || null;
+  const myHandle = user?.x_username?.trim().replace(/^@+/, "").toLowerCase();
+  const isMine = !!myHandle && myHandle === handle?.toLowerCase();
+  const { following, pending, toggle } = useFollowState(item.user.user_id, handle);
+
+  if (!loggedIn || isMine || !item.user.user_id) return null;
+
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        toggle();
+      }}
+      disabled={pending}
+      data-testid={`follow-user-${item.id}`}
+      aria-label={following ? `Unfollow @${handle}` : `Follow @${handle}`}
+      title={following ? `Unfollow @${handle}` : `Follow @${handle}`}
+      className={cn(
+        "ml-auto inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] transition-colors border border-transparent disabled:opacity-60",
+        following
+          ? "text-accent hover:text-foreground hover:bg-secondary/60"
+          : "text-muted-foreground/70 hover:text-foreground hover:bg-secondary/60",
+      )}
+    >
+      {pending ? (
+        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+      ) : following ? (
+        <UserCheck className="w-3.5 h-3.5" />
+      ) : (
+        <UserPlus className="w-3.5 h-3.5" />
+      )}
+      <span>{following ? "Following" : "Follow"}</span>
+    </button>
   );
 }
 
@@ -1205,14 +1344,20 @@ export function TradeActivityCard({
   } else {
     const lev = item.leverage ? `${item.leverage}×` : "";
     const dir = (item.direction || "").toUpperCase();
-    event = PERPS_EVENT;
+    const isLiq = item.action === "liquidated";
+    const isShort = item.direction === "short";
+    event = isLiq
+      ? PERPS_LIQ_EVENT
+      : isShort
+        ? PERPS_SHORT_EVENT
+        : PERPS_LONG_EVENT;
     if (item.action === "open") {
       verb = (
         <>
           opened a {lev} {dir} on <TokenLink token={item.token} />
         </>
       );
-    } else if (item.action === "liquidated") {
+    } else if (isLiq) {
       verb = (
         <>
           was liquidated on <TokenLink token={item.token} />
@@ -1229,10 +1374,24 @@ export function TradeActivityCard({
 
   const showPnl = item.pnlSol != null && Number.isFinite(item.pnlSol);
 
+  // Directional perps chip tint (matches the corner-badge cue) + a subtle
+  // critical glow on liquidations. Spot keeps the neutral chip, no glow.
+  const isPerps = item.kind === "leverage";
+  const perpsLiq = isPerps && item.action === "liquidated";
+  const perpsShort = isPerps && item.direction === "short";
+  const chipClass = !isPerps
+    ? "bg-secondary text-muted-foreground"
+    : perpsLiq
+      ? "bg-red-500/15 text-red-300"
+      : perpsShort
+        ? "bg-orange-500/12 text-orange-300"
+        : "bg-cyan-500/12 text-cyan-300";
+
   return (
     <CardShell
       item={item}
       event={event}
+      className={perpsLiq ? "shadow-[0_0_14px_rgba(239,68,68,0.16)]" : undefined}
       lead={
         <p className="text-sm text-muted-foreground">
           {verb}
@@ -1246,14 +1405,7 @@ export function TradeActivityCard({
       {item.kind === "spot" && <SpotMetrics item={item} solUsd={solUsd} />}
 
       <div className="mt-2 flex items-center gap-2 text-xs">
-        <Chip
-          label={item.kind === "leverage" ? "Perps" : "Spot"}
-          className={
-            item.kind === "leverage"
-              ? "bg-accent/12 text-accent"
-              : "bg-secondary text-muted-foreground"
-          }
-        />
+        <Chip label={isPerps ? "Perps" : "Spot"} className={chipClass} />
         {showPnl && item.kind === "leverage" && (
           <span
             className={cn(

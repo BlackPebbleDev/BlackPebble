@@ -6,7 +6,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { TOAST_ACCENT_TEXT, type ToastVariant } from "@/components/ui/toast";
 import { KIND_STYLE } from "@/lib/activity-toast";
 import {
@@ -200,7 +199,7 @@ export function NotificationCenter() {
             </p>
           </div>
         ) : (
-          <ScrollArea className="max-h-[min(70vh,26rem)]">
+          <div className="no-scrollbar max-h-[min(70vh,26rem)] overflow-y-auto">
             <div className="flex flex-col gap-0.5 p-1.5">
               {items.map((it) => (
                 <NotificationRow
@@ -211,7 +210,7 @@ export function NotificationCenter() {
                 />
               ))}
             </div>
-          </ScrollArea>
+          </div>
         )}
       </PopoverContent>
     </Popover>
