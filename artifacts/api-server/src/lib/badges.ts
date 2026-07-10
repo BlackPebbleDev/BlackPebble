@@ -387,7 +387,10 @@ const COMMUNITY_BADGES: BadgeDefinition[] = [
   },
 ];
 
-// Profile - personalising your presence. Setup badges; not feed-worthy.
+// Profile - personalising your presence. `profile_complete` is a trivial setup
+// badge (feed: false). The watchlist milestones ARE feed-worthy: they surface
+// like the other "first X" achievements (First Trade / First Call), one-time
+// per user, so building a watchlist posts a single celebratory card + toast.
 const PROFILE_BADGES: BadgeDefinition[] = [
   {
     key: "profile_complete",
@@ -399,13 +402,20 @@ const PROFILE_BADGES: BadgeDefinition[] = [
     feed: false,
   },
   {
+    key: "first_watch",
+    name: "First Watch",
+    description: "Added your first token to your watchlist.",
+    category: "profile",
+    icon: "Bookmark",
+    rarity: "common",
+  },
+  {
     key: "watchlist_builder",
     name: "Watchlist Builder",
     description: "Added 3 or more tokens to your watchlist.",
     category: "profile",
     icon: "Bookmark",
     rarity: "common",
-    feed: false,
   },
 ];
 
@@ -643,6 +653,7 @@ export function evaluateBadges(
     networked: count(m.followers, 10),
     // Profile
     profile_complete: bool(m.hasBio && m.hasAvatar),
+    first_watch: count(m.watchlistCount, 1),
     watchlist_builder: count(m.watchlistCount, 3),
     // Special
     triple_threat: bool(
