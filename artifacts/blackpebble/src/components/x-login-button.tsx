@@ -15,16 +15,16 @@ export function XLoginButton({ className }: { className?: string }) {
 
   if (loggedIn && user) {
     return (
-      <div className={cn("flex items-center gap-2", className)}>
+      <div className={cn("flex min-w-0 items-center gap-2", className)}>
         {user.x_avatar_url ? (
           <img
             src={user.x_avatar_url}
             alt={user.x_display_name || user.x_username}
-            className="w-7 h-7 rounded-full object-cover"
+            className="w-7 h-7 flex-shrink-0 rounded-full object-cover"
             onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
           />
         ) : (
-          <div className="w-7 h-7 rounded-full bg-secondary flex items-center justify-center text-[10px] text-muted-foreground">
+          <div className="w-7 h-7 flex-shrink-0 rounded-full bg-secondary flex items-center justify-center text-[10px] text-muted-foreground">
             <XLogo className="w-3.5 h-3.5" />
           </div>
         )}
@@ -37,10 +37,12 @@ export function XLoginButton({ className }: { className?: string }) {
           </span>
           <span className="text-[10px] text-muted-foreground">@{user.x_username}</span>
         </div>
+        {/* Standalone disconnect is hidden on mobile to keep the header compact;
+            it stays available on tablet/desktop where there's room. */}
         <button
           type="button"
           onClick={logout}
-          className="text-[10px] text-muted-foreground hover:text-foreground ml-1"
+          className="hidden sm:block text-[10px] text-muted-foreground hover:text-foreground ml-1 flex-shrink-0"
           title="Disconnect X"
         >
           ×

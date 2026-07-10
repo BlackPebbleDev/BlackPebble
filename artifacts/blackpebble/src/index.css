@@ -264,3 +264,52 @@
   font-family: var(--app-font-sans) !important;
   border-radius: 14px !important;
 }
+
+/* ── Mobile account chip ───────────────────────────────────────────────────
+   On phones the header action row is tight, so the X avatar and the Solana
+   wallet button collapse into one purpose-built, dark-glass/gold pill instead
+   of two full-size desktop buttons. Scoped to <640px only; desktop is
+   untouched by everything below. */
+@media (max-width: 639px) {
+  .account-chip {
+    border: 1px solid hsl(var(--border) / 0.7);
+    background: hsl(var(--secondary) / 0.5);
+    border-radius: 9999px;
+    padding: 2px 4px;
+    max-width: 190px;
+  }
+  /* Wallet button blends into the chip: transparent, borderless, compact,
+     and elegantly truncated so a long label can never clip off-screen. */
+  .account-chip .wallet-adapter-button-trigger {
+    background: transparent !important;
+    border: 0 !important;
+    height: 32px !important;
+    line-height: 32px !important;
+    padding: 0 10px 0 6px !important;
+    font-size: 12px !important;
+    border-radius: 9999px !important;
+    max-width: 132px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .account-chip .wallet-adapter-button-trigger:not([disabled]):hover {
+    background: hsl(var(--accent) / 0.15) !important;
+    color: hsl(var(--accent)) !important;
+    border: 0 !important;
+  }
+  /* The avatar carries the visual identity on mobile, so the wallet provider
+     glyph is dropped to save horizontal space (matches the design mock). */
+  .account-chip .wallet-adapter-button-start-icon {
+    display: none !important;
+  }
+  /* Guest / logged-out "Login with X" button also blends into the chip so the
+     pill reads as one component in every auth state. */
+  .account-chip [data-testid="button-login-x"] {
+    border: 0 !important;
+    background: transparent !important;
+    height: 32px !important;
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+  }
+}

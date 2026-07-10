@@ -117,7 +117,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <TokenSearch onSelect={handleSearchSelect} wallet={wallet} />
           </div>
 
-          <div className="flex-shrink-0 ml-auto flex items-center gap-2">
+          <div className="ml-auto flex min-w-0 items-center gap-1.5 sm:gap-2">
             {isGuest && (
               <span
                 data-testid="badge-guest-mode"
@@ -127,8 +127,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </span>
             )}
             <NotificationCenter />
-            <XLoginButton />
-            <WalletMultiButton />
+            <div className="account-chip flex min-w-0 items-center gap-1 sm:gap-2">
+              <XLoginButton />
+              <WalletMultiButton />
+            </div>
           </div>
         </div>
       </header>

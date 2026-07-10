@@ -141,7 +141,7 @@ export function NotificationCenter() {
           type="button"
           aria-label="Notifications"
           data-testid="button-notifications"
-          className="relative flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-white/[0.06] hover:text-foreground"
+          className="relative flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-white/[0.06] hover:text-foreground"
         >
           <Bell className="h-[18px] w-[18px]" />
           {unreadCount > 0 && (
