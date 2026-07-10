@@ -238,14 +238,14 @@ export function Segmented<T extends string>({
   options: { value: T; label: string }[];
 }) {
   return (
-    <div className="inline-flex rounded-full bg-surface-2 p-1 gap-1">
+    <div className="inline-flex max-w-full rounded-full bg-surface-2 p-1 gap-1">
       {options.map((o) => (
         <button
           key={o.value}
           type="button"
           onClick={() => onChange(value === o.value ? "" : o.value)}
           className={cn(
-            "px-3.5 py-1.5 rounded-full text-sm font-medium transition-colors",
+            "min-w-0 px-3.5 py-1.5 rounded-full text-sm font-medium transition-colors",
             value === o.value
               ? "bg-accent text-accent-foreground"
               : "text-muted-foreground hover:text-foreground",
@@ -368,7 +368,7 @@ export function JournalEntryDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto overflow-x-hidden no-scrollbar">
         <DialogHeader>
           <DialogTitle>
             {isEditing ? "Edit Journal Entry" : "New Journal Entry"}

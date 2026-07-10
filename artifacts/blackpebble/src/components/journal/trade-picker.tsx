@@ -270,7 +270,7 @@ export function TradePickerDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl p-0 gap-0 flex flex-col max-h-[85vh]">
+      <DialogContent className="max-w-xl p-0 gap-0 flex flex-col max-h-[85vh] overflow-x-hidden">
         <DialogHeader className="p-6 pb-3">
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-accent" />
