@@ -1,133 +1,52 @@
-import {
-  Sparkles,
-  ChevronRight,
-  Target,
-  BookOpen,
-  Brain,
-  Megaphone,
-} from "lucide-react";
+import { ChevronRight, Wrench } from "lucide-react";
 import { Link } from "wouter";
 import { useFeatureFlags } from "@/hooks/use-feature-flags";
 import { SupportSection } from "@/components/support-section";
+import { PageHeader } from "@/components/page-header";
+import { UTILITIES, type UtilityFlag } from "@/lib/utilities-meta";
 
 export default function Utilities() {
   const flags = useFeatureFlags();
+
+  const visible = UTILITIES.filter((u) => {
+    if (!u.flag) return true;
+    return flags[u.flag as UtilityFlag];
+  });
+
   return (
     <div className="flex flex-col gap-6 px-4 py-6 sm:py-10 max-w-5xl mx-auto">
-      <div className="space-y-2">
-        <h1 className="text-3xl md:text-4xl font-bold tracking-tight">Utilities</h1>
-        <p className="text-sm text-muted-foreground max-w-2xl">
-          Standalone tools to help you manage your Solana wallet. These run
-          directly on-chain and never touch your paper trading.
-        </p>
-      </div>
+      <PageHeader
+        icon={Wrench}
+        title="Utilities"
+        subtitle="Standalone tools to help you manage your Solana wallet. These run directly on-chain and never touch your paper trading."
+        className="mb-0"
+      />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Link
-          href="/utilities/journal"
-          className="group card-interactive rounded-2xl bg-card shadow-card p-6 flex items-start gap-4"
-          data-testid="link-trading-journal"
-        >
-          <div className="w-12 h-12 rounded-full bg-accent/12 flex items-center justify-center flex-shrink-0">
-            <BookOpen className="w-[22px] h-[22px] text-accent" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between gap-2">
-              <div className="text-lg font-bold">Trading Journal</div>
-              <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-accent group-hover:translate-x-0.5 transition-all flex-shrink-0" />
-            </div>
-            <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
-              Record trade reviews, track your emotions and lessons, and improve
-              your decisions over time.
-            </p>
-          </div>
-        </Link>
-
-        <Link
-          href="/utilities/sol-recovery"
-          className="group card-interactive rounded-2xl bg-card shadow-card p-6 flex items-start gap-4"
-          data-testid="link-wallet-cleaner"
-        >
-          <div className="w-12 h-12 rounded-full bg-accent/12 flex items-center justify-center flex-shrink-0">
-            <Sparkles className="w-[22px] h-[22px] text-accent" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between gap-2">
-              <div className="text-lg font-bold">Wallet Cleanup</div>
-              <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-accent group-hover:translate-x-0.5 transition-all flex-shrink-0" />
-            </div>
-            <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
-              See every token, spot scams and inflated value, reclaim trapped
-              SOL, and burn junk - safely.
-            </p>
-          </div>
-        </Link>
-
-        {flags.real_trading_analysis && (
-          <Link
-            href="/utilities/trading-analysis"
-            className="group card-interactive rounded-2xl bg-card shadow-card p-6 flex items-start gap-4"
-            data-testid="link-trading-analysis"
-          >
-            <div className="w-12 h-12 rounded-full bg-accent/12 flex items-center justify-center flex-shrink-0">
-              <Brain className="w-[22px] h-[22px] text-accent" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between gap-2">
-                <div className="text-lg font-bold">Trading Analysis</div>
-                <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-accent group-hover:translate-x-0.5 transition-all flex-shrink-0" />
+        {visible.map((u) => {
+          const Icon = u.icon;
+          return (
+            <Link
+              key={u.key}
+              href={u.href}
+              className="group card-interactive rounded-2xl bg-card shadow-card p-6 flex items-start gap-4"
+              data-testid={u.testId}
+            >
+              <div className="w-12 h-12 rounded-full bg-accent/12 flex items-center justify-center flex-shrink-0">
+                <Icon className="w-[22px] h-[22px] text-accent" />
               </div>
-              <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
-                Read-only intelligence from your real on-chain history - trader
-                DNA, signals, insights, and milestones.
-              </p>
-            </div>
-          </Link>
-        )}
-
-        {flags.community_campaigns && (
-          <Link
-            href="/campaigns"
-            className="group card-interactive rounded-2xl bg-card shadow-card p-6 flex items-start gap-4"
-            data-testid="link-campaigns"
-          >
-            <div className="w-12 h-12 rounded-full bg-accent/12 flex items-center justify-center flex-shrink-0">
-              <Megaphone className="w-[22px] h-[22px] text-accent" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between gap-2">
-                <div className="text-lg font-bold">Community Campaigns</div>
-                <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-accent group-hover:translate-x-0.5 transition-all flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-lg font-bold">{u.title}</div>
+                  <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-accent group-hover:translate-x-0.5 transition-all flex-shrink-0" />
+                </div>
+                <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
+                  {u.description}
+                </p>
               </div>
-              <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
-                Escrow-backed community funding with a fully public money
-                trail - automatic refunds if goals aren't met.
-              </p>
-            </div>
-          </Link>
-        )}
-
-        {flags.experimental_utilities && (
-          <Link
-            href="/utilities/trade-planner"
-            className="group card-interactive rounded-2xl bg-card shadow-card p-6 flex items-start gap-4"
-            data-testid="link-trade-planner"
-          >
-            <div className="w-12 h-12 rounded-full bg-accent/12 flex items-center justify-center flex-shrink-0">
-              <Target className="w-[22px] h-[22px] text-accent" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between gap-2">
-                <div className="text-lg font-bold">Trade Planner</div>
-                <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-accent group-hover:translate-x-0.5 transition-all flex-shrink-0" />
-              </div>
-              <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
-                Plan entries, targets, stops, position size, risk, and profit
-                scenarios before taking a trade.
-              </p>
-            </div>
-          </Link>
-        )}
+            </Link>
+          );
+        })}
       </div>
 
       <p className="text-sm text-muted-foreground">

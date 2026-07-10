@@ -16,6 +16,7 @@ import {
   Crown,
   ExternalLink,
   Flame,
+  HandCoins,
   Megaphone,
   Plus,
   Radar,
@@ -38,6 +39,12 @@ import { MetricTile } from "@/components/metric-tile";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { UtilityPageHeader } from "@/components/utility-page-header";
+import { getUtility } from "@/lib/utilities-meta";
+
+const CAMPAIGNS = getUtility("campaigns");
+const CAMPAIGNS_SUBTITLE =
+  "Escrow-backed community funding with a fully public money trail. Goal not met - automatic refunds, no platform fee. Overfunding goes back to contributors, never kept.";
 import {
   Dialog,
   DialogContent,
@@ -531,7 +538,7 @@ function CreateCampaignDialog() {
           Start a Campaign
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl max-h-[88vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[88vh] overflow-y-auto overflow-x-hidden no-scrollbar">
         {step === "type" ? (
           <>
             <DialogHeader>
@@ -1061,28 +1068,11 @@ export default function CampaignsPage() {
 
   return (
     <div className="flex flex-col gap-6 px-4 md:px-6 py-6 sm:py-10 w-full max-w-6xl mx-auto">
-      <div className="space-y-2">
-        <Link
-          href="/utilities"
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-accent transition-colors"
-        >
-          <ChevronLeft className="w-4 h-4" />
-          Utilities
-        </Link>
-        <div className="flex items-start justify-between gap-4 flex-wrap">
-          <div className="space-y-2">
-            <h1 className="text-3xl md:text-4xl font-bold tracking-tight">
-              Community Campaigns
-            </h1>
-            <p className="text-sm text-muted-foreground max-w-2xl leading-relaxed">
-              Escrow-backed community funding with a fully public money trail.
-              Goal not met - automatic refunds, no platform fee. Overfunding
-              goes back to contributors, never kept.
-            </p>
-          </div>
-          <CreateCampaignDialog />
-        </div>
-      </div>
+      <UtilityPageHeader
+        utility={CAMPAIGNS}
+        subtitle={CAMPAIGNS_SUBTITLE}
+        actions={<CreateCampaignDialog />}
+      />
 
       <div className="relative overflow-hidden rounded-2xl bg-card shadow-card">
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-accent/[0.06] via-transparent to-accent/[0.04]" />
@@ -1135,7 +1125,7 @@ export default function CampaignsPage() {
         </div>
       ) : campaigns.length === 0 ? (
         <div className="rounded-2xl bg-card shadow-card p-10 text-center space-y-2">
-          <Megaphone className="w-8 h-8 text-muted-foreground mx-auto" />
+          <HandCoins className="w-8 h-8 text-muted-foreground mx-auto" />
           <div className="font-semibold">No campaigns yet</div>
           <p className="text-sm text-muted-foreground">
             Be the first - start a campaign for your community.

@@ -1,8 +1,13 @@
-import { Link, useLocation } from "wouter";
 import { useEffect } from "react";
-import { ChevronLeft } from "lucide-react";
+import { useLocation } from "wouter";
 import { useFeatureFlags } from "@/hooks/use-feature-flags";
 import { RealTradingAnalysisFull } from "@/components/real-trading-analysis";
+import { UtilityPageHeader } from "@/components/utility-page-header";
+import { getUtility } from "@/lib/utilities-meta";
+
+const TRADING_ANALYSIS = getUtility("trading_analysis");
+const TRADING_ANALYSIS_SUBTITLE =
+  "Your real trading home. Read-only intelligence built from your on-chain history - performance, trader DNA, behavior, risk, and how you're evolving. Never mixed with paper trading.";
 
 /**
  * Trading Analysis utility - the full Real Trading Analysis experience.
@@ -23,24 +28,10 @@ export default function TradingAnalysisPage() {
 
   return (
     <div className="flex flex-col gap-6 px-4 md:px-6 py-6 sm:py-10 w-full max-w-6xl mx-auto">
-      <div className="space-y-2">
-        <Link
-          href="/utilities"
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-accent transition-colors"
-          data-testid="link-back-utilities"
-        >
-          <ChevronLeft className="w-4 h-4" />
-          Utilities
-        </Link>
-        <h1 className="text-3xl md:text-4xl font-bold tracking-tight">
-          Trading Analysis
-        </h1>
-        <p className="text-sm text-muted-foreground max-w-2xl leading-relaxed">
-          Your real trading home. Read-only intelligence built from your
-          on-chain history - performance, trader DNA, behavior, risk, and how
-          you're evolving. Never mixed with paper trading.
-        </p>
-      </div>
+      <UtilityPageHeader
+        utility={TRADING_ANALYSIS}
+        subtitle={TRADING_ANALYSIS_SUBTITLE}
+      />
 
       <RealTradingAnalysisFull />
     </div>

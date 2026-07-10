@@ -28,6 +28,12 @@ import {
 } from "@/components/journal/journal-entry-dialog";
 import { fmtMarketCap, fmtSignedSol, pnlColor } from "@/lib/format";
 import { useXAuth } from "@/hooks/use-x-auth";
+import { UtilityPageHeader } from "@/components/utility-page-header";
+import { getUtility } from "@/lib/utilities-meta";
+
+const JOURNAL = getUtility("journal");
+const JOURNAL_SUBTITLE =
+  "Review trades, track lessons, and improve performance over time.";
 import { useToast } from "@/hooks/use-toast";
 import { XLoginButton } from "@/components/x-login-button";
 import {
@@ -96,14 +102,7 @@ export default function TradingJournal() {
 function JournalGate() {
   return (
     <div className="flex flex-col gap-6 px-4 py-6 sm:py-10 max-w-5xl mx-auto">
-      <div className="space-y-2">
-        <h1 className="text-3xl md:text-4xl font-bold tracking-tight">
-          Trading Journal
-        </h1>
-        <p className="text-sm text-muted-foreground max-w-2xl">
-          Review trades, track lessons, and improve performance over time.
-        </p>
-      </div>
+      <UtilityPageHeader utility={JOURNAL} subtitle={JOURNAL_SUBTITLE} />
       <div className="rounded-2xl bg-gradient-to-br from-accent/10 via-card to-card border border-accent/20 shadow-card p-8 sm:p-10 max-w-xl mx-auto w-full text-center">
         <div className="w-14 h-14 rounded-full bg-accent/15 flex items-center justify-center mx-auto mb-5">
           <Lock className="w-7 h-7 text-accent" />
@@ -208,37 +207,32 @@ function JournalDashboard() {
 
   return (
     <div className="flex flex-col gap-6 px-4 py-6 sm:py-10 max-w-5xl mx-auto">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-        <div className="space-y-2">
-          <h1 className="text-3xl md:text-4xl font-bold tracking-tight">
-            Trading Journal
-          </h1>
-          <p className="text-sm text-muted-foreground max-w-2xl">
-            Review trades, track lessons, and improve performance over time.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setPickerOpen(true)}
-            className="inline-flex items-center gap-2 px-4 h-11 rounded-full bg-surface-2 text-foreground hover:bg-surface-3 text-sm font-medium transition-colors"
-            data-testid="button-create-from-trade"
-          >
-            <Sparkles className="w-4 h-4 text-accent" />
-            From Trade
-          </button>
-          <button
-            type="button"
-            onClick={() => openNew()}
-            className="inline-flex items-center gap-2 px-4 h-11 rounded-full bg-accent text-accent-foreground hover:bg-accent/90 text-sm font-semibold transition-colors shadow-card"
-            data-testid="button-new-entry"
-          >
-            <Plus className="w-4 h-4" />
-            New Journal Entry
-          </button>
-        </div>
-      </div>
+      <UtilityPageHeader
+        utility={JOURNAL}
+        subtitle={JOURNAL_SUBTITLE}
+        actions={
+          <>
+            <button
+              type="button"
+              onClick={() => setPickerOpen(true)}
+              className="inline-flex items-center gap-2 px-4 h-11 rounded-full bg-surface-2 text-foreground hover:bg-surface-3 text-sm font-medium transition-colors"
+              data-testid="button-create-from-trade"
+            >
+              <Sparkles className="w-4 h-4 text-accent" />
+              From Trade
+            </button>
+            <button
+              type="button"
+              onClick={() => openNew()}
+              className="inline-flex items-center gap-2 px-4 h-11 rounded-full bg-accent text-accent-foreground hover:bg-accent/90 text-sm font-semibold transition-colors shadow-card"
+              data-testid="button-new-entry"
+            >
+              <Plus className="w-4 h-4" />
+              New Journal Entry
+            </button>
+          </>
+        }
+      />
 
       {/* KPI dashboard */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
@@ -439,7 +433,7 @@ function JournalDashboard() {
 
       {/* Viewer */}
       <Dialog open={!!viewing} onOpenChange={(o) => !o && setViewing(null)}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto overflow-x-hidden no-scrollbar">
           {viewing ? <EntryViewer entry={viewing} /> : null}
         </DialogContent>
       </Dialog>

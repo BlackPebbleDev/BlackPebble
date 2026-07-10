@@ -7,6 +7,7 @@ import {
 } from "@tanstack/react-query";
 import { TrendingUp, Sparkles, RefreshCw } from "lucide-react";
 import { LiveIndicator } from "@/components/live-indicator";
+import { PageHeader } from "@/components/page-header";
 import { Watchlist } from "@/components/watchlist";
 import { FilterPills } from "@/components/filter-pills";
 import { Sparkline } from "@/components/sparkline";
@@ -477,37 +478,58 @@ export default function Markets() {
 
   return (
     <div className="w-full max-w-6xl mx-auto px-4 md:px-6 py-6">
-      <div className="flex items-center gap-3 mb-2">
-        <TrendingUp className="w-7 h-7 text-accent" />
-        <h1 className="text-3xl md:text-4xl font-bold tracking-tight">Markets</h1>
-        {isListFeed && dataUpdatedAt > 0 && (
-          <LiveIndicator dataUpdatedAt={dataUpdatedAt} />
-        )}
-        <button
-          type="button"
-          onClick={handleRefresh}
-          disabled={isRefreshing}
-          data-testid="button-refresh-markets"
-          title="Refresh market data"
-          className="ml-auto inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs rounded-full border border-border text-muted-foreground hover:text-foreground hover:border-accent/50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-        >
-          <RefreshCw
-            className={cn("w-3.5 h-3.5", isRefreshing && "animate-spin")}
-          />
-          {isRefreshing ? "Refreshing…" : "Refresh"}
-        </button>
-      </div>
-      <p className="text-sm text-muted-foreground mb-1">
-        Discover opportunities - tap any token to open it on the Trading desk.
-      </p>
-      <p
-        className="text-xs text-muted-foreground/70 mb-6"
-        data-testid="text-last-updated"
-      >
-        {lastUpdated
-          ? `Last updated ${timeAgo(lastUpdated)}`
-          : "Awaiting first update…"}
-      </p>
+      <PageHeader
+        icon={TrendingUp}
+        title="Markets"
+        // Title row stays clean (icon + Markets). LIVE + Refresh live on a
+        // secondary meta row so mobile never crowds the title or clips Refresh
+        // off the right edge. Desktop keeps a labeled Refresh pill; mobile
+        // collapses to a compact icon button.
+        meta={
+          <div className="flex w-full min-w-0 items-center gap-2">
+            {isListFeed && dataUpdatedAt > 0 && (
+              <div className="min-w-0 overflow-hidden">
+                <LiveIndicator dataUpdatedAt={dataUpdatedAt} />
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              data-testid="button-refresh-markets"
+              title="Refresh market data"
+              aria-label={isRefreshing ? "Refreshing market data" : "Refresh market data"}
+              className={cn(
+                "ml-auto inline-flex flex-shrink-0 items-center justify-center gap-1.5 rounded-full border border-border text-muted-foreground transition-colors",
+                "hover:text-foreground hover:border-accent/50",
+                "disabled:opacity-60 disabled:cursor-not-allowed",
+                // Mobile: compact icon button. Desktop: labeled pill.
+                "h-8 w-8 sm:h-auto sm:w-auto sm:px-3.5 sm:py-1.5",
+              )}
+            >
+              <RefreshCw
+                className={cn("w-3.5 h-3.5", isRefreshing && "animate-spin")}
+              />
+              <span className="hidden text-xs sm:inline">
+                {isRefreshing ? "Refreshing…" : "Refresh"}
+              </span>
+            </button>
+          </div>
+        }
+        subtitle={
+          <>
+            <p>Discover opportunities - tap any token to open it on the Trading desk.</p>
+            <p
+              className="mt-1 text-xs text-muted-foreground/70"
+              data-testid="text-last-updated"
+            >
+              {lastUpdated
+                ? `Last updated ${timeAgo(lastUpdated)}`
+                : "Awaiting first update…"}
+            </p>
+          </>
+        }
+      />
 
       <FilterPills
         options={tabs}

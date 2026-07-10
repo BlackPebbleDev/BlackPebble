@@ -1,6 +1,4 @@
 import { useMemo, useState } from "react";
-import { Link } from "wouter";
-import { ArrowLeft } from "lucide-react";
 import {
   computePlan,
   parseAbbreviatedNumber,
@@ -17,6 +15,10 @@ import { ProfitTargets } from "@/components/trade-planner/profit-targets";
 import { TradeSummary } from "@/components/trade-planner/trade-summary";
 import { PositionValueCalc } from "@/components/trade-planner/position-value-calc";
 import { SegmentedToggle } from "@/components/trade-planner/primitives";
+import { UtilityPageHeader } from "@/components/utility-page-header";
+import { getUtility } from "@/lib/utilities-meta";
+
+const TRADE_PLANNER = getUtility("trade_planner");
 
 const EMPTY_SETUP: SetupFields = { entry: "", stop: "", target: "", current: "" };
 const EMPTY_SIZING: SizingFields = {
@@ -76,24 +78,8 @@ export default function TradePlanner() {
   }
 
   return (
-    <div className="flex flex-col gap-5 px-4 py-6 sm:py-10 max-w-3xl mx-auto pb-20">
-      <div className="space-y-3">
-        <Link
-          href="/utilities"
-          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-          data-testid="link-back-utilities"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Utilities
-        </Link>
-        <div className="space-y-1">
-          <h1 className="text-2xl font-semibold">Trade Planner</h1>
-          <p className="text-sm text-muted-foreground">
-            Plan entries, targets, stops, position size, risk, and profit
-            scenarios before taking a trade.
-          </p>
-        </div>
-      </div>
+    <div className="flex flex-col gap-5 px-4 md:px-6 py-6 sm:py-10 max-w-5xl mx-auto pb-20">
+      <UtilityPageHeader utility={TRADE_PLANNER} />
 
       {/* 1. Trade Setup - always in valuation (MC or price) units */}
       <TradeSetup

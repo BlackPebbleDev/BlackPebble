@@ -1,11 +1,8 @@
 import { useRef, useState } from "react";
-import { Link } from "wouter";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import {
-  Sparkles,
   Loader2,
-  ArrowLeft,
   CheckCircle2,
   AlertTriangle,
   Wallet,
@@ -33,6 +30,12 @@ import {
   BurnSuccessBanner,
 } from "@/components/wallet-cleaner/token-cleanup";
 import { BurnPreviewDialog } from "@/components/wallet-cleaner/burn-preview-dialog";
+import { UtilityPageHeader } from "@/components/utility-page-header";
+import { getUtility } from "@/lib/utilities-meta";
+
+const WALLET_CLEANUP = getUtility("wallet_cleanup");
+const WALLET_CLEANUP_SUBTITLE =
+  "See every token you hold, spot scams and inflated value, reclaim trapped SOL, and burn junk - safely and on your terms.";
 
 type CleanupTab =
   | "overview"
@@ -120,31 +123,11 @@ export default function WalletCleaner() {
   ];
 
   return (
-    <div className="flex flex-col gap-6 px-4 py-6 sm:py-10 max-w-3xl mx-auto pb-32 sm:pb-10">
-      <div className="space-y-3">
-        <Link
-          href="/utilities"
-          className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-          data-testid="link-back-utilities"
-        >
-          <ArrowLeft className="w-3.5 h-3.5" />
-          Utilities
-        </Link>
-        <div className="flex items-start gap-3">
-          <div className="w-11 h-11 rounded-full bg-accent/12 flex items-center justify-center flex-shrink-0">
-            <Sparkles className="w-5 h-5 text-accent" />
-          </div>
-          <div className="space-y-1.5">
-            <h1 className="text-2xl font-semibold leading-tight">
-              Wallet Cleanup
-            </h1>
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              See every token you hold, spot scams and inflated value, reclaim
-              trapped SOL, and burn junk - safely and on your terms.
-            </p>
-          </div>
-        </div>
-      </div>
+    <div className="flex flex-col gap-6 px-4 md:px-6 py-6 sm:py-10 max-w-5xl mx-auto pb-32 sm:pb-10">
+      <UtilityPageHeader
+        utility={WALLET_CLEANUP}
+        subtitle={WALLET_CLEANUP_SUBTITLE}
+      />
 
       <SafetyBanner />
 
