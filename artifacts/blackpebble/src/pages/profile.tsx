@@ -7,13 +7,10 @@ import {
   Check,
   ChevronDown,
   Copy,
-  ExternalLink,
-  Globe,
   History,
   Loader2,
   Lock,
   Megaphone,
-  MessagesSquare,
   Pencil,
   Plus,
   ScrollText,
@@ -65,14 +62,16 @@ import {
 } from "@/lib/format";
 import { PnlAmount } from "@/components/pnl-amount";
 import { tierMeta } from "@/lib/tiers";
-import { TierBadge } from "@/components/tier-badge";
+import {
+  ProfileIdentityMeta,
+  SOCIAL_DEFS,
+} from "@/components/profile-identity";
 import { TokenSearch } from "@/components/token-search";
 import { PlaceholderCard } from "@/components/feed-card";
 import {
   trackProfileView,
   trackFollowCreated,
   trackFollowRemoved,
-  trackXProfileLinkClicked,
 } from "@/lib/analytics";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -323,30 +322,6 @@ function BioSection({ profile }: { profile: ProfileResponse }) {
     </div>
   );
 }
-
-const SOCIAL_DEFS = [
-  {
-    key: "website",
-    icon: Globe,
-    label: "Website",
-    placeholder: "yoursite.com",
-    href: (v: string) => v,
-  },
-  {
-    key: "telegram",
-    icon: Send,
-    label: "Telegram",
-    placeholder: "username",
-    href: (v: string) => `https://t.me/${v}`,
-  },
-  {
-    key: "discord",
-    icon: MessagesSquare,
-    label: "Discord",
-    placeholder: "discord.gg/yourcode",
-    href: (v: string) => `https://discord.gg/${v}`,
-  },
-] as const;
 
 /**
  * Off-platform links rendered as compact icon pills. Only links that are set
@@ -1304,11 +1279,11 @@ function CalloutCard({
           <img
             src={callout.token_logo}
             alt=""
-            className="w-9 h-9 rounded-lg object-cover flex-shrink-0"
+            className="w-9 h-9 rounded-full object-cover flex-shrink-0"
             onError={(e) => (e.currentTarget.style.visibility = "hidden")}
           />
         ) : (
-          <div className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center text-[10px] text-muted-foreground flex-shrink-0">
+          <div className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center text-[10px] text-muted-foreground flex-shrink-0">
             {callout.token_symbol?.slice(0, 2) ?? "?"}
           </div>
         )}
@@ -1652,11 +1627,11 @@ function ThesisCard({ thesis }: { thesis: ThesisWithAuthor }) {
           <img
             src={thesis.token_logo}
             alt=""
-            className="w-9 h-9 rounded-lg object-cover flex-shrink-0"
+            className="w-9 h-9 rounded-full object-cover flex-shrink-0"
             onError={(e) => (e.currentTarget.style.visibility = "hidden")}
           />
         ) : (
-          <div className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center text-[10px] text-muted-foreground flex-shrink-0">
+          <div className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center text-[10px] text-muted-foreground flex-shrink-0">
             {thesis.token_symbol?.slice(0, 2) ?? "?"}
           </div>
         )}
@@ -1977,73 +1952,6 @@ function ShareCard({ profile }: { profile: ProfileResponse }) {
   );
 }
 
-/**
- * Compact identity metadata row rendered under the name/badges in the profile
- * hero: "@handle · Silver · Rank #N". The @handle keeps its external-link icon
- * and view-on-X tracking; the tier renders as color-only text; rank gets a
- * subtle gold chip that stays quieter than the official role badges.
- */
-function ProfileIdentityMeta({
-  profile,
-  profileUrl,
-}: {
-  profile: ProfileResponse;
-  profileUrl: string | null;
-}) {
-  const handle = profile.x_username?.trim().replace(/^@+/, "") || null;
-  const dot = (
-    <span aria-hidden className="flex-shrink-0 text-muted-foreground/40">
-      ·
-    </span>
-  );
-
-  // Identity row: @handle, tier, and rank kept together and prefer one line.
-  // The @handle shows in full (it only truncates past a generous max width, for
-  // unusually long handles). Tier and rank never shrink; if the row genuinely
-  // cannot fit (very small screens), it wraps rather than clipping the handle.
-  return (
-    <div className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 min-w-0 text-sm">
-      {handle &&
-        (profileUrl ? (
-          <a
-            href={profileUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            data-testid="link-view-on-x"
-            onClick={() => trackXProfileLinkClicked()}
-            className="inline-flex max-w-[12rem] min-w-0 items-center gap-1 text-muted-foreground hover:text-accent transition-colors"
-          >
-            <span className="truncate">@{handle}</span>
-            <ExternalLink className="w-3 h-3 flex-shrink-0 opacity-60" />
-          </a>
-        ) : (
-          <span className="inline-flex max-w-[12rem] min-w-0 items-center text-muted-foreground">
-            <span className="truncate">@{handle}</span>
-          </span>
-        ))}
-      {handle && dot}
-      <TierBadge
-        tier={profile.graduationTier}
-        variant="plain"
-        className="flex-shrink-0"
-      />
-      {profile.rank != null && (
-        <>
-          {dot}
-          <span
-            data-testid="text-profile-rank"
-            aria-label={`Rank #${profile.rank}`}
-            className="inline-flex flex-shrink-0 items-center gap-1 font-semibold text-accent whitespace-nowrap"
-          >
-            <Trophy className="w-3 h-3 flex-shrink-0" />
-            #{profile.rank}
-          </span>
-        </>
-      )}
-    </div>
-  );
-}
-
 export default function ProfilePage() {
   const { handle } = useParams<{ handle: string }>();
   const solUsd = useSolUsd();
@@ -2112,7 +2020,12 @@ export default function ProfilePage() {
           showHandle={false}
           stopPropagation={false}
         >
-          <ProfileIdentityMeta profile={profile} profileUrl={profileUrl} />
+          <ProfileIdentityMeta
+            handle={profile.x_username}
+            profileUrl={profileUrl}
+            tier={profile.graduationTier}
+            rank={profile.rank}
+          />
         </UserIdentity>
 
         {/* Detail block spans the full card width (including under the avatar)

@@ -26,8 +26,12 @@ import { Watchlist } from "@/components/watchlist";
 import { TradeList } from "@/components/trade-list";
 import { GuestCountdown } from "@/components/guest-countdown";
 import { TierBadge } from "@/components/tier-badge";
+import {
+  ProfileIdentityMeta,
+  ProfileSocialPills,
+} from "@/components/profile-identity";
 import { trackPortfolioView } from "@/lib/analytics";
-import { fmtSol, fmtPercent, pnlColor } from "@/lib/format";
+import { fmtSol, fmtPercent, pnlColor, xProfileUrl } from "@/lib/format";
 import { PnlAmount } from "@/components/pnl-amount";
 import { CurrencyAmount } from "@/components/currency-amount";
 import { useSolUsd } from "@/hooks/use-sol-usd";
@@ -269,51 +273,67 @@ export default function Portfolio() {
       {!isGuest && selfHandle && (
         <div
           data-testid="portfolio-user-summary"
-          className="hairline-accent overflow-hidden rounded-2xl bg-card shadow-card px-4 py-4 md:px-5 md:py-5 mb-6"
+          className="hairline-accent overflow-hidden rounded-2xl bg-card shadow-card p-5 md:p-6 mb-6"
         >
-          <div className="flex items-start justify-between gap-3">
-            <UserIdentity
-              size="lg"
-              avatarUrl={selfProfile?.x_avatar_url ?? xUser?.x_avatar_url}
-              avatarExpandable
-              displayName={selfProfile?.x_display_name ?? xUser?.x_display_name}
+          {/* Identity cluster: avatar + name/badges + compact @handle · tier ·
+              #rank, mirroring the approved public profile hero. */}
+          <UserIdentity
+            size="lg"
+            align="start"
+            avatarUrl={selfProfile?.x_avatar_url ?? xUser?.x_avatar_url}
+            avatarExpandable
+            displayName={selfProfile?.x_display_name ?? xUser?.x_display_name}
+            handle={selfHandle}
+            officialBadges={selfProfile?.officialBadges}
+            accountStatus={accountStatusFromGuest(isGuest)}
+            tier={stats?.graduationTier ?? selfProfile?.graduationTier}
+            tierPosition="none"
+            badgePosition="row"
+            badgeSize="sm"
+            showHandle={false}
+          >
+            <ProfileIdentityMeta
               handle={selfHandle}
-              officialBadges={selfProfile?.officialBadges}
-              accountStatus={accountStatusFromGuest(isGuest)}
+              profileUrl={xProfileUrl(selfHandle)}
               tier={stats?.graduationTier ?? selfProfile?.graduationTier}
-              tierPosition="inline"
-              badgePosition="row"
-              handleLink={{
-                type: "internal",
-                href: `/u/${encodeURIComponent(selfHandle)}`,
-              }}
-              handleTrailing={
-                rank != null ? (
-                  <span className="text-sm text-accent font-mono">#{rank}</span>
-                ) : undefined
-              }
+              rank={rank}
+            />
+          </UserIdentity>
+
+          {/* Full-width detail block (compact bio, links, followers) so the
+              card reads balanced and never stretches on a long saved bio. */}
+          {selfProfile?.bio && (
+            <p
+              data-testid="text-portfolio-bio"
+              className="mt-3 min-w-0 max-w-full text-sm text-foreground/90 break-words [overflow-wrap:anywhere] line-clamp-2"
             >
-              {selfProfile?.bio && (
-                <p
-                  data-testid="text-portfolio-bio"
-                  className="mt-3 min-w-0 max-w-full text-sm text-foreground/90 break-words [overflow-wrap:anywhere] line-clamp-2"
-                >
-                  {selfProfile.bio}
-                </p>
-              )}
-            </UserIdentity>
-            <Link
-              href={`/u/${encodeURIComponent(selfHandle)}`}
-              data-testid="link-view-public-profile"
-              className="hidden sm:inline-flex shrink-0 items-center gap-1.5 h-8 px-3 rounded-full border border-border text-xs font-medium text-foreground hover:bg-secondary transition-colors"
-            >
-              View Public Profile
-            </Link>
+              {selfProfile.bio}
+            </p>
+          )}
+
+          {selfProfile?.socials && (
+            <ProfileSocialPills socials={selfProfile.socials} />
+          )}
+
+          <div className="mt-3 flex items-center gap-4 text-sm">
+            <span data-testid="text-portfolio-following-count">
+              <span className="font-semibold text-foreground">
+                {selfProfile?.following ?? 0}
+              </span>{" "}
+              <span className="text-muted-foreground">Following</span>
+            </span>
+            <span data-testid="text-portfolio-followers-count">
+              <span className="font-semibold text-foreground">
+                {selfProfile?.followers ?? 0}
+              </span>{" "}
+              <span className="text-muted-foreground">Followers</span>
+            </span>
           </div>
+
           <Link
             href={`/u/${encodeURIComponent(selfHandle)}`}
-            data-testid="link-view-public-profile-mobile"
-            className="sm:hidden mt-3 inline-flex items-center justify-center gap-1.5 w-full h-9 rounded-xl border border-border text-xs font-medium text-foreground hover:bg-secondary transition-colors"
+            data-testid="link-view-public-profile"
+            className="mt-4 inline-flex w-full items-center justify-center gap-1.5 h-9 px-4 rounded-xl border border-border text-xs font-medium text-foreground hover:bg-secondary hover:border-accent/50 transition-colors sm:w-auto"
           >
             View Public Profile
           </Link>
