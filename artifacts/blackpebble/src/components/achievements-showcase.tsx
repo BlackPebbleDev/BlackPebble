@@ -1,76 +1,20 @@
 import { useState } from "react";
 import { Award, Check, Loader2, Share2, Sparkles } from "lucide-react";
 import type { BadgeEntry, BadgeRarity } from "@/lib/api";
-import { RARITY_META, iconForBadge, rarityOf } from "@/components/achievement-badge";
+import { RARITY_META, rarityOf } from "@/components/achievement-badge";
+import { AchievementCoin } from "@/components/achievement-coin";
 import { timeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 /**
  * Premium collectible Achievements showcase for the public profile.
  *
- * Design intent: a tight, overlapping spread of struck-coin medallions - a
- * trophy shelf, not a badge grid. Only EARNED achievements are shown (locked
- * ones stay a surprise), in earned order (newest first). No rarity counters or
- * category groupings clutter the top. Tapping a coin opens a compact spotlight
- * detail card for that achievement.
+ * Design intent: a tight, overlapping spread of crafted collectible coins (see
+ * AchievementCoin) - a trophy shelf, not a badge grid. Only EARNED achievements
+ * are shown (locked ones stay a surprise), in earned order (newest first). No
+ * rarity counters or category groupings clutter the top. Tapping a coin opens a
+ * compact spotlight detail card for that achievement.
  */
-
-/**
- * Per-rarity "metal" finish for the medallions. Each is a struck-coin face
- * (radial metal gradient), a bezel (highlight top / shadow bottom + ring + soft
- * glow), an engraved inner ring, a conic metallic sheen, and an emblem color.
- * This is the collectible art direction expressed in pure CSS so it scales
- * crisply at any size and stays on-brand.
- */
-interface Metal {
-  face: string;
-  bezel: string;
-  innerRing: string;
-  sheen: string;
-  icon: string;
-}
-
-const SHEEN =
-  "conic-gradient(from 210deg at 50% 50%, rgba(255,255,255,0.34), rgba(255,255,255,0) 70deg, rgba(255,255,255,0.12) 190deg, rgba(255,255,255,0) 290deg)";
-
-const METALS: Record<BadgeRarity, Metal> = {
-  common: {
-    face: "radial-gradient(circle at 34% 26%, #aeb7c4 0%, #5c646f 46%, #2b3038 82%, #191d23 100%)",
-    bezel:
-      "inset 0 1.5px 1px rgba(255,255,255,0.4), inset 0 -2px 3px rgba(0,0,0,0.5), 0 1px 3px rgba(0,0,0,0.55), 0 0 0 1px rgba(148,163,184,0.45), 0 0 10px rgba(148,163,184,0.14)",
-    innerRing:
-      "inset 0 0 0 1px rgba(203,213,225,0.28), inset 0 1px 2px rgba(0,0,0,0.4)",
-    sheen: SHEEN,
-    icon: "#eef2f7",
-  },
-  rare: {
-    face: "radial-gradient(circle at 34% 26%, #bae6fd 0%, #3b82f6 46%, #1e3a8a 82%, #0b1a38 100%)",
-    bezel:
-      "inset 0 1.5px 1px rgba(255,255,255,0.45), inset 0 -2px 3px rgba(0,0,0,0.5), 0 1px 3px rgba(0,0,0,0.55), 0 0 0 1px rgba(56,189,248,0.55), 0 0 16px rgba(56,189,248,0.4)",
-    innerRing:
-      "inset 0 0 0 1px rgba(125,211,252,0.4), inset 0 1px 2px rgba(0,0,0,0.4)",
-    sheen: SHEEN,
-    icon: "#eff8ff",
-  },
-  epic: {
-    face: "radial-gradient(circle at 34% 26%, #e9d5ff 0%, #8b5cf6 46%, #5b21b6 82%, #2a1150 100%)",
-    bezel:
-      "inset 0 1.5px 1px rgba(255,255,255,0.45), inset 0 -2px 3px rgba(0,0,0,0.5), 0 1px 3px rgba(0,0,0,0.55), 0 0 0 1px rgba(167,139,250,0.6), 0 0 18px rgba(167,139,250,0.45)",
-    innerRing:
-      "inset 0 0 0 1px rgba(216,180,254,0.45), inset 0 1px 2px rgba(0,0,0,0.4)",
-    sheen: SHEEN,
-    icon: "#f8f2ff",
-  },
-  legendary: {
-    face: "radial-gradient(circle at 34% 26%, #fde68a 0%, #d4af37 46%, #7a5312 82%, #452c06 100%)",
-    bezel:
-      "inset 0 1.5px 1px rgba(255,255,255,0.5), inset 0 -2px 3px rgba(0,0,0,0.5), 0 1px 3px rgba(0,0,0,0.55), 0 0 0 1px rgba(251,191,36,0.6), 0 0 20px rgba(251,191,36,0.5)",
-    innerRing:
-      "inset 0 0 0 1px rgba(253,230,138,0.5), inset 0 1px 2px rgba(0,0,0,0.4)",
-    sheen: SHEEN,
-    icon: "#fffdf5",
-  },
-};
 
 const PRESTIGE_NOTE: Record<BadgeRarity, string> = {
   common: "Earned milestone",
@@ -78,54 +22,6 @@ const PRESTIGE_NOTE: Record<BadgeRarity, string> = {
   epic: "Epic milestone",
   legendary: "Legendary prestige",
 };
-
-/** The struck-coin medallion face. Non-interactive; wrapped by tokens + detail. */
-function Medallion({
-  badge,
-  size,
-  overflowLabel,
-}: {
-  badge?: BadgeEntry;
-  size: number;
-  overflowLabel?: string;
-}) {
-  const rarity = badge ? rarityOf(badge) : "common";
-  const m = METALS[rarity];
-  const Icon = badge ? iconForBadge(badge) : Award;
-  const inset = Math.max(2, Math.round(size * 0.09));
-  const iconPx = Math.round(size * 0.42);
-  return (
-    <span
-      className="relative inline-flex flex-shrink-0 items-center justify-center rounded-full"
-      style={{ width: size, height: size, background: m.face, boxShadow: m.bezel }}
-    >
-      <span
-        aria-hidden
-        className="pointer-events-none absolute rounded-full"
-        style={{ inset, boxShadow: m.innerRing }}
-      />
-      <span
-        aria-hidden
-        className="pointer-events-none absolute inset-0 rounded-full opacity-60 mix-blend-overlay"
-        style={{ background: m.sheen }}
-      />
-      {overflowLabel ? (
-        <span
-          className="relative font-mono font-bold tabular-nums text-white [filter:drop-shadow(0_1px_1px_rgba(0,0,0,0.55))]"
-          style={{ fontSize: Math.round(size * 0.3), color: m.icon }}
-        >
-          {overflowLabel}
-        </span>
-      ) : (
-        <Icon
-          strokeWidth={2.25}
-          className="relative [filter:drop-shadow(0_1px_1px_rgba(0,0,0,0.55))]"
-          style={{ width: iconPx, height: iconPx, color: m.icon }}
-        />
-      )}
-    </span>
-  );
-}
 
 /** A tappable coin in the overlapping spread. */
 function AchievementToken({
@@ -160,13 +56,13 @@ function AchievementToken({
         justUnlocked && "animate-pulse",
       )}
     >
-      <Medallion badge={badge} size={size} />
+      <AchievementCoin badge={badge} size={size} glow={selected} />
       <span
         aria-hidden
         className={cn(
           "pointer-events-none absolute -inset-[3px] rounded-full ring-2 transition-opacity",
           selected
-            ? "opacity-100 ring-accent/80 shadow-[0_0_16px_-2px_rgba(212,175,55,0.55)]"
+            ? "opacity-100 ring-accent/80"
             : "opacity-0 ring-white/40 group-hover:opacity-70 group-focus-visible:opacity-70",
         )}
       />
@@ -198,7 +94,7 @@ function AchievementDetailPanel({
         meta.border,
       )}
     >
-      <Medallion badge={badge} size={64} />
+      <AchievementCoin badge={badge} size={72} glow />
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-2">
           <span
@@ -264,8 +160,8 @@ function byEarnedOrder(a: BadgeEntry, b: BadgeEntry): number {
 
 // Resting coin size (px) and how far each coin overlaps the previous one. Kept
 // small + tight so the spread reads as a compact collectible strip, not a grid.
-const COIN_SIZE = 40;
-const OVERLAP = Math.round(COIN_SIZE * 0.32);
+const COIN_SIZE = 44;
+const OVERLAP = Math.round(COIN_SIZE * 0.34);
 // Cap the resting spread so it stays ~2 rows; extra unlocks fold behind a "+N"
 // coin that reveals the full collection on tap.
 const MAX_VISIBLE = 13;
@@ -337,7 +233,7 @@ export function AchievementsShowcase({
             <div
               data-testid="achievement-cluster"
               className="flex flex-wrap"
-              style={{ paddingLeft: OVERLAP + 4, rowGap: 14 }}
+              style={{ paddingLeft: OVERLAP + 4, rowGap: 16 }}
             >
               {shown.map((b) => (
                 <AchievementToken
@@ -359,7 +255,7 @@ export function AchievementsShowcase({
                   style={{ marginLeft: -OVERLAP }}
                   className="group relative z-0 rounded-full outline-none transition-transform duration-200 hover:z-20 hover:-translate-y-1 hover:scale-110 focus-visible:z-20"
                 >
-                  <Medallion size={COIN_SIZE} overflowLabel={`+${hiddenCount}`} />
+                  <AchievementCoin size={COIN_SIZE} overflowLabel={`+${hiddenCount}`} />
                   <span
                     aria-hidden
                     className="pointer-events-none absolute -inset-[3px] rounded-full ring-2 ring-white/40 opacity-0 transition-opacity group-hover:opacity-70"
