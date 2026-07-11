@@ -1,5 +1,5 @@
-# BlackPebble — robots.txt
-# Professional Solana trading and utility platform.
+# BlackPebble robots.txt
+# Solana memecoin trading intelligence hub.
 
 User-agent: *
 Allow: /

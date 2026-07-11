@@ -91,22 +91,24 @@ function main() {
 
   let written = 0;
   for (const route of routes) {
-    const { path, title, description } = route;
+    const { path, title, ogTitle, description } = route;
     // Root index.html is produced by Vite; leave it as the authoritative home.
     if (path === "/") continue;
 
     const canonical = `${trimmedSite}${path}`;
     const t = escapeHtml(title);
+    // Social-preview title falls back to the document title when not set.
+    const ot = escapeHtml(ogTitle ?? title);
     const d = escapeHtml(description);
 
     let html = baseHtml;
     html = replaceTitle(html, t);
     html = replaceMetaName(html, "description", d);
     html = replaceCanonical(html, canonical);
-    html = replaceMetaProperty(html, "og:title", t);
+    html = replaceMetaProperty(html, "og:title", ot);
     html = replaceMetaProperty(html, "og:description", d);
     html = replaceMetaProperty(html, "og:url", canonical);
-    html = replaceMetaName(html, "twitter:title", t);
+    html = replaceMetaName(html, "twitter:title", ot);
     html = replaceMetaName(html, "twitter:description", d);
 
     // Verify each critical replacement actually applied for this route.

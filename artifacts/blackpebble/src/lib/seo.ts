@@ -3,6 +3,13 @@ import seoData from "../../seo.routes.json";
 export type RouteSeo = {
   path: string;
   title: string;
+  /**
+   * Optional social-preview title (Open Graph / Twitter). Falls back to `title`
+   * when omitted. Lets the homepage show the clean "Solana Memecoin Trading
+   * Intelligence Hub" in link previews while keeping the "BlackPebble | ..."
+   * prefix on the browser/document title.
+   */
+  ogTitle?: string;
   description: string;
 };
 
