@@ -69,8 +69,9 @@ function SiteFooter() {
         <Link
           href="/safety"
           data-testid="link-footer-safety"
-          className="text-[11px] text-muted-foreground/80 hover:text-foreground transition-colors"
+          className="inline-flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors"
         >
+          <Shield className="w-3.5 h-3.5 text-accent" aria-hidden />
           Wallet Safety
         </Link>
         <p className="text-[11px] text-muted-foreground/60 text-center">
