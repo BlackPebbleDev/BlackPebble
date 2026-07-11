@@ -554,7 +554,7 @@ function TraderSnapshotSection({
             <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
               Trust Score
             </div>
-            <div className="mt-1 flex items-baseline gap-2">
+            <div className="mt-1 flex items-baseline gap-2 flex-wrap">
               <span className="font-mono text-2xl font-bold text-foreground">
                 {trustScore}
               </span>
