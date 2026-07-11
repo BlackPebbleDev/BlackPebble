@@ -6,10 +6,13 @@ import {
   Award,
   Check,
   ChevronDown,
+  Coins,
   Copy,
+  Gem,
   History,
   Loader2,
   Lock,
+  Medal,
   Megaphone,
   Pencil,
   Plus,
@@ -19,9 +22,12 @@ import {
   Share2,
   ShieldCheck,
   SlidersHorizontal,
+  TrendingUp,
+  Trophy,
   UserPlus,
   UserCheck,
   X as CloseIcon,
+  Zap,
 } from "lucide-react";
 import {
   api,
@@ -51,7 +57,6 @@ import {
   fmtMarketCap,
   fmtMultiple,
   fmtPercent,
-  fmtPrice,
   multipleTone,
   pnlColor,
   shortAddr,
@@ -112,31 +117,112 @@ function PanelCard({
 }
 
 /**
- * Compact stat row: muted label on the left, strong value on the right. This is
- * the workhorse of the trader-resume layout, packing more numbers per screen
- * than the old square stat tiles. Rows are meant to sit inside a
- * `divide-y divide-border/60` list.
+ * Compact icon stat card used in the Trading Behavior and Call Edge grids. Gives
+ * the numbers a premium "insight" feel instead of a flat table row. `sub` adds a
+ * small secondary line (e.g. "8 winning") under the value.
  */
-function StatRow({
+function MiniStat({
+  icon: Icon,
   label,
   value,
   valueClass,
+  sub,
 }: {
+  icon?: React.ComponentType<{ className?: string }>;
   label: string;
   value: React.ReactNode;
   valueClass?: string;
+  sub?: React.ReactNode;
 }) {
   return (
-    <div className="flex items-baseline justify-between gap-3 py-2.5">
-      <span className="text-sm text-muted-foreground">{label}</span>
-      <span
+    <div className="rounded-xl border border-border/60 bg-secondary/20 p-3">
+      <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+        {Icon && <Icon className="w-3 h-3 text-accent" />}
+        <span className="truncate">{label}</span>
+      </div>
+      <div
         className={cn(
-          "text-right font-mono text-sm font-semibold tabular-nums text-foreground",
+          "mt-1 font-mono text-base font-semibold tabular-nums text-foreground",
           valueClass,
         )}
       >
         {value}
-      </span>
+      </div>
+      {sub != null && (
+        <div className="mt-0.5 text-[10px] text-muted-foreground/70">{sub}</div>
+      )}
+    </div>
+  );
+}
+
+type ChipTone = "up" | "down" | "accent" | "muted";
+
+/** Small social-proof pill for the snapshot proof strip. */
+function ProofChip({
+  icon: Icon,
+  children,
+  tone = "muted",
+}: {
+  icon?: React.ComponentType<{ className?: string }>;
+  children: React.ReactNode;
+  tone?: ChipTone;
+}) {
+  const toneCls =
+    tone === "up"
+      ? "text-success"
+      : tone === "down"
+        ? "text-danger"
+        : tone === "accent"
+          ? "text-accent"
+          : "text-foreground";
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-secondary/30 px-2.5 py-1 text-xs font-medium">
+      {Icon && (
+        <Icon
+          className={cn(
+            "w-3 h-3 flex-shrink-0",
+            tone === "accent" ? "text-accent" : "text-muted-foreground",
+          )}
+        />
+      )}
+      <span className={cn("whitespace-nowrap", toneCls)}>{children}</span>
+    </span>
+  );
+}
+
+/**
+ * Lightweight in-page section nav. Smooth-scrolls to anchored sections so the
+ * profile reads like a browseable social page rather than one long dump. Uses
+ * getElementById + scrollIntoView (no router state) so it can never break the
+ * page or hide content.
+ */
+function ProfileSectionNav() {
+  const items = [
+    { id: "profile-overview", label: "Overview" },
+    { id: "profile-calls", label: "Calls" },
+    { id: "profile-thesis", label: "Thesis" },
+  ];
+  const go = (id: string) => {
+    document
+      .getElementById(id)
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+  return (
+    <div
+      data-testid="profile-section-nav"
+      className="mt-3 flex flex-wrap gap-2"
+    >
+      {items.map((it) => (
+        <button
+          key={it.id}
+          type="button"
+          onClick={() => go(it.id)}
+          data-testid={`nav-${it.id}`}
+          className="rounded-full border border-border/70 bg-secondary/30 px-3.5 py-1.5 text-xs font-semibold text-muted-foreground transition-colors hover:border-accent/50 hover:text-accent"
+        >
+          {it.label}
+        </button>
+      ))}
     </div>
   );
 }
@@ -527,75 +613,73 @@ function TraderSnapshotSection({
   const s = profile.stats;
 
   return (
-    <div className="mt-6">
+    <div id="profile-overview" className="mt-6 scroll-mt-24">
       <div className="flex items-center gap-2 mb-2">
         <ShieldCheck className="w-4 h-4 text-accent" />
         <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground">
           Trader Snapshot
         </h2>
       </div>
-      <PanelCard testId="trader-snapshot">
-        <div className="grid grid-cols-2 gap-2.5">
-          <div className="rounded-xl border border-accent/25 bg-accent/5 p-3">
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-              BlackPebble Score
-            </div>
-            <div
-              data-testid="blackpebble-score"
-              className="mt-1 font-mono text-2xl font-bold text-accent"
-            >
-              Soon
-            </div>
-            <div className="mt-0.5 text-[10px] text-muted-foreground/70">
-              Overall trader identity
-            </div>
+
+      {/* Two premium identity cards: branded BlackPebble Score + Trust Score */}
+      <div className="grid grid-cols-2 gap-2.5 md:gap-3">
+        <div className="relative overflow-hidden rounded-2xl border border-accent/40 bg-gradient-to-br from-accent/15 via-accent/[0.06] to-transparent p-4 shadow-[0_8px_30px_-14px_rgba(212,175,55,0.45)]">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-accent/15 blur-2xl"
+          />
+          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-accent/90">
+            <Gem className="w-3 h-3" />
+            BlackPebble Score
           </div>
-          <div className="rounded-xl bg-secondary/30 p-3">
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-              Trust Score
-            </div>
-            <div className="mt-1 flex items-baseline gap-2 flex-wrap">
-              <span className="font-mono text-2xl font-bold text-foreground">
-                {trustScore}
-              </span>
-              <TrustBadge
-                score={trustScore}
-                label={trustLabel}
-                size="xs"
-                showLabel
-              />
-            </div>
-            <div className="mt-0.5 text-[10px] text-muted-foreground/70">
-              Reputation and credibility
-            </div>
+          <div
+            data-testid="blackpebble-score"
+            className="mt-1.5 font-mono text-3xl font-bold leading-none text-accent"
+          >
+            Soon
+          </div>
+          <div className="mt-1.5 text-[10px] text-muted-foreground/80">
+            Trader identity score
           </div>
         </div>
-        <div className="mt-3 divide-y divide-border/60">
-          <StatRow
-            label="Trading Rank"
-            value={rankLabel}
-            valueClass="text-accent"
-          />
-          <StatRow
-            label="Tier"
-            value={tierMeta(s.graduationTier).name}
-            valueClass="text-accent"
-          />
-          <StatRow
-            label="ROI"
-            value={fmtPercent(s.roiPercent)}
-            valueClass={pnlColor(s.roiPercent)}
-          />
-          <StatRow
-            label="Total P&L"
-            value={
-              <PnlAmount sol={s.totalPnlSol} solUsd={solUsd} unit={false} />
-            }
-            valueClass={pnlColor(s.totalPnlSol)}
-          />
-          <StatRow label="Win Rate" value={`${s.winRate.toFixed(1)}%`} />
+        <div className="rounded-2xl border border-border/70 bg-secondary/25 p-4">
+          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+            <ShieldCheck className="w-3 h-3 text-accent" />
+            Trust Score
+          </div>
+          <div className="mt-1.5 font-mono text-3xl font-bold leading-none text-foreground">
+            {trustScore}
+          </div>
+          <div className="mt-2">
+            <TrustBadge
+              score={trustScore}
+              label={trustLabel}
+              size="xs"
+              showLabel
+            />
+          </div>
         </div>
-      </PanelCard>
+      </div>
+
+      {/* Proof strip: fast social proof for "is this trader worth watching?" */}
+      <div
+        data-testid="proof-strip"
+        className="mt-2.5 flex flex-wrap gap-2"
+      >
+        <ProofChip icon={Trophy} tone="accent">
+          {rankLabel}
+        </ProofChip>
+        <ProofChip icon={Medal} tone="accent">
+          {tierMeta(s.graduationTier).name}
+        </ProofChip>
+        <ProofChip tone={s.roiPercent >= 0 ? "up" : "down"}>
+          {fmtPercent(s.roiPercent)} ROI
+        </ProofChip>
+        <ProofChip tone={s.totalPnlSol >= 0 ? "up" : "down"}>
+          <PnlAmount sol={s.totalPnlSol} solUsd={solUsd} unit={false} /> P&L
+        </ProofChip>
+        <ProofChip>{s.winRate.toFixed(1)}% Win Rate</ProofChip>
+      </div>
     </div>
   );
 }
@@ -617,24 +701,32 @@ function TradingBehaviorSection({
           Trading Behavior
         </h2>
       </div>
-      <PanelCard testId="trading-behavior">
-        <div className="divide-y divide-border/60">
-          <StatRow label="Closed Trades" value={String(s.closedTrades)} />
-          <StatRow label="Executions" value={String(s.totalExecutions)} />
-          <StatRow
-            label="Best Trade"
-            value={<PnlAmount sol={s.bestTrade} solUsd={solUsd} unit={false} />}
-            valueClass={pnlColor(s.bestTrade)}
-          />
-          <StatRow
-            label="Realized P&L"
-            value={
-              <PnlAmount sol={s.realizedPnlSol} solUsd={solUsd} unit={false} />
-            }
-            valueClass={pnlColor(s.realizedPnlSol)}
-          />
-        </div>
-      </PanelCard>
+      <div className="grid grid-cols-2 gap-2">
+        <MiniStat
+          icon={History}
+          label="Closed Trades"
+          value={String(s.closedTrades)}
+        />
+        <MiniStat
+          icon={Zap}
+          label="Executions"
+          value={String(s.totalExecutions)}
+        />
+        <MiniStat
+          icon={TrendingUp}
+          label="Best Trade"
+          value={<PnlAmount sol={s.bestTrade} solUsd={solUsd} unit={false} />}
+          valueClass={pnlColor(s.bestTrade)}
+        />
+        <MiniStat
+          icon={Coins}
+          label="Realized P&L"
+          value={
+            <PnlAmount sol={s.realizedPnlSol} solUsd={solUsd} unit={false} />
+          }
+          valueClass={pnlColor(s.realizedPnlSol)}
+        />
+      </div>
     </div>
   );
 }
@@ -1251,44 +1343,26 @@ function ConvictionBadge({ conviction }: { conviction: string | null }) {
   );
 }
 
-/** Live % move since the call, or a muted em-dash when no fresh price. */
-function CalloutResultValue({ result }: { result: CalloutResult | null }) {
+/** Live % move since the call, or a muted placeholder when no fresh price. */
+function CalloutResultValue({
+  result,
+  size = "sm",
+}: {
+  result: CalloutResult | null;
+  size?: "sm" | "lg";
+}) {
+  const sizeCls = size === "lg" ? "text-2xl" : "text-sm";
   if (!result || result.pnlPercent == null) {
-    return <span className="font-mono text-sm text-muted-foreground">—</span>;
+    return (
+      <span className={cn("font-mono text-muted-foreground", sizeCls)}>—</span>
+    );
   }
   const v = result.pnlPercent;
   return (
-    <span className={cn("font-mono text-sm font-semibold", pnlColor(v))}>
+    <span className={cn("font-mono font-bold", sizeCls, pnlColor(v))}>
       {v >= 0 ? "+" : ""}
       {v.toFixed(1)}%
     </span>
-  );
-}
-
-/** One labelled snapshot/performance cell in a callout card. */
-function StatBox({
-  label,
-  value,
-  valueClass,
-}: {
-  label: string;
-  value: string;
-  valueClass?: string;
-}) {
-  return (
-    <div className="rounded-lg border border-border/60 bg-secondary/20 p-2">
-      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-        {label}
-      </div>
-      <div
-        className={cn(
-          "mt-0.5 font-mono text-sm truncate",
-          valueClass ?? "text-foreground",
-        )}
-      >
-        {value}
-      </div>
-    </div>
   );
 }
 
@@ -1398,55 +1472,53 @@ function CalloutCard({
         </div>
       </div>
 
-      {/* Original thesis */}
+      {/* Featured result: the outcome is the headline of the receipt. Big
+          result %, then current and ATH multiples, then the market-cap run. */}
+      <div className="mt-3 rounded-xl border border-border/60 bg-secondary/20 p-3">
+        <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+          <CalloutResultValue result={callout.result} size="lg" />
+          <span className="inline-flex items-baseline gap-1.5">
+            <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+              Now
+            </span>
+            <span
+              className={cn(
+                "font-mono text-sm font-semibold",
+                multipleTone(callout.result?.currentMultiple ?? null),
+              )}
+            >
+              {fmtMultiple(callout.result?.currentMultiple ?? null)}
+            </span>
+          </span>
+          <span className="inline-flex items-baseline gap-1.5">
+            <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+              ATH
+            </span>
+            <span
+              className={cn(
+                "font-mono text-sm font-semibold",
+                multipleTone(callout.result?.athMultiple ?? null),
+              )}
+            >
+              {fmtMultiple(callout.result?.athMultiple ?? null)}
+            </span>
+          </span>
+        </div>
+        <div className="mt-1.5 font-mono text-[11px] text-muted-foreground">
+          Called{" "}
+          {callout.call_market_cap != null
+            ? fmtMarketCap(callout.call_market_cap)
+            : "—"}{" "}
+          to {fmtMarketCap(callout.result?.currentMarketCapUsd ?? null)}
+        </div>
+      </div>
+
+      {/* Original call text */}
       {callout.thesis && (
-        <p className="mt-3 text-sm text-foreground whitespace-pre-wrap break-words">
+        <p className="mt-2.5 text-sm text-foreground/90 whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
           {callout.thesis}
         </p>
       )}
-
-      {/* Live proof first (result / multiples), then entry context. Reads like
-          a trading receipt: outcome up top, snapshot below. */}
-      <div className="mt-3 grid grid-cols-3 gap-2">
-        <div className="rounded-lg border border-border/60 bg-secondary/20 p-2">
-          <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-            Result
-          </div>
-          <div className="mt-0.5">
-            <CalloutResultValue result={callout.result} />
-          </div>
-        </div>
-        <StatBox
-          label="Current X"
-          value={fmtMultiple(callout.result?.currentMultiple ?? null)}
-          valueClass={multipleTone(callout.result?.currentMultiple ?? null)}
-        />
-        <StatBox
-          label="ATH X"
-          value={fmtMultiple(callout.result?.athMultiple ?? null)}
-          valueClass={multipleTone(callout.result?.athMultiple ?? null)}
-        />
-        <StatBox
-          label="Called MC"
-          value={
-            callout.call_market_cap != null
-              ? fmtMarketCap(callout.call_market_cap)
-              : "—"
-          }
-        />
-        <StatBox
-          label="Current MC"
-          value={fmtMarketCap(callout.result?.currentMarketCapUsd ?? null)}
-        />
-        <StatBox
-          label="Entry Price"
-          value={
-            callout.call_price_usd != null
-              ? fmtPrice(callout.call_price_usd)
-              : "—"
-          }
-        />
-      </div>
 
       {/* Append-only update trail */}
       {callout.updates.length > 0 && (
@@ -1679,16 +1751,22 @@ function CallEdgeSection({ profile }: { profile: ProfileResponse }) {
     <div>
       {header}
       <PanelCard testId="call-edge">
-        <div className="divide-y divide-border/60">
-          <StatRow label="Total Calls" value={String(totalCalls)} />
-          <StatRow label="Winning Calls" value={String(winningCalls)} />
-          <StatRow label="Win Rate" value={winRate} />
-          <StatRow
+        <div className="grid grid-cols-2 gap-2">
+          <MiniStat
+            icon={Megaphone}
+            label="Total Calls"
+            value={String(totalCalls)}
+            sub={`${winningCalls} winning`}
+          />
+          <MiniStat icon={Trophy} label="Win Rate" value={winRate} />
+          <MiniStat
+            icon={TrendingUp}
             label="Avg Multiple"
             value={cs?.avgMultiple != null ? fmtMultiple(cs.avgMultiple) : "—"}
             valueClass={multipleTone(cs?.avgMultiple ?? null)}
           />
-          <StatRow
+          <MiniStat
+            icon={Activity}
             label="Avg Return"
             value={
               all?.avgReturnPercent != null
@@ -1709,9 +1787,10 @@ function CallEdgeSection({ profile }: { profile: ProfileResponse }) {
               <Link
                 href={`/?token=${cs.bestCall.token_mint}`}
                 data-testid="call-edge-best"
-                className="block rounded-xl border border-border/60 bg-secondary/20 p-3 hover:border-accent/60 transition-colors"
+                className="block rounded-xl border border-accent/25 bg-accent/[0.04] p-3 hover:border-accent/60 transition-colors"
               >
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-accent/90">
+                  <Trophy className="w-3 h-3" />
                   Best Call
                 </div>
                 <div className="mt-1 flex items-baseline gap-2 flex-wrap">
@@ -1859,7 +1938,7 @@ function ThesisHistorySection({ profile }: { profile: ProfileResponse }) {
   const theses = data?.theses ?? [];
 
   return (
-    <>
+    <div id="profile-thesis" className="scroll-mt-24">
       <SectionHeader icon={ScrollText} title="Thesis History" />
       {isLoading ? (
         <div className="flex items-center justify-center py-10">
@@ -1879,7 +1958,7 @@ function ThesisHistorySection({ profile }: { profile: ProfileResponse }) {
           ))}
         </div>
       )}
-    </>
+    </div>
   );
 }
 
@@ -1895,7 +1974,7 @@ function CallHistorySection({ profile }: { profile: ProfileResponse }) {
   const callouts = data?.callouts ?? [];
 
   return (
-    <>
+    <div id="profile-calls" className="scroll-mt-24">
       <SectionHeader icon={History} title="Call History" />
       {profile.isSelf && <NewCallForm profileKey={key} />}
       {isLoading ? (
@@ -1923,7 +2002,7 @@ function CallHistorySection({ profile }: { profile: ProfileResponse }) {
           ))}
         </div>
       )}
-    </>
+    </div>
   );
 }
 
@@ -2116,6 +2195,9 @@ export default function ProfilePage() {
           </div>
         )}
       </div>
+
+      {/* In-page section nav: browseable social profile, not one long dump */}
+      <ProfileSectionNav />
 
       {/* Trader Snapshot - headline identity: BlackPebble Score, Trust Score,
           rank, tier, ROI, P&L, win rate */}
