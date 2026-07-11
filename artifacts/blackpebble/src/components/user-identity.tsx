@@ -96,8 +96,8 @@ const SIZES: Record<IdentitySize, SizeSpec> = {
     badge: "sm",
   },
   lg: {
-    avatarClass: "w-16 h-16 md:w-20 md:h-20",
-    initials: "text-lg",
+    avatarClass: "w-[72px] h-[72px] md:w-[88px] md:h-[88px]",
+    initials: "text-xl",
     rowGap: "gap-4",
     name: "text-xl md:text-2xl font-semibold",
     handle: "text-sm",
@@ -215,9 +215,10 @@ export interface UserIdentityProps {
   badgeSize?: BadgeSize;
   /** "pill" = rounded tier badge; "plain" = color-only inline text. */
   tierVariant?: "pill" | "plain";
-  /** Where the tier sits: beside the name, under the @handle, or "none" to
-   *  suppress it entirely (when the caller renders the tier itself). */
-  tierPosition?: "inline" | "below" | "none";
+  /** Where the tier sits: beside the name, in the official-badge row, under the
+   *  @handle, or "none" to suppress it entirely (when the caller renders the
+   *  tier itself). "row" keeps the tier tightly grouped with official badges. */
+  tierPosition?: "inline" | "row" | "below" | "none";
   /** Where official badges sit: inline beside the name, or on their own row. */
   badgePosition?: "inline" | "row";
   /**
@@ -450,11 +451,13 @@ export function UserIdentity({
             ))}
           {tierPosition === "inline" && tierBadge}
         </div>
-        {badgePosition === "row" && badgeEls.length > 0 && (
-          <div className="mt-1.5 flex items-center gap-1.5 flex-wrap min-w-0">
-            {badgeEls}
-          </div>
-        )}
+        {badgePosition === "row" &&
+          (badgeEls.length > 0 || tierPosition === "row") && (
+            <div className="mt-2 flex items-center gap-1.5 flex-wrap min-w-0">
+              {badgeEls}
+              {tierPosition === "row" && tierBadge}
+            </div>
+          )}
         {handleRow}
         {subline}
         {tierPosition === "below" && <div className="mt-0.5">{tierBadge}</div>}

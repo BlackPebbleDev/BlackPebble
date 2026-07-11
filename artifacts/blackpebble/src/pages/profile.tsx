@@ -222,13 +222,13 @@ function BioSection({ profile }: { profile: ProfileResponse }) {
           autoFocus
           data-testid="textarea-bio"
           placeholder="Add a short bio (plain text only)"
-          className="w-full resize-none bg-secondary/40 border border-border p-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-accent/60"
+          className="w-full resize-none rounded-xl bg-secondary/30 border border-border/60 p-3 text-sm leading-relaxed text-foreground placeholder:text-muted-foreground/70 focus:outline-none focus:border-accent/50 focus:ring-1 focus:ring-accent/20 transition-colors"
         />
-        <div className="flex items-center justify-between mt-1.5">
+        <div className="flex items-center justify-between mt-2">
           <span
             className={cn(
-              "text-[11px] font-mono",
-              remaining < 0 ? "text-danger" : "text-muted-foreground",
+              "text-[10px] font-mono",
+              remaining < 0 ? "text-danger" : "text-muted-foreground/60",
             )}
           >
             {remaining} left
@@ -293,30 +293,23 @@ function BioSection({ profile }: { profile: ProfileResponse }) {
     );
   }
 
-  // Empty state: show "No bio yet." for everyone; owners also get an inline
-  // affordance to add one.
+  // Empty state: keep the card clean. Visitors see nothing (no cheap "No bio
+  // yet" filler); the owner gets a single subtle affordance to add one.
+  if (!profile.isSelf) return null;
   return (
-    <div className="mt-3 flex items-center gap-2">
-      <p
-        data-testid="text-profile-bio-empty"
-        className="text-sm italic text-muted-foreground/70"
+    <div className="mt-3">
+      <button
+        type="button"
+        onClick={() => {
+          setDraft("");
+          setEditing(true);
+        }}
+        data-testid="button-bio-add"
+        className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-accent transition-colors"
       >
-        No bio yet.
-      </p>
-      {profile.isSelf && (
-        <button
-          type="button"
-          onClick={() => {
-            setDraft("");
-            setEditing(true);
-          }}
-          data-testid="button-bio-add"
-          className="inline-flex items-center gap-1 text-xs text-accent hover:text-accent/80 transition-colors"
-        >
-          <Pencil className="w-3 h-3" />
-          Add a bio
-        </button>
-      )}
+        <Pencil className="w-3 h-3" />
+        Add a bio
+      </button>
     </div>
   );
 }
@@ -1167,14 +1160,14 @@ function ConvictionBadge({ conviction }: { conviction: string | null }) {
   if (!conviction || !CONVICTION_LABELS[conviction]) return null;
   const cls =
     conviction === "high"
-      ? "border-accent/60 text-accent"
+      ? "border-accent/40 bg-accent/10 text-accent"
       : conviction === "medium"
-        ? "border-border text-foreground"
-        : "border-border text-muted-foreground";
+        ? "border-border/70 bg-secondary/40 text-foreground"
+        : "border-border/60 bg-secondary/30 text-muted-foreground";
   return (
     <span
       className={cn(
-        "inline-flex items-center px-1.5 py-0.5 text-[10px] uppercase tracking-wider border whitespace-nowrap",
+        "inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider whitespace-nowrap",
         cls,
       )}
     >
@@ -1301,11 +1294,11 @@ function CalloutCard({
           <img
             src={callout.token_logo}
             alt=""
-            className="w-9 h-9 object-cover flex-shrink-0"
+            className="w-9 h-9 rounded-lg object-cover flex-shrink-0"
             onError={(e) => (e.currentTarget.style.visibility = "hidden")}
           />
         ) : (
-          <div className="w-9 h-9 bg-secondary flex items-center justify-center text-[10px] text-muted-foreground flex-shrink-0">
+          <div className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center text-[10px] text-muted-foreground flex-shrink-0">
             {callout.token_symbol?.slice(0, 2) ?? "?"}
           </div>
         )}
@@ -1622,9 +1615,18 @@ function CallerStatsSection({ profile }: { profile: ProfileResponse }) {
 }
 
 const THESIS_SENTIMENT: Record<string, { label: string; cls: string }> = {
-  bullish: { label: "Bullish", cls: "border-success/40 text-success" },
-  bearish: { label: "Bearish", cls: "border-destructive/40 text-destructive" },
-  neutral: { label: "Neutral", cls: "border-border text-muted-foreground" },
+  bullish: {
+    label: "Bullish",
+    cls: "border-success/40 bg-success/10 text-success",
+  },
+  bearish: {
+    label: "Bearish",
+    cls: "border-destructive/40 bg-destructive/10 text-destructive",
+  },
+  neutral: {
+    label: "Neutral",
+    cls: "border-border/60 bg-secondary/30 text-muted-foreground",
+  },
 };
 
 /** A single standalone thesis card - research, not graded as a call. */
@@ -1640,11 +1642,11 @@ function ThesisCard({ thesis }: { thesis: ThesisWithAuthor }) {
           <img
             src={thesis.token_logo}
             alt=""
-            className="w-9 h-9 object-cover flex-shrink-0"
+            className="w-9 h-9 rounded-lg object-cover flex-shrink-0"
             onError={(e) => (e.currentTarget.style.visibility = "hidden")}
           />
         ) : (
-          <div className="w-9 h-9 bg-secondary flex items-center justify-center text-[10px] text-muted-foreground flex-shrink-0">
+          <div className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center text-[10px] text-muted-foreground flex-shrink-0">
             {thesis.token_symbol?.slice(0, 2) ?? "?"}
           </div>
         )}
@@ -1655,7 +1657,7 @@ function ThesisCard({ thesis }: { thesis: ThesisWithAuthor }) {
             </span>
             <span
               className={cn(
-                "inline-flex items-center px-1.5 py-0.5 text-[10px] uppercase tracking-wider border whitespace-nowrap",
+                "inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider whitespace-nowrap",
                 sent.cls,
               )}
             >
@@ -2026,8 +2028,9 @@ export default function ProfilePage() {
           officialBadges={profile.officialBadges}
           tier={profile.graduationTier}
           accountStatus="member"
-          tierPosition="inline"
+          tierPosition="row"
           badgePosition="row"
+          badgeSize="sm"
           stopPropagation={false}
           handleLink={
             profileUrl ? { type: "external", href: profileUrl } : undefined
