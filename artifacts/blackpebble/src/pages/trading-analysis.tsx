@@ -62,6 +62,11 @@ function ReadOnlySafetyCard() {
               </li>
             ))}
           </ul>
+          <p className="mt-3 ml-7 text-xs leading-relaxed text-muted-foreground/80">
+            Testing wallet intelligence for the first time? Use a burner wallet
+            or low-value wallet, keep valuable assets separate, and review what
+            data is being analyzed.
+          </p>
           <Link
             href="/safety"
             data-testid="link-analysis-safety-guide"
