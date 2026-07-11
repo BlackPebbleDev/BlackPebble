@@ -14,6 +14,12 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  Accordion,
+  AccordionItem,
+  AccordionTrigger,
+  AccordionContent,
+} from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
 import { TokenAvatar } from "@/components/wallet-cleaner/token-avatar";
 import { type UseWalletCleaner, formatRentSol } from "@/hooks/use-wallet-cleaner";
@@ -330,6 +336,42 @@ export function ClosePreviewDialog({
                     : `Your wallet will prompt you ${expectedApprovals} times - once per transaction.`}
                 </span>
               </div>
+
+              <Accordion type="single" collapsible>
+                <AccordionItem
+                  value="what-am-i-signing"
+                  className="rounded-xl border border-border bg-secondary/20 overflow-hidden"
+                  data-testid="close-what-signing"
+                >
+                  <AccordionTrigger className="px-3 py-2.5 hover:no-underline">
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck className="h-3.5 w-3.5 flex-shrink-0 text-accent" />
+                      <span className="text-xs font-medium text-foreground">
+                        What am I signing?
+                      </span>
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent className="px-3">
+                    <ul className="space-y-1.5 pl-5">
+                      {[
+                        "This transaction closes selected empty token accounts.",
+                        "It does not sell tokens.",
+                        "It does not burn tokens.",
+                        "Recovered SOL returns to your connected wallet.",
+                        "Your wallet will prompt you before anything happens.",
+                      ].map((line) => (
+                        <li
+                          key={line}
+                          className="flex items-start gap-2 text-[11px] leading-relaxed text-muted-foreground"
+                        >
+                          <span className="mt-1.5 h-1 w-1 flex-shrink-0 rounded-full bg-accent" />
+                          <span>{line}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
             </div>
           )}
         </div>

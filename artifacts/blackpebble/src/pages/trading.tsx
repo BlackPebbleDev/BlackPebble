@@ -2915,9 +2915,14 @@ export default function TradingDesk() {
   if (!mint) {
     return (
       <div className="w-full max-w-6xl mx-auto px-4 md:px-6 py-6">
-        <div className="flex items-center gap-3 mb-6">
-          <LineChart className="w-7 h-7 text-accent" />
-          <h1 className="text-3xl md:text-4xl font-bold tracking-tight">Trading Desk</h1>
+        <div className="mb-6">
+          <div className="flex items-center gap-3">
+            <LineChart className="w-7 h-7 text-accent" />
+            <h1 className="text-3xl md:text-4xl font-bold tracking-tight">Trading Desk</h1>
+          </div>
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            Paper trading only. Simulated funds. No real swaps.
+          </p>
         </div>
         {/* Relative anchor so the onboarding overlay can float over the top of
             the content area without pushing anything down. */}

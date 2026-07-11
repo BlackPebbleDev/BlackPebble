@@ -1192,6 +1192,11 @@ export function RealTradingAnalysisFull() {
           phrases, private keys, approvals, or transaction signing.
         </p>
         <WalletMultiButton />
+        <p className="text-xs text-muted-foreground/80 leading-relaxed max-w-lg">
+          Connecting lets BlackPebble read public wallet data. It does not give
+          permission to move funds. Wallet utility actions require a separate
+          signature.
+        </p>
       </div>
     );
   }

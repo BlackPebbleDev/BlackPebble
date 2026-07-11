@@ -1,4 +1,5 @@
 import { Wallet, RefreshCw } from "lucide-react";
+import { useWallet } from "@solana/wallet-adapter-react";
 import { shortAddr } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { formatRentSol, type UseWalletCleaner } from "@/hooks/use-wallet-cleaner";
@@ -59,6 +60,7 @@ export function WalletStatusCard({ cleaner }: { cleaner: UseWalletCleaner }) {
     totalNet,
     refreshBalance,
   } = cleaner;
+  const { disconnect } = useWallet();
 
   const hasScanned =
     status === "scanned" ||
@@ -95,24 +97,37 @@ export function WalletStatusCard({ cleaner }: { cleaner: UseWalletCleaner }) {
             >
               {owner ? shortAddr(owner, 4) : "—"}
             </div>
+            <div className="text-[11px] text-muted-foreground/80 mt-0.5">
+              Read-only until you sign.
+            </div>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={() => void refreshBalance()}
-          disabled={balanceStatus === "loading"}
-          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-          aria-label="Refresh balance"
-          data-testid="button-refresh-balance"
-        >
-          <RefreshCw
-            className={cn(
-              "w-3.5 h-3.5",
-              balanceStatus === "loading" && "animate-spin",
-            )}
-          />
-          Refresh
-        </button>
+        <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+          <button
+            type="button"
+            onClick={() => void refreshBalance()}
+            disabled={balanceStatus === "loading"}
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+            aria-label="Refresh balance"
+            data-testid="button-refresh-balance"
+          >
+            <RefreshCw
+              className={cn(
+                "w-3.5 h-3.5",
+                balanceStatus === "loading" && "animate-spin",
+              )}
+            />
+            Refresh
+          </button>
+          <button
+            type="button"
+            onClick={() => void disconnect()}
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            data-testid="button-disconnect-wallet"
+          >
+            Disconnect
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 border border-border divide-border [&>*]:border-border">

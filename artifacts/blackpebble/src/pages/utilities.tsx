@@ -61,6 +61,18 @@ export default function Utilities() {
         for what's next.
       </p>
 
+      <p className="text-sm text-muted-foreground">
+        Wallet tools run on-chain only after you review and sign.{" "}
+        <Link
+          href="/safety"
+          data-testid="link-utilities-safety"
+          className="text-accent hover:underline"
+        >
+          Wallet Safety
+        </Link>
+        .
+      </p>
+
       <div className="border-t border-border/50 pt-6">
         <SupportSection />
       </div>

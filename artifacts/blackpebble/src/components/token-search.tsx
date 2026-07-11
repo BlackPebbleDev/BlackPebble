@@ -15,6 +15,7 @@ import {
   LifeBuoy,
   Eraser,
   Calculator,
+  Shield,
   type LucideIcon,
 } from "lucide-react";
 import { api, type SearchResult, type OfficialBadgeType } from "@/lib/api";
@@ -50,6 +51,7 @@ const PAGES: RouteEntry[] = [
   { label: "About", path: "/about", icon: Info, keywords: ["info", "what is", "help"] },
   { label: "Features", path: "/features", icon: Sparkles, keywords: ["capabilities", "what can"] },
   { label: "Roadmap", path: "/roadmap", icon: MapIcon, keywords: ["plans", "upcoming", "future"] },
+  { label: "Wallet Safety", path: "/safety", icon: Shield, keywords: ["safety", "safe", "security", "seed", "sign", "custody", "read-only"] },
 ];
 
 const UTILITIES: RouteEntry[] = [

@@ -1,8 +1,15 @@
 import { useEffect } from "react";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
+import { Eye, ArrowRight } from "lucide-react";
 import { useFeatureFlags } from "@/hooks/use-feature-flags";
 import { RealTradingAnalysisFull } from "@/components/real-trading-analysis";
 import { UtilityPageHeader } from "@/components/utility-page-header";
+import {
+  Accordion,
+  AccordionItem,
+  AccordionTrigger,
+  AccordionContent,
+} from "@/components/ui/accordion";
 import { getUtility } from "@/lib/utilities-meta";
 
 const TRADING_ANALYSIS = getUtility("trading_analysis");
@@ -14,6 +21,61 @@ const TRADING_ANALYSIS_SUBTITLE =
  * Read-only on-chain intelligence: trader DNA, signals, insights, milestones.
  * Gated by the `real_trading_analysis` feature flag (mirrors other utilities).
  */
+const READ_ONLY_POINTS = [
+  "BlackPebble reads public wallet history and balances.",
+  "It cannot transfer tokens.",
+  "It cannot approve token spending.",
+  "It cannot sign transactions.",
+  "It never needs your seed phrase or private key.",
+];
+
+function ReadOnlySafetyCard() {
+  return (
+    <Accordion type="single" collapsible>
+      <AccordionItem
+        value="read-only-safety"
+        className="rounded-xl border border-border/60 bg-card shadow-card overflow-hidden"
+        data-testid="trading-analysis-safety"
+      >
+        <AccordionTrigger className="px-4 py-3.5 hover:no-underline">
+          <div className="flex items-start gap-3 text-left">
+            <Eye className="mt-0.5 h-4 w-4 flex-shrink-0 text-accent" />
+            <div className="min-w-0">
+              <div className="text-sm font-semibold text-foreground">
+                Read-only wallet analysis
+              </div>
+              <div className="text-xs text-muted-foreground mt-0.5">
+                This tool cannot move funds.
+              </div>
+            </div>
+          </div>
+        </AccordionTrigger>
+        <AccordionContent className="px-4">
+          <ul className="space-y-2 pl-7">
+            {READ_ONLY_POINTS.map((point) => (
+              <li
+                key={point}
+                className="flex items-start gap-2.5 text-xs leading-relaxed text-muted-foreground"
+              >
+                <span className="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-accent" />
+                <span>{point}</span>
+              </li>
+            ))}
+          </ul>
+          <Link
+            href="/safety"
+            data-testid="link-analysis-safety-guide"
+            className="mt-3 ml-7 inline-flex items-center gap-1 text-xs font-medium text-accent hover:underline"
+          >
+            Read wallet safety guide
+            <ArrowRight className="h-3 w-3" aria-hidden />
+          </Link>
+        </AccordionContent>
+      </AccordionItem>
+    </Accordion>
+  );
+}
+
 export default function TradingAnalysisPage() {
   const flags = useFeatureFlags();
   const [, navigate] = useLocation();
@@ -32,6 +94,8 @@ export default function TradingAnalysisPage() {
         utility={TRADING_ANALYSIS}
         subtitle={TRADING_ANALYSIS_SUBTITLE}
       />
+
+      <ReadOnlySafetyCard />
 
       <RealTradingAnalysisFull />
     </div>

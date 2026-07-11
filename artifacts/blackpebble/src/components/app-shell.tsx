@@ -66,6 +66,13 @@ function SiteFooter() {
             </svg>
           </a>
         </div>
+        <Link
+          href="/safety"
+          data-testid="link-footer-safety"
+          className="text-[11px] text-muted-foreground/80 hover:text-foreground transition-colors"
+        >
+          Wallet Safety
+        </Link>
         <p className="text-[11px] text-muted-foreground/60 text-center">
           © {new Date().getFullYear()} BlackPebble · Paper trading for entertainment. Not financial advice.
         </p>

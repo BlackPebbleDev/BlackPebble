@@ -70,6 +70,11 @@
       "path": "/roadmap",
       "title": "Vision & Roadmap | BlackPebble",
       "description": "What is live today and what BlackPebble is building toward: community campaigns, Telegram community tools, and a full Solana trading terminal."
+    },
+    {
+      "path": "/safety",
+      "title": "Wallet Safety | BlackPebble",
+      "description": "Know what is simulated, what is read-only, and what requires your signature. Paper trading uses simulated funds, wallet analysis is read-only, and wallet utilities are user-signed. No custody, no seed phrases, no private keys."
     }
   ]
 }
