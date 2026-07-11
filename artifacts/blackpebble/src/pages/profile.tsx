@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -43,7 +43,6 @@ import {
   type BadgeCategory,
   type BadgeEntry,
   type BadgeRarity,
-  type CalloutResult,
   type CalloutWithDetail,
   type Conviction,
   type ProfileResponse,
@@ -675,44 +674,73 @@ function ReputationPassportSection({
         </h2>
       </div>
 
-      {/* Two premium identity cards: flagship BlackPebble Score + Trust Score */}
-      <div className="grid grid-cols-2 gap-2.5 md:gap-3">
-        <div className="relative overflow-hidden rounded-2xl border border-accent/40 bg-gradient-to-br from-accent/15 via-accent/[0.06] to-transparent p-4 shadow-[0_8px_30px_-14px_rgba(212,175,55,0.45)]">
+      {/* Flagship BlackPebble Score (signature identity metric) + Trust Score.
+          BlackPebble Score is the platform's own headline stat, so it gets a
+          full-width premium plaque: warm gold glow, gunmetal top hairline,
+          refined icon chip, and room for the label so it never truncates.
+          No real score field exists yet, so it shows an intentional "Beta"
+          state (never a raw placeholder). The value slot preserves its layout
+          for a numeric score later. */}
+      <div className="space-y-2.5 md:space-y-3">
+        <div
+          data-testid="blackpebble-score-card"
+          className="relative overflow-hidden rounded-2xl border border-accent/50 bg-gradient-to-br from-accent/[0.18] via-accent/[0.06] to-transparent p-4 shadow-[0_14px_44px_-20px_rgba(212,175,55,0.6)]"
+        >
           <div
             aria-hidden
-            className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-accent/15 blur-2xl"
+            className="pointer-events-none absolute -right-10 -top-10 h-28 w-28 rounded-full bg-accent/20 blur-2xl"
           />
-          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-accent/90">
-            <Gem className="w-3 h-3 flex-shrink-0" />
-            <span className="truncate">BlackPebble Score</span>
-            <InfoHint
-              title="BlackPebble Score"
-              text="An upcoming profile score for trader identity and reputation."
-            />
-          </div>
           <div
-            data-testid="blackpebble-score"
-            className="mt-1.5 font-mono text-3xl font-bold leading-none text-accent"
-          >
-            Soon
-          </div>
-          <div className="mt-1.5 text-[10px] text-muted-foreground/80">
-            Trader identity score
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/60 to-transparent"
+          />
+          <div className="relative flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border border-accent/40 bg-accent/15 shadow-[0_0_10px_-2px_rgba(212,175,55,0.5)]">
+                  <Gem className="h-3 w-3 text-accent" />
+                </span>
+                <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-accent/90">
+                  BlackPebble Score
+                </span>
+                <InfoHint
+                  title="BlackPebble Score"
+                  text="Combines trading, calls, activity, and reputation signals."
+                />
+              </div>
+              <div className="mt-2 text-[11px] font-medium text-muted-foreground/80">
+                Overall trader identity
+              </div>
+            </div>
+            <div className="flex flex-shrink-0 flex-col items-end text-right">
+              <span
+                data-testid="blackpebble-score"
+                className="font-mono text-3xl font-bold leading-none tracking-tight text-accent"
+              >
+                Beta
+              </span>
+              <span className="mt-1.5 rounded-full border border-accent/30 bg-accent/10 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-accent/80">
+                Calibrating
+              </span>
+            </div>
           </div>
         </div>
-        <div className="rounded-2xl border border-border/70 bg-secondary/25 p-4">
-          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">
-            <ShieldCheck className="w-3 h-3 flex-shrink-0 text-accent" />
-            <span className="truncate">Trust Score</span>
-            <InfoHint
-              title="Trust Score"
-              text="Signals profile credibility, activity, and reputation."
-            />
+
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-border/70 bg-secondary/25 p-4">
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+              <ShieldCheck className="w-3 h-3 flex-shrink-0 text-accent" />
+              <span>Trust Score</span>
+              <InfoHint
+                title="Trust Score"
+                text="Signals profile credibility, activity, and reputation."
+              />
+            </div>
+            <div className="mt-1.5 font-mono text-3xl font-bold leading-none text-foreground">
+              {trustScore}
+            </div>
           </div>
-          <div className="mt-1.5 font-mono text-3xl font-bold leading-none text-foreground">
-            {trustScore}
-          </div>
-          <div className="mt-2">
+          <div className="flex-shrink-0">
             <TrustBadge
               score={trustScore}
               label={trustLabel}
@@ -1413,6 +1441,48 @@ function BadgesSection({ profile }: { profile: ProfileResponse }) {
   );
 }
 
+/**
+ * Circular token image shared by every call-related card (Call Receipts, Best
+ * Call, Lowest Call, activity). Matches the markets/feed visual language: a
+ * round avatar with a graceful initials fallback when the logo is missing or
+ * fails to load (never a broken image or empty gap).
+ */
+function TokenAvatar({
+  logo,
+  symbol,
+  className = "w-9 h-9",
+}: {
+  logo?: string | null;
+  symbol?: string | null;
+  className?: string;
+}) {
+  const [failed, setFailed] = useState(false);
+  if (logo && !failed) {
+    return (
+      <img
+        src={logo}
+        alt=""
+        loading="lazy"
+        onError={() => setFailed(true)}
+        className={cn(
+          "rounded-full object-cover flex-shrink-0 bg-secondary",
+          className,
+        )}
+      />
+    );
+  }
+  return (
+    <div
+      className={cn(
+        "rounded-full bg-secondary flex items-center justify-center text-[10px] font-semibold uppercase text-muted-foreground flex-shrink-0",
+        className,
+      )}
+    >
+      {symbol?.slice(0, 2) ?? "?"}
+    </div>
+  );
+}
+
 const CONVICTION_LABELS: Record<string, string> = {
   low: "Low conviction",
   medium: "Medium conviction",
@@ -1439,26 +1509,83 @@ function ConvictionBadge({ conviction }: { conviction: string | null }) {
   );
 }
 
-/** Live % move since the call, or a muted placeholder when no fresh price. */
-function CalloutResultValue({
-  result,
-  size = "sm",
+/** ATH multiple from call -> ATH percent from call. Null-safe; no faked data. */
+function athPercentFromMultiple(mult: number | null | undefined): number | null {
+  return mult != null && Number.isFinite(mult) && mult > 0
+    ? (mult - 1) * 100
+    : null;
+}
+
+/**
+ * Shared call-result block used by every call receipt. Meme-coin calls are
+ * judged on how high they ran AFTER the call, so the ATH from call is the hero:
+ *   1. ATH % from call (big green number)
+ *   2. ATH x from call (bold, beside it)
+ *   3. called MC -> ATH MC run
+ *   4. current stats, demoted to a small secondary row
+ * ATH % is derived from the real ATH multiple ((x - 1) * 100) and ATH MC from
+ * the called MC * ATH multiple. Nothing is invented; only hierarchy changes.
+ */
+function CallResultBlock({
+  athMultiple,
+  currentMultiple,
+  currentPercent,
+  calledMc,
+  currentMc,
 }: {
-  result: CalloutResult | null;
-  size?: "sm" | "lg";
+  athMultiple: number | null;
+  currentMultiple: number | null;
+  currentPercent: number | null;
+  calledMc: number | null;
+  currentMc: number | null;
 }) {
-  const sizeCls = size === "lg" ? "text-2xl" : "text-sm";
-  if (!result || result.pnlPercent == null) {
-    return (
-      <span className={cn("font-mono text-muted-foreground", sizeCls)}>—</span>
-    );
-  }
-  const v = result.pnlPercent;
+  const athPct = athPercentFromMultiple(athMultiple);
+  const athMc =
+    calledMc != null && athMultiple != null && athMultiple > 0
+      ? calledMc * athMultiple
+      : null;
   return (
-    <span className={cn("font-mono font-bold", sizeCls, pnlColor(v))}>
-      {v >= 0 ? "+" : ""}
-      {v.toFixed(1)}%
-    </span>
+    <div className="mt-3 rounded-xl border border-border/60 bg-secondary/20 p-3">
+      <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-accent/80">
+        <TrendingUp className="w-3 h-3" />
+        ATH return from call
+      </div>
+      <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1 font-mono">
+        <span className={cn("text-2xl font-bold", pnlColor(athPct))}>
+          {fmtPercent(athPct, 0)}
+        </span>
+        <span
+          className={cn(
+            "text-sm font-semibold",
+            multipleTone(athMultiple),
+          )}
+        >
+          ATH {fmtMultiple(athMultiple)}
+        </span>
+      </div>
+      <div className="mt-1 font-mono text-[11px] text-muted-foreground">
+        Called {fmtMarketCap(calledMc)}
+        {" \u2192 "}
+        ATH {fmtMarketCap(athMc)}
+      </div>
+      {/* Current stats, demoted to a subtle secondary row */}
+      <div className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 border-t border-border/40 pt-2 font-mono text-[11px] text-muted-foreground">
+        <span className="inline-flex items-baseline gap-1">
+          <span className="uppercase tracking-wider text-muted-foreground/70">
+            Now
+          </span>
+          <span className={cn("font-semibold", pnlColor(currentPercent))}>
+            {fmtPercent(currentPercent, 0)}
+          </span>
+        </span>
+        <span className={cn("font-semibold", multipleTone(currentMultiple))}>
+          {fmtMultiple(currentMultiple)}
+        </span>
+        <span className="text-muted-foreground/80">
+          MC {fmtMarketCap(currentMc)}
+        </span>
+      </div>
+    </div>
   );
 }
 
@@ -1535,18 +1662,7 @@ function CalloutCard({
     >
       {/* Header: token identity + timestamp */}
       <div className="flex items-start gap-3">
-        {callout.token_logo ? (
-          <img
-            src={callout.token_logo}
-            alt=""
-            className="w-9 h-9 rounded-full object-cover flex-shrink-0"
-            onError={(e) => (e.currentTarget.style.visibility = "hidden")}
-          />
-        ) : (
-          <div className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center text-[10px] text-muted-foreground flex-shrink-0">
-            {callout.token_symbol?.slice(0, 2) ?? "?"}
-          </div>
-        )}
+        <TokenAvatar logo={callout.token_logo} symbol={callout.token_symbol} />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
             <Link
@@ -1568,46 +1684,16 @@ function CalloutCard({
         </div>
       </div>
 
-      {/* Featured result: the outcome is the headline of the receipt. Big
-          result %, then current and ATH multiples, then the market-cap run. */}
-      <div className="mt-3 rounded-xl border border-border/60 bg-secondary/20 p-3">
-        <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-          <CalloutResultValue result={callout.result} size="lg" />
-          <span className="inline-flex items-baseline gap-1.5">
-            <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-              Now
-            </span>
-            <span
-              className={cn(
-                "font-mono text-sm font-semibold",
-                multipleTone(callout.result?.currentMultiple ?? null),
-              )}
-            >
-              {fmtMultiple(callout.result?.currentMultiple ?? null)}
-            </span>
-          </span>
-          <span className="inline-flex items-baseline gap-1.5">
-            <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-              ATH
-            </span>
-            <span
-              className={cn(
-                "font-mono text-sm font-semibold",
-                multipleTone(callout.result?.athMultiple ?? null),
-              )}
-            >
-              {fmtMultiple(callout.result?.athMultiple ?? null)}
-            </span>
-          </span>
-        </div>
-        <div className="mt-1.5 font-mono text-[11px] text-muted-foreground">
-          Called{" "}
-          {callout.call_market_cap != null
-            ? fmtMarketCap(callout.call_market_cap)
-            : "—"}{" "}
-          to {fmtMarketCap(callout.result?.currentMarketCapUsd ?? null)}
-        </div>
-      </div>
+      {/* Featured result: for meme calls the flex is how high it ran AFTER the
+          call, so ATH from call is the hero metric. ATH % + ATH x lead, then
+          the called MC to ATH MC run, and current stats sit demoted below. */}
+      <CallResultBlock
+        athMultiple={callout.result?.athMultiple ?? null}
+        currentMultiple={callout.result?.currentMultiple ?? null}
+        currentPercent={callout.result?.pnlPercent ?? null}
+        calledMc={callout.call_market_cap}
+        currentMc={callout.result?.currentMarketCapUsd ?? null}
+      />
 
       {/* Original call text */}
       {callout.thesis && (
@@ -1792,6 +1878,27 @@ function CallTrophyCaseSection({ profile }: { profile: ProfileResponse }) {
     retry: false,
     staleTime: 60_000,
   });
+  // Reuse the (already cached) call list purely to resolve circular token
+  // images for the Best / Lowest call by mint. Caller stats don't carry a
+  // logo, so we map it in the UI layer without any backend change.
+  const { data: coData } = useQuery({
+    queryKey: ["callouts", key],
+    queryFn: () => api.callouts.list(id),
+    enabled: !!profile,
+    retry: false,
+  });
+  const tokenByMint = useMemo(() => {
+    const m = new Map<
+      string,
+      { logo: string | null; symbol: string | null }
+    >();
+    for (const c of coData?.callouts ?? []) {
+      if (!m.has(c.token_mint)) {
+        m.set(c.token_mint, { logo: c.token_logo, symbol: c.token_symbol });
+      }
+    }
+    return m;
+  }, [coData]);
 
   const cs = csData?.stats ?? null;
   const all = perfData?.performance.all ?? null;
@@ -1843,8 +1950,20 @@ function CallTrophyCaseSection({ profile }: { profile: ProfileResponse }) {
         ? `${all.winRate.toFixed(0)}%`
         : "—";
   const best = cs?.bestCall ?? null;
-  const bestReturnPct =
-    best && best.multiple > 0 ? (best.multiple - 1) * 100 : null;
+  // ATH from call is the meme-coin flex: prefer the true ATH high-water
+  // multiple, falling back to the graded multiple only when no peak is tracked.
+  const bestAthMultiple = best ? best.athMultiple ?? best.multiple : null;
+  const bestAthPct = athPercentFromMultiple(bestAthMultiple);
+  const bestAthMc =
+    best &&
+    best.calledMarketCapUsd != null &&
+    bestAthMultiple != null &&
+    bestAthMultiple > 0
+      ? best.calledMarketCapUsd * bestAthMultiple
+      : null;
+  const bestToken = best ? tokenByMint.get(best.token_mint) : undefined;
+  const worst = all?.worstCall ?? null;
+  const worstToken = worst ? tokenByMint.get(worst.token_mint) : undefined;
 
   return (
     <div className="mt-6">
@@ -1892,8 +2011,9 @@ function CallTrophyCaseSection({ profile }: { profile: ProfileResponse }) {
           />
         </div>
 
-        {/* Featured Best Call trophy + smaller Lowest Call comparison */}
-        {(best || all?.worstCall) && (
+        {/* Featured Best Call trophy (ATH from call is the hero flex) + a
+            smaller Lowest Call comparison beneath it. */}
+        {(best || worst) && (
           <div className="mt-3 space-y-2">
             {best && (
               <Link
@@ -1905,69 +2025,80 @@ function CallTrophyCaseSection({ profile }: { profile: ProfileResponse }) {
                   aria-hidden
                   className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-accent/15 blur-2xl"
                 />
-                <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-accent/90">
-                  <Trophy className="w-3 h-3" />
-                  Best Call
+                <div className="relative flex items-center gap-2.5">
+                  <TokenAvatar
+                    logo={bestToken?.logo}
+                    symbol={bestToken?.symbol ?? best.token_symbol}
+                    className="w-9 h-9"
+                  />
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-accent/90">
+                      <Trophy className="w-3 h-3" />
+                      Best Call
+                    </div>
+                    <div className="mt-0.5 font-mono text-base font-bold text-foreground truncate">
+                      {best.token_symbol || shortAddr(best.token_mint, 4)}
+                    </div>
+                  </div>
                 </div>
-                <div className="mt-1 font-mono text-lg font-bold text-foreground truncate">
-                  {best.token_symbol || shortAddr(best.token_mint, 4)}
+                <div className="relative mt-2 text-[10px] uppercase tracking-wider text-accent/70">
+                  ATH return from call
                 </div>
-                <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1 font-mono">
-                  {bestReturnPct != null && (
-                    <span
-                      className={cn(
-                        "text-xl font-bold",
-                        pnlColor(bestReturnPct),
-                      )}
-                    >
-                      {bestReturnPct >= 0 ? "+" : ""}
-                      {bestReturnPct.toFixed(0)}%
-                    </span>
-                  )}
+                <div className="relative mt-0.5 flex flex-wrap items-baseline gap-x-3 gap-y-1 font-mono">
+                  <span
+                    className={cn("text-2xl font-bold", pnlColor(bestAthPct))}
+                  >
+                    {fmtPercent(bestAthPct, 0)}
+                  </span>
                   <span
                     className={cn(
                       "text-sm font-semibold",
-                      multipleTone(best.multiple),
+                      multipleTone(bestAthMultiple),
                     )}
                   >
-                    {fmtMultiple(best.multiple)}
+                    ATH {fmtMultiple(bestAthMultiple)}
                   </span>
-                  {best.athMultiple != null && (
-                    <span className="text-[11px] text-muted-foreground">
-                      ATH {fmtMultiple(best.athMultiple)}
-                    </span>
-                  )}
                 </div>
-                <div className="mt-1 font-mono text-[11px] text-muted-foreground">
-                  {fmtMarketCap(best.calledMarketCapUsd ?? null)}
-                  {" to "}
+                <div className="relative mt-1 font-mono text-[11px] text-muted-foreground">
+                  Called {fmtMarketCap(best.calledMarketCapUsd ?? null)}
+                  {" \u2192 "}
+                  ATH {fmtMarketCap(bestAthMc)}
+                </div>
+                {/* Current, demoted */}
+                <div className="relative mt-1.5 border-t border-accent/15 pt-1.5 font-mono text-[10px] text-muted-foreground/80">
+                  Graded {fmtMultiple(best.multiple)}
+                  {" \u00b7 Now "}
                   {fmtMarketCap(best.currentMarketCapUsd ?? null)}
                 </div>
               </Link>
             )}
-            {all?.worstCall && (
+            {worst && (
               <Link
-                href={`/?token=${all.worstCall.token_mint}`}
+                href={`/?token=${worst.token_mint}`}
                 data-testid="call-edge-lowest"
-                className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-secondary/20 p-3 transition-colors hover:border-accent/50"
+                className="flex items-center gap-3 rounded-xl border border-border/60 bg-secondary/20 p-3 transition-colors hover:border-accent/50"
               >
-                <div className="min-w-0">
+                <TokenAvatar
+                  logo={worstToken?.logo}
+                  symbol={worstToken?.symbol ?? worst.token_symbol}
+                  className="w-8 h-8"
+                />
+                <div className="min-w-0 flex-1">
                   <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
                     Lowest Call
                   </div>
                   <div className="mt-0.5 font-mono text-sm font-semibold text-foreground truncate">
-                    {all.worstCall.token_symbol ||
-                      shortAddr(all.worstCall.token_mint, 4)}
+                    {worst.token_symbol || shortAddr(worst.token_mint, 4)}
                   </div>
                 </div>
                 <div className="flex-shrink-0 text-right">
                   <span
                     className={cn(
                       "font-mono text-sm font-semibold",
-                      pnlColor(all.worstCall.returnPercent),
+                      pnlColor(worst.returnPercent),
                     )}
                   >
-                    {fmtPercent(all.worstCall.returnPercent, 0)}
+                    {fmtPercent(worst.returnPercent, 0)}
                   </span>
                   <div className="text-[10px] text-muted-foreground">
                     Lowest graded return
@@ -2006,18 +2137,7 @@ function ThesisCard({ thesis }: { thesis: ThesisWithAuthor }) {
       className="rounded-xl bg-card shadow-card p-4"
     >
       <div className="flex items-start gap-3">
-        {thesis.token_logo ? (
-          <img
-            src={thesis.token_logo}
-            alt=""
-            className="w-9 h-9 rounded-full object-cover flex-shrink-0"
-            onError={(e) => (e.currentTarget.style.visibility = "hidden")}
-          />
-        ) : (
-          <div className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center text-[10px] text-muted-foreground flex-shrink-0">
-            {thesis.token_symbol?.slice(0, 2) ?? "?"}
-          </div>
-        )}
+        <TokenAvatar logo={thesis.token_logo} symbol={thesis.token_symbol} />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm font-semibold text-foreground truncate">
