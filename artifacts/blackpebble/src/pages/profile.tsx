@@ -7,6 +7,7 @@ import {
   Check,
   ChevronDown,
   Copy,
+  ExternalLink,
   Globe,
   History,
   Loader2,
@@ -28,7 +29,6 @@ import {
 } from "lucide-react";
 import {
   api,
-  BIO_MAX_LENGTH,
   CALLOUT_THESIS_MAX,
   CALLOUT_UPDATE_MAX,
   type BadgeCategory,
@@ -65,6 +65,7 @@ import {
 } from "@/lib/format";
 import { PnlAmount } from "@/components/pnl-amount";
 import { tierMeta } from "@/lib/tiers";
+import { TierBadge } from "@/components/tier-badge";
 import { TokenSearch } from "@/components/token-search";
 import { PlaceholderCard } from "@/components/feed-card";
 import {
@@ -188,6 +189,14 @@ function ProfileBanner({ profile }: { profile: ProfileResponse }) {
   );
 }
 
+/**
+ * Frontend bio limit for the compact profile hero. Kept well under the server
+ * cap (BIO_MAX_LENGTH = 250) so a bio stays short and readable in the card; the
+ * backend still accepts anything up to its own limit, so this is purely a
+ * stricter client constraint (no schema change).
+ */
+const PROFILE_BIO_MAX = 120;
+
 function BioSection({ profile }: { profile: ProfileResponse }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -211,13 +220,13 @@ function BioSection({ profile }: { profile: ProfileResponse }) {
   });
 
   if (editing) {
-    const remaining = BIO_MAX_LENGTH - draft.length;
+    const remaining = PROFILE_BIO_MAX - draft.length;
     return (
       <div className="mt-3">
         <textarea
           value={draft}
-          onChange={(e) => setDraft(e.target.value.slice(0, BIO_MAX_LENGTH))}
-          maxLength={BIO_MAX_LENGTH}
+          onChange={(e) => setDraft(e.target.value.slice(0, PROFILE_BIO_MAX))}
+          maxLength={PROFILE_BIO_MAX}
           rows={3}
           autoFocus
           data-testid="textarea-bio"
@@ -271,7 +280,7 @@ function BioSection({ profile }: { profile: ProfileResponse }) {
       <div className="mt-3 flex items-start gap-2">
         <p
           data-testid="text-profile-bio"
-          className="text-sm text-foreground/90 whitespace-pre-wrap break-words flex-1"
+          className="min-w-0 max-w-full flex-1 text-sm text-foreground/90 break-words [overflow-wrap:anywhere] line-clamp-2 md:line-clamp-3"
         >
           {profile.bio}
         </p>
@@ -1967,6 +1976,64 @@ function ShareCard({ profile }: { profile: ProfileResponse }) {
   );
 }
 
+/**
+ * Compact identity metadata row rendered under the name/badges in the profile
+ * hero: "@handle · Silver · Rank #N". The @handle keeps its external-link icon
+ * and view-on-X tracking; the tier renders as color-only text; rank gets a
+ * subtle gold chip that stays quieter than the official role badges.
+ */
+function ProfileIdentityMeta({
+  profile,
+  profileUrl,
+}: {
+  profile: ProfileResponse;
+  profileUrl: string | null;
+}) {
+  const handle = profile.x_username?.trim().replace(/^@+/, "") || null;
+  const dot = (
+    <span aria-hidden className="text-muted-foreground/40">
+      ·
+    </span>
+  );
+
+  return (
+    <div className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 min-w-0 text-sm">
+      {handle &&
+        (profileUrl ? (
+          <a
+            href={profileUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            data-testid="link-view-on-x"
+            onClick={() => trackXProfileLinkClicked()}
+            className="inline-flex min-w-0 max-w-full items-center gap-1 text-muted-foreground hover:text-accent transition-colors"
+          >
+            <span className="truncate">@{handle}</span>
+            <ExternalLink className="w-3 h-3 flex-shrink-0 opacity-60" />
+          </a>
+        ) : (
+          <span className="inline-flex min-w-0 max-w-full items-center text-muted-foreground">
+            <span className="truncate">@{handle}</span>
+          </span>
+        ))}
+      {handle && dot}
+      <TierBadge tier={profile.graduationTier} variant="plain" />
+      {profile.rank != null && (
+        <>
+          {dot}
+          <span
+            data-testid="text-profile-rank"
+            className="inline-flex items-center gap-1 rounded-full border border-accent/40 bg-accent/5 px-1.5 py-0.5 text-[10px] font-semibold text-accent whitespace-nowrap"
+          >
+            <Trophy className="w-2.5 h-2.5 flex-shrink-0" />
+            Rank #{profile.rank}
+          </span>
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function ProfilePage() {
   const { handle } = useParams<{ handle: string }>();
   const solUsd = useSolUsd();
@@ -2016,6 +2083,7 @@ export default function ProfilePage() {
 
       {/* Header */}
       <div className="hairline-accent overflow-hidden rounded-2xl bg-card shadow-card p-5 md:p-6 mt-3">
+        {/* Identity: avatar + name/badges + compact @handle · tier · rank row */}
         <UserIdentity
           size="lg"
           align="start"
@@ -2028,52 +2096,44 @@ export default function ProfilePage() {
           officialBadges={profile.officialBadges}
           tier={profile.graduationTier}
           accountStatus="member"
-          tierPosition="row"
+          tierPosition="none"
           badgePosition="row"
           badgeSize="sm"
+          showHandle={false}
           stopPropagation={false}
-          handleLink={
-            profileUrl ? { type: "external", href: profileUrl } : undefined
-          }
-          handleTestId="link-view-on-x"
-          onHandleClick={() => trackXProfileLinkClicked()}
-          handleTrailing={
-            profile.rank != null ? (
-              <span className="font-mono text-sm text-muted-foreground">
-                Rank #{profile.rank}
-              </span>
-            ) : undefined
-          }
         >
-          {/* Bio: directly under avatar/name/handle (owner can edit inline) */}
-          <BioSection profile={profile} />
-
-          {/* Off-platform links as compact icon pills (owner can edit inline) */}
-          <SocialLinks profile={profile} />
-
-          {/* Social: followers / following */}
-          <div className="flex items-center gap-4 mt-3 text-sm">
-            <span data-testid="text-following-count">
-              <span className="font-semibold text-foreground">
-                {profile.following}
-              </span>{" "}
-              <span className="text-muted-foreground">Following</span>
-            </span>
-            <span data-testid="text-followers-count">
-              <span className="font-semibold text-foreground">
-                {profile.followers}
-              </span>{" "}
-              <span className="text-muted-foreground">Followers</span>
-            </span>
-          </div>
-
-          {/* Social action: follow button (hidden for self) */}
-          {!profile.isSelf && (
-            <div className="mt-3">
-              <FollowButton profile={profile} />
-            </div>
-          )}
+          <ProfileIdentityMeta profile={profile} profileUrl={profileUrl} />
         </UserIdentity>
+
+        {/* Detail block spans the full card width (including under the avatar)
+            so the hero reads balanced instead of left-empty / right-heavy. */}
+        <BioSection profile={profile} />
+
+        {/* Off-platform links as compact icon pills (owner can edit inline) */}
+        <SocialLinks profile={profile} />
+
+        {/* Social: followers / following */}
+        <div className="flex items-center gap-4 mt-3 text-sm">
+          <span data-testid="text-following-count">
+            <span className="font-semibold text-foreground">
+              {profile.following}
+            </span>{" "}
+            <span className="text-muted-foreground">Following</span>
+          </span>
+          <span data-testid="text-followers-count">
+            <span className="font-semibold text-foreground">
+              {profile.followers}
+            </span>{" "}
+            <span className="text-muted-foreground">Followers</span>
+          </span>
+        </div>
+
+        {/* Social action: follow button (hidden for self) */}
+        {!profile.isSelf && (
+          <div className="mt-4">
+            <FollowButton profile={profile} />
+          </div>
+        )}
       </div>
 
       {/* Reputation - trust score, trading rank, call accuracy */}
