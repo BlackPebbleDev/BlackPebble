@@ -10,7 +10,7 @@
 - Advanced Trade Planner & Calculator: plan entries, position size, targets, stop loss, risk, reward, liquidation levels, and perps scenarios.
 - Trading Journal: track trades, setups, notes, mistakes, wins, losses, strategy changes, and performance over time.
 - Wallet-Linked Trade Review: connect a wallet in read-only mode to review past trades, hold time, token selection, sell timing, and risk behavior. No custody, seed phrases, or approvals.
-- Trader Intelligence: turn trading history into insights about patterns like selling winners early, holding losers too long, chasing green candles, sizing, exits, patience, conviction, and risk control.
+- Trader Intelligence: turn trading history into insights about patterns like selling winners early, holding losers too long, tracking market momentum, sizing, exits, patience, conviction, and risk control.
 - Trading Identities, Strengths & Weaknesses: behavior-based trader profiles and a read on what a trader does well and where they struggle.
 - Portfolio & P&L: token holdings, position value, realized and unrealized P&L, open/closed trades, trade history, and performance trends.
 - Public Trader Profiles: profiles with performance, wallet-linked insights where enabled, P&L history, achievements, reputation signals, badges, followers, and profile stats.

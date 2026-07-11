@@ -70,7 +70,7 @@ export const UTILITIES: UtilityMeta[] = [
     description:
       "Escrow-backed community funding with a fully public money trail - automatic refunds if goals aren't met.",
     href: "/campaigns",
-    // HandCoins = community funding / contribution (not callouts / shilling).
+    // HandCoins = community funding / contribution (transparent contribution campaigns).
     icon: HandCoins,
     flag: "community_campaigns",
     testId: "link-campaigns",
