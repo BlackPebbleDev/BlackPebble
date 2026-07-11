@@ -3,7 +3,6 @@ import { Link, useParams } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Activity,
-  Award,
   Check,
   ChevronDown,
   Coins,
@@ -23,11 +22,9 @@ import {
   Rocket,
   Rss,
   ScrollText,
-  Search,
   Send,
   Share2,
   ShieldCheck,
-  SlidersHorizontal,
   TrendingUp,
   Trophy,
   UserPlus,
@@ -40,9 +37,7 @@ import {
   api,
   CALLOUT_THESIS_MAX,
   CALLOUT_UPDATE_MAX,
-  type BadgeCategory,
   type BadgeEntry,
-  type BadgeRarity,
   type CalloutWithDetail,
   type Conviction,
   type ProfileResponse,
@@ -50,11 +45,8 @@ import {
 } from "@/lib/api";
 import { UserIdentity } from "@/components/user-identity";
 import { ImageLightbox } from "@/components/image-lightbox";
-import {
-  AchievementBadge,
-  RARITY_META,
-  rarityOf,
-} from "@/components/achievement-badge";
+import { RARITY_META, rarityOf } from "@/components/achievement-badge";
+import { AchievementsShowcase } from "@/components/achievements-showcase";
 import { TrustBadge, trustLabelFromScore } from "@/components/reputation-card";
 import { FilterPills } from "@/components/filter-pills";
 import {
@@ -926,93 +918,15 @@ function FollowButton({ profile }: { profile: ProfileResponse }) {
   );
 }
 
-const RARITY_ORDER: BadgeRarity[] = ["legendary", "epic", "rare", "common"];
-
-const CATEGORY_LABELS: Record<BadgeCategory, string> = {
-  trading: "Trading",
-  profit: "Profit",
-  caller: "Calls",
-  thesis: "Research",
-  wallet: "Wallet Utilities",
-  community: "Community",
-  profile: "Profile",
-  milestone: "Milestones",
-  special: "Special",
-};
-
-const CATEGORY_ORDER: BadgeCategory[] = [
-  "trading",
-  "profit",
-  "caller",
-  "thesis",
-  "wallet",
-  "community",
-  "profile",
-  "milestone",
-  "special",
-];
-
-type StatusFilter = "all" | "earned" | "locked";
-type RarityFilter = BadgeRarity | "all";
-type CategoryFilter = BadgeCategory | "all";
-type BadgeSort = "rarity" | "recent" | "progress" | "name";
-
-const STATUS_OPTIONS: { id: StatusFilter; label: string }[] = [
-  { id: "all", label: "All" },
-  { id: "earned", label: "Earned" },
-  { id: "locked", label: "Locked" },
-];
-
-const SORT_OPTIONS: { id: BadgeSort; label: string }[] = [
-  { id: "rarity", label: "Rarity" },
-  { id: "recent", label: "Recent" },
-  { id: "progress", label: "Progress" },
-  { id: "name", label: "Name" },
-];
-
-/** Sort comparator: earned tiles always precede locked, then by chosen key. */
-function compareBadges(a: BadgeEntry, b: BadgeEntry, sort: BadgeSort): number {
-  if (a.earned !== b.earned) return a.earned ? -1 : 1;
-  switch (sort) {
-    case "recent":
-      return (b.earnedAt ?? 0) - (a.earnedAt ?? 0);
-    case "name":
-      return a.name.localeCompare(b.name);
-    case "progress": {
-      const ratio = (x: BadgeEntry) =>
-        x.earned
-          ? 1
-          : x.progress && x.progress.target > 0
-            ? x.progress.current / x.progress.target
-            : 0;
-      return ratio(b) - ratio(a);
-    }
-    case "rarity":
-    default: {
-      const ra = RARITY_ORDER.indexOf(rarityOf(a));
-      const rb = RARITY_ORDER.indexOf(rarityOf(b));
-      if (ra !== rb) return ra - rb;
-      return (b.earnedAt ?? 0) - (a.earnedAt ?? 0);
-    }
-  }
-}
-
 /**
- * Achievements section - lazily fetches the full badge list for this profile and
- * renders a collectible-style view: a summary (progress + rarity breakdown), a
- * grid of earned collectible tiles, and the locked set tucked behind an
- * expandable toggle so the section stays compact by default.
+ * Achievements section - lazily fetches the full badge list for this profile,
+ * runs the fresh-unlock celebration + share-copy logic, and hands the data to
+ * the premium AchievementsShowcase (medallion cluster in earned order, inline
+ * detail reveal, and a compact locked drawer).
  */
 function BadgesSection({ profile }: { profile: ProfileResponse }) {
   const profileKey = profile.x_username || String(profile.user_id);
   const { toast } = useToast();
-  const [showLocked, setShowLocked] = useState(false);
-  const [showFilters, setShowFilters] = useState(false);
-  const [query, setQuery] = useState("");
-  const [category, setCategory] = useState<CategoryFilter>("all");
-  const [status, setStatus] = useState<StatusFilter>("all");
-  const [rarity, setRarity] = useState<RarityFilter>("all");
-  const [sort, setSort] = useState<BadgeSort>("rarity");
   // Keys to briefly shimmer after a fresh unlock (self profile only).
   const [justUnlocked, setJustUnlocked] = useState<Set<string>>(new Set());
 
@@ -1023,16 +937,6 @@ function BadgesSection({ profile }: { profile: ProfileResponse }) {
     retry: false,
     staleTime: 60_000,
   });
-
-  const allBadges = data?.badges ?? [];
-  // Hidden achievements stay invisible until earned - never reveal the locked
-  // tile (no name, no hint). Everything else is part of the visible catalogue.
-  const visibleBadges = allBadges.filter((b) => b.earned || !b.hidden);
-  const earnedBadges = visibleBadges.filter((b) => b.earned);
-  const lockedBadges = visibleBadges.filter((b) => !b.earned);
-  const total = visibleBadges.length;
-  const earnedCount = earnedBadges.length;
-  const pct = total > 0 ? Math.round((earnedCount / total) * 100) : 0;
 
   // Premium unlock celebration: diff the current earned set against what this
   // device has already seen for this user. Self profile only; first-ever load
@@ -1112,332 +1016,13 @@ function BadgesSection({ profile }: { profile: ProfileResponse }) {
     });
   };
 
-  const rarityCounts = earnedBadges.reduce<Record<BadgeRarity, number>>(
-    (acc, b) => {
-      const r = rarityOf(b);
-      acc[r] = (acc[r] ?? 0) + 1;
-      return acc;
-    },
-    { common: 0, rare: 0, epic: 0, legendary: 0 },
-  );
-
-  // "Most recent unlock" - the earned badge with the latest timestamp.
-  const mostRecent = earnedBadges.reduce<BadgeEntry | null>(
-    (best, b) => ((b.earnedAt ?? 0) > (best?.earnedAt ?? -1) ? b : best),
-    null,
-  );
-  // "Rarest" - lowest index in RARITY_ORDER wins (legendary first); ties are
-  // broken by most-recently earned.
-  const rarestRank = (b: BadgeEntry) => RARITY_ORDER.indexOf(rarityOf(b));
-  const rarest = earnedBadges.reduce<BadgeEntry | null>((best, b) => {
-    if (!best) return b;
-    const rb = rarestRank(b);
-    const rBest = rarestRank(best);
-    if (rb !== rBest) return rb < rBest ? b : best;
-    return (b.earnedAt ?? 0) > (best.earnedAt ?? 0) ? b : best;
-  }, null);
-  // Group earned badges into their collections for display.
-  const earnedByCategory = earnedBadges.reduce<Record<string, BadgeEntry[]>>(
-    (acc, b) => {
-      (acc[b.category] ??= []).push(b);
-      return acc;
-    },
-    {},
-  );
-
-  // Category pills are built from the collections actually present.
-  const presentCategories = CATEGORY_ORDER.filter((c) =>
-    visibleBadges.some((b) => b.category === c),
-  );
-  const categoryOptions = [
-    { id: "all" as CategoryFilter, label: "All" },
-    ...presentCategories.map((c) => ({
-      id: c as CategoryFilter,
-      label: CATEGORY_LABELS[c],
-    })),
-  ];
-
-  const q = query.trim().toLowerCase();
-  const filtersActive =
-    q !== "" || category !== "all" || status !== "all" || rarity !== "all";
-  const filtered = visibleBadges
-    .filter((b) => {
-      if (category !== "all" && b.category !== category) return false;
-      if (status === "earned" && !b.earned) return false;
-      if (status === "locked" && b.earned) return false;
-      if (rarity !== "all" && rarityOf(b) !== rarity) return false;
-      if (
-        q &&
-        !b.name.toLowerCase().includes(q) &&
-        !b.description.toLowerCase().includes(q)
-      )
-        return false;
-      return true;
-    })
-    .sort((a, b) => compareBadges(a, b, sort));
-
-  const onShare = profile.isSelf ? handleShare : undefined;
-
   return (
-    <>
-      <SectionHeader icon={Award} title="Achievements" />
-      <div
-        data-testid="achievements-card"
-        className="rounded-xl bg-card shadow-card p-5"
-      >
-        {isLoading ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-          </div>
-        ) : total === 0 ? (
-          <p className="py-4 text-center text-sm text-muted-foreground">
-            No achievements available.
-          </p>
-        ) : (
-          <>
-            {/* Achievement summary */}
-            <div className="mb-5">
-              <div className="mb-2 flex items-baseline justify-between gap-3">
-                <span className="text-sm font-medium text-foreground">
-                  {earnedCount}
-                  <span className="text-muted-foreground">
-                    {" "}
-                    of {total} unlocked
-                  </span>
-                </span>
-                <div className="flex items-center gap-3">
-                  <span className="text-xs font-semibold text-muted-foreground">
-                    {pct}%
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setShowFilters((v) => !v)}
-                    data-testid="toggle-achievement-filters"
-                    aria-label="Filter achievements"
-                    className={cn(
-                      "rounded-full p-1.5 transition-colors",
-                      showFilters || filtersActive
-                        ? "bg-accent/10 text-accent"
-                        : "text-muted-foreground hover:text-foreground",
-                    )}
-                  >
-                    <SlidersHorizontal className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              </div>
-              <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary/40">
-                <div
-                  className="h-full rounded-full bg-accent transition-all"
-                  style={{ width: `${pct}%` }}
-                />
-              </div>
-              {earnedCount > 0 && (
-                <div className="mt-3 flex flex-wrap gap-1.5">
-                  {RARITY_ORDER.filter((r) => rarityCounts[r] > 0).map((r) => (
-                    <span
-                      key={r}
-                      data-testid={`rarity-chip-${r}`}
-                      className={cn(
-                        "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
-                        RARITY_META[r].chip,
-                      )}
-                    >
-                      {rarityCounts[r]} {RARITY_META[r].label}
-                    </span>
-                  ))}
-                </div>
-              )}
-              {earnedCount > 0 && (mostRecent || rarest) && (
-                <div className="mt-3 grid grid-cols-2 gap-2">
-                  <div className="rounded-lg bg-secondary/30 px-3 py-2">
-                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground/70">
-                      Latest unlock
-                    </div>
-                    <div
-                      data-testid="achievement-latest"
-                      className="mt-0.5 truncate text-xs font-semibold text-foreground"
-                    >
-                      {mostRecent?.name ?? "—"}
-                    </div>
-                  </div>
-                  <div className="rounded-lg bg-secondary/30 px-3 py-2">
-                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground/70">
-                      Rarest
-                    </div>
-                    <div
-                      data-testid="achievement-rarest"
-                      className="mt-0.5 flex items-center gap-1.5"
-                    >
-                      <span className="truncate text-xs font-semibold text-foreground">
-                        {rarest?.name ?? "—"}
-                      </span>
-                      {rarest && (
-                        <span
-                          className={cn(
-                            "flex-shrink-0 rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide",
-                            RARITY_META[rarityOf(rarest)].chip,
-                          )}
-                        >
-                          {RARITY_META[rarityOf(rarest)].label}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Filter / search controls (collapsed by default for a clean view) */}
-            {showFilters && (
-              <div
-                data-testid="achievement-filters"
-                className="mb-5 space-y-3 rounded-xl border border-border/40 bg-secondary/10 p-3"
-              >
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/60" />
-                  <input
-                    type="text"
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Search achievements"
-                    data-testid="input-achievement-search"
-                    className="w-full rounded-full border border-border bg-background py-1.5 pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-accent/50 focus:outline-none"
-                  />
-                </div>
-                <FilterPills
-                  options={categoryOptions}
-                  value={category}
-                  onChange={(id) => setCategory(id)}
-                  size="sm"
-                  ariaLabel="Filter by collection"
-                  testIdPrefix="filter-category"
-                />
-                <div className="flex flex-wrap items-center gap-2">
-                  <FilterPills
-                    options={STATUS_OPTIONS}
-                    value={status}
-                    onChange={(id) => setStatus(id)}
-                    size="sm"
-                    ariaLabel="Filter by status"
-                    testIdPrefix="filter-status"
-                  />
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <FilterPills
-                    options={[
-                      { id: "all" as RarityFilter, label: "All" },
-                      ...RARITY_ORDER.map((r) => ({
-                        id: r as RarityFilter,
-                        label: RARITY_META[r].label,
-                      })),
-                    ]}
-                    value={rarity}
-                    onChange={(id) => setRarity(id)}
-                    size="sm"
-                    ariaLabel="Filter by rarity"
-                    testIdPrefix="filter-rarity"
-                  />
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
-                    Sort
-                  </span>
-                  <FilterPills
-                    options={SORT_OPTIONS}
-                    value={sort}
-                    onChange={(id) => setSort(id)}
-                    size="sm"
-                    ariaLabel="Sort achievements"
-                    testIdPrefix="sort"
-                  />
-                </div>
-              </div>
-            )}
-
-            {filtersActive ? (
-              /* Flat filtered grid */
-              filtered.length > 0 ? (
-                <div
-                  data-testid="achievement-filtered-grid"
-                  className="grid grid-cols-3 gap-2.5 sm:grid-cols-4 md:grid-cols-5"
-                >
-                  {filtered.map((b) => (
-                    <AchievementBadge
-                      key={b.key}
-                      badge={b}
-                      onShare={onShare}
-                      justUnlocked={justUnlocked.has(b.key)}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <p className="py-4 text-center text-sm text-muted-foreground">
-                  No achievements match these filters.
-                </p>
-              )
-            ) : (
-              <>
-                {/* Earned collectible tiles, grouped by collection */}
-                {earnedCount > 0 ? (
-                  <div className="space-y-4">
-                    {CATEGORY_ORDER.filter(
-                      (c) => earnedByCategory[c]?.length,
-                    ).map((c) => (
-                      <div key={c}>
-                        <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-                          {CATEGORY_LABELS[c]}
-                        </div>
-                        <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4 md:grid-cols-5">
-                          {earnedByCategory[c].map((b) => (
-                            <AchievementBadge
-                              key={b.key}
-                              badge={b}
-                              onShare={onShare}
-                              justUnlocked={justUnlocked.has(b.key)}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="py-2 text-center text-sm text-muted-foreground">
-                    No achievements unlocked yet.
-                  </p>
-                )}
-
-                {/* Locked, behind an expandable toggle */}
-                {lockedBadges.length > 0 && (
-                  <div className="mt-4 border-t border-border/40 pt-4">
-                    <button
-                      type="button"
-                      onClick={() => setShowLocked((v) => !v)}
-                      data-testid="toggle-locked-achievements"
-                      className="flex w-full items-center justify-between text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground/70 transition-colors hover:text-foreground"
-                    >
-                      <span>Locked · {lockedBadges.length}</span>
-                      <ChevronDown
-                        className={cn(
-                          "h-4 w-4 transition-transform",
-                          showLocked && "rotate-180",
-                        )}
-                      />
-                    </button>
-                    {showLocked && (
-                      <div className="mt-3 grid grid-cols-3 gap-2.5 sm:grid-cols-4 md:grid-cols-5">
-                        {lockedBadges.map((b) => (
-                          <AchievementBadge key={b.key} badge={b} />
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </>
-            )}
-          </>
-        )}
-      </div>
-    </>
+    <AchievementsShowcase
+      badges={data?.badges ?? []}
+      isLoading={isLoading}
+      justUnlocked={justUnlocked}
+      onShare={profile.isSelf ? handleShare : undefined}
+    />
   );
 }
 
@@ -2576,11 +2161,11 @@ export default function ProfilePage() {
       {/* Future-ready reputation lanes (collapsed, no fake data) */}
       <MoreReputationLanesSection />
 
-      {/* Share this profile */}
-      <ShareCard profile={profile} />
-
-      {/* Achievements & Badges (unchanged in this pass, left at the bottom) */}
+      {/* Achievements - premium collectible medallion showcase */}
       <BadgesSection profile={profile} />
+
+      {/* Share this profile (sits below the achievements showcase) */}
+      <ShareCard profile={profile} />
     </div>
   );
 }
