@@ -1,59 +1,70 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Activity,
-  Award,
   Check,
   ChevronDown,
+  Coins,
   Copy,
+  Dna,
+  Fingerprint,
+  Gem,
   History,
+  Info,
+  Layers,
   Loader2,
   Lock,
+  Medal,
   Megaphone,
   Pencil,
   Plus,
+  Rocket,
+  Rss,
   ScrollText,
-  Search,
   Send,
   Share2,
   ShieldCheck,
-  SlidersHorizontal,
+  TrendingUp,
   Trophy,
   UserPlus,
   UserCheck,
+  Wallet,
   X as CloseIcon,
+  Zap,
 } from "lucide-react";
 import {
   api,
   CALLOUT_THESIS_MAX,
   CALLOUT_UPDATE_MAX,
-  type BadgeCategory,
   type BadgeEntry,
-  type BadgeRarity,
-  type CalloutResult,
   type CalloutWithDetail,
   type Conviction,
-  type PeriodPerformance,
   type ProfileResponse,
   type ThesisWithAuthor,
 } from "@/lib/api";
 import { UserIdentity } from "@/components/user-identity";
 import { ImageLightbox } from "@/components/image-lightbox";
-import {
-  AchievementBadge,
-  RARITY_META,
-  rarityOf,
-} from "@/components/achievement-badge";
+import { RARITY_META, rarityOf } from "@/components/achievement-badge";
+import { AchievementsShowcase } from "@/components/achievements-showcase";
 import { TrustBadge, trustLabelFromScore } from "@/components/reputation-card";
 import { FilterPills } from "@/components/filter-pills";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { useXAuth } from "@/hooks/use-x-auth";
 import { useSolUsd } from "@/hooks/use-sol-usd";
 import {
   fmtMarketCap,
   fmtMultiple,
   fmtPercent,
-  fmtPrice,
   multipleTone,
   pnlColor,
   shortAddr,
@@ -76,25 +87,6 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
-function StatTile({
-  label,
-  value,
-  cls,
-}: {
-  label: string;
-  value: React.ReactNode;
-  cls?: string;
-}) {
-  return (
-    <div className="rounded-xl bg-card shadow-card p-4">
-      <div className="stat-label">{label}</div>
-      <div className={cn("stat-value mt-1.5 text-lg md:text-xl text-foreground", cls)}>
-        {value}
-      </div>
-    </div>
-  );
-}
-
 function SectionHeader({
   icon: Icon,
   title,
@@ -108,6 +100,174 @@ function SectionHeader({
       <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground">
         {title}
       </h2>
+    </div>
+  );
+}
+
+/** Dark-glass panel wrapper used by the compact profile stat sections. */
+function PanelCard({
+  children,
+  testId,
+  className,
+}: {
+  children: React.ReactNode;
+  testId?: string;
+  className?: string;
+}) {
+  return (
+    <div
+      data-testid={testId}
+      className={cn("rounded-2xl bg-card shadow-card p-4 md:p-5", className)}
+    >
+      {children}
+    </div>
+  );
+}
+
+/**
+ * Subtle beginner-education affordance: a small info icon that opens a short
+ * "what this means" popover on tap (mobile friendly, unlike hover tooltips).
+ * Kept tiny so pro users are never slowed down.
+ */
+function InfoHint({ title, text }: { title: string; text: string }) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label={`What is ${title}`}
+          onClick={(e) => e.stopPropagation()}
+          className="inline-flex flex-shrink-0 items-center justify-center text-muted-foreground/50 transition-colors hover:text-accent"
+        >
+          <Info className="h-3 w-3" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        className="w-56 p-3"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <p className="text-xs font-semibold text-foreground">{title}</p>
+        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+          {text}
+        </p>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+/**
+ * Compact icon stat card used across Trader DNA and the Call Trophy Case. Gives
+ * the numbers a premium "insight" feel instead of a flat table row. `sub` adds a
+ * small secondary line (e.g. "8 winning") under the value; `hint` adds a beginner
+ * info popover next to the label.
+ */
+function MiniStat({
+  icon: Icon,
+  label,
+  value,
+  valueClass,
+  sub,
+  hint,
+}: {
+  icon?: React.ComponentType<{ className?: string }>;
+  label: string;
+  value: React.ReactNode;
+  valueClass?: string;
+  sub?: React.ReactNode;
+  hint?: { title: string; text: string };
+}) {
+  return (
+    <div className="rounded-xl border border-border/60 bg-secondary/20 p-3">
+      <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+        {Icon && <Icon className="w-3 h-3 flex-shrink-0 text-accent" />}
+        <span className="truncate">{label}</span>
+        {hint && <InfoHint title={hint.title} text={hint.text} />}
+      </div>
+      <div
+        className={cn(
+          "mt-1 font-mono text-base font-semibold tabular-nums text-foreground",
+          valueClass,
+        )}
+      >
+        {value}
+      </div>
+      {sub != null && (
+        <div className="mt-0.5 text-[10px] text-muted-foreground/70">{sub}</div>
+      )}
+    </div>
+  );
+}
+
+type ChipTone = "up" | "down" | "accent" | "muted";
+
+/** Small social-proof pill for the snapshot proof strip. */
+function ProofChip({
+  icon: Icon,
+  children,
+  tone = "muted",
+}: {
+  icon?: React.ComponentType<{ className?: string }>;
+  children: React.ReactNode;
+  tone?: ChipTone;
+}) {
+  const toneCls =
+    tone === "up"
+      ? "text-success"
+      : tone === "down"
+        ? "text-danger"
+        : tone === "accent"
+          ? "text-accent"
+          : "text-foreground";
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-secondary/30 px-2.5 py-1 text-xs font-medium">
+      {Icon && (
+        <Icon
+          className={cn(
+            "w-3 h-3 flex-shrink-0",
+            tone === "accent" ? "text-accent" : "text-muted-foreground",
+          )}
+        />
+      )}
+      <span className={cn("whitespace-nowrap", toneCls)}>{children}</span>
+    </span>
+  );
+}
+
+/**
+ * Lightweight in-page section nav. Smooth-scrolls to anchored sections so the
+ * profile reads like a browseable social page rather than one long dump. Uses
+ * getElementById + scrollIntoView (no router state) so it can never break the
+ * page or hide content.
+ */
+function ProfileSectionNav() {
+  const items = [
+    { id: "profile-overview", label: "Overview" },
+    { id: "profile-activity", label: "Calls" },
+    { id: "profile-thesis", label: "Thesis" },
+    { id: "profile-more", label: "More" },
+  ];
+  const go = (id: string) => {
+    document
+      .getElementById(id)
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+  return (
+    <div
+      data-testid="profile-section-nav"
+      className="mt-3 flex flex-wrap gap-2"
+    >
+      {items.map((it) => (
+        <button
+          key={it.id}
+          type="button"
+          onClick={() => go(it.id)}
+          data-testid={`nav-${it.id}`}
+          className="rounded-full border border-border/70 bg-secondary/30 px-3.5 py-1.5 text-xs font-semibold text-muted-foreground transition-colors hover:border-accent/50 hover:text-accent"
+        >
+          {it.label}
+        </button>
+      ))}
     </div>
   );
 }
@@ -477,42 +637,102 @@ function tradingRankLabel(profile: ProfileResponse): string {
   return "Recruit";
 }
 
-function XReputationSection({ profile }: { profile: ProfileResponse }) {
-  const key = profile.x_username || String(profile.user_id);
-  const { data } = useQuery({
-    queryKey: ["caller-stats", key],
-    queryFn: () =>
-      api.callouts.callerStats(profile.x_username || profile.user_id),
-    enabled: !!profile,
-    retry: false,
-    staleTime: 60_000,
-  });
-  const callerStats = data?.stats ?? null;
-
+/**
+ * Reputation Passport: the identity header answering "why should I trust or
+ * follow this person?". BlackPebble Score is a brand-owned flagship slot, but no
+ * real score field exists on the profile payload yet, so it shows a safe "Soon"
+ * placeholder rather than reusing Trust Score or inventing a number. Trust Score
+ * stays its own distinct stat. Everything else is real profile data.
+ */
+function ReputationPassportSection({
+  profile,
+  solUsd,
+}: {
+  profile: ProfileResponse;
+  solUsd: number;
+}) {
   const trustScore = profile.trustScore?.score ?? 0;
   const trustLabel =
     profile.trustScore?.label ?? trustLabelFromScore(trustScore);
   const rankLabel = tradingRankLabel(profile);
-  const hasGradedCalls = callerStats != null && callerStats.gradedCalls > 0;
-  const callAccuracy = hasGradedCalls
-    ? `${(callerStats!.hitRate * 100).toFixed(0)}%`
-    : null;
+  const s = profile.stats;
 
   return (
-    <>
-      <SectionHeader icon={ShieldCheck} title="Reputation" />
-      <div
-        data-testid="reputation-card"
-        className="rounded-xl bg-card shadow-card overflow-hidden"
-      >
-        <div className="grid grid-cols-3 divide-x divide-border">
-          <div className="flex flex-col items-center gap-1.5 py-5 px-3">
-            <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
-              Trust Score
+    <div id="profile-overview" className="mt-6 scroll-mt-24">
+      <div className="flex items-center gap-2 mb-2">
+        <Fingerprint className="w-4 h-4 text-accent" />
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground">
+          Reputation Passport
+        </h2>
+      </div>
+
+      {/* Flagship BlackPebble Score (signature identity metric) + Trust Score.
+          BlackPebble Score is the platform's own headline stat, so it gets a
+          full-width premium plaque: warm gold glow, gunmetal top hairline,
+          refined icon chip, and room for the label so it never truncates.
+          No real score field exists yet, so it shows an intentional "Beta"
+          state (never a raw placeholder). The value slot preserves its layout
+          for a numeric score later. */}
+      <div className="space-y-2.5 md:space-y-3">
+        <div
+          data-testid="blackpebble-score-card"
+          className="relative overflow-hidden rounded-2xl border border-accent/50 bg-gradient-to-br from-accent/[0.18] via-accent/[0.06] to-transparent p-4 shadow-[0_14px_44px_-20px_rgba(212,175,55,0.6)]"
+        >
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -right-10 -top-10 h-28 w-28 rounded-full bg-accent/20 blur-2xl"
+          />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/60 to-transparent"
+          />
+          <div className="relative flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border border-accent/40 bg-accent/15 shadow-[0_0_10px_-2px_rgba(212,175,55,0.5)]">
+                  <Gem className="h-3 w-3 text-accent" />
+                </span>
+                <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-accent/90">
+                  BlackPebble Score
+                </span>
+                <InfoHint
+                  title="BlackPebble Score"
+                  text="Combines trading, calls, activity, and reputation signals."
+                />
+              </div>
+              <div className="mt-2 text-[11px] font-medium text-muted-foreground/80">
+                Overall trader identity
+              </div>
             </div>
-            <div className="font-mono text-2xl font-bold text-foreground">
+            <div className="flex flex-shrink-0 flex-col items-end text-right">
+              <span
+                data-testid="blackpebble-score"
+                className="font-mono text-3xl font-bold leading-none tracking-tight text-accent"
+              >
+                Beta
+              </span>
+              <span className="mt-1.5 rounded-full border border-accent/30 bg-accent/10 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-accent/80">
+                Calibrating
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-border/70 bg-secondary/25 p-4">
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+              <ShieldCheck className="w-3 h-3 flex-shrink-0 text-accent" />
+              <span>Trust Score</span>
+              <InfoHint
+                title="Trust Score"
+                text="Signals profile credibility, activity, and reputation."
+              />
+            </div>
+            <div className="mt-1.5 font-mono text-3xl font-bold leading-none text-foreground">
               {trustScore}
             </div>
+          </div>
+          <div className="flex-shrink-0">
             <TrustBadge
               score={trustScore}
               label={trustLabel}
@@ -520,32 +740,110 @@ function XReputationSection({ profile }: { profile: ProfileResponse }) {
               showLabel
             />
           </div>
-          <div className="flex flex-col items-center gap-1 py-5 px-3 text-center">
-            <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
-              Trading Rank
-            </div>
-            <div className="font-mono text-sm font-semibold text-foreground leading-tight">
-              {rankLabel}
-            </div>
-          </div>
-          <div className="flex flex-col items-center gap-1 py-5 px-3">
-            <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
-              Call Accuracy
-            </div>
-            <div
-              className={cn(
-                "font-mono font-semibold",
-                callAccuracy
-                  ? "text-2xl text-foreground"
-                  : "text-xs text-muted-foreground",
-              )}
-            >
-              {callAccuracy ?? "No Calls Yet"}
-            </div>
-          </div>
         </div>
       </div>
-    </>
+
+      {/* Proof strip: fast social proof for "is this trader worth watching?" */}
+      <div data-testid="proof-strip" className="mt-2.5 flex flex-wrap gap-2">
+        <ProofChip icon={Trophy} tone="accent">
+          {rankLabel}
+        </ProofChip>
+        <ProofChip icon={Medal} tone="accent">
+          {tierMeta(s.graduationTier).name}
+        </ProofChip>
+        <ProofChip tone={s.winRate >= 50 ? "up" : "muted"}>
+          {s.winRate.toFixed(1)}% Win Rate
+        </ProofChip>
+        <ProofChip tone={s.totalPnlSol >= 0 ? "up" : "down"}>
+          <PnlAmount sol={s.totalPnlSol} solUsd={solUsd} unit={false} /> P&L
+        </ProofChip>
+        <ProofChip>{s.closedTrades} Trades</ProofChip>
+        <ProofChip icon={UserPlus}>{profile.followers} Followers</ProofChip>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Trader DNA: answers "how does this person trade?" with the full behavior stat
+ * set. Avg Hold Time has no source on the public profile payload yet (spot
+ * trades are unpaired buy/sell rows and ProfileStats exposes no hold field), so
+ * it shows a "Soon" slot rather than a faked number. Designed to grow a real
+ * "Trader Style" label later without a redesign.
+ */
+function TraderDnaSection({
+  profile,
+  solUsd,
+}: {
+  profile: ProfileResponse;
+  solUsd: number;
+}) {
+  const s = profile.stats;
+  return (
+    <div className="mt-6">
+      <div className="flex items-center gap-2 mb-2">
+        <Dna className="w-4 h-4 text-accent" />
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground">
+          Trader DNA
+        </h2>
+      </div>
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+        <MiniStat
+          icon={TrendingUp}
+          label="ROI"
+          value={fmtPercent(s.roiPercent)}
+          valueClass={pnlColor(s.roiPercent)}
+        />
+        <MiniStat
+          icon={Coins}
+          label="Total P&L"
+          value={<PnlAmount sol={s.totalPnlSol} solUsd={solUsd} unit={false} />}
+          valueClass={pnlColor(s.totalPnlSol)}
+        />
+        <MiniStat
+          icon={Coins}
+          label="Realized P&L"
+          value={
+            <PnlAmount sol={s.realizedPnlSol} solUsd={solUsd} unit={false} />
+          }
+          valueClass={pnlColor(s.realizedPnlSol)}
+        />
+        <MiniStat
+          icon={Activity}
+          label="Win Rate"
+          value={`${s.winRate.toFixed(1)}%`}
+        />
+        <MiniStat
+          icon={History}
+          label="Closed Trades"
+          value={String(s.closedTrades)}
+        />
+        <MiniStat
+          icon={Zap}
+          label="Executions"
+          value={String(s.totalExecutions)}
+        />
+        <MiniStat
+          icon={Trophy}
+          label="Best Trade"
+          value={<PnlAmount sol={s.bestTrade} solUsd={solUsd} unit={false} />}
+          valueClass={pnlColor(s.bestTrade)}
+        />
+        <MiniStat
+          icon={Activity}
+          label="Avg Hold"
+          value={<span className="text-muted-foreground">Soon</span>}
+          hint={{
+            title: "Avg Hold",
+            text: "Average time between opening and closing paper trades. Coming soon.",
+          }}
+        />
+      </div>
+      <div className="mt-2 flex items-center gap-1.5 px-0.5 text-[11px] text-muted-foreground/70">
+        <Dna className="w-3 h-3 text-accent/70" />
+        Trader style: coming soon
+      </div>
+    </div>
   );
 }
 
@@ -620,93 +918,15 @@ function FollowButton({ profile }: { profile: ProfileResponse }) {
   );
 }
 
-const RARITY_ORDER: BadgeRarity[] = ["legendary", "epic", "rare", "common"];
-
-const CATEGORY_LABELS: Record<BadgeCategory, string> = {
-  trading: "Trading",
-  profit: "Profit",
-  caller: "Calls",
-  thesis: "Research",
-  wallet: "Wallet Utilities",
-  community: "Community",
-  profile: "Profile",
-  milestone: "Milestones",
-  special: "Special",
-};
-
-const CATEGORY_ORDER: BadgeCategory[] = [
-  "trading",
-  "profit",
-  "caller",
-  "thesis",
-  "wallet",
-  "community",
-  "profile",
-  "milestone",
-  "special",
-];
-
-type StatusFilter = "all" | "earned" | "locked";
-type RarityFilter = BadgeRarity | "all";
-type CategoryFilter = BadgeCategory | "all";
-type BadgeSort = "rarity" | "recent" | "progress" | "name";
-
-const STATUS_OPTIONS: { id: StatusFilter; label: string }[] = [
-  { id: "all", label: "All" },
-  { id: "earned", label: "Earned" },
-  { id: "locked", label: "Locked" },
-];
-
-const SORT_OPTIONS: { id: BadgeSort; label: string }[] = [
-  { id: "rarity", label: "Rarity" },
-  { id: "recent", label: "Recent" },
-  { id: "progress", label: "Progress" },
-  { id: "name", label: "Name" },
-];
-
-/** Sort comparator: earned tiles always precede locked, then by chosen key. */
-function compareBadges(a: BadgeEntry, b: BadgeEntry, sort: BadgeSort): number {
-  if (a.earned !== b.earned) return a.earned ? -1 : 1;
-  switch (sort) {
-    case "recent":
-      return (b.earnedAt ?? 0) - (a.earnedAt ?? 0);
-    case "name":
-      return a.name.localeCompare(b.name);
-    case "progress": {
-      const ratio = (x: BadgeEntry) =>
-        x.earned
-          ? 1
-          : x.progress && x.progress.target > 0
-            ? x.progress.current / x.progress.target
-            : 0;
-      return ratio(b) - ratio(a);
-    }
-    case "rarity":
-    default: {
-      const ra = RARITY_ORDER.indexOf(rarityOf(a));
-      const rb = RARITY_ORDER.indexOf(rarityOf(b));
-      if (ra !== rb) return ra - rb;
-      return (b.earnedAt ?? 0) - (a.earnedAt ?? 0);
-    }
-  }
-}
-
 /**
- * Achievements section - lazily fetches the full badge list for this profile and
- * renders a collectible-style view: a summary (progress + rarity breakdown), a
- * grid of earned collectible tiles, and the locked set tucked behind an
- * expandable toggle so the section stays compact by default.
+ * Achievements section - lazily fetches the full badge list for this profile,
+ * runs the fresh-unlock celebration + share-copy logic, and hands the data to
+ * the premium AchievementsShowcase (medallion cluster in earned order, inline
+ * detail reveal, and a compact locked drawer).
  */
 function BadgesSection({ profile }: { profile: ProfileResponse }) {
   const profileKey = profile.x_username || String(profile.user_id);
   const { toast } = useToast();
-  const [showLocked, setShowLocked] = useState(false);
-  const [showFilters, setShowFilters] = useState(false);
-  const [query, setQuery] = useState("");
-  const [category, setCategory] = useState<CategoryFilter>("all");
-  const [status, setStatus] = useState<StatusFilter>("all");
-  const [rarity, setRarity] = useState<RarityFilter>("all");
-  const [sort, setSort] = useState<BadgeSort>("rarity");
   // Keys to briefly shimmer after a fresh unlock (self profile only).
   const [justUnlocked, setJustUnlocked] = useState<Set<string>>(new Set());
 
@@ -717,16 +937,6 @@ function BadgesSection({ profile }: { profile: ProfileResponse }) {
     retry: false,
     staleTime: 60_000,
   });
-
-  const allBadges = data?.badges ?? [];
-  // Hidden achievements stay invisible until earned - never reveal the locked
-  // tile (no name, no hint). Everything else is part of the visible catalogue.
-  const visibleBadges = allBadges.filter((b) => b.earned || !b.hidden);
-  const earnedBadges = visibleBadges.filter((b) => b.earned);
-  const lockedBadges = visibleBadges.filter((b) => !b.earned);
-  const total = visibleBadges.length;
-  const earnedCount = earnedBadges.length;
-  const pct = total > 0 ? Math.round((earnedCount / total) * 100) : 0;
 
   // Premium unlock celebration: diff the current earned set against what this
   // device has already seen for this user. Self profile only; first-ever load
@@ -806,332 +1016,55 @@ function BadgesSection({ profile }: { profile: ProfileResponse }) {
     });
   };
 
-  const rarityCounts = earnedBadges.reduce<Record<BadgeRarity, number>>(
-    (acc, b) => {
-      const r = rarityOf(b);
-      acc[r] = (acc[r] ?? 0) + 1;
-      return acc;
-    },
-    { common: 0, rare: 0, epic: 0, legendary: 0 },
-  );
-
-  // "Most recent unlock" - the earned badge with the latest timestamp.
-  const mostRecent = earnedBadges.reduce<BadgeEntry | null>(
-    (best, b) => ((b.earnedAt ?? 0) > (best?.earnedAt ?? -1) ? b : best),
-    null,
-  );
-  // "Rarest" - lowest index in RARITY_ORDER wins (legendary first); ties are
-  // broken by most-recently earned.
-  const rarestRank = (b: BadgeEntry) => RARITY_ORDER.indexOf(rarityOf(b));
-  const rarest = earnedBadges.reduce<BadgeEntry | null>((best, b) => {
-    if (!best) return b;
-    const rb = rarestRank(b);
-    const rBest = rarestRank(best);
-    if (rb !== rBest) return rb < rBest ? b : best;
-    return (b.earnedAt ?? 0) > (best.earnedAt ?? 0) ? b : best;
-  }, null);
-  // Group earned badges into their collections for display.
-  const earnedByCategory = earnedBadges.reduce<Record<string, BadgeEntry[]>>(
-    (acc, b) => {
-      (acc[b.category] ??= []).push(b);
-      return acc;
-    },
-    {},
-  );
-
-  // Category pills are built from the collections actually present.
-  const presentCategories = CATEGORY_ORDER.filter((c) =>
-    visibleBadges.some((b) => b.category === c),
-  );
-  const categoryOptions = [
-    { id: "all" as CategoryFilter, label: "All" },
-    ...presentCategories.map((c) => ({
-      id: c as CategoryFilter,
-      label: CATEGORY_LABELS[c],
-    })),
-  ];
-
-  const q = query.trim().toLowerCase();
-  const filtersActive =
-    q !== "" || category !== "all" || status !== "all" || rarity !== "all";
-  const filtered = visibleBadges
-    .filter((b) => {
-      if (category !== "all" && b.category !== category) return false;
-      if (status === "earned" && !b.earned) return false;
-      if (status === "locked" && b.earned) return false;
-      if (rarity !== "all" && rarityOf(b) !== rarity) return false;
-      if (
-        q &&
-        !b.name.toLowerCase().includes(q) &&
-        !b.description.toLowerCase().includes(q)
-      )
-        return false;
-      return true;
-    })
-    .sort((a, b) => compareBadges(a, b, sort));
-
-  const onShare = profile.isSelf ? handleShare : undefined;
-
   return (
-    <>
-      <SectionHeader icon={Award} title="Achievements" />
-      <div
-        data-testid="achievements-card"
-        className="rounded-xl bg-card shadow-card p-5"
-      >
-        {isLoading ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-          </div>
-        ) : total === 0 ? (
-          <p className="py-4 text-center text-sm text-muted-foreground">
-            No achievements available.
-          </p>
-        ) : (
-          <>
-            {/* Achievement summary */}
-            <div className="mb-5">
-              <div className="mb-2 flex items-baseline justify-between gap-3">
-                <span className="text-sm font-medium text-foreground">
-                  {earnedCount}
-                  <span className="text-muted-foreground">
-                    {" "}
-                    of {total} unlocked
-                  </span>
-                </span>
-                <div className="flex items-center gap-3">
-                  <span className="text-xs font-semibold text-muted-foreground">
-                    {pct}%
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setShowFilters((v) => !v)}
-                    data-testid="toggle-achievement-filters"
-                    aria-label="Filter achievements"
-                    className={cn(
-                      "rounded-full p-1.5 transition-colors",
-                      showFilters || filtersActive
-                        ? "bg-accent/10 text-accent"
-                        : "text-muted-foreground hover:text-foreground",
-                    )}
-                  >
-                    <SlidersHorizontal className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              </div>
-              <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary/40">
-                <div
-                  className="h-full rounded-full bg-accent transition-all"
-                  style={{ width: `${pct}%` }}
-                />
-              </div>
-              {earnedCount > 0 && (
-                <div className="mt-3 flex flex-wrap gap-1.5">
-                  {RARITY_ORDER.filter((r) => rarityCounts[r] > 0).map((r) => (
-                    <span
-                      key={r}
-                      data-testid={`rarity-chip-${r}`}
-                      className={cn(
-                        "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
-                        RARITY_META[r].chip,
-                      )}
-                    >
-                      {rarityCounts[r]} {RARITY_META[r].label}
-                    </span>
-                  ))}
-                </div>
-              )}
-              {earnedCount > 0 && (mostRecent || rarest) && (
-                <div className="mt-3 grid grid-cols-2 gap-2">
-                  <div className="rounded-lg bg-secondary/30 px-3 py-2">
-                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground/70">
-                      Latest unlock
-                    </div>
-                    <div
-                      data-testid="achievement-latest"
-                      className="mt-0.5 truncate text-xs font-semibold text-foreground"
-                    >
-                      {mostRecent?.name ?? "—"}
-                    </div>
-                  </div>
-                  <div className="rounded-lg bg-secondary/30 px-3 py-2">
-                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground/70">
-                      Rarest
-                    </div>
-                    <div
-                      data-testid="achievement-rarest"
-                      className="mt-0.5 flex items-center gap-1.5"
-                    >
-                      <span className="truncate text-xs font-semibold text-foreground">
-                        {rarest?.name ?? "—"}
-                      </span>
-                      {rarest && (
-                        <span
-                          className={cn(
-                            "flex-shrink-0 rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide",
-                            RARITY_META[rarityOf(rarest)].chip,
-                          )}
-                        >
-                          {RARITY_META[rarityOf(rarest)].label}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
+    <AchievementsShowcase
+      badges={data?.badges ?? []}
+      isLoading={isLoading}
+      justUnlocked={justUnlocked}
+      onShare={profile.isSelf ? handleShare : undefined}
+    />
+  );
+}
 
-            {/* Filter / search controls (collapsed by default for a clean view) */}
-            {showFilters && (
-              <div
-                data-testid="achievement-filters"
-                className="mb-5 space-y-3 rounded-xl border border-border/40 bg-secondary/10 p-3"
-              >
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/60" />
-                  <input
-                    type="text"
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Search achievements"
-                    data-testid="input-achievement-search"
-                    className="w-full rounded-full border border-border bg-background py-1.5 pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-accent/50 focus:outline-none"
-                  />
-                </div>
-                <FilterPills
-                  options={categoryOptions}
-                  value={category}
-                  onChange={(id) => setCategory(id)}
-                  size="sm"
-                  ariaLabel="Filter by collection"
-                  testIdPrefix="filter-category"
-                />
-                <div className="flex flex-wrap items-center gap-2">
-                  <FilterPills
-                    options={STATUS_OPTIONS}
-                    value={status}
-                    onChange={(id) => setStatus(id)}
-                    size="sm"
-                    ariaLabel="Filter by status"
-                    testIdPrefix="filter-status"
-                  />
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <FilterPills
-                    options={[
-                      { id: "all" as RarityFilter, label: "All" },
-                      ...RARITY_ORDER.map((r) => ({
-                        id: r as RarityFilter,
-                        label: RARITY_META[r].label,
-                      })),
-                    ]}
-                    value={rarity}
-                    onChange={(id) => setRarity(id)}
-                    size="sm"
-                    ariaLabel="Filter by rarity"
-                    testIdPrefix="filter-rarity"
-                  />
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
-                    Sort
-                  </span>
-                  <FilterPills
-                    options={SORT_OPTIONS}
-                    value={sort}
-                    onChange={(id) => setSort(id)}
-                    size="sm"
-                    ariaLabel="Sort achievements"
-                    testIdPrefix="sort"
-                  />
-                </div>
-              </div>
-            )}
-
-            {filtersActive ? (
-              /* Flat filtered grid */
-              filtered.length > 0 ? (
-                <div
-                  data-testid="achievement-filtered-grid"
-                  className="grid grid-cols-3 gap-2.5 sm:grid-cols-4 md:grid-cols-5"
-                >
-                  {filtered.map((b) => (
-                    <AchievementBadge
-                      key={b.key}
-                      badge={b}
-                      onShare={onShare}
-                      justUnlocked={justUnlocked.has(b.key)}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <p className="py-4 text-center text-sm text-muted-foreground">
-                  No achievements match these filters.
-                </p>
-              )
-            ) : (
-              <>
-                {/* Earned collectible tiles, grouped by collection */}
-                {earnedCount > 0 ? (
-                  <div className="space-y-4">
-                    {CATEGORY_ORDER.filter(
-                      (c) => earnedByCategory[c]?.length,
-                    ).map((c) => (
-                      <div key={c}>
-                        <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-                          {CATEGORY_LABELS[c]}
-                        </div>
-                        <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4 md:grid-cols-5">
-                          {earnedByCategory[c].map((b) => (
-                            <AchievementBadge
-                              key={b.key}
-                              badge={b}
-                              onShare={onShare}
-                              justUnlocked={justUnlocked.has(b.key)}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="py-2 text-center text-sm text-muted-foreground">
-                    No achievements unlocked yet.
-                  </p>
-                )}
-
-                {/* Locked, behind an expandable toggle */}
-                {lockedBadges.length > 0 && (
-                  <div className="mt-4 border-t border-border/40 pt-4">
-                    <button
-                      type="button"
-                      onClick={() => setShowLocked((v) => !v)}
-                      data-testid="toggle-locked-achievements"
-                      className="flex w-full items-center justify-between text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground/70 transition-colors hover:text-foreground"
-                    >
-                      <span>Locked · {lockedBadges.length}</span>
-                      <ChevronDown
-                        className={cn(
-                          "h-4 w-4 transition-transform",
-                          showLocked && "rotate-180",
-                        )}
-                      />
-                    </button>
-                    {showLocked && (
-                      <div className="mt-3 grid grid-cols-3 gap-2.5 sm:grid-cols-4 md:grid-cols-5">
-                        {lockedBadges.map((b) => (
-                          <AchievementBadge key={b.key} badge={b} />
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </>
-            )}
-          </>
+/**
+ * Circular token image shared by every call-related card (Call Receipts, Best
+ * Call, Lowest Call, activity). Matches the markets/feed visual language: a
+ * round avatar with a graceful initials fallback when the logo is missing or
+ * fails to load (never a broken image or empty gap).
+ */
+function TokenAvatar({
+  logo,
+  symbol,
+  className = "w-9 h-9",
+}: {
+  logo?: string | null;
+  symbol?: string | null;
+  className?: string;
+}) {
+  const [failed, setFailed] = useState(false);
+  if (logo && !failed) {
+    return (
+      <img
+        src={logo}
+        alt=""
+        loading="lazy"
+        onError={() => setFailed(true)}
+        className={cn(
+          "rounded-full object-cover flex-shrink-0 bg-secondary",
+          className,
         )}
-      </div>
-    </>
+      />
+    );
+  }
+  return (
+    <div
+      className={cn(
+        "rounded-full bg-secondary flex items-center justify-center text-[10px] font-semibold uppercase text-muted-foreground flex-shrink-0",
+        className,
+      )}
+    >
+      {symbol?.slice(0, 2) ?? "?"}
+    </div>
   );
 }
 
@@ -1161,42 +1094,81 @@ function ConvictionBadge({ conviction }: { conviction: string | null }) {
   );
 }
 
-/** Live % move since the call, or a muted em-dash when no fresh price. */
-function CalloutResultValue({ result }: { result: CalloutResult | null }) {
-  if (!result || result.pnlPercent == null) {
-    return <span className="font-mono text-sm text-muted-foreground">—</span>;
-  }
-  const v = result.pnlPercent;
-  return (
-    <span className={cn("font-mono text-sm font-semibold", pnlColor(v))}>
-      {v >= 0 ? "+" : ""}
-      {v.toFixed(1)}%
-    </span>
-  );
+/** ATH multiple from call -> ATH percent from call. Null-safe; no faked data. */
+function athPercentFromMultiple(mult: number | null | undefined): number | null {
+  return mult != null && Number.isFinite(mult) && mult > 0
+    ? (mult - 1) * 100
+    : null;
 }
 
-/** One labelled snapshot/performance cell in a callout card. */
-function StatBox({
-  label,
-  value,
-  valueClass,
+/**
+ * Shared call-result block used by every call receipt. Meme-coin calls are
+ * judged on how high they ran AFTER the call, so the ATH from call is the hero:
+ *   1. ATH % from call (big green number)
+ *   2. ATH x from call (bold, beside it)
+ *   3. called MC -> ATH MC run
+ *   4. current stats, demoted to a small secondary row
+ * ATH % is derived from the real ATH multiple ((x - 1) * 100) and ATH MC from
+ * the called MC * ATH multiple. Nothing is invented; only hierarchy changes.
+ */
+function CallResultBlock({
+  athMultiple,
+  currentMultiple,
+  currentPercent,
+  calledMc,
+  currentMc,
 }: {
-  label: string;
-  value: string;
-  valueClass?: string;
+  athMultiple: number | null;
+  currentMultiple: number | null;
+  currentPercent: number | null;
+  calledMc: number | null;
+  currentMc: number | null;
 }) {
+  const athPct = athPercentFromMultiple(athMultiple);
+  const athMc =
+    calledMc != null && athMultiple != null && athMultiple > 0
+      ? calledMc * athMultiple
+      : null;
   return (
-    <div className="border border-border bg-secondary/30 p-2">
-      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-        {label}
+    <div className="mt-3 rounded-xl border border-border/60 bg-secondary/20 p-3">
+      <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-accent/80">
+        <TrendingUp className="w-3 h-3" />
+        ATH return from call
       </div>
-      <div
-        className={cn(
-          "mt-0.5 font-mono text-sm truncate",
-          valueClass ?? "text-foreground",
-        )}
-      >
-        {value}
+      <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1 font-mono">
+        <span className={cn("text-2xl font-bold", pnlColor(athPct))}>
+          {fmtPercent(athPct, 0)}
+        </span>
+        <span
+          className={cn(
+            "text-sm font-semibold",
+            multipleTone(athMultiple),
+          )}
+        >
+          ATH {fmtMultiple(athMultiple)}
+        </span>
+      </div>
+      <div className="mt-1 font-mono text-[11px] text-muted-foreground">
+        Called {fmtMarketCap(calledMc)}
+        {" \u2192 "}
+        ATH {fmtMarketCap(athMc)}
+      </div>
+      {/* Current stats, demoted to a subtle secondary row */}
+      <div className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 border-t border-border/40 pt-2 font-mono text-[11px] text-muted-foreground">
+        <span className="inline-flex items-baseline gap-1">
+          <span className="uppercase tracking-wider text-muted-foreground/70">
+            Now
+          </span>
+          <span className={cn("font-semibold", pnlColor(currentPercent))}>
+            {fmtPercent(currentPercent, 0)}
+          </span>
+        </span>
+        <span className={cn("font-semibold", multipleTone(currentMultiple))}>
+          {fmtMultiple(currentMultiple)}
+        </span>
+        <span className="text-muted-foreground/80">
+          MC {fmtMarketCap(currentMc)}
+        </span>
       </div>
     </div>
   );
@@ -1275,18 +1247,7 @@ function CalloutCard({
     >
       {/* Header: token identity + timestamp */}
       <div className="flex items-start gap-3">
-        {callout.token_logo ? (
-          <img
-            src={callout.token_logo}
-            alt=""
-            className="w-9 h-9 rounded-full object-cover flex-shrink-0"
-            onError={(e) => (e.currentTarget.style.visibility = "hidden")}
-          />
-        ) : (
-          <div className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center text-[10px] text-muted-foreground flex-shrink-0">
-            {callout.token_symbol?.slice(0, 2) ?? "?"}
-          </div>
-        )}
+        <TokenAvatar logo={callout.token_logo} symbol={callout.token_symbol} />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
             <Link
@@ -1308,54 +1269,23 @@ function CalloutCard({
         </div>
       </div>
 
-      {/* Original thesis */}
+      {/* Featured result: for meme calls the flex is how high it ran AFTER the
+          call, so ATH from call is the hero metric. ATH % + ATH x lead, then
+          the called MC to ATH MC run, and current stats sit demoted below. */}
+      <CallResultBlock
+        athMultiple={callout.result?.athMultiple ?? null}
+        currentMultiple={callout.result?.currentMultiple ?? null}
+        currentPercent={callout.result?.pnlPercent ?? null}
+        calledMc={callout.call_market_cap}
+        currentMc={callout.result?.currentMarketCapUsd ?? null}
+      />
+
+      {/* Original call text */}
       {callout.thesis && (
-        <p className="mt-3 text-sm text-foreground whitespace-pre-wrap break-words">
+        <p className="mt-2.5 text-sm text-foreground/90 whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
           {callout.thesis}
         </p>
       )}
-
-      {/* Entry snapshot + live performance */}
-      <div className="mt-3 grid grid-cols-3 gap-2">
-        <StatBox
-          label="Called MC"
-          value={
-            callout.call_market_cap != null
-              ? fmtMarketCap(callout.call_market_cap)
-              : "—"
-          }
-        />
-        <StatBox
-          label="Current MC"
-          value={fmtMarketCap(callout.result?.currentMarketCapUsd ?? null)}
-        />
-        <div className="border border-border bg-secondary/30 p-2">
-          <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-            Result
-          </div>
-          <div className="mt-0.5">
-            <CalloutResultValue result={callout.result} />
-          </div>
-        </div>
-        <StatBox
-          label="Entry Price"
-          value={
-            callout.call_price_usd != null
-              ? fmtPrice(callout.call_price_usd)
-              : "—"
-          }
-        />
-        <StatBox
-          label="Current X"
-          value={fmtMultiple(callout.result?.currentMultiple ?? null)}
-          valueClass={multipleTone(callout.result?.currentMultiple ?? null)}
-        />
-        <StatBox
-          label="ATH X"
-          value={fmtMultiple(callout.result?.athMultiple ?? null)}
-          valueClass={multipleTone(callout.result?.athMultiple ?? null)}
-        />
-      </div>
 
       {/* Append-only update trail */}
       {callout.updates.length > 0 && (
@@ -1509,93 +1439,262 @@ function NewCallForm({ profileKey }: { profileKey: string }) {
   );
 }
 
-/** Aggregated caller reputation - derived live from this trader's callouts. */
-function CallerStatsSection({ profile }: { profile: ProfileResponse }) {
+/**
+ * Call Trophy Case: the flex section. Merges caller reputation (formerly Caller
+ * Stats) and graded call performance (formerly Call Performance) into a compact
+ * stat grid plus a featured Best Call trophy and a smaller Lowest Call. All-time
+ * figures. No grading or stat formulas changed. The Best Call return percent is
+ * derived from its real multiple ((multiple - 1) * 100); nothing is faked.
+ */
+function CallTrophyCaseSection({ profile }: { profile: ProfileResponse }) {
+  const id = profile.x_username || profile.user_id;
   const key = profile.x_username || String(profile.user_id);
-  const { data, isLoading } = useQuery({
+  const { data: csData, isLoading: csLoading } = useQuery({
     queryKey: ["caller-stats", key],
-    queryFn: () => api.callouts.callerStats(profile.x_username || profile.user_id),
+    queryFn: () => api.callouts.callerStats(id),
+    enabled: !!profile,
+    retry: false,
+    staleTime: 60_000,
+  });
+  const { data: perfData, isLoading: perfLoading } = useQuery({
+    queryKey: ["performance", key],
+    queryFn: () => api.profiles.performance(id),
+    enabled: !!profile,
+    retry: false,
+    staleTime: 60_000,
+  });
+  // Reuse the (already cached) call list purely to resolve circular token
+  // images for the Best / Lowest call by mint. Caller stats don't carry a
+  // logo, so we map it in the UI layer without any backend change.
+  const { data: coData } = useQuery({
+    queryKey: ["callouts", key],
+    queryFn: () => api.callouts.list(id),
     enabled: !!profile,
     retry: false,
   });
-  const stats = data?.stats ?? null;
+  const tokenByMint = useMemo(() => {
+    const m = new Map<
+      string,
+      { logo: string | null; symbol: string | null }
+    >();
+    for (const c of coData?.callouts ?? []) {
+      if (!m.has(c.token_mint)) {
+        m.set(c.token_mint, { logo: c.token_logo, symbol: c.token_symbol });
+      }
+    }
+    return m;
+  }, [coData]);
+
+  const cs = csData?.stats ?? null;
+  const all = perfData?.performance.all ?? null;
+  const totalCalls = cs?.callsMade ?? all?.totalCalls ?? 0;
+  const gradedCalls = cs?.gradedCalls ?? all?.gradedCalls ?? 0;
+  const isLoading = csLoading || perfLoading;
+
+  const header = (
+    <div className="flex items-center gap-2 mb-2">
+      <Trophy className="w-4 h-4 text-accent" />
+      <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground">
+        Call Trophy Case
+      </h2>
+    </div>
+  );
+
+  if (isLoading) {
+    return (
+      <div className="mt-6">
+        {header}
+        <PanelCard>
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+          </div>
+        </PanelCard>
+      </div>
+    );
+  }
+
+  if (totalCalls === 0) {
+    return (
+      <div className="mt-6">
+        {header}
+        <PanelCard testId="call-edge-empty">
+          <p className="py-4 text-center text-sm text-muted-foreground">
+            No calls yet.
+          </p>
+        </PanelCard>
+      </div>
+    );
+  }
+
+  const winningCalls =
+    cs && gradedCalls > 0 ? Math.round(cs.hitRate * gradedCalls) : 0;
+  const winRate =
+    cs && gradedCalls > 0
+      ? fmtPercent(cs.hitRate * 100, 0)
+      : all && gradedCalls > 0
+        ? `${all.winRate.toFixed(0)}%`
+        : "—";
+  const best = cs?.bestCall ?? null;
+  // ATH from call is the meme-coin flex: prefer the true ATH high-water
+  // multiple, falling back to the graded multiple only when no peak is tracked.
+  const bestAthMultiple = best ? best.athMultiple ?? best.multiple : null;
+  const bestAthPct = athPercentFromMultiple(bestAthMultiple);
+  const bestAthMc =
+    best &&
+    best.calledMarketCapUsd != null &&
+    bestAthMultiple != null &&
+    bestAthMultiple > 0
+      ? best.calledMarketCapUsd * bestAthMultiple
+      : null;
+  const bestToken = best ? tokenByMint.get(best.token_mint) : undefined;
+  const worst = all?.worstCall ?? null;
+  const worstToken = worst ? tokenByMint.get(worst.token_mint) : undefined;
 
   return (
-    <>
-      <SectionHeader icon={Megaphone} title="Caller Stats" />
-      {isLoading ? (
-        <div className="flex items-center justify-center py-10">
-          <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-        </div>
-      ) : !stats || stats.callsMade === 0 ? (
-        <div
-          data-testid="caller-stats-empty"
-          className="rounded-xl bg-card shadow-card p-5 text-center"
-        >
-          <p className="text-sm text-muted-foreground">No Calls Yet</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-          <StatTile label="Total Calls" value={String(stats.callsMade)} />
-          <StatTile
-            label="Winning Calls"
-            value={String(
-              stats.gradedCalls > 0
-                ? Math.round(stats.hitRate * stats.gradedCalls)
-                : 0,
-            )}
+    <div className="mt-6">
+      {header}
+      <PanelCard testId="call-edge">
+        <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+          <MiniStat
+            icon={Megaphone}
+            label="Total Calls"
+            value={String(totalCalls)}
+            sub={`${winningCalls} winning`}
           />
-          <StatTile
+          <MiniStat
+            icon={Trophy}
             label="Win Rate"
+            value={winRate}
+            hint={{
+              title: "Call Win Rate",
+              text: "Share of graded calls that finished in profit.",
+            }}
+          />
+          <MiniStat
+            icon={TrendingUp}
+            label="Avg Multiple"
+            value={cs?.avgMultiple != null ? fmtMultiple(cs.avgMultiple) : "—"}
+            valueClass={multipleTone(cs?.avgMultiple ?? null)}
+            hint={{
+              title: "Avg Multiple",
+              text: "Average return multiple across graded calls.",
+            }}
+          />
+          <MiniStat
+            icon={Activity}
+            label="Avg Return"
             value={
-              stats.gradedCalls > 0
-                ? fmtPercent(stats.hitRate * 100, 0)
+              all?.avgReturnPercent != null
+                ? fmtPercent(all.avgReturnPercent, 0)
                 : "—"
             }
+            valueClass={
+              all?.avgReturnPercent != null
+                ? pnlColor(all.avgReturnPercent)
+                : undefined
+            }
           />
-          <StatTile
-            label="Avg Multiple"
-            value={stats.avgMultiple != null ? fmtMultiple(stats.avgMultiple) : "—"}
-          />
-          {stats.bestCall ? (
-            <Link
-              href={`/?token=${stats.bestCall.token_mint}`}
-              className="col-span-2 md:col-span-4 block rounded-xl border border-border bg-secondary/30 p-3 hover:border-accent/60 transition-colors"
-            >
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                Best Call
-              </div>
-              <div className="mt-1 flex items-baseline gap-2 flex-wrap">
-                <span className="font-mono text-sm font-semibold text-foreground truncate">
-                  {stats.bestCall.token_symbol ||
-                    shortAddr(stats.bestCall.token_mint, 4)}
-                </span>
-                <span
-                  className={cn(
-                    "font-mono text-sm font-semibold",
-                    multipleTone(stats.bestCall.multiple),
-                  )}
-                >
-                  {fmtMultiple(stats.bestCall.multiple)}
-                </span>
-                {stats.bestCall.athMultiple != null && (
-                  <span className="font-mono text-[11px] text-muted-foreground">
-                    ATH {fmtMultiple(stats.bestCall.athMultiple)}
-                  </span>
-                )}
-              </div>
-              <div className="mt-1 font-mono text-[11px] text-muted-foreground">
-                {fmtMarketCap(stats.bestCall.calledMarketCapUsd ?? null)}
-                {" → "}
-                {fmtMarketCap(stats.bestCall.currentMarketCapUsd ?? null)}
-              </div>
-            </Link>
-          ) : (
-            <StatTile label="Best Call" value="—" />
-          )}
         </div>
-      )}
-    </>
+
+        {/* Featured Best Call trophy (ATH from call is the hero flex) + a
+            smaller Lowest Call comparison beneath it. */}
+        {(best || worst) && (
+          <div className="mt-3 space-y-2">
+            {best && (
+              <Link
+                href={`/?token=${best.token_mint}`}
+                data-testid="call-edge-best"
+                className="relative block overflow-hidden rounded-2xl border border-accent/40 bg-gradient-to-br from-accent/12 via-accent/[0.04] to-transparent p-4 shadow-[0_8px_30px_-16px_rgba(212,175,55,0.5)] transition-colors hover:border-accent/60"
+              >
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-accent/15 blur-2xl"
+                />
+                <div className="relative flex items-center gap-2.5">
+                  <TokenAvatar
+                    logo={bestToken?.logo}
+                    symbol={bestToken?.symbol ?? best.token_symbol}
+                    className="w-9 h-9"
+                  />
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-accent/90">
+                      <Trophy className="w-3 h-3" />
+                      Best Call
+                    </div>
+                    <div className="mt-0.5 font-mono text-base font-bold text-foreground truncate">
+                      {best.token_symbol || shortAddr(best.token_mint, 4)}
+                    </div>
+                  </div>
+                </div>
+                <div className="relative mt-2 text-[10px] uppercase tracking-wider text-accent/70">
+                  ATH return from call
+                </div>
+                <div className="relative mt-0.5 flex flex-wrap items-baseline gap-x-3 gap-y-1 font-mono">
+                  <span
+                    className={cn("text-2xl font-bold", pnlColor(bestAthPct))}
+                  >
+                    {fmtPercent(bestAthPct, 0)}
+                  </span>
+                  <span
+                    className={cn(
+                      "text-sm font-semibold",
+                      multipleTone(bestAthMultiple),
+                    )}
+                  >
+                    ATH {fmtMultiple(bestAthMultiple)}
+                  </span>
+                </div>
+                <div className="relative mt-1 font-mono text-[11px] text-muted-foreground">
+                  Called {fmtMarketCap(best.calledMarketCapUsd ?? null)}
+                  {" \u2192 "}
+                  ATH {fmtMarketCap(bestAthMc)}
+                </div>
+                {/* Current, demoted */}
+                <div className="relative mt-1.5 border-t border-accent/15 pt-1.5 font-mono text-[10px] text-muted-foreground/80">
+                  Graded {fmtMultiple(best.multiple)}
+                  {" \u00b7 Now "}
+                  {fmtMarketCap(best.currentMarketCapUsd ?? null)}
+                </div>
+              </Link>
+            )}
+            {worst && (
+              <Link
+                href={`/?token=${worst.token_mint}`}
+                data-testid="call-edge-lowest"
+                className="flex items-center gap-3 rounded-xl border border-border/60 bg-secondary/20 p-3 transition-colors hover:border-accent/50"
+              >
+                <TokenAvatar
+                  logo={worstToken?.logo}
+                  symbol={worstToken?.symbol ?? worst.token_symbol}
+                  className="w-8 h-8"
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Lowest Call
+                  </div>
+                  <div className="mt-0.5 font-mono text-sm font-semibold text-foreground truncate">
+                    {worst.token_symbol || shortAddr(worst.token_mint, 4)}
+                  </div>
+                </div>
+                <div className="flex-shrink-0 text-right">
+                  <span
+                    className={cn(
+                      "font-mono text-sm font-semibold",
+                      pnlColor(worst.returnPercent),
+                    )}
+                  >
+                    {fmtPercent(worst.returnPercent, 0)}
+                  </span>
+                  <div className="text-[10px] text-muted-foreground">
+                    Lowest graded return
+                  </div>
+                </div>
+              </Link>
+            )}
+          </div>
+        )}
+      </PanelCard>
+    </div>
   );
 }
 
@@ -1623,18 +1722,7 @@ function ThesisCard({ thesis }: { thesis: ThesisWithAuthor }) {
       className="rounded-xl bg-card shadow-card p-4"
     >
       <div className="flex items-start gap-3">
-        {thesis.token_logo ? (
-          <img
-            src={thesis.token_logo}
-            alt=""
-            className="w-9 h-9 rounded-full object-cover flex-shrink-0"
-            onError={(e) => (e.currentTarget.style.visibility = "hidden")}
-          />
-        ) : (
-          <div className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center text-[10px] text-muted-foreground flex-shrink-0">
-            {thesis.token_symbol?.slice(0, 2) ?? "?"}
-          </div>
-        )}
+        <TokenAvatar logo={thesis.token_logo} symbol={thesis.token_symbol} />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm font-semibold text-foreground truncate">
@@ -1658,10 +1746,10 @@ function ThesisCard({ thesis }: { thesis: ThesisWithAuthor }) {
         </div>
       </div>
 
-      <p className="mt-3 text-sm font-semibold text-foreground break-words">
+      <p className="mt-3 text-sm font-semibold text-foreground break-words [overflow-wrap:anywhere]">
         {thesis.title}
       </p>
-      <p className="mt-1 text-sm text-foreground/90 whitespace-pre-wrap break-words">
+      <p className="mt-1 text-sm text-foreground/90 break-words [overflow-wrap:anywhere] line-clamp-4">
         {thesis.content}
       </p>
     </div>
@@ -1683,8 +1771,8 @@ function ThesisHistorySection({ profile }: { profile: ProfileResponse }) {
   const theses = data?.theses ?? [];
 
   return (
-    <>
-      <SectionHeader icon={ScrollText} title="Thesis History" />
+    <div id="profile-thesis" className="scroll-mt-24">
+      <SectionHeader icon={ScrollText} title="Thesis Notes" />
       {isLoading ? (
         <div className="flex items-center justify-center py-10">
           <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
@@ -1703,7 +1791,7 @@ function ThesisHistorySection({ profile }: { profile: ProfileResponse }) {
           ))}
         </div>
       )}
-    </>
+    </div>
   );
 }
 
@@ -1719,8 +1807,8 @@ function CallHistorySection({ profile }: { profile: ProfileResponse }) {
   const callouts = data?.callouts ?? [];
 
   return (
-    <>
-      <SectionHeader icon={History} title="Call History" />
+    <div className="scroll-mt-24">
+      <SectionHeader icon={History} title="Call Receipts" />
       {profile.isSelf && <NewCallForm profileKey={key} />}
       {isLoading ? (
         <div className="flex items-center justify-center py-10">
@@ -1747,123 +1835,119 @@ function CallHistorySection({ profile }: { profile: ProfileResponse }) {
           ))}
         </div>
       )}
-    </>
+    </div>
   );
 }
 
-type PerfWindow = "30d" | "90d" | "all";
+/**
+ * Trader Activity: frames Call Receipts and Thesis Notes as one social feed with
+ * lightweight filter chips (All / Calls / Thesis). The filter is local UI state
+ * only; both underlying sections keep their own data + owner controls, so
+ * nothing about calls or theses logic changes.
+ */
+type ActivityTab = "all" | "calls" | "thesis";
 
-const perfTabs: { id: PerfWindow; label: string }[] = [
-  { id: "30d", label: "30D" },
-  { id: "90d", label: "90D" },
-  { id: "all", label: "All Time" },
-];
-
-/** Period-filtered call performance (30D / 90D / All-time), graded live. */
-function PerformanceSection({ profile }: { profile: ProfileResponse }) {
-  const [win, setWin] = useState<PerfWindow>("30d");
-  const key = profile.x_username || String(profile.user_id);
-
-  const { data, isLoading } = useQuery({
-    queryKey: ["performance", key],
-    queryFn: () =>
-      api.profiles.performance(profile.x_username || profile.user_id),
-    retry: false,
-    staleTime: 60_000,
-  });
-
-  const perf: PeriodPerformance | null = data
-    ? win === "30d"
-      ? data.performance.window30d
-      : win === "90d"
-        ? data.performance.window90d
-        : data.performance.all
-    : null;
-
+function TraderActivitySection({ profile }: { profile: ProfileResponse }) {
+  const [tab, setTab] = useState<ActivityTab>("all");
   return (
-    <>
-      <SectionHeader icon={Activity} title="Call Performance" />
+    <div id="profile-activity" className="mt-6 scroll-mt-24">
+      <div className="flex items-center gap-2 mb-2">
+        <Rss className="w-4 h-4 text-accent" />
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground">
+          Trader Activity
+        </h2>
+      </div>
       <FilterPills
-        options={perfTabs}
-        value={win}
-        onChange={(id) => setWin(id)}
+        options={[
+          { id: "all", label: "All" },
+          { id: "calls", label: "Calls" },
+          { id: "thesis", label: "Thesis" },
+        ]}
+        value={tab}
+        onChange={(id) => setTab(id as ActivityTab)}
         size="sm"
-        ariaLabel="Performance window"
-        testIdPrefix="perf-window"
-        className="mb-3"
+        ariaLabel="Activity filter"
+        testIdPrefix="activity-filter"
       />
-      {isLoading ? (
-        <div className="flex items-center justify-center py-10">
-          <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-        </div>
-      ) : !perf || perf.totalCalls === 0 ? (
-        <div
-          data-testid="performance-empty"
-          className="rounded-xl bg-card shadow-card text-center py-10 px-6"
-        >
-          <p className="text-foreground font-medium mb-1">No calls in this window</p>
-          <p className="text-muted-foreground text-sm max-w-sm mx-auto">
-            Calls made in the selected period are graded live and summarized here.
-          </p>
-        </div>
-      ) : (
-        <div data-testid="performance-card">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-            <StatTile label="Total Calls" value={String(perf.totalCalls)} />
-            <StatTile label="Graded" value={String(perf.gradedCalls)} />
-            <StatTile
-              label="Win Rate"
-              value={`${perf.winRate.toFixed(0)}%`}
-              cls={perf.winRate >= 60 ? "text-success" : undefined}
-            />
-            <StatTile
-              label="Avg Return"
-              value={
-                perf.avgReturnPercent == null
-                  ? "—"
-                  : fmtPercent(perf.avgReturnPercent, 0)
-              }
-              cls={
-                perf.avgReturnPercent != null
-                  ? pnlColor(perf.avgReturnPercent)
-                  : undefined
-              }
-            />
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
-            <PerfCallTile label="Best Call" call={perf.bestCall} />
-            <PerfCallTile label="Worst Call" call={perf.worstCall} />
-          </div>
-        </div>
-      )}
-    </>
+      {tab !== "thesis" && <CallHistorySection profile={profile} />}
+      {tab !== "calls" && <ThesisHistorySection profile={profile} />}
+    </div>
   );
 }
 
-function PerfCallTile({
-  label,
-  call,
-}: {
-  label: string;
-  call: PeriodPerformance["bestCall"];
-}) {
+/**
+ * More Reputation Lanes: future-ready collapsed dropdown that shows where the
+ * Crypto Reputation Passport is heading (Dev History, Wallet Utility Proof,
+ * Campaign Record). No data systems exist yet, so each lane shows a subtle,
+ * honest "Coming soon" state. Nothing here is faked and it stays collapsed by
+ * default so it never clutters the active profile.
+ */
+function MoreReputationLanesSection() {
+  const [open, setOpen] = useState(false);
+  const lanes = [
+    {
+      icon: Rocket,
+      title: "Dev History",
+      text: "Tokens launched, launch dates, peak and current market cap, and burn proof.",
+    },
+    {
+      icon: Wallet,
+      title: "Wallet Utility Proof",
+      text: "SOL recovered, token burns, and cleanup receipts.",
+    },
+    {
+      icon: Megaphone,
+      title: "Campaign Record",
+      text: "Campaigns created, funded, and organizer reputation.",
+    },
+  ];
   return (
-    <div className="rounded-xl bg-card shadow-card p-4">
-      <div className="stat-label">{label}</div>
-      {call ? (
-        <div className="mt-1.5 flex items-center justify-between gap-2">
-          <span className="font-medium text-foreground truncate">
-            {call.token_symbol || shortAddr(call.token_mint, 4)}
-          </span>
-          <span
-            className={cn("font-mono text-lg", pnlColor(call.returnPercent))}
+    <div id="profile-more" className="mt-6 scroll-mt-24">
+      <Collapsible open={open} onOpenChange={setOpen}>
+        <CollapsibleTrigger asChild>
+          <button
+            type="button"
+            data-testid="more-reputation-lanes"
+            className="flex w-full items-center justify-between gap-2 rounded-2xl bg-card p-4 shadow-card transition-colors hover:bg-card/80"
           >
-            {fmtPercent(call.returnPercent, 0)}
-          </span>
-        </div>
-      ) : (
-        <div className="stat-value mt-1.5 text-lg text-muted-foreground">—</div>
-      )}
+            <span className="flex items-center gap-2">
+              <Layers className="w-4 h-4 text-accent" />
+              <span className="text-sm font-semibold uppercase tracking-wider text-foreground">
+                More Reputation Lanes
+              </span>
+            </span>
+            <ChevronDown
+              className={cn(
+                "w-4 h-4 flex-shrink-0 text-muted-foreground transition-transform",
+                open && "rotate-180",
+              )}
+            />
+          </button>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="mt-2 space-y-2">
+          {lanes.map((lane) => (
+            <div
+              key={lane.title}
+              className="flex items-start gap-3 rounded-xl border border-border/60 bg-secondary/20 p-3"
+            >
+              <lane.icon className="w-4 h-4 flex-shrink-0 text-accent/80 mt-0.5" />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-semibold text-foreground">
+                    {lane.title}
+                  </span>
+                  <span className="flex-shrink-0 rounded-full border border-border/70 bg-secondary/40 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                    Coming soon
+                  </span>
+                </div>
+                <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                  {lane.text}
+                </p>
+              </div>
+            </div>
+          ))}
+        </CollapsibleContent>
+      </Collapsible>
     </div>
   );
 }
@@ -1991,7 +2075,6 @@ export default function ProfilePage() {
 
   const profile = data;
   const profileUrl = xProfileUrl(profile.x_username);
-  const stats = profile.stats;
 
   return (
     <div className="w-full max-w-5xl mx-auto px-4 md:px-6 py-6">
@@ -2059,54 +2142,29 @@ export default function ProfilePage() {
         )}
       </div>
 
-      {/* Reputation - trust score, trading rank, call accuracy */}
-      <XReputationSection profile={profile} />
+      {/* In-page section nav: browseable social profile, not one long dump */}
+      <ProfileSectionNav />
 
-      {/* Performance - trader stats grid */}
-      <SectionHeader icon={Trophy} title="Trader Stats" />
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-        <StatTile
-          label="ROI"
-          value={fmtPercent(stats.roiPercent)}
-          cls={pnlColor(stats.roiPercent)}
-        />
-        <StatTile
-          label="Total P&L"
-          value={<PnlAmount sol={stats.totalPnlSol} solUsd={solUsd} unit={false} />}
-          cls={pnlColor(stats.totalPnlSol)}
-        />
-        <StatTile
-          label="Realized P&L"
-          value={
-            <PnlAmount sol={stats.realizedPnlSol} solUsd={solUsd} unit={false} />
-          }
-          cls={pnlColor(stats.realizedPnlSol)}
-        />
-        <StatTile label="Win Rate" value={`${stats.winRate.toFixed(1)}%`} />
-        <StatTile label="Closed Trades" value={String(stats.closedTrades)} />
-        <StatTile label="Executions" value={String(stats.totalExecutions)} />
-        <StatTile
-          label="Best Trade"
-          value={<PnlAmount sol={stats.bestTrade} solUsd={solUsd} unit={false} />}
-          cls={pnlColor(stats.bestTrade)}
-        />
-        <StatTile label="Tier" value={tierMeta(stats.graduationTier).name} />
-      </div>
+      {/* Reputation Passport - flagship identity: BlackPebble Score, Trust
+          Score, and a social proof strip */}
+      <ReputationPassportSection profile={profile} solUsd={solUsd} />
 
-      {/* Caller Stats (real, derived from callouts) */}
-      <CallerStatsSection profile={profile} />
+      {/* Trader DNA - how this person trades (full behavior stat set) */}
+      <TraderDnaSection profile={profile} solUsd={solUsd} />
 
-      {/* Period-filtered call performance (30D / 90D / All) */}
-      <PerformanceSection profile={profile} />
+      {/* Call Trophy Case - scoreboard + featured Best Call / Lowest Call */}
+      <CallTrophyCaseSection profile={profile} />
 
-      {/* Activity - call and thesis history */}
-      <CallHistorySection profile={profile} />
-      <ThesisHistorySection profile={profile} />
+      {/* Trader Activity - Call Receipts + Thesis Notes as one feed */}
+      <TraderActivitySection profile={profile} />
 
-      {/* Achievements & Badges */}
+      {/* Future-ready reputation lanes (collapsed, no fake data) */}
+      <MoreReputationLanesSection />
+
+      {/* Achievements - premium collectible medallion showcase */}
       <BadgesSection profile={profile} />
 
-      {/* Share this profile */}
+      {/* Share this profile (sits below the achievements showcase) */}
       <ShareCard profile={profile} />
     </div>
   );

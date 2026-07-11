@@ -139,6 +139,11 @@ export function rarityOf(badge: BadgeEntry): BadgeRarity {
   return badge.rarity ?? "common";
 }
 
+/** Resolve a badge's server icon-name hint to a lucide component (Award fallback). */
+export function iconForBadge(badge: BadgeEntry): LucideIcon {
+  return ICONS[badge.icon] ?? Award;
+}
+
 interface AchievementBadgeProps {
   badge: BadgeEntry;
   className?: string;
