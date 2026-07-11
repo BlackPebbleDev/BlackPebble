@@ -8,14 +8,20 @@ import {
   ChevronDown,
   Coins,
   Copy,
+  Dna,
+  Fingerprint,
   Gem,
   History,
+  Info,
+  Layers,
   Loader2,
   Lock,
   Medal,
   Megaphone,
   Pencil,
   Plus,
+  Rocket,
+  Rss,
   ScrollText,
   Search,
   Send,
@@ -26,6 +32,7 @@ import {
   Trophy,
   UserPlus,
   UserCheck,
+  Wallet,
   X as CloseIcon,
   Zap,
 } from "lucide-react";
@@ -51,6 +58,16 @@ import {
 } from "@/components/achievement-badge";
 import { TrustBadge, trustLabelFromScore } from "@/components/reputation-card";
 import { FilterPills } from "@/components/filter-pills";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { useXAuth } from "@/hooks/use-x-auth";
 import { useSolUsd } from "@/hooks/use-sol-usd";
 import {
@@ -117,9 +134,42 @@ function PanelCard({
 }
 
 /**
- * Compact icon stat card used in the Trading Behavior and Call Edge grids. Gives
+ * Subtle beginner-education affordance: a small info icon that opens a short
+ * "what this means" popover on tap (mobile friendly, unlike hover tooltips).
+ * Kept tiny so pro users are never slowed down.
+ */
+function InfoHint({ title, text }: { title: string; text: string }) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label={`What is ${title}`}
+          onClick={(e) => e.stopPropagation()}
+          className="inline-flex flex-shrink-0 items-center justify-center text-muted-foreground/50 transition-colors hover:text-accent"
+        >
+          <Info className="h-3 w-3" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        className="w-56 p-3"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <p className="text-xs font-semibold text-foreground">{title}</p>
+        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+          {text}
+        </p>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+/**
+ * Compact icon stat card used across Trader DNA and the Call Trophy Case. Gives
  * the numbers a premium "insight" feel instead of a flat table row. `sub` adds a
- * small secondary line (e.g. "8 winning") under the value.
+ * small secondary line (e.g. "8 winning") under the value; `hint` adds a beginner
+ * info popover next to the label.
  */
 function MiniStat({
   icon: Icon,
@@ -127,18 +177,21 @@ function MiniStat({
   value,
   valueClass,
   sub,
+  hint,
 }: {
   icon?: React.ComponentType<{ className?: string }>;
   label: string;
   value: React.ReactNode;
   valueClass?: string;
   sub?: React.ReactNode;
+  hint?: { title: string; text: string };
 }) {
   return (
     <div className="rounded-xl border border-border/60 bg-secondary/20 p-3">
       <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">
-        {Icon && <Icon className="w-3 h-3 text-accent" />}
+        {Icon && <Icon className="w-3 h-3 flex-shrink-0 text-accent" />}
         <span className="truncate">{label}</span>
+        {hint && <InfoHint title={hint.title} text={hint.text} />}
       </div>
       <div
         className={cn(
@@ -199,8 +252,9 @@ function ProofChip({
 function ProfileSectionNav() {
   const items = [
     { id: "profile-overview", label: "Overview" },
-    { id: "profile-calls", label: "Calls" },
+    { id: "profile-activity", label: "Calls" },
     { id: "profile-thesis", label: "Thesis" },
+    { id: "profile-more", label: "More" },
   ];
   const go = (id: string) => {
     document
@@ -593,13 +647,13 @@ function tradingRankLabel(profile: ProfileResponse): string {
 }
 
 /**
- * Trader Snapshot: the identity headline directly under the hero. BlackPebble
- * Score is a brand-owned slot, but no real score field exists on the profile
- * payload yet, so it shows a safe "Soon" placeholder rather than reusing Trust
- * Score or inventing a number. Trust Score stays its own distinct stat.
- * Everything else is real profile data.
+ * Reputation Passport: the identity header answering "why should I trust or
+ * follow this person?". BlackPebble Score is a brand-owned flagship slot, but no
+ * real score field exists on the profile payload yet, so it shows a safe "Soon"
+ * placeholder rather than reusing Trust Score or inventing a number. Trust Score
+ * stays its own distinct stat. Everything else is real profile data.
  */
-function TraderSnapshotSection({
+function ReputationPassportSection({
   profile,
   solUsd,
 }: {
@@ -615,13 +669,13 @@ function TraderSnapshotSection({
   return (
     <div id="profile-overview" className="mt-6 scroll-mt-24">
       <div className="flex items-center gap-2 mb-2">
-        <ShieldCheck className="w-4 h-4 text-accent" />
+        <Fingerprint className="w-4 h-4 text-accent" />
         <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground">
-          Trader Snapshot
+          Reputation Passport
         </h2>
       </div>
 
-      {/* Two premium identity cards: branded BlackPebble Score + Trust Score */}
+      {/* Two premium identity cards: flagship BlackPebble Score + Trust Score */}
       <div className="grid grid-cols-2 gap-2.5 md:gap-3">
         <div className="relative overflow-hidden rounded-2xl border border-accent/40 bg-gradient-to-br from-accent/15 via-accent/[0.06] to-transparent p-4 shadow-[0_8px_30px_-14px_rgba(212,175,55,0.45)]">
           <div
@@ -629,8 +683,12 @@ function TraderSnapshotSection({
             className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-accent/15 blur-2xl"
           />
           <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-accent/90">
-            <Gem className="w-3 h-3" />
-            BlackPebble Score
+            <Gem className="w-3 h-3 flex-shrink-0" />
+            <span className="truncate">BlackPebble Score</span>
+            <InfoHint
+              title="BlackPebble Score"
+              text="An upcoming profile score for trader identity and reputation."
+            />
           </div>
           <div
             data-testid="blackpebble-score"
@@ -644,8 +702,12 @@ function TraderSnapshotSection({
         </div>
         <div className="rounded-2xl border border-border/70 bg-secondary/25 p-4">
           <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">
-            <ShieldCheck className="w-3 h-3 text-accent" />
-            Trust Score
+            <ShieldCheck className="w-3 h-3 flex-shrink-0 text-accent" />
+            <span className="truncate">Trust Score</span>
+            <InfoHint
+              title="Trust Score"
+              text="Signals profile credibility, activity, and reputation."
+            />
           </div>
           <div className="mt-1.5 font-mono text-3xl font-bold leading-none text-foreground">
             {trustScore}
@@ -662,30 +724,34 @@ function TraderSnapshotSection({
       </div>
 
       {/* Proof strip: fast social proof for "is this trader worth watching?" */}
-      <div
-        data-testid="proof-strip"
-        className="mt-2.5 flex flex-wrap gap-2"
-      >
+      <div data-testid="proof-strip" className="mt-2.5 flex flex-wrap gap-2">
         <ProofChip icon={Trophy} tone="accent">
           {rankLabel}
         </ProofChip>
         <ProofChip icon={Medal} tone="accent">
           {tierMeta(s.graduationTier).name}
         </ProofChip>
-        <ProofChip tone={s.roiPercent >= 0 ? "up" : "down"}>
-          {fmtPercent(s.roiPercent)} ROI
+        <ProofChip tone={s.winRate >= 50 ? "up" : "muted"}>
+          {s.winRate.toFixed(1)}% Win Rate
         </ProofChip>
         <ProofChip tone={s.totalPnlSol >= 0 ? "up" : "down"}>
           <PnlAmount sol={s.totalPnlSol} solUsd={solUsd} unit={false} /> P&L
         </ProofChip>
-        <ProofChip>{s.winRate.toFixed(1)}% Win Rate</ProofChip>
+        <ProofChip>{s.closedTrades} Trades</ProofChip>
+        <ProofChip icon={UserPlus}>{profile.followers} Followers</ProofChip>
       </div>
     </div>
   );
 }
 
-/** Trading Behavior: trade-level detail that complements the snapshot. */
-function TradingBehaviorSection({
+/**
+ * Trader DNA: answers "how does this person trade?" with the full behavior stat
+ * set. Avg Hold Time has no source on the public profile payload yet (spot
+ * trades are unpaired buy/sell rows and ProfileStats exposes no hold field), so
+ * it shows a "Soon" slot rather than a faked number. Designed to grow a real
+ * "Trader Style" label later without a redesign.
+ */
+function TraderDnaSection({
   profile,
   solUsd,
 }: {
@@ -694,14 +760,39 @@ function TradingBehaviorSection({
 }) {
   const s = profile.stats;
   return (
-    <div>
+    <div className="mt-6">
       <div className="flex items-center gap-2 mb-2">
-        <Activity className="w-4 h-4 text-accent" />
+        <Dna className="w-4 h-4 text-accent" />
         <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground">
-          Trading Behavior
+          Trader DNA
         </h2>
       </div>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+        <MiniStat
+          icon={TrendingUp}
+          label="ROI"
+          value={fmtPercent(s.roiPercent)}
+          valueClass={pnlColor(s.roiPercent)}
+        />
+        <MiniStat
+          icon={Coins}
+          label="Total P&L"
+          value={<PnlAmount sol={s.totalPnlSol} solUsd={solUsd} unit={false} />}
+          valueClass={pnlColor(s.totalPnlSol)}
+        />
+        <MiniStat
+          icon={Coins}
+          label="Realized P&L"
+          value={
+            <PnlAmount sol={s.realizedPnlSol} solUsd={solUsd} unit={false} />
+          }
+          valueClass={pnlColor(s.realizedPnlSol)}
+        />
+        <MiniStat
+          icon={Activity}
+          label="Win Rate"
+          value={`${s.winRate.toFixed(1)}%`}
+        />
         <MiniStat
           icon={History}
           label="Closed Trades"
@@ -713,19 +804,24 @@ function TradingBehaviorSection({
           value={String(s.totalExecutions)}
         />
         <MiniStat
-          icon={TrendingUp}
+          icon={Trophy}
           label="Best Trade"
           value={<PnlAmount sol={s.bestTrade} solUsd={solUsd} unit={false} />}
           valueClass={pnlColor(s.bestTrade)}
         />
         <MiniStat
-          icon={Coins}
-          label="Realized P&L"
-          value={
-            <PnlAmount sol={s.realizedPnlSol} solUsd={solUsd} unit={false} />
-          }
-          valueClass={pnlColor(s.realizedPnlSol)}
+          icon={Activity}
+          label="Avg Hold"
+          value={<span className="text-muted-foreground">Soon</span>}
+          hint={{
+            title: "Avg Hold",
+            text: "Average time between opening and closing paper trades. Coming soon.",
+          }}
         />
+      </div>
+      <div className="mt-2 flex items-center gap-1.5 px-0.5 text-[11px] text-muted-foreground/70">
+        <Dna className="w-3 h-3 text-accent/70" />
+        Trader style: coming soon
       </div>
     </div>
   );
@@ -1672,14 +1768,14 @@ function NewCallForm({ profileKey }: { profileKey: string }) {
   );
 }
 
-/** Aggregated caller reputation - derived live from this trader's callouts. */
 /**
- * Call Edge: one merged, compact view of caller reputation (formerly Caller
- * Stats) and graded call performance (formerly Call Performance), so the
- * profile shows call proof without two overlapping stat walls. All-time
- * figures. No grading or stat formulas changed.
+ * Call Trophy Case: the flex section. Merges caller reputation (formerly Caller
+ * Stats) and graded call performance (formerly Call Performance) into a compact
+ * stat grid plus a featured Best Call trophy and a smaller Lowest Call. All-time
+ * figures. No grading or stat formulas changed. The Best Call return percent is
+ * derived from its real multiple ((multiple - 1) * 100); nothing is faked.
  */
-function CallEdgeSection({ profile }: { profile: ProfileResponse }) {
+function CallTrophyCaseSection({ profile }: { profile: ProfileResponse }) {
   const id = profile.x_username || profile.user_id;
   const key = profile.x_username || String(profile.user_id);
   const { data: csData, isLoading: csLoading } = useQuery({
@@ -1705,16 +1801,16 @@ function CallEdgeSection({ profile }: { profile: ProfileResponse }) {
 
   const header = (
     <div className="flex items-center gap-2 mb-2">
-      <Megaphone className="w-4 h-4 text-accent" />
+      <Trophy className="w-4 h-4 text-accent" />
       <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground">
-        Call Edge
+        Call Trophy Case
       </h2>
     </div>
   );
 
   if (isLoading) {
     return (
-      <div>
+      <div className="mt-6">
         {header}
         <PanelCard>
           <div className="flex items-center justify-center py-8">
@@ -1727,7 +1823,7 @@ function CallEdgeSection({ profile }: { profile: ProfileResponse }) {
 
   if (totalCalls === 0) {
     return (
-      <div>
+      <div className="mt-6">
         {header}
         <PanelCard testId="call-edge-empty">
           <p className="py-4 text-center text-sm text-muted-foreground">
@@ -1746,24 +1842,39 @@ function CallEdgeSection({ profile }: { profile: ProfileResponse }) {
       : all && gradedCalls > 0
         ? `${all.winRate.toFixed(0)}%`
         : "—";
+  const best = cs?.bestCall ?? null;
+  const bestReturnPct =
+    best && best.multiple > 0 ? (best.multiple - 1) * 100 : null;
 
   return (
-    <div>
+    <div className="mt-6">
       {header}
       <PanelCard testId="call-edge">
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
           <MiniStat
             icon={Megaphone}
             label="Total Calls"
             value={String(totalCalls)}
             sub={`${winningCalls} winning`}
           />
-          <MiniStat icon={Trophy} label="Win Rate" value={winRate} />
+          <MiniStat
+            icon={Trophy}
+            label="Win Rate"
+            value={winRate}
+            hint={{
+              title: "Call Win Rate",
+              text: "Share of graded calls that finished in profit.",
+            }}
+          />
           <MiniStat
             icon={TrendingUp}
             label="Avg Multiple"
             value={cs?.avgMultiple != null ? fmtMultiple(cs.avgMultiple) : "—"}
             valueClass={multipleTone(cs?.avgMultiple ?? null)}
+            hint={{
+              title: "Avg Multiple",
+              text: "Average return multiple across graded calls.",
+            }}
           />
           <MiniStat
             icon={Activity}
@@ -1781,41 +1892,56 @@ function CallEdgeSection({ profile }: { profile: ProfileResponse }) {
           />
         </div>
 
-        {(cs?.bestCall || all?.worstCall) && (
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            {cs?.bestCall && (
+        {/* Featured Best Call trophy + smaller Lowest Call comparison */}
+        {(best || all?.worstCall) && (
+          <div className="mt-3 space-y-2">
+            {best && (
               <Link
-                href={`/?token=${cs.bestCall.token_mint}`}
+                href={`/?token=${best.token_mint}`}
                 data-testid="call-edge-best"
-                className="block rounded-xl border border-accent/25 bg-accent/[0.04] p-3 hover:border-accent/60 transition-colors"
+                className="relative block overflow-hidden rounded-2xl border border-accent/40 bg-gradient-to-br from-accent/12 via-accent/[0.04] to-transparent p-4 shadow-[0_8px_30px_-16px_rgba(212,175,55,0.5)] transition-colors hover:border-accent/60"
               >
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-accent/15 blur-2xl"
+                />
                 <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-accent/90">
                   <Trophy className="w-3 h-3" />
                   Best Call
                 </div>
-                <div className="mt-1 flex items-baseline gap-2 flex-wrap">
-                  <span className="font-mono text-sm font-semibold text-foreground truncate">
-                    {cs.bestCall.token_symbol ||
-                      shortAddr(cs.bestCall.token_mint, 4)}
-                  </span>
+                <div className="mt-1 font-mono text-lg font-bold text-foreground truncate">
+                  {best.token_symbol || shortAddr(best.token_mint, 4)}
+                </div>
+                <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1 font-mono">
+                  {bestReturnPct != null && (
+                    <span
+                      className={cn(
+                        "text-xl font-bold",
+                        pnlColor(bestReturnPct),
+                      )}
+                    >
+                      {bestReturnPct >= 0 ? "+" : ""}
+                      {bestReturnPct.toFixed(0)}%
+                    </span>
+                  )}
                   <span
                     className={cn(
-                      "font-mono text-sm font-semibold",
-                      multipleTone(cs.bestCall.multiple),
+                      "text-sm font-semibold",
+                      multipleTone(best.multiple),
                     )}
                   >
-                    {fmtMultiple(cs.bestCall.multiple)}
+                    {fmtMultiple(best.multiple)}
                   </span>
-                  {cs.bestCall.athMultiple != null && (
-                    <span className="font-mono text-[11px] text-muted-foreground">
-                      ATH {fmtMultiple(cs.bestCall.athMultiple)}
+                  {best.athMultiple != null && (
+                    <span className="text-[11px] text-muted-foreground">
+                      ATH {fmtMultiple(best.athMultiple)}
                     </span>
                   )}
                 </div>
                 <div className="mt-1 font-mono text-[11px] text-muted-foreground">
-                  {fmtMarketCap(cs.bestCall.calledMarketCapUsd ?? null)}
-                  {" → "}
-                  {fmtMarketCap(cs.bestCall.currentMarketCapUsd ?? null)}
+                  {fmtMarketCap(best.calledMarketCapUsd ?? null)}
+                  {" to "}
+                  {fmtMarketCap(best.currentMarketCapUsd ?? null)}
                 </div>
               </Link>
             )}
@@ -1823,16 +1949,18 @@ function CallEdgeSection({ profile }: { profile: ProfileResponse }) {
               <Link
                 href={`/?token=${all.worstCall.token_mint}`}
                 data-testid="call-edge-lowest"
-                className="block rounded-xl border border-border/60 bg-secondary/20 p-3 hover:border-accent/60 transition-colors"
+                className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-secondary/20 p-3 transition-colors hover:border-accent/50"
               >
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                  Lowest Call
-                </div>
-                <div className="mt-1 flex items-baseline gap-2 flex-wrap">
-                  <span className="font-mono text-sm font-semibold text-foreground truncate">
+                <div className="min-w-0">
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Lowest Call
+                  </div>
+                  <div className="mt-0.5 font-mono text-sm font-semibold text-foreground truncate">
                     {all.worstCall.token_symbol ||
                       shortAddr(all.worstCall.token_mint, 4)}
-                  </span>
+                  </div>
+                </div>
+                <div className="flex-shrink-0 text-right">
                   <span
                     className={cn(
                       "font-mono text-sm font-semibold",
@@ -1841,9 +1969,9 @@ function CallEdgeSection({ profile }: { profile: ProfileResponse }) {
                   >
                     {fmtPercent(all.worstCall.returnPercent, 0)}
                   </span>
-                </div>
-                <div className="mt-1 text-[11px] text-muted-foreground">
-                  Lowest graded return
+                  <div className="text-[10px] text-muted-foreground">
+                    Lowest graded return
+                  </div>
                 </div>
               </Link>
             )}
@@ -1939,7 +2067,7 @@ function ThesisHistorySection({ profile }: { profile: ProfileResponse }) {
 
   return (
     <div id="profile-thesis" className="scroll-mt-24">
-      <SectionHeader icon={ScrollText} title="Thesis History" />
+      <SectionHeader icon={ScrollText} title="Thesis Notes" />
       {isLoading ? (
         <div className="flex items-center justify-center py-10">
           <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
@@ -1974,8 +2102,8 @@ function CallHistorySection({ profile }: { profile: ProfileResponse }) {
   const callouts = data?.callouts ?? [];
 
   return (
-    <div id="profile-calls" className="scroll-mt-24">
-      <SectionHeader icon={History} title="Call History" />
+    <div className="scroll-mt-24">
+      <SectionHeader icon={History} title="Call Receipts" />
       {profile.isSelf && <NewCallForm profileKey={key} />}
       {isLoading ? (
         <div className="flex items-center justify-center py-10">
@@ -2002,6 +2130,119 @@ function CallHistorySection({ profile }: { profile: ProfileResponse }) {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Trader Activity: frames Call Receipts and Thesis Notes as one social feed with
+ * lightweight filter chips (All / Calls / Thesis). The filter is local UI state
+ * only; both underlying sections keep their own data + owner controls, so
+ * nothing about calls or theses logic changes.
+ */
+type ActivityTab = "all" | "calls" | "thesis";
+
+function TraderActivitySection({ profile }: { profile: ProfileResponse }) {
+  const [tab, setTab] = useState<ActivityTab>("all");
+  return (
+    <div id="profile-activity" className="mt-6 scroll-mt-24">
+      <div className="flex items-center gap-2 mb-2">
+        <Rss className="w-4 h-4 text-accent" />
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground">
+          Trader Activity
+        </h2>
+      </div>
+      <FilterPills
+        options={[
+          { id: "all", label: "All" },
+          { id: "calls", label: "Calls" },
+          { id: "thesis", label: "Thesis" },
+        ]}
+        value={tab}
+        onChange={(id) => setTab(id as ActivityTab)}
+        size="sm"
+        ariaLabel="Activity filter"
+        testIdPrefix="activity-filter"
+      />
+      {tab !== "thesis" && <CallHistorySection profile={profile} />}
+      {tab !== "calls" && <ThesisHistorySection profile={profile} />}
+    </div>
+  );
+}
+
+/**
+ * More Reputation Lanes: future-ready collapsed dropdown that shows where the
+ * Crypto Reputation Passport is heading (Dev History, Wallet Utility Proof,
+ * Campaign Record). No data systems exist yet, so each lane shows a subtle,
+ * honest "Coming soon" state. Nothing here is faked and it stays collapsed by
+ * default so it never clutters the active profile.
+ */
+function MoreReputationLanesSection() {
+  const [open, setOpen] = useState(false);
+  const lanes = [
+    {
+      icon: Rocket,
+      title: "Dev History",
+      text: "Tokens launched, launch dates, peak and current market cap, and burn proof.",
+    },
+    {
+      icon: Wallet,
+      title: "Wallet Utility Proof",
+      text: "SOL recovered, token burns, and cleanup receipts.",
+    },
+    {
+      icon: Megaphone,
+      title: "Campaign Record",
+      text: "Campaigns created, funded, and organizer reputation.",
+    },
+  ];
+  return (
+    <div id="profile-more" className="mt-6 scroll-mt-24">
+      <Collapsible open={open} onOpenChange={setOpen}>
+        <CollapsibleTrigger asChild>
+          <button
+            type="button"
+            data-testid="more-reputation-lanes"
+            className="flex w-full items-center justify-between gap-2 rounded-2xl bg-card p-4 shadow-card transition-colors hover:bg-card/80"
+          >
+            <span className="flex items-center gap-2">
+              <Layers className="w-4 h-4 text-accent" />
+              <span className="text-sm font-semibold uppercase tracking-wider text-foreground">
+                More Reputation Lanes
+              </span>
+            </span>
+            <ChevronDown
+              className={cn(
+                "w-4 h-4 flex-shrink-0 text-muted-foreground transition-transform",
+                open && "rotate-180",
+              )}
+            />
+          </button>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="mt-2 space-y-2">
+          {lanes.map((lane) => (
+            <div
+              key={lane.title}
+              className="flex items-start gap-3 rounded-xl border border-border/60 bg-secondary/20 p-3"
+            >
+              <lane.icon className="w-4 h-4 flex-shrink-0 text-accent/80 mt-0.5" />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-semibold text-foreground">
+                    {lane.title}
+                  </span>
+                  <span className="flex-shrink-0 rounded-full border border-border/70 bg-secondary/40 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                    Coming soon
+                  </span>
+                </div>
+                <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                  {lane.text}
+                </p>
+              </div>
+            </div>
+          ))}
+        </CollapsibleContent>
+      </Collapsible>
     </div>
   );
 }
@@ -2199,26 +2440,27 @@ export default function ProfilePage() {
       {/* In-page section nav: browseable social profile, not one long dump */}
       <ProfileSectionNav />
 
-      {/* Trader Snapshot - headline identity: BlackPebble Score, Trust Score,
-          rank, tier, ROI, P&L, win rate */}
-      <TraderSnapshotSection profile={profile} solUsd={solUsd} />
+      {/* Reputation Passport - flagship identity: BlackPebble Score, Trust
+          Score, and a social proof strip */}
+      <ReputationPassportSection profile={profile} solUsd={solUsd} />
 
-      {/* Trading Behavior + Call Edge - side by side on desktop, stacked on
-          mobile, both as compact right-aligned stat panels */}
-      <div className="mt-6 grid items-start gap-x-4 gap-y-6 md:grid-cols-2">
-        <TradingBehaviorSection profile={profile} solUsd={solUsd} />
-        <CallEdgeSection profile={profile} />
-      </div>
+      {/* Trader DNA - how this person trades (full behavior stat set) */}
+      <TraderDnaSection profile={profile} solUsd={solUsd} />
 
-      {/* Call Receipts + Thesis History */}
-      <CallHistorySection profile={profile} />
-      <ThesisHistorySection profile={profile} />
+      {/* Call Trophy Case - scoreboard + featured Best Call / Lowest Call */}
+      <CallTrophyCaseSection profile={profile} />
 
-      {/* Achievements & Badges (unchanged in this pass) */}
-      <BadgesSection profile={profile} />
+      {/* Trader Activity - Call Receipts + Thesis Notes as one feed */}
+      <TraderActivitySection profile={profile} />
+
+      {/* Future-ready reputation lanes (collapsed, no fake data) */}
+      <MoreReputationLanesSection />
 
       {/* Share this profile */}
       <ShareCard profile={profile} />
+
+      {/* Achievements & Badges (unchanged in this pass, left at the bottom) */}
+      <BadgesSection profile={profile} />
     </div>
   );
 }
