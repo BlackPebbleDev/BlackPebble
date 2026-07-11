@@ -1997,11 +1997,12 @@ function ProfileIdentityMeta({
     </span>
   );
 
-  // Single-line identity row: keep @handle, tier, and rank together. Only the
-  // @handle may shrink/truncate so the row never breaks rank onto its own line
-  // at normal mobile widths; tier and rank stay pinned.
+  // Identity row: @handle, tier, and rank kept together and prefer one line.
+  // The @handle shows in full (it only truncates past a generous max width, for
+  // unusually long handles). Tier and rank never shrink; if the row genuinely
+  // cannot fit (very small screens), it wraps rather than clipping the handle.
   return (
-    <div className="mt-1.5 flex flex-nowrap items-center gap-x-1.5 min-w-0 text-sm">
+    <div className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 min-w-0 text-sm">
       {handle &&
         (profileUrl ? (
           <a
@@ -2010,13 +2011,13 @@ function ProfileIdentityMeta({
             rel="noopener noreferrer"
             data-testid="link-view-on-x"
             onClick={() => trackXProfileLinkClicked()}
-            className="inline-flex min-w-0 items-center gap-1 text-muted-foreground hover:text-accent transition-colors"
+            className="inline-flex max-w-[12rem] min-w-0 items-center gap-1 text-muted-foreground hover:text-accent transition-colors"
           >
             <span className="truncate">@{handle}</span>
             <ExternalLink className="w-3 h-3 flex-shrink-0 opacity-60" />
           </a>
         ) : (
-          <span className="inline-flex min-w-0 items-center text-muted-foreground">
+          <span className="inline-flex max-w-[12rem] min-w-0 items-center text-muted-foreground">
             <span className="truncate">@{handle}</span>
           </span>
         ))}
@@ -2031,10 +2032,11 @@ function ProfileIdentityMeta({
           {dot}
           <span
             data-testid="text-profile-rank"
+            aria-label={`Rank #${profile.rank}`}
             className="inline-flex flex-shrink-0 items-center gap-1 font-semibold text-accent whitespace-nowrap"
           >
             <Trophy className="w-3 h-3 flex-shrink-0" />
-            Rank #{profile.rank}
+            #{profile.rank}
           </span>
         </>
       )}
