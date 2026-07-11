@@ -196,7 +196,7 @@ function ProfileBanner({ profile }: { profile: ProfileResponse }) {
  * its own limit, so this is purely a stricter client constraint (no schema
  * change). Existing longer bios stay contained via clamping on display.
  */
-const PROFILE_BIO_MAX = 80;
+const PROFILE_BIO_MAX = 50;
 
 function BioSection({ profile }: { profile: ProfileResponse }) {
   const queryClient = useQueryClient();
@@ -2031,9 +2031,9 @@ function ProfileIdentityMeta({
           {dot}
           <span
             data-testid="text-profile-rank"
-            className="inline-flex flex-shrink-0 items-center gap-1 rounded-full border border-accent/40 bg-accent/5 px-1.5 py-0.5 text-[10px] font-semibold text-accent whitespace-nowrap"
+            className="inline-flex flex-shrink-0 items-center gap-1 font-semibold text-accent whitespace-nowrap"
           >
-            <Trophy className="w-2.5 h-2.5 flex-shrink-0" />
+            <Trophy className="w-3 h-3 flex-shrink-0" />
             Rank #{profile.rank}
           </span>
         </>

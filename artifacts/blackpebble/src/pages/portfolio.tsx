@@ -296,7 +296,7 @@ export default function Portfolio() {
               {selfProfile?.bio && (
                 <p
                   data-testid="text-portfolio-bio"
-                  className="mt-3 text-sm text-foreground/90 whitespace-pre-wrap break-words"
+                  className="mt-3 min-w-0 max-w-full text-sm text-foreground/90 break-words [overflow-wrap:anywhere] line-clamp-2"
                 >
                   {selfProfile.bio}
                 </p>
