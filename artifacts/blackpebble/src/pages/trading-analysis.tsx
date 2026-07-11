@@ -14,7 +14,7 @@ import { getUtility } from "@/lib/utilities-meta";
 
 const TRADING_ANALYSIS = getUtility("trading_analysis");
 const TRADING_ANALYSIS_SUBTITLE =
-  "Your real trading home. Read-only intelligence built from your on-chain history - performance, trader DNA, behavior, risk, and how you're evolving. Never mixed with paper trading.";
+  "Your real trading home. Read-only intelligence built from your on-chain history, including performance, trader DNA, behavior, risk, and how you're evolving. Never mixed with paper trading.";
 
 /**
  * Trading Analysis utility - the full Real Trading Analysis experience.

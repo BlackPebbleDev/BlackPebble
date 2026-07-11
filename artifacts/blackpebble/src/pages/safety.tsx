@@ -5,7 +5,6 @@ import {
   Flame,
   KeyRound,
   PenLine,
-  FlaskConical,
   LineChart,
   type LucideIcon,
 } from "lucide-react";
@@ -42,7 +41,7 @@ const SECTIONS: SafetySection[] = [
     id: "read-only",
     icon: Eye,
     title: "Read-only wallet analysis",
-    summary: "Public wallet history only. No movement of funds.",
+    summary: "Public wallet history only. Cannot move funds.",
     points: [
       "BlackPebble can read public wallet balances and transaction history.",
       "Read-only analysis cannot transfer tokens.",
@@ -90,26 +89,14 @@ const SECTIONS: SafetySection[] = [
     ],
   },
   {
-    id: "before-you-sign",
+    id: "before-you-connect-or-sign",
     icon: PenLine,
-    title: "Before you sign",
-    summary: "Review every transaction prompt.",
-    points: [
-      "Review the action.",
-      "Review the assets involved.",
-      "Review the SOL or token amount.",
-      "Confirm the destination when shown.",
-      "Never sign a transaction you do not understand.",
-    ],
-  },
-  {
-    id: "testing-safely",
-    icon: FlaskConical,
-    title: "Testing safely",
-    summary: "Start with a burner wallet.",
+    title: "Before you connect or sign",
+    summary: "Test carefully. Review every transaction.",
     points: [
       "Testing a wallet tool for the first time? Start with a burner wallet, keep valuable assets separate, and review every transaction before signing.",
       "Testing wallet intelligence for the first time? Use a burner wallet or low-value wallet, keep valuable assets separate, and review what data is being analyzed.",
+      "Never sign a transaction you do not understand.",
       "Disconnect when you are done.",
     ],
   },
@@ -129,7 +116,7 @@ export default function Safety() {
         <p className="text-sm leading-relaxed text-muted-foreground">
           BlackPebble separates simulated trading, read-only wallet
           intelligence, and real wallet utility actions. You stay in control of
-          what you connect, what you review, and what you sign.
+          what you connect, review, and sign.
         </p>
       </div>
 
