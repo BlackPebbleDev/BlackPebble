@@ -7,12 +7,10 @@ import {
   Check,
   ChevronDown,
   Copy,
-  Globe,
   History,
   Loader2,
   Lock,
   Megaphone,
-  MessagesSquare,
   Pencil,
   Plus,
   ScrollText,
@@ -28,7 +26,6 @@ import {
 } from "lucide-react";
 import {
   api,
-  BIO_MAX_LENGTH,
   CALLOUT_THESIS_MAX,
   CALLOUT_UPDATE_MAX,
   type BadgeCategory,
@@ -65,13 +62,16 @@ import {
 } from "@/lib/format";
 import { PnlAmount } from "@/components/pnl-amount";
 import { tierMeta } from "@/lib/tiers";
+import {
+  ProfileIdentityMeta,
+  SOCIAL_DEFS,
+} from "@/components/profile-identity";
 import { TokenSearch } from "@/components/token-search";
 import { PlaceholderCard } from "@/components/feed-card";
 import {
   trackProfileView,
   trackFollowCreated,
   trackFollowRemoved,
-  trackXProfileLinkClicked,
 } from "@/lib/analytics";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -188,6 +188,15 @@ function ProfileBanner({ profile }: { profile: ProfileResponse }) {
   );
 }
 
+/**
+ * Frontend bio limit for the compact profile hero. Kept well under the server
+ * cap (BIO_MAX_LENGTH = 250) so a bio reads like a short trader tagline, not a
+ * paragraph, and always fits the card. The backend still accepts anything up to
+ * its own limit, so this is purely a stricter client constraint (no schema
+ * change). Existing longer bios stay contained via clamping on display.
+ */
+const PROFILE_BIO_MAX = 50;
+
 function BioSection({ profile }: { profile: ProfileResponse }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -211,24 +220,24 @@ function BioSection({ profile }: { profile: ProfileResponse }) {
   });
 
   if (editing) {
-    const remaining = BIO_MAX_LENGTH - draft.length;
+    const remaining = PROFILE_BIO_MAX - draft.length;
     return (
       <div className="mt-3">
         <textarea
           value={draft}
-          onChange={(e) => setDraft(e.target.value.slice(0, BIO_MAX_LENGTH))}
-          maxLength={BIO_MAX_LENGTH}
+          onChange={(e) => setDraft(e.target.value.slice(0, PROFILE_BIO_MAX))}
+          maxLength={PROFILE_BIO_MAX}
           rows={3}
           autoFocus
           data-testid="textarea-bio"
           placeholder="Add a short bio (plain text only)"
-          className="w-full resize-none bg-secondary/40 border border-border p-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-accent/60"
+          className="w-full resize-none rounded-xl bg-secondary/30 border border-border/60 p-3 text-sm leading-relaxed text-foreground placeholder:text-muted-foreground/70 focus:outline-none focus:border-accent/50 focus:ring-1 focus:ring-accent/20 transition-colors"
         />
-        <div className="flex items-center justify-between mt-1.5">
+        <div className="flex items-center justify-between mt-2">
           <span
             className={cn(
-              "text-[11px] font-mono",
-              remaining < 0 ? "text-danger" : "text-muted-foreground",
+              "text-[10px] font-mono",
+              remaining < 0 ? "text-danger" : "text-muted-foreground/60",
             )}
           >
             {remaining} left
@@ -271,7 +280,7 @@ function BioSection({ profile }: { profile: ProfileResponse }) {
       <div className="mt-3 flex items-start gap-2">
         <p
           data-testid="text-profile-bio"
-          className="text-sm text-foreground/90 whitespace-pre-wrap break-words flex-1"
+          className="min-w-0 max-w-full flex-1 text-sm text-foreground/90 break-words [overflow-wrap:anywhere] line-clamp-2 md:line-clamp-3"
         >
           {profile.bio}
         </p>
@@ -293,57 +302,26 @@ function BioSection({ profile }: { profile: ProfileResponse }) {
     );
   }
 
-  // Empty state: show "No bio yet." for everyone; owners also get an inline
-  // affordance to add one.
+  // Empty state: keep the card clean. Visitors see nothing (no cheap "No bio
+  // yet" filler); the owner gets a single subtle affordance to add one.
+  if (!profile.isSelf) return null;
   return (
-    <div className="mt-3 flex items-center gap-2">
-      <p
-        data-testid="text-profile-bio-empty"
-        className="text-sm italic text-muted-foreground/70"
+    <div className="mt-3">
+      <button
+        type="button"
+        onClick={() => {
+          setDraft("");
+          setEditing(true);
+        }}
+        data-testid="button-bio-add"
+        className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-accent transition-colors"
       >
-        No bio yet.
-      </p>
-      {profile.isSelf && (
-        <button
-          type="button"
-          onClick={() => {
-            setDraft("");
-            setEditing(true);
-          }}
-          data-testid="button-bio-add"
-          className="inline-flex items-center gap-1 text-xs text-accent hover:text-accent/80 transition-colors"
-        >
-          <Pencil className="w-3 h-3" />
-          Add a bio
-        </button>
-      )}
+        <Pencil className="w-3 h-3" />
+        Add a bio
+      </button>
     </div>
   );
 }
-
-const SOCIAL_DEFS = [
-  {
-    key: "website",
-    icon: Globe,
-    label: "Website",
-    placeholder: "yoursite.com",
-    href: (v: string) => v,
-  },
-  {
-    key: "telegram",
-    icon: Send,
-    label: "Telegram",
-    placeholder: "username",
-    href: (v: string) => `https://t.me/${v}`,
-  },
-  {
-    key: "discord",
-    icon: MessagesSquare,
-    label: "Discord",
-    placeholder: "discord.gg/yourcode",
-    href: (v: string) => `https://discord.gg/${v}`,
-  },
-] as const;
 
 /**
  * Off-platform links rendered as compact icon pills. Only links that are set
@@ -1167,14 +1145,14 @@ function ConvictionBadge({ conviction }: { conviction: string | null }) {
   if (!conviction || !CONVICTION_LABELS[conviction]) return null;
   const cls =
     conviction === "high"
-      ? "border-accent/60 text-accent"
+      ? "border-accent/40 bg-accent/10 text-accent"
       : conviction === "medium"
-        ? "border-border text-foreground"
-        : "border-border text-muted-foreground";
+        ? "border-border/70 bg-secondary/40 text-foreground"
+        : "border-border/60 bg-secondary/30 text-muted-foreground";
   return (
     <span
       className={cn(
-        "inline-flex items-center px-1.5 py-0.5 text-[10px] uppercase tracking-wider border whitespace-nowrap",
+        "inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider whitespace-nowrap",
         cls,
       )}
     >
@@ -1301,11 +1279,11 @@ function CalloutCard({
           <img
             src={callout.token_logo}
             alt=""
-            className="w-9 h-9 object-cover flex-shrink-0"
+            className="w-9 h-9 rounded-full object-cover flex-shrink-0"
             onError={(e) => (e.currentTarget.style.visibility = "hidden")}
           />
         ) : (
-          <div className="w-9 h-9 bg-secondary flex items-center justify-center text-[10px] text-muted-foreground flex-shrink-0">
+          <div className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center text-[10px] text-muted-foreground flex-shrink-0">
             {callout.token_symbol?.slice(0, 2) ?? "?"}
           </div>
         )}
@@ -1622,9 +1600,18 @@ function CallerStatsSection({ profile }: { profile: ProfileResponse }) {
 }
 
 const THESIS_SENTIMENT: Record<string, { label: string; cls: string }> = {
-  bullish: { label: "Bullish", cls: "border-success/40 text-success" },
-  bearish: { label: "Bearish", cls: "border-destructive/40 text-destructive" },
-  neutral: { label: "Neutral", cls: "border-border text-muted-foreground" },
+  bullish: {
+    label: "Bullish",
+    cls: "border-success/40 bg-success/10 text-success",
+  },
+  bearish: {
+    label: "Bearish",
+    cls: "border-destructive/40 bg-destructive/10 text-destructive",
+  },
+  neutral: {
+    label: "Neutral",
+    cls: "border-border/60 bg-secondary/30 text-muted-foreground",
+  },
 };
 
 /** A single standalone thesis card - research, not graded as a call. */
@@ -1640,11 +1627,11 @@ function ThesisCard({ thesis }: { thesis: ThesisWithAuthor }) {
           <img
             src={thesis.token_logo}
             alt=""
-            className="w-9 h-9 object-cover flex-shrink-0"
+            className="w-9 h-9 rounded-full object-cover flex-shrink-0"
             onError={(e) => (e.currentTarget.style.visibility = "hidden")}
           />
         ) : (
-          <div className="w-9 h-9 bg-secondary flex items-center justify-center text-[10px] text-muted-foreground flex-shrink-0">
+          <div className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center text-[10px] text-muted-foreground flex-shrink-0">
             {thesis.token_symbol?.slice(0, 2) ?? "?"}
           </div>
         )}
@@ -1655,7 +1642,7 @@ function ThesisCard({ thesis }: { thesis: ThesisWithAuthor }) {
             </span>
             <span
               className={cn(
-                "inline-flex items-center px-1.5 py-0.5 text-[10px] uppercase tracking-wider border whitespace-nowrap",
+                "inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider whitespace-nowrap",
                 sent.cls,
               )}
             >
@@ -2014,6 +2001,7 @@ export default function ProfilePage() {
 
       {/* Header */}
       <div className="hairline-accent overflow-hidden rounded-2xl bg-card shadow-card p-5 md:p-6 mt-3">
+        {/* Identity: avatar + name/badges + compact @handle · tier · rank row */}
         <UserIdentity
           size="lg"
           align="start"
@@ -2026,51 +2014,49 @@ export default function ProfilePage() {
           officialBadges={profile.officialBadges}
           tier={profile.graduationTier}
           accountStatus="member"
-          tierPosition="inline"
+          tierPosition="none"
           badgePosition="row"
+          badgeSize="sm"
+          showHandle={false}
           stopPropagation={false}
-          handleLink={
-            profileUrl ? { type: "external", href: profileUrl } : undefined
-          }
-          handleTestId="link-view-on-x"
-          onHandleClick={() => trackXProfileLinkClicked()}
-          handleTrailing={
-            profile.rank != null ? (
-              <span className="font-mono text-sm text-muted-foreground">
-                Rank #{profile.rank}
-              </span>
-            ) : undefined
-          }
         >
-          {/* Bio: directly under avatar/name/handle (owner can edit inline) */}
-          <BioSection profile={profile} />
-
-          {/* Off-platform links as compact icon pills (owner can edit inline) */}
-          <SocialLinks profile={profile} />
-
-          {/* Social: followers / following */}
-          <div className="flex items-center gap-4 mt-3 text-sm">
-            <span data-testid="text-following-count">
-              <span className="font-semibold text-foreground">
-                {profile.following}
-              </span>{" "}
-              <span className="text-muted-foreground">Following</span>
-            </span>
-            <span data-testid="text-followers-count">
-              <span className="font-semibold text-foreground">
-                {profile.followers}
-              </span>{" "}
-              <span className="text-muted-foreground">Followers</span>
-            </span>
-          </div>
-
-          {/* Social action: follow button (hidden for self) */}
-          {!profile.isSelf && (
-            <div className="mt-3">
-              <FollowButton profile={profile} />
-            </div>
-          )}
+          <ProfileIdentityMeta
+            handle={profile.x_username}
+            profileUrl={profileUrl}
+            tier={profile.graduationTier}
+            rank={profile.rank}
+          />
         </UserIdentity>
+
+        {/* Detail block spans the full card width (including under the avatar)
+            so the hero reads balanced instead of left-empty / right-heavy. */}
+        <BioSection profile={profile} />
+
+        {/* Off-platform links as compact icon pills (owner can edit inline) */}
+        <SocialLinks profile={profile} />
+
+        {/* Social: followers / following */}
+        <div className="flex items-center gap-4 mt-3 text-sm">
+          <span data-testid="text-following-count">
+            <span className="font-semibold text-foreground">
+              {profile.following}
+            </span>{" "}
+            <span className="text-muted-foreground">Following</span>
+          </span>
+          <span data-testid="text-followers-count">
+            <span className="font-semibold text-foreground">
+              {profile.followers}
+            </span>{" "}
+            <span className="text-muted-foreground">Followers</span>
+          </span>
+        </div>
+
+        {/* Social action: follow button (hidden for self) */}
+        {!profile.isSelf && (
+          <div className="mt-4">
+            <FollowButton profile={profile} />
+          </div>
+        )}
       </div>
 
       {/* Reputation - trust score, trading rank, call accuracy */}
