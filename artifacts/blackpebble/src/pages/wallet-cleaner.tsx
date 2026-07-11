@@ -150,6 +150,11 @@ export default function WalletCleaner() {
             <div className="flex justify-center">
               <WalletMultiButton />
             </div>
+            <p className="text-xs text-muted-foreground/80 max-w-sm mx-auto leading-relaxed">
+              Connecting lets BlackPebble read public wallet data. It does not
+              give permission to move funds. Wallet utility actions require a
+              separate signature.
+            </p>
           </div>
         ) : status === "done" ? (
           <div className="space-y-6">

@@ -10,7 +10,7 @@
 - Advanced Trade Planner & Calculator: plan entries, position size, targets, stop loss, risk, reward, liquidation levels, and perps scenarios.
 - Trading Journal: track trades, setups, notes, mistakes, wins, losses, strategy changes, and performance over time.
 - Wallet-Linked Trade Review: connect a wallet in read-only mode to review past trades, hold time, token selection, sell timing, and risk behavior. No custody, seed phrases, or approvals.
-- Trader Intelligence: turn trading history into insights about patterns like selling winners early, holding losers too long, chasing pumps, sizing, exits, patience, conviction, and risk control.
+- Trader Intelligence: turn trading history into insights about patterns like selling winners early, holding losers too long, tracking market momentum, sizing, exits, patience, conviction, and risk control.
 - Trading Identities, Strengths & Weaknesses: behavior-based trader profiles and a read on what a trader does well and where they struggle.
 - Portfolio & P&L: token holdings, position value, realized and unrealized P&L, open/closed trades, trade history, and performance trends.
 - Public Trader Profiles: profiles with performance, wallet-linked insights where enabled, P&L history, achievements, reputation signals, badges, followers, and profile stats.
@@ -30,6 +30,7 @@
 - [Trading Journal](https://blackpebble.fun/utilities/journal): Record and review trades.
 - [SOL Recovery](https://blackpebble.fun/utilities/sol-recovery): Reclaim trapped rent SOL.
 - [Wallet Cleanup](https://blackpebble.fun/utilities/wallet-cleaner): Close unused accounts and burn junk.
+- [Wallet Safety](https://blackpebble.fun/safety): What is simulated, what is read-only, and what requires your signature.
 - [About](https://blackpebble.fun/about): What BlackPebble is and how it works.
 - [Features](https://blackpebble.fun/features): The full set of live features.
 - [Vision / Roadmap](https://blackpebble.fun/roadmap): What is live today and the future direction.
@@ -37,7 +38,7 @@
 ## Building toward (not yet fully live)
 
 - Campaign Creation & Crowdfunding: create and support community campaigns for marketing goals (DEX boosts, trending pushes, ads, listings, CTO efforts, promotions) with transparent progress and contributor tracking.
-- Telegram & Community Tools: a Telegram/community tool layer connected to the campaign and reputation flywheel, including buy bots, raid bots, airdrop/reward bots, follow-gates and verification, campaign update bots, trending/boost pool tools, and custom/white-label community bots.
+- Telegram & Community Tools: a Telegram/community tool layer connected to the campaign and reputation flywheel, including buy bots, community coordination tools, airdrop/reward bots, follow-gates and verification, campaign update bots, trending/boost pool tools, and custom/white-label community bots.
 - Trading Terminal Direction: a full Solana memecoin trading terminal with cleaner charts, smarter overlays, and live market feeds tied into the rest of the hub.
 
 ## Notes

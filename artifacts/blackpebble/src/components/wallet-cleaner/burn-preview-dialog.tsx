@@ -10,6 +10,12 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Accordion,
+  AccordionItem,
+  AccordionTrigger,
+  AccordionContent,
+} from "@/components/ui/accordion";
 import { TokenAvatar } from "@/components/wallet-cleaner/token-avatar";
 import { type UseWalletCleaner, formatRentSol } from "@/hooks/use-wallet-cleaner";
 import { useTokenMetadata } from "@/hooks/use-token-metadata";
@@ -217,6 +223,40 @@ export function BurnPreviewDialog({
                 <span>{burnError}</span>
               </div>
             )}
+
+            <Accordion type="single" collapsible>
+              <AccordionItem
+                value="what-am-i-signing"
+                className="rounded-xl border border-border bg-secondary/20 overflow-hidden"
+                data-testid="burn-what-signing"
+              >
+                <AccordionTrigger className="px-3 py-2.5 hover:no-underline">
+                  <div className="flex items-center gap-2">
+                    <Flame className="h-3.5 w-3.5 flex-shrink-0 text-danger" />
+                    <span className="text-xs font-medium text-foreground">
+                      What am I signing?
+                    </span>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="px-3">
+                  <ul className="space-y-1.5 pl-5">
+                    {[
+                      "This transaction permanently burns selected assets.",
+                      "Burned assets cannot be recovered.",
+                      "Only selected assets are included.",
+                    ].map((line) => (
+                      <li
+                        key={line}
+                        className="flex items-start gap-2 text-[11px] leading-relaxed text-muted-foreground"
+                      >
+                        <span className="mt-1.5 h-1 w-1 flex-shrink-0 rounded-full bg-danger" />
+                        <span>{line}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
 
             <label className="flex items-start gap-2.5 cursor-pointer rounded-xl border border-danger/30 bg-danger/5 px-3 py-2.5">
               <Checkbox

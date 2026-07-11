@@ -40,6 +40,7 @@ import DiscoverPage from "@/pages/discover";
 import TradingJournal from "@/pages/journal";
 import TradingAnalysisPage from "@/pages/trading-analysis";
 import CampaignsPage, { CampaignDetailPage } from "@/pages/campaigns";
+import Safety from "@/pages/safety";
 import { api } from "@/lib/api";
 
 // Sensible global cache defaults so navigating back to a page you just visited
@@ -109,6 +110,7 @@ function Router() {
         <Route path="/about" component={About} />
         <Route path="/features" component={Features} />
         <Route path="/roadmap" component={Roadmap} />
+        <Route path="/safety" component={Safety} />
         <Route path="/admin" component={AdminPage} />
         <Route component={NotFound} />
       </Switch>
