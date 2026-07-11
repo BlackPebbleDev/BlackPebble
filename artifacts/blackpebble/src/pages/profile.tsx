@@ -191,11 +191,12 @@ function ProfileBanner({ profile }: { profile: ProfileResponse }) {
 
 /**
  * Frontend bio limit for the compact profile hero. Kept well under the server
- * cap (BIO_MAX_LENGTH = 250) so a bio stays short and readable in the card; the
- * backend still accepts anything up to its own limit, so this is purely a
- * stricter client constraint (no schema change).
+ * cap (BIO_MAX_LENGTH = 250) so a bio reads like a short trader tagline, not a
+ * paragraph, and always fits the card. The backend still accepts anything up to
+ * its own limit, so this is purely a stricter client constraint (no schema
+ * change). Existing longer bios stay contained via clamping on display.
  */
-const PROFILE_BIO_MAX = 120;
+const PROFILE_BIO_MAX = 80;
 
 function BioSection({ profile }: { profile: ProfileResponse }) {
   const queryClient = useQueryClient();
@@ -1991,13 +1992,16 @@ function ProfileIdentityMeta({
 }) {
   const handle = profile.x_username?.trim().replace(/^@+/, "") || null;
   const dot = (
-    <span aria-hidden className="text-muted-foreground/40">
+    <span aria-hidden className="flex-shrink-0 text-muted-foreground/40">
       ·
     </span>
   );
 
+  // Single-line identity row: keep @handle, tier, and rank together. Only the
+  // @handle may shrink/truncate so the row never breaks rank onto its own line
+  // at normal mobile widths; tier and rank stay pinned.
   return (
-    <div className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 min-w-0 text-sm">
+    <div className="mt-1.5 flex flex-nowrap items-center gap-x-1.5 min-w-0 text-sm">
       {handle &&
         (profileUrl ? (
           <a
@@ -2006,24 +2010,28 @@ function ProfileIdentityMeta({
             rel="noopener noreferrer"
             data-testid="link-view-on-x"
             onClick={() => trackXProfileLinkClicked()}
-            className="inline-flex min-w-0 max-w-full items-center gap-1 text-muted-foreground hover:text-accent transition-colors"
+            className="inline-flex min-w-0 items-center gap-1 text-muted-foreground hover:text-accent transition-colors"
           >
             <span className="truncate">@{handle}</span>
             <ExternalLink className="w-3 h-3 flex-shrink-0 opacity-60" />
           </a>
         ) : (
-          <span className="inline-flex min-w-0 max-w-full items-center text-muted-foreground">
+          <span className="inline-flex min-w-0 items-center text-muted-foreground">
             <span className="truncate">@{handle}</span>
           </span>
         ))}
       {handle && dot}
-      <TierBadge tier={profile.graduationTier} variant="plain" />
+      <TierBadge
+        tier={profile.graduationTier}
+        variant="plain"
+        className="flex-shrink-0"
+      />
       {profile.rank != null && (
         <>
           {dot}
           <span
             data-testid="text-profile-rank"
-            className="inline-flex items-center gap-1 rounded-full border border-accent/40 bg-accent/5 px-1.5 py-0.5 text-[10px] font-semibold text-accent whitespace-nowrap"
+            className="inline-flex flex-shrink-0 items-center gap-1 rounded-full border border-accent/40 bg-accent/5 px-1.5 py-0.5 text-[10px] font-semibold text-accent whitespace-nowrap"
           >
             <Trophy className="w-2.5 h-2.5 flex-shrink-0" />
             Rank #{profile.rank}
