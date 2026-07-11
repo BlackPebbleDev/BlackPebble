@@ -19,7 +19,6 @@ import {
   Share2,
   ShieldCheck,
   SlidersHorizontal,
-  Trophy,
   UserPlus,
   UserCheck,
   X as CloseIcon,
@@ -34,7 +33,6 @@ import {
   type CalloutResult,
   type CalloutWithDetail,
   type Conviction,
-  type PeriodPerformance,
   type ProfileResponse,
   type ThesisWithAuthor,
 } from "@/lib/api";
@@ -76,25 +74,6 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
-function StatTile({
-  label,
-  value,
-  cls,
-}: {
-  label: string;
-  value: React.ReactNode;
-  cls?: string;
-}) {
-  return (
-    <div className="rounded-xl bg-card shadow-card p-4">
-      <div className="stat-label">{label}</div>
-      <div className={cn("stat-value mt-1.5 text-lg md:text-xl text-foreground", cls)}>
-        {value}
-      </div>
-    </div>
-  );
-}
-
 function SectionHeader({
   icon: Icon,
   title,
@@ -108,6 +87,56 @@ function SectionHeader({
       <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground">
         {title}
       </h2>
+    </div>
+  );
+}
+
+/** Dark-glass panel wrapper used by the compact profile stat sections. */
+function PanelCard({
+  children,
+  testId,
+  className,
+}: {
+  children: React.ReactNode;
+  testId?: string;
+  className?: string;
+}) {
+  return (
+    <div
+      data-testid={testId}
+      className={cn("rounded-2xl bg-card shadow-card p-4 md:p-5", className)}
+    >
+      {children}
+    </div>
+  );
+}
+
+/**
+ * Compact stat row: muted label on the left, strong value on the right. This is
+ * the workhorse of the trader-resume layout, packing more numbers per screen
+ * than the old square stat tiles. Rows are meant to sit inside a
+ * `divide-y divide-border/60` list.
+ */
+function StatRow({
+  label,
+  value,
+  valueClass,
+}: {
+  label: string;
+  value: React.ReactNode;
+  valueClass?: string;
+}) {
+  return (
+    <div className="flex items-baseline justify-between gap-3 py-2.5">
+      <span className="text-sm text-muted-foreground">{label}</span>
+      <span
+        className={cn(
+          "text-right font-mono text-sm font-semibold tabular-nums text-foreground",
+          valueClass,
+        )}
+      >
+        {value}
+      </span>
     </div>
   );
 }
@@ -477,75 +506,136 @@ function tradingRankLabel(profile: ProfileResponse): string {
   return "Recruit";
 }
 
-function XReputationSection({ profile }: { profile: ProfileResponse }) {
-  const key = profile.x_username || String(profile.user_id);
-  const { data } = useQuery({
-    queryKey: ["caller-stats", key],
-    queryFn: () =>
-      api.callouts.callerStats(profile.x_username || profile.user_id),
-    enabled: !!profile,
-    retry: false,
-    staleTime: 60_000,
-  });
-  const callerStats = data?.stats ?? null;
-
+/**
+ * Trader Snapshot: the identity headline directly under the hero. BlackPebble
+ * Score is a brand-owned slot, but no real score field exists on the profile
+ * payload yet, so it shows a safe "Soon" placeholder rather than reusing Trust
+ * Score or inventing a number. Trust Score stays its own distinct stat.
+ * Everything else is real profile data.
+ */
+function TraderSnapshotSection({
+  profile,
+  solUsd,
+}: {
+  profile: ProfileResponse;
+  solUsd: number;
+}) {
   const trustScore = profile.trustScore?.score ?? 0;
   const trustLabel =
     profile.trustScore?.label ?? trustLabelFromScore(trustScore);
   const rankLabel = tradingRankLabel(profile);
-  const hasGradedCalls = callerStats != null && callerStats.gradedCalls > 0;
-  const callAccuracy = hasGradedCalls
-    ? `${(callerStats!.hitRate * 100).toFixed(0)}%`
-    : null;
+  const s = profile.stats;
 
   return (
-    <>
-      <SectionHeader icon={ShieldCheck} title="Reputation" />
-      <div
-        data-testid="reputation-card"
-        className="rounded-xl bg-card shadow-card overflow-hidden"
-      >
-        <div className="grid grid-cols-3 divide-x divide-border">
-          <div className="flex flex-col items-center gap-1.5 py-5 px-3">
-            <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
-              Trust Score
-            </div>
-            <div className="font-mono text-2xl font-bold text-foreground">
-              {trustScore}
-            </div>
-            <TrustBadge
-              score={trustScore}
-              label={trustLabel}
-              size="xs"
-              showLabel
-            />
-          </div>
-          <div className="flex flex-col items-center gap-1 py-5 px-3 text-center">
-            <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
-              Trading Rank
-            </div>
-            <div className="font-mono text-sm font-semibold text-foreground leading-tight">
-              {rankLabel}
-            </div>
-          </div>
-          <div className="flex flex-col items-center gap-1 py-5 px-3">
-            <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
-              Call Accuracy
+    <div className="mt-6">
+      <div className="flex items-center gap-2 mb-2">
+        <ShieldCheck className="w-4 h-4 text-accent" />
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground">
+          Trader Snapshot
+        </h2>
+      </div>
+      <PanelCard testId="trader-snapshot">
+        <div className="grid grid-cols-2 gap-2.5">
+          <div className="rounded-xl border border-accent/25 bg-accent/5 p-3">
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+              BlackPebble Score
             </div>
             <div
-              className={cn(
-                "font-mono font-semibold",
-                callAccuracy
-                  ? "text-2xl text-foreground"
-                  : "text-xs text-muted-foreground",
-              )}
+              data-testid="blackpebble-score"
+              className="mt-1 font-mono text-2xl font-bold text-accent"
             >
-              {callAccuracy ?? "No Calls Yet"}
+              Soon
+            </div>
+            <div className="mt-0.5 text-[10px] text-muted-foreground/70">
+              Overall trader identity
+            </div>
+          </div>
+          <div className="rounded-xl bg-secondary/30 p-3">
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+              Trust Score
+            </div>
+            <div className="mt-1 flex items-baseline gap-2">
+              <span className="font-mono text-2xl font-bold text-foreground">
+                {trustScore}
+              </span>
+              <TrustBadge
+                score={trustScore}
+                label={trustLabel}
+                size="xs"
+                showLabel
+              />
+            </div>
+            <div className="mt-0.5 text-[10px] text-muted-foreground/70">
+              Reputation and credibility
             </div>
           </div>
         </div>
+        <div className="mt-3 divide-y divide-border/60">
+          <StatRow
+            label="Trading Rank"
+            value={rankLabel}
+            valueClass="text-accent"
+          />
+          <StatRow
+            label="Tier"
+            value={tierMeta(s.graduationTier).name}
+            valueClass="text-accent"
+          />
+          <StatRow
+            label="ROI"
+            value={fmtPercent(s.roiPercent)}
+            valueClass={pnlColor(s.roiPercent)}
+          />
+          <StatRow
+            label="Total P&L"
+            value={
+              <PnlAmount sol={s.totalPnlSol} solUsd={solUsd} unit={false} />
+            }
+            valueClass={pnlColor(s.totalPnlSol)}
+          />
+          <StatRow label="Win Rate" value={`${s.winRate.toFixed(1)}%`} />
+        </div>
+      </PanelCard>
+    </div>
+  );
+}
+
+/** Trading Behavior: trade-level detail that complements the snapshot. */
+function TradingBehaviorSection({
+  profile,
+  solUsd,
+}: {
+  profile: ProfileResponse;
+  solUsd: number;
+}) {
+  const s = profile.stats;
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-2">
+        <Activity className="w-4 h-4 text-accent" />
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground">
+          Trading Behavior
+        </h2>
       </div>
-    </>
+      <PanelCard testId="trading-behavior">
+        <div className="divide-y divide-border/60">
+          <StatRow label="Closed Trades" value={String(s.closedTrades)} />
+          <StatRow label="Executions" value={String(s.totalExecutions)} />
+          <StatRow
+            label="Best Trade"
+            value={<PnlAmount sol={s.bestTrade} solUsd={solUsd} unit={false} />}
+            valueClass={pnlColor(s.bestTrade)}
+          />
+          <StatRow
+            label="Realized P&L"
+            value={
+              <PnlAmount sol={s.realizedPnlSol} solUsd={solUsd} unit={false} />
+            }
+            valueClass={pnlColor(s.realizedPnlSol)}
+          />
+        </div>
+      </PanelCard>
+    </div>
   );
 }
 
@@ -1186,7 +1276,7 @@ function StatBox({
   valueClass?: string;
 }) {
   return (
-    <div className="border border-border bg-secondary/30 p-2">
+    <div className="rounded-lg border border-border/60 bg-secondary/20 p-2">
       <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
         {label}
       </div>
@@ -1315,8 +1405,27 @@ function CalloutCard({
         </p>
       )}
 
-      {/* Entry snapshot + live performance */}
+      {/* Live proof first (result / multiples), then entry context. Reads like
+          a trading receipt: outcome up top, snapshot below. */}
       <div className="mt-3 grid grid-cols-3 gap-2">
+        <div className="rounded-lg border border-border/60 bg-secondary/20 p-2">
+          <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+            Result
+          </div>
+          <div className="mt-0.5">
+            <CalloutResultValue result={callout.result} />
+          </div>
+        </div>
+        <StatBox
+          label="Current X"
+          value={fmtMultiple(callout.result?.currentMultiple ?? null)}
+          valueClass={multipleTone(callout.result?.currentMultiple ?? null)}
+        />
+        <StatBox
+          label="ATH X"
+          value={fmtMultiple(callout.result?.athMultiple ?? null)}
+          valueClass={multipleTone(callout.result?.athMultiple ?? null)}
+        />
         <StatBox
           label="Called MC"
           value={
@@ -1329,14 +1438,6 @@ function CalloutCard({
           label="Current MC"
           value={fmtMarketCap(callout.result?.currentMarketCapUsd ?? null)}
         />
-        <div className="border border-border bg-secondary/30 p-2">
-          <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-            Result
-          </div>
-          <div className="mt-0.5">
-            <CalloutResultValue result={callout.result} />
-          </div>
-        </div>
         <StatBox
           label="Entry Price"
           value={
@@ -1344,16 +1445,6 @@ function CalloutCard({
               ? fmtPrice(callout.call_price_usd)
               : "—"
           }
-        />
-        <StatBox
-          label="Current X"
-          value={fmtMultiple(callout.result?.currentMultiple ?? null)}
-          valueClass={multipleTone(callout.result?.currentMultiple ?? null)}
-        />
-        <StatBox
-          label="ATH X"
-          value={fmtMultiple(callout.result?.athMultiple ?? null)}
-          valueClass={multipleTone(callout.result?.athMultiple ?? null)}
         />
       </div>
 
@@ -1510,92 +1601,177 @@ function NewCallForm({ profileKey }: { profileKey: string }) {
 }
 
 /** Aggregated caller reputation - derived live from this trader's callouts. */
-function CallerStatsSection({ profile }: { profile: ProfileResponse }) {
+/**
+ * Call Edge: one merged, compact view of caller reputation (formerly Caller
+ * Stats) and graded call performance (formerly Call Performance), so the
+ * profile shows call proof without two overlapping stat walls. All-time
+ * figures. No grading or stat formulas changed.
+ */
+function CallEdgeSection({ profile }: { profile: ProfileResponse }) {
+  const id = profile.x_username || profile.user_id;
   const key = profile.x_username || String(profile.user_id);
-  const { data, isLoading } = useQuery({
+  const { data: csData, isLoading: csLoading } = useQuery({
     queryKey: ["caller-stats", key],
-    queryFn: () => api.callouts.callerStats(profile.x_username || profile.user_id),
+    queryFn: () => api.callouts.callerStats(id),
     enabled: !!profile,
     retry: false,
+    staleTime: 60_000,
   });
-  const stats = data?.stats ?? null;
+  const { data: perfData, isLoading: perfLoading } = useQuery({
+    queryKey: ["performance", key],
+    queryFn: () => api.profiles.performance(id),
+    enabled: !!profile,
+    retry: false,
+    staleTime: 60_000,
+  });
+
+  const cs = csData?.stats ?? null;
+  const all = perfData?.performance.all ?? null;
+  const totalCalls = cs?.callsMade ?? all?.totalCalls ?? 0;
+  const gradedCalls = cs?.gradedCalls ?? all?.gradedCalls ?? 0;
+  const isLoading = csLoading || perfLoading;
+
+  const header = (
+    <div className="flex items-center gap-2 mb-2">
+      <Megaphone className="w-4 h-4 text-accent" />
+      <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground">
+        Call Edge
+      </h2>
+    </div>
+  );
+
+  if (isLoading) {
+    return (
+      <div>
+        {header}
+        <PanelCard>
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+          </div>
+        </PanelCard>
+      </div>
+    );
+  }
+
+  if (totalCalls === 0) {
+    return (
+      <div>
+        {header}
+        <PanelCard testId="call-edge-empty">
+          <p className="py-4 text-center text-sm text-muted-foreground">
+            No calls yet.
+          </p>
+        </PanelCard>
+      </div>
+    );
+  }
+
+  const winningCalls =
+    cs && gradedCalls > 0 ? Math.round(cs.hitRate * gradedCalls) : 0;
+  const winRate =
+    cs && gradedCalls > 0
+      ? fmtPercent(cs.hitRate * 100, 0)
+      : all && gradedCalls > 0
+        ? `${all.winRate.toFixed(0)}%`
+        : "—";
 
   return (
-    <>
-      <SectionHeader icon={Megaphone} title="Caller Stats" />
-      {isLoading ? (
-        <div className="flex items-center justify-center py-10">
-          <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-        </div>
-      ) : !stats || stats.callsMade === 0 ? (
-        <div
-          data-testid="caller-stats-empty"
-          className="rounded-xl bg-card shadow-card p-5 text-center"
-        >
-          <p className="text-sm text-muted-foreground">No Calls Yet</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-          <StatTile label="Total Calls" value={String(stats.callsMade)} />
-          <StatTile
-            label="Winning Calls"
-            value={String(
-              stats.gradedCalls > 0
-                ? Math.round(stats.hitRate * stats.gradedCalls)
-                : 0,
-            )}
+    <div>
+      {header}
+      <PanelCard testId="call-edge">
+        <div className="divide-y divide-border/60">
+          <StatRow label="Total Calls" value={String(totalCalls)} />
+          <StatRow label="Winning Calls" value={String(winningCalls)} />
+          <StatRow label="Win Rate" value={winRate} />
+          <StatRow
+            label="Avg Multiple"
+            value={cs?.avgMultiple != null ? fmtMultiple(cs.avgMultiple) : "—"}
+            valueClass={multipleTone(cs?.avgMultiple ?? null)}
           />
-          <StatTile
-            label="Win Rate"
+          <StatRow
+            label="Avg Return"
             value={
-              stats.gradedCalls > 0
-                ? fmtPercent(stats.hitRate * 100, 0)
+              all?.avgReturnPercent != null
+                ? fmtPercent(all.avgReturnPercent, 0)
                 : "—"
             }
+            valueClass={
+              all?.avgReturnPercent != null
+                ? pnlColor(all.avgReturnPercent)
+                : undefined
+            }
           />
-          <StatTile
-            label="Avg Multiple"
-            value={stats.avgMultiple != null ? fmtMultiple(stats.avgMultiple) : "—"}
-          />
-          {stats.bestCall ? (
-            <Link
-              href={`/?token=${stats.bestCall.token_mint}`}
-              className="col-span-2 md:col-span-4 block rounded-xl border border-border bg-secondary/30 p-3 hover:border-accent/60 transition-colors"
-            >
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                Best Call
-              </div>
-              <div className="mt-1 flex items-baseline gap-2 flex-wrap">
-                <span className="font-mono text-sm font-semibold text-foreground truncate">
-                  {stats.bestCall.token_symbol ||
-                    shortAddr(stats.bestCall.token_mint, 4)}
-                </span>
-                <span
-                  className={cn(
-                    "font-mono text-sm font-semibold",
-                    multipleTone(stats.bestCall.multiple),
-                  )}
-                >
-                  {fmtMultiple(stats.bestCall.multiple)}
-                </span>
-                {stats.bestCall.athMultiple != null && (
-                  <span className="font-mono text-[11px] text-muted-foreground">
-                    ATH {fmtMultiple(stats.bestCall.athMultiple)}
-                  </span>
-                )}
-              </div>
-              <div className="mt-1 font-mono text-[11px] text-muted-foreground">
-                {fmtMarketCap(stats.bestCall.calledMarketCapUsd ?? null)}
-                {" → "}
-                {fmtMarketCap(stats.bestCall.currentMarketCapUsd ?? null)}
-              </div>
-            </Link>
-          ) : (
-            <StatTile label="Best Call" value="—" />
-          )}
         </div>
-      )}
-    </>
+
+        {(cs?.bestCall || all?.worstCall) && (
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            {cs?.bestCall && (
+              <Link
+                href={`/?token=${cs.bestCall.token_mint}`}
+                data-testid="call-edge-best"
+                className="block rounded-xl border border-border/60 bg-secondary/20 p-3 hover:border-accent/60 transition-colors"
+              >
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                  Best Call
+                </div>
+                <div className="mt-1 flex items-baseline gap-2 flex-wrap">
+                  <span className="font-mono text-sm font-semibold text-foreground truncate">
+                    {cs.bestCall.token_symbol ||
+                      shortAddr(cs.bestCall.token_mint, 4)}
+                  </span>
+                  <span
+                    className={cn(
+                      "font-mono text-sm font-semibold",
+                      multipleTone(cs.bestCall.multiple),
+                    )}
+                  >
+                    {fmtMultiple(cs.bestCall.multiple)}
+                  </span>
+                  {cs.bestCall.athMultiple != null && (
+                    <span className="font-mono text-[11px] text-muted-foreground">
+                      ATH {fmtMultiple(cs.bestCall.athMultiple)}
+                    </span>
+                  )}
+                </div>
+                <div className="mt-1 font-mono text-[11px] text-muted-foreground">
+                  {fmtMarketCap(cs.bestCall.calledMarketCapUsd ?? null)}
+                  {" → "}
+                  {fmtMarketCap(cs.bestCall.currentMarketCapUsd ?? null)}
+                </div>
+              </Link>
+            )}
+            {all?.worstCall && (
+              <Link
+                href={`/?token=${all.worstCall.token_mint}`}
+                data-testid="call-edge-lowest"
+                className="block rounded-xl border border-border/60 bg-secondary/20 p-3 hover:border-accent/60 transition-colors"
+              >
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                  Lowest Call
+                </div>
+                <div className="mt-1 flex items-baseline gap-2 flex-wrap">
+                  <span className="font-mono text-sm font-semibold text-foreground truncate">
+                    {all.worstCall.token_symbol ||
+                      shortAddr(all.worstCall.token_mint, 4)}
+                  </span>
+                  <span
+                    className={cn(
+                      "font-mono text-sm font-semibold",
+                      pnlColor(all.worstCall.returnPercent),
+                    )}
+                  >
+                    {fmtPercent(all.worstCall.returnPercent, 0)}
+                  </span>
+                </div>
+                <div className="mt-1 text-[11px] text-muted-foreground">
+                  Lowest graded return
+                </div>
+              </Link>
+            )}
+          </div>
+        )}
+      </PanelCard>
+    </div>
   );
 }
 
@@ -1658,10 +1834,10 @@ function ThesisCard({ thesis }: { thesis: ThesisWithAuthor }) {
         </div>
       </div>
 
-      <p className="mt-3 text-sm font-semibold text-foreground break-words">
+      <p className="mt-3 text-sm font-semibold text-foreground break-words [overflow-wrap:anywhere]">
         {thesis.title}
       </p>
-      <p className="mt-1 text-sm text-foreground/90 whitespace-pre-wrap break-words">
+      <p className="mt-1 text-sm text-foreground/90 break-words [overflow-wrap:anywhere] line-clamp-4">
         {thesis.content}
       </p>
     </div>
@@ -1748,123 +1924,6 @@ function CallHistorySection({ profile }: { profile: ProfileResponse }) {
         </div>
       )}
     </>
-  );
-}
-
-type PerfWindow = "30d" | "90d" | "all";
-
-const perfTabs: { id: PerfWindow; label: string }[] = [
-  { id: "30d", label: "30D" },
-  { id: "90d", label: "90D" },
-  { id: "all", label: "All Time" },
-];
-
-/** Period-filtered call performance (30D / 90D / All-time), graded live. */
-function PerformanceSection({ profile }: { profile: ProfileResponse }) {
-  const [win, setWin] = useState<PerfWindow>("30d");
-  const key = profile.x_username || String(profile.user_id);
-
-  const { data, isLoading } = useQuery({
-    queryKey: ["performance", key],
-    queryFn: () =>
-      api.profiles.performance(profile.x_username || profile.user_id),
-    retry: false,
-    staleTime: 60_000,
-  });
-
-  const perf: PeriodPerformance | null = data
-    ? win === "30d"
-      ? data.performance.window30d
-      : win === "90d"
-        ? data.performance.window90d
-        : data.performance.all
-    : null;
-
-  return (
-    <>
-      <SectionHeader icon={Activity} title="Call Performance" />
-      <FilterPills
-        options={perfTabs}
-        value={win}
-        onChange={(id) => setWin(id)}
-        size="sm"
-        ariaLabel="Performance window"
-        testIdPrefix="perf-window"
-        className="mb-3"
-      />
-      {isLoading ? (
-        <div className="flex items-center justify-center py-10">
-          <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-        </div>
-      ) : !perf || perf.totalCalls === 0 ? (
-        <div
-          data-testid="performance-empty"
-          className="rounded-xl bg-card shadow-card text-center py-10 px-6"
-        >
-          <p className="text-foreground font-medium mb-1">No calls in this window</p>
-          <p className="text-muted-foreground text-sm max-w-sm mx-auto">
-            Calls made in the selected period are graded live and summarized here.
-          </p>
-        </div>
-      ) : (
-        <div data-testid="performance-card">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-            <StatTile label="Total Calls" value={String(perf.totalCalls)} />
-            <StatTile label="Graded" value={String(perf.gradedCalls)} />
-            <StatTile
-              label="Win Rate"
-              value={`${perf.winRate.toFixed(0)}%`}
-              cls={perf.winRate >= 60 ? "text-success" : undefined}
-            />
-            <StatTile
-              label="Avg Return"
-              value={
-                perf.avgReturnPercent == null
-                  ? "—"
-                  : fmtPercent(perf.avgReturnPercent, 0)
-              }
-              cls={
-                perf.avgReturnPercent != null
-                  ? pnlColor(perf.avgReturnPercent)
-                  : undefined
-              }
-            />
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
-            <PerfCallTile label="Best Call" call={perf.bestCall} />
-            <PerfCallTile label="Worst Call" call={perf.worstCall} />
-          </div>
-        </div>
-      )}
-    </>
-  );
-}
-
-function PerfCallTile({
-  label,
-  call,
-}: {
-  label: string;
-  call: PeriodPerformance["bestCall"];
-}) {
-  return (
-    <div className="rounded-xl bg-card shadow-card p-4">
-      <div className="stat-label">{label}</div>
-      {call ? (
-        <div className="mt-1.5 flex items-center justify-between gap-2">
-          <span className="font-medium text-foreground truncate">
-            {call.token_symbol || shortAddr(call.token_mint, 4)}
-          </span>
-          <span
-            className={cn("font-mono text-lg", pnlColor(call.returnPercent))}
-          >
-            {fmtPercent(call.returnPercent, 0)}
-          </span>
-        </div>
-      ) : (
-        <div className="stat-value mt-1.5 text-lg text-muted-foreground">—</div>
-      )}
-    </div>
   );
 }
 
@@ -1991,7 +2050,6 @@ export default function ProfilePage() {
 
   const profile = data;
   const profileUrl = xProfileUrl(profile.x_username);
-  const stats = profile.stats;
 
   return (
     <div className="w-full max-w-5xl mx-auto px-4 md:px-6 py-6">
@@ -2059,51 +2117,22 @@ export default function ProfilePage() {
         )}
       </div>
 
-      {/* Reputation - trust score, trading rank, call accuracy */}
-      <XReputationSection profile={profile} />
+      {/* Trader Snapshot - headline identity: BlackPebble Score, Trust Score,
+          rank, tier, ROI, P&L, win rate */}
+      <TraderSnapshotSection profile={profile} solUsd={solUsd} />
 
-      {/* Performance - trader stats grid */}
-      <SectionHeader icon={Trophy} title="Trader Stats" />
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-        <StatTile
-          label="ROI"
-          value={fmtPercent(stats.roiPercent)}
-          cls={pnlColor(stats.roiPercent)}
-        />
-        <StatTile
-          label="Total P&L"
-          value={<PnlAmount sol={stats.totalPnlSol} solUsd={solUsd} unit={false} />}
-          cls={pnlColor(stats.totalPnlSol)}
-        />
-        <StatTile
-          label="Realized P&L"
-          value={
-            <PnlAmount sol={stats.realizedPnlSol} solUsd={solUsd} unit={false} />
-          }
-          cls={pnlColor(stats.realizedPnlSol)}
-        />
-        <StatTile label="Win Rate" value={`${stats.winRate.toFixed(1)}%`} />
-        <StatTile label="Closed Trades" value={String(stats.closedTrades)} />
-        <StatTile label="Executions" value={String(stats.totalExecutions)} />
-        <StatTile
-          label="Best Trade"
-          value={<PnlAmount sol={stats.bestTrade} solUsd={solUsd} unit={false} />}
-          cls={pnlColor(stats.bestTrade)}
-        />
-        <StatTile label="Tier" value={tierMeta(stats.graduationTier).name} />
+      {/* Trading Behavior + Call Edge - side by side on desktop, stacked on
+          mobile, both as compact right-aligned stat panels */}
+      <div className="mt-6 grid items-start gap-x-4 gap-y-6 md:grid-cols-2">
+        <TradingBehaviorSection profile={profile} solUsd={solUsd} />
+        <CallEdgeSection profile={profile} />
       </div>
 
-      {/* Caller Stats (real, derived from callouts) */}
-      <CallerStatsSection profile={profile} />
-
-      {/* Period-filtered call performance (30D / 90D / All) */}
-      <PerformanceSection profile={profile} />
-
-      {/* Activity - call and thesis history */}
+      {/* Call Receipts + Thesis History */}
       <CallHistorySection profile={profile} />
       <ThesisHistorySection profile={profile} />
 
-      {/* Achievements & Badges */}
+      {/* Achievements & Badges (unchanged in this pass) */}
       <BadgesSection profile={profile} />
 
       {/* Share this profile */}
