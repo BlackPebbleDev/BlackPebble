@@ -45,6 +45,9 @@ import {
   type AdminCallout,
   type AdminThesis,
   type AdminJournalEntry,
+  type AdminUserPreview,
+  type ResetResult,
+  type AdminAuditEntry,
   type ProfileResponse,
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -75,9 +78,12 @@ function fmt(n: number | null | undefined, digits = 0): string {
   });
 }
 
-function timeAgo(seconds: number | null): string {
-  if (!seconds) return "never";
-  const diff = Math.floor(Date.now() / 1000) - seconds;
+function timeAgo(ts: number | null): string {
+  if (!ts) return "never";
+  // Accept either unix-seconds or unix-milliseconds (backends return both).
+  const seconds = ts > 1e12 ? Math.floor(ts / 1000) : ts;
+  // Clamp so a slightly-ahead server clock never renders a negative duration.
+  const diff = Math.max(0, Math.floor(Date.now() / 1000) - seconds);
   if (diff < 60) return `${diff}s ago`;
   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
@@ -837,31 +843,161 @@ const RESET_TOGGLES: { key: keyof ResetOptions; label: string; defaultOn: boolea
   { key: "clearLeverage", label: "Clear leverage positions & trades", defaultOn: false },
 ];
 
+/** Compact avatar + identity header for a resolved admin user preview. */
+function PreviewIdentity({ preview }: { preview: AdminUserPreview }) {
+  const id = preview.identity;
+  const name = id?.xDisplayName || id?.xUsername || "Guest account";
+  return (
+    <div className="flex items-center gap-3">
+      {id?.xAvatarUrl ? (
+        <img
+          src={id.xAvatarUrl}
+          alt=""
+          className="h-10 w-10 flex-shrink-0 rounded-full object-cover"
+        />
+      ) : (
+        <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-secondary text-muted-foreground">
+          <Users className="h-5 w-5" />
+        </span>
+      )}
+      <div className="min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="truncate text-sm font-semibold text-foreground">
+            {name}
+          </span>
+          <span
+            className={cn(
+              "rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider",
+              preview.registered
+                ? "bg-accent/15 text-accent"
+                : "bg-secondary text-muted-foreground",
+            )}
+          >
+            {preview.registered ? "Registered" : "Guest"}
+          </span>
+        </div>
+        <div className="truncate text-xs text-muted-foreground">
+          {id?.xUsername ? `@${id.xUsername}` : preview.accountKey}
+          {preview.matchedBy ? ` · matched by ${preview.matchedBy}` : ""}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** The rich, read-only preview shown before any destructive single-user action. */
+function ResetUserPreview({ preview }: { preview: AdminUserPreview }) {
+  return (
+    <div
+      className="space-y-3 rounded-xl border border-border bg-background/40 p-3"
+      data-testid="reset-user-preview"
+    >
+      <PreviewIdentity preview={preview} />
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        <Stat label="Account key" value={preview.accountKey ?? "—"} />
+        <Stat label="X id" value={preview.identity?.xId ?? "—"} />
+        <Stat label="Internal id" value={preview.identity?.userId != null ? String(preview.identity.userId) : "—"} />
+        <Stat label="Balance" value={preview.balance != null ? `${fmt(preview.balance, 2)} SOL` : "—"} />
+        <Stat label="Season" value={preview.season != null ? String(preview.season) : "—"} />
+        <Stat label="Tier" value={preview.tier ?? "—"} />
+        <Stat label="Open spot" value={fmt(preview.openSpotPositions)} />
+        <Stat label="Open perps" value={fmt(preview.openPerpsPositions)} />
+        <Stat label="Active orders" value={fmt(preview.activeOrders)} />
+        <Stat label="Closed trades" value={fmt(preview.closedTrades)} />
+        <Stat label="Executions" value={fmt(preview.executions)} />
+        <Stat label="Watchlist" value={fmt(preview.watchlistCount)} />
+        <Stat label="Rank" value={preview.rank != null ? `#${preview.rank}` : "Unranked"} />
+        <Stat label="Trust" value={preview.trustScore != null ? String(preview.trustScore) : "—"} />
+        <Stat label="Created" value={timeAgo(preview.createdAt)} />
+      </div>
+      {preview.connectedWallet && (
+        <div className="text-xs text-muted-foreground">
+          Connected wallet: <code>{shortWallet(preview.connectedWallet)}</code>
+        </div>
+      )}
+      {preview.officialBadges.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {preview.officialBadges.map((b) => (
+            <span
+              key={b}
+              className="rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent"
+            >
+              {b}
+            </span>
+          ))}
+        </div>
+      )}
+      {!preview.hasAccount && (
+        <p className="text-xs text-warning/80">
+          This user has no paper-trading account yet, so there is nothing to
+          reset.
+        </p>
+      )}
+    </div>
+  );
+}
+
+const ALL_RESET_PHRASE = "RESET ALL";
+
 function ResetSection() {
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [wallet, setWallet] = useState("");
+  const [identifier, setIdentifier] = useState("");
+  const [preview, setPreview] = useState<AdminUserPreview | null>(null);
+  const [allConfirm, setAllConfirm] = useState("");
   const [options, setOptions] = useState<ResetOptions>(() =>
     Object.fromEntries(RESET_TOGGLES.map((t) => [t.key, t.defaultOn])) as ResetOptions,
   );
 
-  const onDone = (label: string) => {
-    toast({ title: `${label} complete`, description: "Affected rows were backed up before deletion." });
-    qc.invalidateQueries();
-  };
+  const resolve = useMutation({
+    mutationFn: () => api.admin.resolveUser(identifier.trim()),
+    onSuccess: (r) => setPreview(r.preview),
+    onError: (e: Error) => {
+      setPreview(null);
+      toast({ title: "User not found", description: e.message, variant: "destructive" });
+    },
+  });
+
   const resetUser = useMutation({
-    mutationFn: () => api.admin.resetUser(wallet.trim(), options),
-    onSuccess: () => onDone("User reset"),
+    mutationFn: (key: string) => api.admin.resetUser(key, options),
+    onSuccess: (r: ResetResult) => {
+      if (r.nothingChanged) {
+        toast({
+          title: "Nothing changed",
+          description: r.warning ?? "The resolved account had no data to reset.",
+          variant: "destructive",
+        });
+      } else {
+        const total = Object.values(r.deleted).reduce((a, b) => a + b, 0);
+        toast({
+          title: "User reset complete",
+          description: `${total} rows backed up + cleared; ${r.accountsReset} account(s) reset. Applied: ${r.applied.join(", ") || "none"}.`,
+        });
+      }
+      qc.invalidateQueries();
+      if (identifier.trim()) resolve.mutate(); // refresh the preview
+    },
     onError: (e: Error) => toast({ title: "Reset failed", description: e.message, variant: "destructive" }),
   });
+
   const resetAll = useMutation({
     mutationFn: () => api.admin.resetAll(options),
-    onSuccess: () => onDone("Global reset"),
+    onSuccess: (r: ResetResult) => {
+      const total = Object.values(r.deleted).reduce((a, b) => a + b, 0);
+      toast({
+        title: "Global reset complete",
+        description: `${total} rows backed up + cleared; ${r.accountsReset} accounts reset.`,
+      });
+      setAllConfirm("");
+      qc.invalidateQueries();
+    },
     onError: (e: Error) => toast({ title: "Reset failed", description: e.message, variant: "destructive" }),
   });
 
   const toggle = (key: keyof ResetOptions, v: boolean) =>
     setOptions((o) => ({ ...o, [key]: v }));
+
+  const canReset = !!preview?.found && !!preview.accountKey;
 
   return (
     <Card title="Paper-trading reset" icon={AlertTriangle}>
@@ -882,22 +1018,42 @@ function ResetSection() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="space-y-2 border border-border bg-background/40 p-3">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {/* Single user: resolve -> preview -> confirm */}
+        <div className="space-y-3 rounded-xl border border-border bg-background/40 p-3">
           <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
             Single user
           </div>
-          <Input
-            placeholder="wallet or x:<id>"
-            value={wallet}
-            onChange={(e) => setWallet(e.target.value)}
-            data-testid="input-reset-wallet"
-          />
+          <div className="flex gap-2">
+            <Input
+              placeholder="@handle, X id, internal id, x:<id>, or wallet"
+              value={identifier}
+              onChange={(e) => {
+                setIdentifier(e.target.value);
+                setPreview(null);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && identifier.trim()) resolve.mutate();
+              }}
+              data-testid="input-reset-wallet"
+            />
+            <Button
+              variant="outline"
+              onClick={() => resolve.mutate()}
+              disabled={!identifier.trim() || resolve.isPending}
+              data-testid="button-resolve-user"
+            >
+              {resolve.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Look up"}
+            </Button>
+          </div>
+
+          {preview?.found && <ResetUserPreview preview={preview} />}
+
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button
                 className="w-full"
-                disabled={!wallet.trim() || resetUser.isPending}
+                disabled={!canReset || resetUser.isPending}
                 data-testid="button-reset-user"
               >
                 {resetUser.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -906,33 +1062,48 @@ function ResetSection() {
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Reset {wallet.trim()}?</AlertDialogTitle>
+                <AlertDialogTitle>
+                  Reset {preview?.identity?.xUsername ? `@${preview.identity.xUsername}` : preview?.accountKey}?
+                </AlertDialogTitle>
                 <AlertDialogDescription>
-                  This applies the selected actions to a single account. A backup is taken first,
+                  This applies the selected actions to this single account
+                  (<code>{preview?.accountKey}</code>). A backup is taken first,
                   but this cannot be undone from the UI.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={() => resetUser.mutate()}>Reset user</AlertDialogAction>
+                <AlertDialogAction
+                  onClick={() => canReset && resetUser.mutate(preview!.accountKey!)}
+                >
+                  Reset user
+                </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
         </div>
 
-        <div className="space-y-2 border border-danger/30 bg-red-400/5 p-3">
+        {/* All users: harder to trigger (typed phrase + modal) */}
+        <div className="space-y-3 rounded-xl border border-danger/30 bg-red-400/5 p-3">
           <div className="text-[11px] uppercase tracking-wider text-danger">
             All users - danger zone
           </div>
           <p className="text-xs text-muted-foreground">
-            Applies the selected actions to every account on the platform.
+            Applies the selected actions to every account on the platform. Type
+            <code className="mx-1">{ALL_RESET_PHRASE}</code> to unlock.
           </p>
+          <Input
+            placeholder={`Type ${ALL_RESET_PHRASE} to confirm`}
+            value={allConfirm}
+            onChange={(e) => setAllConfirm(e.target.value)}
+            data-testid="input-reset-all-confirm"
+          />
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button
                 variant="destructive"
                 className="w-full"
-                disabled={resetAll.isPending}
+                disabled={allConfirm.trim() !== ALL_RESET_PHRASE || resetAll.isPending}
                 data-testid="button-reset-all"
               >
                 {resetAll.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -943,9 +1114,9 @@ function ResetSection() {
               <AlertDialogHeader>
                 <AlertDialogTitle>Reset every account?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  This applies the selected actions across the entire platform. Affected rows are
-                  backed up to <code>reset_backups</code> first, but this is a destructive, global
-                  action.
+                  This applies the selected actions across the ENTIRE platform.
+                  Affected rows are backed up to <code>reset_backups</code> first,
+                  but this is a destructive, global action.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
@@ -961,6 +1132,111 @@ function ResetSection() {
           </AlertDialog>
         </div>
       </div>
+    </Card>
+  );
+}
+
+const AUDIT_ACTION_LABELS: Record<string, string> = {
+  "reset-user": "User reset",
+  "reset-all": "All-user reset",
+  "reset-test-data": "Purge test data",
+  "reset-social": "Reset social",
+  "reset-journal": "Reset journal",
+  "full-reset": "Full reset",
+  "feature-flag": "Feature flag",
+  "badge-assign": "Badge assigned",
+  "badge-remove": "Badge removed",
+  "order-cancel": "Order canceled",
+  "market-refresh": "Market cache refresh",
+};
+
+/** Persistent admin audit log viewer (newest first, keyset-paginated). */
+function AuditLogSection() {
+  const [action, setAction] = useState("");
+  const { data, isLoading, refetch, isFetching } = useQuery({
+    queryKey: ["admin-audit", action],
+    queryFn: () => api.admin.auditLog({ action: action || undefined, limit: 50 }),
+  });
+  const entries = data?.entries ?? [];
+
+  return (
+    <Card
+      title="Admin audit log"
+      icon={ScrollText}
+      action={
+        <Button size="sm" variant="outline" onClick={() => refetch()} disabled={isFetching}>
+          {isFetching ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+          Refresh
+        </Button>
+      }
+    >
+      <div className="mb-3 flex flex-wrap gap-1.5">
+        {["", ...Object.keys(AUDIT_ACTION_LABELS)].map((a) => (
+          <button
+            key={a || "all"}
+            type="button"
+            onClick={() => setAction(a)}
+            className={cn(
+              "rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors",
+              action === a
+                ? "border-accent/50 bg-accent/15 text-accent"
+                : "border-border text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {a ? AUDIT_ACTION_LABELS[a] : "All"}
+          </button>
+        ))}
+      </div>
+
+      {isLoading ? (
+        <div className="flex justify-center py-6">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        </div>
+      ) : entries.length === 0 ? (
+        <p className="py-4 text-center text-sm text-muted-foreground">
+          No admin actions recorded yet.
+        </p>
+      ) : (
+        <div className="space-y-2">
+          {entries.map((e: AdminAuditEntry) => (
+            <div
+              key={e.id}
+              className="rounded-xl border border-border bg-background/40 p-3"
+              data-testid={`audit-entry-${e.id}`}
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span
+                    className={cn(
+                      "h-2 w-2 flex-shrink-0 rounded-full",
+                      e.success ? "bg-emerald-400" : "bg-red-400",
+                    )}
+                    aria-hidden
+                  />
+                  <span className="text-sm font-semibold text-foreground">
+                    {AUDIT_ACTION_LABELS[e.action] ?? e.action}
+                  </span>
+                  {!e.success && (
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-red-400">
+                      Failed
+                    </span>
+                  )}
+                </div>
+                <span className="text-[11px] text-muted-foreground">
+                  {timeAgo(Date.parse(e.created_at) / 1000)}
+                </span>
+              </div>
+              <div className="mt-1 text-xs text-muted-foreground">
+                {e.admin_handle ? `@${e.admin_handle}` : e.admin_x_id ?? "admin"}
+                {e.target_label ? ` → ${e.target_label}` : ""}
+              </div>
+              {e.error && (
+                <div className="mt-1 text-xs text-red-400">{e.error}</div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </Card>
   );
 }
@@ -2145,7 +2421,12 @@ export default function AdminPage() {
         <SocialControlSection />
         <SocialResetSection />
 
+        <div className="flex items-center gap-2 pt-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          <AlertTriangle className="h-4 w-4 text-accent" />
+          Reset & audit
+        </div>
         <ResetSection />
+        <AuditLogSection />
       </div>
     </div>
   );
