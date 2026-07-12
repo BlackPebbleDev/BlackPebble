@@ -44,6 +44,15 @@ import {
   type TestFilter,
 } from "../lib/adminSocial.js";
 import { ensureAnalyticsTable } from "./analytics.js";
+import {
+  resolveAdminAccount,
+  getAdminUserPreview,
+} from "../lib/adminUsers.js";
+import {
+  recordAdminAction,
+  adminFromReq,
+  listAdminAudit,
+} from "../lib/adminAudit.js";
 
 const router: IRouter = Router();
 
@@ -518,14 +527,30 @@ router.post(
         .status(404)
         .json({ error: "Order not found or not cancellable" });
     }
+    await recordAdminAction({
+      admin: adminFromReq(req),
+      action: "order-cancel",
+      targetType: "order",
+      targetId: String(id),
+      targetLabel: `order #${id}`,
+      success: true,
+    });
     return res.json({ ok: true });
   }),
 );
 
 router.post(
   "/admin/market/refresh",
-  asyncHandler(async (_req, res) => {
+  asyncHandler(async (req, res) => {
     const tokens = await forceRefreshTrending();
+    await recordAdminAction({
+      admin: adminFromReq(req),
+      action: "market-refresh",
+      targetType: "cache",
+      targetLabel: "trending tokens",
+      success: true,
+      after: { tokenCount: tokens.length },
+    });
     return res.json({ ok: true, tokenCount: tokens.length, status: getMarketStatus() });
   }),
 );
@@ -566,6 +591,16 @@ router.post(
     const key = String(req.body?.key ?? "").trim();
     const enabled = Boolean(req.body?.enabled);
     const result = await setFeatureFlag(key, enabled);
+    await recordAdminAction({
+      admin: adminFromReq(req),
+      action: "feature-flag",
+      targetType: "flag",
+      targetId: key,
+      targetLabel: key,
+      success: result.ok,
+      error: result.ok ? null : "invalid flag",
+      after: { enabled },
+    });
     if (!result.ok) return res.status(400).json(result);
     return res.json(result);
   }),
@@ -584,20 +619,138 @@ function parseOptions(body: unknown): ResetOptions {
   };
 }
 
+/**
+ * Resolve any admin identifier (X handle, X id, internal id, x:<id> key, or
+ * wallet) to a rich, read-only account preview. This is the confirm step the
+ * admin sees BEFORE any destructive single-user action.
+ */
+router.get(
+  "/admin/resolve-user",
+  asyncHandler(async (req, res) => {
+    const q = String(req.query.q ?? req.query.wallet ?? "").trim();
+    if (!q) return res.status(400).json({ error: "q is required" });
+    const preview = await getAdminUserPreview(q);
+    if (!preview.found) {
+      return res
+        .status(404)
+        .json({ error: `No BlackPebble account matched "${q}".`, preview });
+    }
+    return res.json({ preview });
+  }),
+);
+
 router.post(
   "/admin/reset-user",
   asyncHandler(async (req, res) => {
-    const wallet = String(req.body?.wallet ?? "").trim();
-    if (!wallet) return res.status(400).json({ error: "wallet is required" });
-    const result = await adminReset("user", wallet, parseOptions(req.body?.options));
-    return res.json(result);
+    // Accept `identifier` (new) or `wallet` (legacy). Resolve ANY supported
+    // identifier to the canonical account key before touching the DB, so a bare
+    // X id / handle / internal id no longer silently matches zero rows.
+    const identifier = String(
+      req.body?.identifier ?? req.body?.wallet ?? "",
+    ).trim();
+    const admin = adminFromReq(req);
+    if (!identifier) {
+      return res.status(400).json({ error: "identifier is required" });
+    }
+
+    const resolved = await resolveAdminAccount(identifier);
+    if (!resolved.found || !resolved.accountKey) {
+      await recordAdminAction({
+        admin,
+        action: "reset-user",
+        targetType: "user",
+        targetLabel: identifier,
+        success: false,
+        error: "user not found",
+      });
+      return res.status(404).json({
+        error: `No BlackPebble account matched "${identifier}". Enter an X handle, X id, internal user id, x:<id> key, or wallet.`,
+      });
+    }
+
+    const options = parseOptions(req.body?.options);
+    const result = await adminReset("user", resolved.accountKey, options);
+
+    // Fail loudly: a resolved key that touched zero rows (e.g. the user never
+    // traded, so no account exists) must NOT report a misleading success.
+    const totalDeleted = Object.values(result.deleted).reduce(
+      (a, b) => a + b,
+      0,
+    );
+    const nothingChanged = result.accountsReset === 0 && totalDeleted === 0;
+
+    await recordAdminAction({
+      admin,
+      action: "reset-user",
+      targetType: "user",
+      targetId: resolved.accountKey,
+      targetLabel: resolved.identity?.xUsername ?? resolved.accountKey,
+      success: !nothingChanged,
+      error: nothingChanged ? "no matching rows / no account" : null,
+      after: {
+        applied: result.applied,
+        deleted: result.deleted,
+        accountsReset: result.accountsReset,
+        matchedBy: resolved.matchedBy,
+      },
+    });
+
+    return res.json({
+      ...result,
+      ok: !nothingChanged,
+      nothingChanged,
+      warning: nothingChanged
+        ? "Resolved the account, but nothing was changed (this user has no paper-trading data to reset yet)."
+        : undefined,
+      resolved: {
+        accountKey: resolved.accountKey,
+        matchedBy: resolved.matchedBy,
+        identity: resolved.identity,
+        isGuest: resolved.isGuest,
+      },
+    });
   }),
 );
 
 router.post(
   "/admin/reset-all",
   asyncHandler(async (req, res) => {
-    const result = await adminReset("all", null, parseOptions(req.body?.options));
+    const admin = adminFromReq(req);
+    const options = parseOptions(req.body?.options);
+    const result = await adminReset("all", null, options);
+    await recordAdminAction({
+      admin,
+      action: "reset-all",
+      targetType: "platform",
+      targetLabel: "ALL users",
+      success: result.ok,
+      after: {
+        applied: result.applied,
+        deleted: result.deleted,
+        accountsReset: result.accountsReset,
+      },
+    });
+    return res.json(result);
+  }),
+);
+
+/**
+ * Persistent admin audit log (newest-first, keyset-paginated). Filter by admin
+ * x id, action, target type, or success.
+ */
+router.get(
+  "/admin/audit-log",
+  asyncHandler(async (req, res) => {
+    const successRaw = String(req.query.success ?? "");
+    const result = await listAdminAudit({
+      admin: String(req.query.admin ?? "").trim() || undefined,
+      action: String(req.query.action ?? "").trim() || undefined,
+      targetType: String(req.query.targetType ?? "").trim() || undefined,
+      success:
+        successRaw === "true" ? true : successRaw === "false" ? false : undefined,
+      cursor: Number(req.query.cursor) || undefined,
+      limit: Number(req.query.limit) || undefined,
+    });
     return res.json(result);
   }),
 );
@@ -785,7 +938,16 @@ router.post(
     if (!confirmed(req.body, "RESET")) {
       return res.status(400).json({ error: 'Type "RESET" to confirm' });
     }
-    return res.json(await resetTestData());
+    const result = await resetTestData();
+    await recordAdminAction({
+      admin: adminFromReq(req),
+      action: "reset-test-data",
+      targetType: "platform",
+      targetLabel: "test data",
+      success: result.ok,
+      after: { deleted: result.deleted },
+    });
+    return res.json(result);
   }),
 );
 
@@ -795,7 +957,16 @@ router.post(
     if (!confirmed(req.body, "RESET")) {
       return res.status(400).json({ error: 'Type "RESET" to confirm' });
     }
-    return res.json(await resetSocial());
+    const result = await resetSocial();
+    await recordAdminAction({
+      admin: adminFromReq(req),
+      action: "reset-social",
+      targetType: "platform",
+      targetLabel: "all social content",
+      success: result.ok,
+      after: { deleted: result.deleted },
+    });
+    return res.json(result);
   }),
 );
 
@@ -805,7 +976,16 @@ router.post(
     if (!confirmed(req.body, "RESET")) {
       return res.status(400).json({ error: 'Type "RESET" to confirm' });
     }
-    return res.json(await resetJournal());
+    const result = await resetJournal();
+    await recordAdminAction({
+      admin: adminFromReq(req),
+      action: "reset-journal",
+      targetType: "platform",
+      targetLabel: "all journal entries",
+      success: result.ok,
+      after: { deleted: result.deleted },
+    });
+    return res.json(result);
   }),
 );
 
@@ -815,7 +995,19 @@ router.post(
     if (!confirmed(req.body, "FULL RESET")) {
       return res.status(400).json({ error: 'Type "FULL RESET" to confirm' });
     }
-    return res.json(await fullReset());
+    const result = await fullReset();
+    await recordAdminAction({
+      admin: adminFromReq(req),
+      action: "full-reset",
+      targetType: "platform",
+      targetLabel: "ENTIRE platform",
+      success: result.ok,
+      after: {
+        trading: result.trading.deleted,
+        social: result.social.deleted,
+      },
+    });
+    return res.json(result);
   }),
 );
 
@@ -849,6 +1041,15 @@ router.post(
       badge_type as OfficialBadgeType,
       session?.x_username ?? null,
     );
+    await recordAdminAction({
+      admin: adminFromReq(req),
+      action: "badge-assign",
+      targetType: "user",
+      targetId: String(user.user_id),
+      targetLabel: user.x_username,
+      success: true,
+      after: { badge_type },
+    });
     return res.json({ ok: true, user_id: user.user_id, x_username: user.x_username });
   }),
 );
@@ -875,6 +1076,15 @@ router.post(
       return res.status(404).json({ error: "No BlackPebble user found with that X handle." });
     }
     await removeOfficialBadge(user.user_id, badge_type as OfficialBadgeType);
+    await recordAdminAction({
+      admin: adminFromReq(req),
+      action: "badge-remove",
+      targetType: "user",
+      targetId: String(user.user_id),
+      targetLabel: user.x_username,
+      success: true,
+      after: { badge_type },
+    });
     return res.json({ ok: true });
   }),
 );
