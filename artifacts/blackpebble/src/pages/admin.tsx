@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Shield,
@@ -29,6 +29,12 @@ import {
   BadgeCheck,
   ShieldCheck,
   Copy,
+  Download,
+  Search,
+  ChevronRight,
+  Brain,
+  Gauge,
+  LayoutDashboard,
 } from "lucide-react";
 import { useAdmin } from "@/hooks/use-admin";
 import { useToast } from "@/hooks/use-toast";
@@ -49,10 +55,27 @@ import {
   type AdminUserPreview,
   type ResetResult,
   type AdminAuditEntry,
+  type AdminAuditFilters,
+  type AchievementsAudit,
   type ApiError,
   type ProfileResponse,
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import {
+  AdminSection,
+  AdminNav,
+  StatusChip,
+  type AdminNavItem,
+} from "@/components/admin-ui";
+import {
+  worstStatus,
+  freshnessStatus,
+  latencyStatus,
+  boolStatus,
+  toCsv,
+  downloadFile,
+  type StatusLevel,
+} from "@/lib/admin-ops";
 import { UserIdentity } from "@/components/user-identity";
 import { ROLE_META, ROLE_ORDER } from "@/components/official-badge";
 import { tierMeta } from "@/lib/tiers";
@@ -1280,94 +1303,774 @@ const AUDIT_ACTION_LABELS: Record<string, string> = {
   "market-refresh": "Market cache refresh",
 };
 
-/** Persistent admin audit log viewer (newest first, keyset-paginated). */
+function auditActionLabel(a: string): string {
+  return AUDIT_ACTION_LABELS[a] ?? a;
+}
+
+/** One expandable audit row (mobile-friendly card). */
+function AuditRow({ e }: { e: AdminAuditEntry }) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const detail = (label: string, value: React.ReactNode) =>
+    value != null && value !== "" ? (
+      <div className="flex flex-wrap gap-x-2">
+        <dt className="text-muted-foreground">{label}</dt>
+        <dd className="break-all font-mono text-foreground">{value}</dd>
+      </div>
+    ) : null;
+
+  const stateJson = (v: unknown) =>
+    v == null ? null : JSON.stringify(v, null, 2);
+  const after = stateJson(e.after_state);
+  const before = stateJson(e.before_state);
+
+  return (
+    <div
+      className="rounded-xl border border-border/60 bg-background/40 p-3"
+      data-testid={`audit-entry-${e.id}`}
+    >
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-start justify-between gap-2 text-left"
+        aria-expanded={open}
+      >
+        <span className="min-w-0">
+          <span className="flex items-center gap-2">
+            <span
+              className={cn(
+                "h-2 w-2 flex-shrink-0 rounded-full",
+                e.success ? "bg-emerald-400" : "bg-red-400",
+              )}
+              aria-hidden
+            />
+            <span className="text-sm font-semibold text-foreground">
+              {auditActionLabel(e.action)}
+            </span>
+            {!e.success && (
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-red-400">
+                Failed
+              </span>
+            )}
+          </span>
+          <span className="mt-1 block truncate text-xs text-muted-foreground">
+            {e.admin_handle ? `@${e.admin_handle}` : e.admin_x_id ?? "admin"}
+            {e.target_label ? ` → ${e.target_label}` : ""}
+          </span>
+        </span>
+        <span className="flex flex-shrink-0 items-center gap-1.5">
+          <span className="text-[11px] text-muted-foreground">
+            {timeAgo(Date.parse(e.created_at) / 1000)}
+          </span>
+          <ChevronRight
+            className={cn(
+              "h-3.5 w-3.5 text-muted-foreground transition-transform",
+              open && "rotate-90",
+            )}
+          />
+        </span>
+      </button>
+      {e.error && !open && (
+        <div className="mt-1 truncate text-xs text-red-400">{e.error}</div>
+      )}
+      {open && (
+        <dl className="mt-3 space-y-1 border-t border-border/50 pt-3 text-xs">
+          {detail("Target type", e.target_type)}
+          {detail("Target id", e.target_id)}
+          {detail("Admin id", e.admin_x_id)}
+          {detail("Reason", e.reason)}
+          {e.error && detail("Error", <span className="text-red-400">{e.error}</span>)}
+          {e.correlation_id && (
+            <div className="flex flex-wrap items-center gap-x-2">
+              <dt className="text-muted-foreground">Correlation</dt>
+              <dd className="break-all font-mono text-foreground">
+                {e.correlation_id}
+              </dd>
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard?.writeText(e.correlation_id ?? "");
+                  toast({ title: "Correlation ID copied" });
+                }}
+                className="text-accent hover:underline"
+                data-testid={`copy-correlation-${e.id}`}
+              >
+                <Copy className="inline h-3 w-3" />
+              </button>
+            </div>
+          )}
+          {after && (
+            <div>
+              <dt className="text-muted-foreground">After</dt>
+              <dd>
+                <pre className="mt-0.5 overflow-x-auto whitespace-pre-wrap break-words rounded bg-surface-2 p-2 font-mono text-[10px] text-foreground">
+                  {after}
+                </pre>
+              </dd>
+            </div>
+          )}
+          {before && (
+            <div>
+              <dt className="text-muted-foreground">Before</dt>
+              <dd>
+                <pre className="mt-0.5 overflow-x-auto whitespace-pre-wrap break-words rounded bg-surface-2 p-2 font-mono text-[10px] text-foreground">
+                  {before}
+                </pre>
+              </dd>
+            </div>
+          )}
+        </dl>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Full admin audit-log viewer: free-text search, action / result / date
+ * filters, cursor pagination (load more), expandable rows, copy correlation id,
+ * and CSV / JSON export of the current filtered set.
+ */
 function AuditLogSection() {
+  const { toast } = useToast();
+  const [q, setQ] = useState("");
+  const [appliedQ, setAppliedQ] = useState("");
   const [action, setAction] = useState("");
-  const { data, isLoading, refetch, isFetching } = useQuery({
-    queryKey: ["admin-audit", action],
-    queryFn: () => api.admin.auditLog({ action: action || undefined, limit: 50 }),
-  });
-  const entries = data?.entries ?? [];
+  const [success, setSuccess] = useState<"" | "true" | "false">("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [entries, setEntries] = useState<AdminAuditEntry[]>([]);
+  const [cursor, setCursor] = useState<number | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const filters = useMemo<AdminAuditFilters>(
+    () => ({
+      q: appliedQ.trim() || undefined,
+      action: action || undefined,
+      success: success === "" ? undefined : success === "true",
+      from: from ? Math.floor(new Date(from).getTime() / 1000) : undefined,
+      to: to ? Math.floor(new Date(`${to}T23:59:59`).getTime() / 1000) : undefined,
+      limit: 50,
+    }),
+    [appliedQ, action, success, from, to],
+  );
+
+  const load = async (reset: boolean) => {
+    setLoading(true);
+    try {
+      const r = await api.admin.auditLog({
+        ...filters,
+        cursor: reset ? undefined : cursor ?? undefined,
+      });
+      setEntries((prev) => (reset ? r.entries : [...prev, ...r.entries]));
+      setCursor(r.nextCursor);
+    } catch (e) {
+      toast({
+        title: "Audit load failed",
+        description: (e as Error).message,
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Reload from the top whenever a filter changes.
+  useEffect(() => {
+    load(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters]);
+
+  const exportData = (kind: "csv" | "json") => {
+    if (entries.length === 0) return;
+    const flat = entries.map((e) => ({
+      id: e.id,
+      created_at: e.created_at,
+      admin_handle: e.admin_handle,
+      admin_x_id: e.admin_x_id,
+      action: e.action,
+      target_type: e.target_type,
+      target_id: e.target_id,
+      target_label: e.target_label,
+      success: e.success,
+      error: e.error,
+      correlation_id: e.correlation_id,
+      reason: e.reason,
+      after_state: e.after_state,
+      before_state: e.before_state,
+    }));
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+    if (kind === "csv") {
+      downloadFile(`admin-audit-${stamp}.csv`, toCsv(flat), "text/csv");
+    } else {
+      downloadFile(
+        `admin-audit-${stamp}.json`,
+        JSON.stringify(flat, null, 2),
+        "application/json",
+      );
+    }
+  };
 
   return (
     <Card
       title="Admin audit log"
       icon={ScrollText}
       action={
-        <Button size="sm" variant="outline" onClick={() => refetch()} disabled={isFetching}>
-          {isFetching ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-          Refresh
-        </Button>
+        <div className="flex items-center gap-1.5">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => exportData("csv")}
+            disabled={entries.length === 0}
+            data-testid="audit-export-csv"
+          >
+            <Download className="mr-1.5 h-3.5 w-3.5" />
+            CSV
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => exportData("json")}
+            disabled={entries.length === 0}
+          >
+            JSON
+          </Button>
+        </div>
       }
     >
-      <div className="mb-3 flex flex-wrap gap-1.5">
-        {["", ...Object.keys(AUDIT_ACTION_LABELS)].map((a) => (
-          <button
-            key={a || "all"}
-            type="button"
-            onClick={() => setAction(a)}
-            className={cn(
-              "rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors",
-              action === a
-                ? "border-accent/50 bg-accent/15 text-accent"
-                : "border-border text-muted-foreground hover:text-foreground",
-            )}
+      {/* Filters */}
+      <div className="mb-3 space-y-2">
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              className="pl-8"
+              placeholder="Search target, error, correlation id…"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") setAppliedQ(q);
+              }}
+              data-testid="audit-search"
+            />
+          </div>
+          <Button variant="outline" onClick={() => setAppliedQ(q)}>
+            Search
+          </Button>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={action}
+            onChange={(e) => setAction(e.target.value)}
+            className="h-9 rounded-lg border border-border bg-background px-2 text-xs text-foreground"
+            data-testid="audit-filter-action"
           >
-            {a ? AUDIT_ACTION_LABELS[a] : "All"}
-          </button>
-        ))}
+            <option value="">All actions</option>
+            {Object.keys(AUDIT_ACTION_LABELS).map((a) => (
+              <option key={a} value={a}>
+                {AUDIT_ACTION_LABELS[a]}
+              </option>
+            ))}
+          </select>
+          <select
+            value={success}
+            onChange={(e) => setSuccess(e.target.value as "" | "true" | "false")}
+            className="h-9 rounded-lg border border-border bg-background px-2 text-xs text-foreground"
+            data-testid="audit-filter-success"
+          >
+            <option value="">Any result</option>
+            <option value="true">Success</option>
+            <option value="false">Failure</option>
+          </select>
+          <Input
+            type="date"
+            value={from}
+            onChange={(e) => setFrom(e.target.value)}
+            className="h-9 w-auto text-xs"
+            aria-label="From date"
+          />
+          <Input
+            type="date"
+            value={to}
+            onChange={(e) => setTo(e.target.value)}
+            className="h-9 w-auto text-xs"
+            aria-label="To date"
+          />
+        </div>
       </div>
 
-      {isLoading ? (
+      {loading && entries.length === 0 ? (
         <div className="flex justify-center py-6">
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         </div>
       ) : entries.length === 0 ? (
         <p className="py-4 text-center text-sm text-muted-foreground">
-          No admin actions recorded yet.
+          No admin actions match these filters.
         </p>
       ) : (
-        <div className="space-y-2">
-          {entries.map((e: AdminAuditEntry) => (
+        <>
+          <div className="space-y-2">
+            {entries.map((e) => (
+              <AuditRow key={e.id} e={e} />
+            ))}
+          </div>
+          {cursor != null && (
+            <div className="mt-3 flex justify-center">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => load(false)}
+                disabled={loading}
+                data-testid="audit-load-more"
+              >
+                {loading ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : null}
+                Load more
+              </Button>
+            </div>
+          )}
+        </>
+      )}
+    </Card>
+  );
+}
+
+/**
+ * Overview Operations Center. Real system-health probes + factual feature
+ * configuration + today's activity + recent admin actions/failures + deploy
+ * identity. Unknown data renders as "Unknown" - never faked, never zero-as-null.
+ */
+function OverviewSection() {
+  const { data: health } = useQuery({
+    queryKey: ["admin-health"],
+    queryFn: () => api.admin.health(),
+    refetchInterval: 30_000,
+  });
+  const { data: version } = useQuery({
+    queryKey: ["admin-version"],
+    queryFn: () => api.admin.version(),
+    staleTime: 300_000,
+  });
+  const { data: stats } = useQuery({
+    queryKey: ["admin-stats", "24h"],
+    queryFn: () => api.admin.stats("24h"),
+    staleTime: 60_000,
+  });
+  const { data: flags } = useQuery({
+    queryKey: ["admin-flags"],
+    queryFn: () => api.admin.featureFlags(),
+    staleTime: 60_000,
+  });
+  const { data: recent } = useQuery({
+    queryKey: ["admin-audit-recent"],
+    queryFn: () => api.admin.auditLog({ limit: 6 }),
+    refetchInterval: 30_000,
+  });
+  const { data: failures } = useQuery({
+    queryKey: ["admin-audit-failures"],
+    queryFn: () => api.admin.auditLog({ success: false, limit: 5 }),
+    refetchInterval: 30_000,
+  });
+
+  const apiStatus: StatusLevel = boolStatus(health?.api.ok);
+  const dbStatus: StatusLevel = health
+    ? worstStatus([boolStatus(health.db.ok), latencyStatus(health.db.latencyMs)])
+    : "unknown";
+  const feedStatus: StatusLevel = health
+    ? boolStatus(health.market.pumpportalConnected, "warning")
+    : "unknown";
+  const cacheStatus: StatusLevel = freshnessStatus(
+    health?.market.lastUpdated,
+    600,
+    1800,
+  );
+
+  const systemTiles: Array<{ label: string; level: StatusLevel; sub?: string }> = [
+    { label: "API", level: apiStatus, sub: health?.api.node },
+    {
+      label: "Database",
+      level: dbStatus,
+      sub: health?.db.latencyMs != null ? `${health.db.latencyMs}ms` : "Unknown",
+    },
+    { label: "Live feed", level: feedStatus, sub: "pump.fun stream" },
+    {
+      label: "Market cache",
+      level: cacheStatus,
+      sub:
+        health?.market.tokenCount != null
+          ? `${fmt(health.market.tokenCount)} tokens`
+          : "Unknown",
+    },
+  ];
+
+  const flagCfg: Array<{ label: string; on: boolean | undefined }> = flags
+    ? [
+        { label: "Perps", on: flags.flags.leverage },
+        { label: "Buy limits", on: flags.flags.buy_limits },
+        { label: "TP / SL", on: flags.flags.tp_sl },
+        { label: "Multi-target TP", on: flags.flags.multi_target_tp },
+        { label: "Trading Intelligence", on: flags.flags.real_trading_analysis },
+        { label: "Campaigns", on: flags.flags.community_campaigns },
+        { label: "Guest trading", on: flags.flags.public_paper_trading },
+        { label: "Experimental", on: flags.flags.experimental_utilities },
+      ]
+    : [];
+
+  const overall = worstStatus([apiStatus, dbStatus, feedStatus, cacheStatus]);
+
+  return (
+    <div className="space-y-4">
+      {/* System health */}
+      <Card title="System status" icon={Activity}>
+        <div className="mb-3 flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">Platform</span>
+          <StatusChip level={overall} />
+        </div>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {systemTiles.map((t) => (
             <div
-              key={e.id}
-              className="rounded-xl border border-border bg-background/40 p-3"
-              data-testid={`audit-entry-${e.id}`}
+              key={t.label}
+              className="min-w-0 rounded-xl border border-border/60 bg-secondary/20 p-3"
             >
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <span
-                    className={cn(
-                      "h-2 w-2 flex-shrink-0 rounded-full",
-                      e.success ? "bg-emerald-400" : "bg-red-400",
-                    )}
-                    aria-hidden
-                  />
-                  <span className="text-sm font-semibold text-foreground">
-                    {AUDIT_ACTION_LABELS[e.action] ?? e.action}
-                  </span>
-                  {!e.success && (
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-red-400">
-                      Failed
-                    </span>
-                  )}
-                </div>
-                <span className="text-[11px] text-muted-foreground">
-                  {timeAgo(Date.parse(e.created_at) / 1000)}
+              <div className="flex items-center justify-between gap-2">
+                <span className="truncate text-[11px] uppercase tracking-wider text-muted-foreground">
+                  {t.label}
                 </span>
+                <StatusChip level={t.level} label="" />
               </div>
-              <div className="mt-1 text-xs text-muted-foreground">
-                {e.admin_handle ? `@${e.admin_handle}` : e.admin_x_id ?? "admin"}
-                {e.target_label ? ` → ${e.target_label}` : ""}
+              <div className="mt-1 truncate text-xs text-foreground">
+                {STATUS_LEVEL_LABEL[t.level]}
               </div>
-              {e.error && (
-                <div className="mt-1 text-xs text-red-400">{e.error}</div>
+              {t.sub && (
+                <div className="truncate text-[10px] text-muted-foreground/70">
+                  {t.sub}
+                </div>
               )}
             </div>
           ))}
         </div>
-      )}
-    </Card>
+      </Card>
+
+      {/* Today */}
+      <Card title="Today (last 24h)" icon={BarChart3}>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <Stat label="New users" value={fmt(stats?.users.new_users)} />
+          <Stat label="Active users" value={fmt(stats?.users.active_users)} />
+          <Stat label="Trades" value={fmt(stats?.trading.trades)} />
+          <Stat label="Volume (SOL)" value={fmt(stats?.trading.volume_sol, 1)} />
+          <Stat label="Unique traders" value={fmt(stats?.trading.unique_traders)} />
+          <Stat label="Guest sessions" value={fmt(stats?.funnel.guest_sessions)} />
+          <Stat label="Registrations" value={fmt(stats?.funnel.registration)} />
+          <Stat label="Active orders" value={fmt(stats?.totals.active_orders)} />
+        </div>
+      </Card>
+
+      {/* Feature configuration (factual, not health) */}
+      <Card title="Feature configuration" icon={Flag}>
+        <div className="flex flex-wrap gap-1.5">
+          {flagCfg.length === 0 ? (
+            <span className="text-xs text-muted-foreground">Unknown</span>
+          ) : (
+            flagCfg.map((f) => (
+              <span
+                key={f.label}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium",
+                  f.on
+                    ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-300"
+                    : "border-border/60 bg-secondary/30 text-muted-foreground",
+                )}
+              >
+                <span
+                  className={cn(
+                    "h-1.5 w-1.5 rounded-full",
+                    f.on ? "bg-emerald-400" : "bg-muted-foreground/40",
+                  )}
+                  aria-hidden
+                />
+                {f.label}: {f.on == null ? "Unknown" : f.on ? "On" : "Off"}
+              </span>
+            ))
+          )}
+        </div>
+      </Card>
+
+      {/* Recent activity + failures */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <Card title="Recent admin actions" icon={ScrollText}>
+          {!recent ? (
+            <div className="flex justify-center py-4">
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            </div>
+          ) : recent.entries.length === 0 ? (
+            <p className="py-3 text-center text-xs text-muted-foreground">
+              No admin actions recorded yet.
+            </p>
+          ) : (
+            <div className="space-y-1.5">
+              {recent.entries.map((e) => (
+                <div
+                  key={e.id}
+                  className="flex items-center justify-between gap-2 text-xs"
+                >
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    <span
+                      className={cn(
+                        "h-1.5 w-1.5 flex-shrink-0 rounded-full",
+                        e.success ? "bg-emerald-400" : "bg-red-400",
+                      )}
+                    />
+                    <span className="truncate text-foreground">
+                      {auditActionLabel(e.action)}
+                    </span>
+                    {e.target_label && (
+                      <span className="truncate text-muted-foreground">
+                        {e.target_label}
+                      </span>
+                    )}
+                  </span>
+                  <span className="flex-shrink-0 text-muted-foreground">
+                    {timeAgo(Date.parse(e.created_at) / 1000)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        <Card title="Recent failures" icon={AlertTriangle}>
+          {!failures ? (
+            <div className="flex justify-center py-4">
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            </div>
+          ) : failures.entries.length === 0 ? (
+            <p className="py-3 text-center text-xs text-muted-foreground">
+              No recent failures.
+            </p>
+          ) : (
+            <div className="space-y-1.5">
+              {failures.entries.map((e) => (
+                <div key={e.id} className="text-xs">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="truncate font-medium text-foreground">
+                      {auditActionLabel(e.action)}
+                    </span>
+                    <span className="flex-shrink-0 text-muted-foreground">
+                      {timeAgo(Date.parse(e.created_at) / 1000)}
+                    </span>
+                  </div>
+                  {e.error && (
+                    <div className="truncate text-red-400">{e.error}</div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      </div>
+
+      {/* Deploy identity */}
+      <Card title="Deployment" icon={Server}>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <Stat label="Backend commit" value={version?.commit ?? "unknown"} />
+          <Stat label="Branch" value={version?.branch ?? "unknown"} />
+          <Stat label="Node" value={version?.node ?? "unknown"} />
+          <Stat
+            label="Uptime"
+            value={version ? fmtUptime(version.uptimeSeconds) : "unknown"}
+          />
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+const STATUS_LEVEL_LABEL: Record<StatusLevel, string> = {
+  healthy: "Healthy",
+  warning: "Warning",
+  critical: "Critical",
+  unknown: "Unknown",
+};
+
+function fmtUptime(sec: number): string {
+  if (!Number.isFinite(sec) || sec < 0) return "unknown";
+  const d = Math.floor(sec / 86400);
+  const h = Math.floor((sec % 86400) / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  if (d > 0) return `${d}d ${h}h`;
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}
+
+/**
+ * Operational diagnostics: exposes existing backend endpoints that had no UI -
+ * achievement integrity audit, sparkline/snapshot diagnostics, and the pending
+ * recovery re-verification backfill.
+ */
+function DiagnosticsSection() {
+  const { toast } = useToast();
+  const [showAllBadges, setShowAllBadges] = useState(false);
+
+  const achievements = useQuery({
+    queryKey: ["admin-achievements-audit"],
+    queryFn: () => api.admin.achievementsAudit(),
+  });
+  const sparkline = useQuery({
+    queryKey: ["admin-sparkline-diagnostics"],
+    queryFn: () => api.admin.sparklineDiagnostics(),
+  });
+
+  const verify = useMutation({
+    mutationFn: () => api.admin.recoveryVerifyPending(50),
+    onSuccess: (r) =>
+      toast({
+        title: "Recovery verification run",
+        description: `Processed ${r.processed}: ${r.verified} verified, ${r.partial} partial, ${r.failed} failed.`,
+      }),
+    onError: (e: Error) =>
+      toast({ title: "Verification failed", description: e.message, variant: "destructive" }),
+  });
+
+  const a: AchievementsAudit | undefined = achievements.data;
+  const neverEarned = (a?.badges ?? []).filter((b) => b.holders === 0);
+  const noPath = (a?.badges ?? []).filter((b) => !b.hasUnlockPath);
+
+  return (
+    <div className="space-y-4">
+      {/* Achievements integrity */}
+      <Card
+        title="Achievements integrity"
+        icon={Award}
+        action={
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => achievements.refetch()}
+            disabled={achievements.isFetching}
+          >
+            {achievements.isFetching ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="mr-2 h-4 w-4" />
+            )}
+            Refresh
+          </Button>
+        }
+      >
+        {achievements.isLoading ? (
+          <div className="flex justify-center py-4">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : !a ? (
+          <p className="py-3 text-center text-sm text-muted-foreground">
+            Unavailable.
+          </p>
+        ) : (
+          <>
+            <div className="mb-3 flex items-center gap-2">
+              <StatusChip level={a.integrity.ok ? "healthy" : "critical"} />
+              <span className="text-xs text-muted-foreground">
+                {a.integrity.ok
+                  ? "Catalogue sound"
+                  : "Integrity violations detected"}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              <Stat label="Total badges" value={fmt(a.summary.totalBadges)} />
+              <Stat label="Ever earned" value={fmt(a.summary.everEarned)} />
+              <Stat label="Never earned" value={fmt(a.summary.neverEarned)} />
+              <Stat label="Feed-eligible" value={fmt(a.summary.feedEligible)} />
+              <Stat label="Hidden" value={fmt(a.summary.hidden)} />
+              <Stat label="Total users" value={fmt(a.totalUsers)} />
+            </div>
+            {noPath.length > 0 && (
+              <div className="mt-3 rounded-lg border border-danger/40 bg-red-400/5 p-2 text-xs text-red-400">
+                Badges with no unlock path: {noPath.map((b) => b.key).join(", ")}
+              </div>
+            )}
+            {a.integrity.evaluatorsWithoutDefinition.length > 0 && (
+              <div className="mt-2 rounded-lg border border-danger/40 bg-red-400/5 p-2 text-xs text-red-400">
+                Evaluators without a definition:{" "}
+                {a.integrity.evaluatorsWithoutDefinition.join(", ")}
+              </div>
+            )}
+            {neverEarned.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowAllBadges((s) => !s)}
+                className="mt-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-accent"
+              >
+                {showAllBadges ? "Hide" : "Show"} {neverEarned.length} never-earned
+              </button>
+            )}
+            {showAllBadges && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {neverEarned.map((b) => (
+                  <span
+                    key={b.key}
+                    className="rounded-full border border-border/60 bg-secondary/30 px-2 py-0.5 text-[10px] text-muted-foreground"
+                  >
+                    {b.name}
+                  </span>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </Card>
+
+      {/* Sparkline / snapshot diagnostics */}
+      <Card
+        title="Sparkline & snapshot diagnostics"
+        icon={Gauge}
+        action={
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => sparkline.refetch()}
+            disabled={sparkline.isFetching}
+          >
+            {sparkline.isFetching ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="mr-2 h-4 w-4" />
+            )}
+            Refresh
+          </Button>
+        }
+      >
+        {sparkline.isLoading ? (
+          <div className="flex justify-center py-4">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : !sparkline.data ? (
+          <p className="py-3 text-center text-sm text-muted-foreground">
+            Unavailable.
+          </p>
+        ) : (
+          <pre className="overflow-x-auto whitespace-pre-wrap break-words rounded-lg bg-surface-2 p-3 font-mono text-[10px] text-foreground">
+            {JSON.stringify(sparkline.data, null, 2)}
+          </pre>
+        )}
+      </Card>
+
+      {/* Pending recovery verification */}
+      <Card title="Recovery re-verification" icon={ShieldCheck}>
+        <p className="mb-3 text-xs text-muted-foreground">
+          Re-runs on-chain verification for successful cleanups that carry
+          signatures but are not yet verified. Never fabricates a result - each
+          row must still pass on-chain proof.
+        </p>
+        <Button
+          onClick={() => verify.mutate()}
+          disabled={verify.isPending}
+          data-testid="button-recovery-verify"
+        >
+          {verify.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          Verify pending (up to 50)
+        </Button>
+      </Card>
+    </div>
   );
 }
 
@@ -2508,55 +3211,79 @@ export default function AdminPage() {
     );
   }
 
+  const navItems: AdminNavItem[] = [
+    { id: "overview", label: "Overview" },
+    { id: "trading", label: "Trading" },
+    { id: "utilities", label: "Utilities" },
+    { id: "identity", label: "Identity" },
+    { id: "social", label: "Social" },
+    { id: "flags", label: "Flags" },
+    { id: "system", label: "System" },
+    { id: "diagnostics", label: "Diagnostics" },
+    { id: "audit", label: "Audit" },
+    { id: "danger", label: "Danger" },
+  ];
+
   return (
-    <div className="mx-auto max-w-6xl px-4 py-6">
-      <div className="mb-6 flex items-center gap-3">
+    <div className="mx-auto max-w-6xl px-4 py-6 md:px-6">
+      <div className="mb-3 flex items-center gap-3">
         <Shield className="h-6 w-6 text-accent" />
         <div>
           <h1 className="text-2xl font-semibold">Admin Dashboard</h1>
           <p className="text-sm text-muted-foreground">
-            Platform operations, seasons & feature controls.
+            BlackPebble operations center.
           </p>
         </div>
       </div>
 
-      <div className="space-y-6">
-        <StatsSection />
+      <AdminNav items={navItems} />
 
-        <div className="flex items-center gap-2 pt-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          <Wrench className="h-4 w-4 text-accent" />
-          Utilities
-        </div>
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <HealthSection />
+      <div className="space-y-4">
+        <AdminSection id="overview" title="Overview" icon={LayoutDashboard} defaultOpen>
+          <OverviewSection />
+        </AdminSection>
+
+        <AdminSection id="trading" title="Trading" icon={BarChart3}>
+          <StatsSection />
+          <LeverageSection />
+          <OrdersSection />
+        </AdminSection>
+
+        <AdminSection id="utilities" title="Wallet Utilities" icon={Wrench}>
           <MarketSection />
-        </div>
-        <RecoverySection />
-        <LeverageSection />
-        <FlagsSection />
-        <OrdersSection />
+          <RecoverySection />
+        </AdminSection>
 
-        <div className="flex items-center gap-2 pt-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          <Award className="h-4 w-4 text-accent" />
-          Official Badges
-        </div>
-        <BadgesSection />
-        <VerificationSection />
+        <AdminSection id="identity" title="Identity & Reputation" icon={Award}>
+          <BadgesSection />
+          <VerificationSection />
+          <ReputationSection />
+        </AdminSection>
 
-        <div className="flex items-center gap-2 pt-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          <MessageSquare className="h-4 w-4 text-accent" />
-          Social & moderation
-        </div>
-        <ReputationSection />
-        <SocialControlSection />
-        <SocialResetSection />
+        <AdminSection id="social" title="Social & Moderation" icon={MessageSquare}>
+          <SocialControlSection />
+        </AdminSection>
 
-        <div className="flex items-center gap-2 pt-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          <AlertTriangle className="h-4 w-4 text-accent" />
-          Reset & audit
-        </div>
-        <ResetSection />
-        <AuditLogSection />
+        <AdminSection id="flags" title="Feature Flags" icon={Flag}>
+          <FlagsSection />
+        </AdminSection>
+
+        <AdminSection id="system" title="System Health" icon={Server}>
+          <HealthSection />
+        </AdminSection>
+
+        <AdminSection id="diagnostics" title="Operational Diagnostics" icon={Gauge}>
+          <DiagnosticsSection />
+        </AdminSection>
+
+        <AdminSection id="audit" title="Audit Log" icon={ScrollText} defaultOpen>
+          <AuditLogSection />
+        </AdminSection>
+
+        <AdminSection id="danger" title="Reset & Danger Zone" icon={AlertTriangle}>
+          <SocialResetSection />
+          <ResetSection />
+        </AdminSection>
       </div>
     </div>
   );
