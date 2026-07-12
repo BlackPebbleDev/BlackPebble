@@ -1852,6 +1852,18 @@ export interface LeverageStats {
   recentActivity: LeverageActivityRow[];
 }
 
+export interface AdminCampaignAnalytics {
+  total: number;
+  byState: Record<string, number>;
+  depositedLamports: number;
+  paidOutLamports: number;
+  refundedLamports: number;
+  remainingLamports: number;
+  contributions: number;
+  organizers: number;
+  escrowConfigured: boolean;
+}
+
 export interface AdminOrderStats {
   total: number;
   pending: number;
@@ -2609,6 +2621,26 @@ export const api = {
       return request<{ orders: PaperOrder[] }>(`/admin/orders${q ? `?${q}` : ""}`);
     },
     orderStats: () => request<AdminOrderStats>("/admin/order-stats"),
+    campaigns: (state?: string) =>
+      request<{ campaigns: CampaignSummary[]; analytics: AdminCampaignAnalytics }>(
+        `/admin/campaigns${state && state !== "all" ? `?state=${encodeURIComponent(state)}` : ""}`,
+      ),
+    campaign: (id: string) =>
+      request<{ campaign: CampaignSummary; ledger: CampaignLedgerEntry[] }>(
+        `/admin/campaigns/${encodeURIComponent(id)}`,
+      ),
+    settleCampaign: (
+      id: string,
+      body: {
+        payoutDestination: string;
+        fulfillmentNote?: string;
+        fulfillmentUrl?: string | null;
+      },
+    ) =>
+      request<{ ok: boolean; correlationId?: string; error?: string }>(
+        `/admin/campaigns/${encodeURIComponent(id)}/settle`,
+        { method: "POST", body: JSON.stringify(body) },
+      ),
     cancelOrder: (id: number) =>
       request<{ ok: boolean; error?: string }>("/admin/orders/cancel", {
         method: "POST",

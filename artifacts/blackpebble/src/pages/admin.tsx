@@ -60,6 +60,9 @@ import {
   type AchievementsAudit,
   type ApiError,
   type PaperOrder,
+  type CampaignSummary,
+  type CampaignLedgerEntry,
+  type CampaignState,
   type ProfileResponse,
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -1694,7 +1697,313 @@ const AUDIT_ACTION_LABELS: Record<string, string> = {
   "badge-remove": "Badge removed",
   "order-cancel": "Order canceled",
   "market-refresh": "Market cache refresh",
+  "campaign-settle": "Campaign settled",
 };
+
+const SOL_PER_LAMPORT = 1e-9;
+function solFromLamports(l: number | null | undefined): string {
+  if (l == null) return "—";
+  return `${fmt(l * SOL_PER_LAMPORT, 3)} SOL`;
+}
+
+const CAMPAIGN_STATE_COLOR: Record<CampaignState, string> = {
+  live: "text-sky-300",
+  funded: "text-accent",
+  settled: "text-success",
+  failed: "text-danger",
+  refunded: "text-muted-foreground",
+  frozen: "text-amber-400",
+};
+
+/** Inline settle form for a funded campaign (moves escrow funds - confirmed). */
+function CampaignSettle({ campaign }: { campaign: CampaignSummary }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [dest, setDest] = useState("");
+  const [note, setNote] = useState("");
+  const [url, setUrl] = useState("");
+  const settle = useMutation({
+    mutationFn: () =>
+      api.admin.settleCampaign(campaign.publicId, {
+        payoutDestination: dest.trim(),
+        fulfillmentNote: note.trim(),
+        fulfillmentUrl: url.trim() || null,
+      }),
+    onSuccess: (r) => {
+      toast({
+        title: "Campaign settled",
+        description: r.correlationId ? `Ref ${r.correlationId.slice(0, 8)}` : undefined,
+      });
+      qc.invalidateQueries({ queryKey: ["admin-campaigns"] });
+      qc.invalidateQueries({ queryKey: ["admin-campaign", campaign.publicId] });
+    },
+    onError: (e: Error) =>
+      toast({ title: "Settle failed", description: e.message, variant: "destructive" }),
+  });
+
+  return (
+    <div className="mt-2 space-y-2 rounded-lg border border-accent/30 bg-accent/5 p-3">
+      <div className="text-[11px] font-semibold uppercase tracking-wider text-accent">
+        Settle payout ({solFromLamports(campaign.accounting.remainingLamports)} available)
+      </div>
+      <Input
+        placeholder="Payout destination wallet"
+        value={dest}
+        onChange={(e) => setDest(e.target.value)}
+        data-testid={`settle-dest-${campaign.publicId}`}
+      />
+      <Input
+        placeholder="Fulfillment note (optional)"
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+      />
+      <Input
+        placeholder="Fulfillment URL (optional)"
+        value={url}
+        onChange={(e) => setUrl(e.target.value)}
+      />
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          <Button
+            size="sm"
+            disabled={!dest.trim() || settle.isPending}
+            data-testid={`settle-campaign-${campaign.publicId}`}
+          >
+            {settle.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Settle campaign
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Settle {campaign.title}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This pays out{" "}
+              {solFromLamports(campaign.accounting.remainingLamports)} from escrow
+              to <code>{dest.trim()}</code>. This moves real escrow funds and
+              cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => settle.mutate()}>
+              Settle payout
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
+function CampaignCard({ c }: { c: CampaignSummary }) {
+  const [open, setOpen] = useState(false);
+  const detail = useQuery({
+    queryKey: ["admin-campaign", c.publicId],
+    queryFn: () => api.admin.campaign(c.publicId),
+    enabled: open,
+  });
+  const progress = Math.min(100, Math.max(0, Math.round(c.accounting.progress * 100)));
+
+  return (
+    <div
+      className="rounded-xl border border-border/60 bg-background/40 p-3"
+      data-testid={`campaign-card-${c.publicId}`}
+    >
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-start justify-between gap-3 text-left"
+      >
+        <span className="min-w-0">
+          <span className="flex flex-wrap items-center gap-2">
+            <span className="truncate text-sm font-semibold text-foreground">
+              {c.title}
+            </span>
+            <span
+              className={cn(
+                "text-[10px] font-semibold uppercase tracking-wider",
+                CAMPAIGN_STATE_COLOR[c.state],
+              )}
+            >
+              {c.state}
+            </span>
+          </span>
+          <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
+            {c.creator.username ? `@${c.creator.username}` : "unknown"} ·{" "}
+            {c.accounting.contributorCount} contributors ·{" "}
+            {solFromLamports(c.accounting.depositedLamports)} raised
+          </span>
+        </span>
+        <ChevronRight
+          className={cn(
+            "h-3.5 w-3.5 flex-shrink-0 text-muted-foreground transition-transform",
+            open && "rotate-90",
+          )}
+        />
+      </button>
+
+      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-2">
+        <div
+          className="h-full rounded-full bg-accent"
+          style={{ width: `${progress}%` }}
+        />
+      </div>
+      <div className="mt-1 flex justify-between text-[10px] text-muted-foreground">
+        <span>{progress}% of goal</span>
+        <span>Goal {solFromLamports(c.goalLamports)}</span>
+      </div>
+
+      {open && (
+        <div className="mt-3 space-y-2 border-t border-border/50 pt-3 text-xs">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            <Stat label="Deposited" value={solFromLamports(c.accounting.depositedLamports)} />
+            <Stat label="Paid out" value={solFromLamports(c.accounting.paidOutLamports)} />
+            <Stat label="Refunded" value={solFromLamports(c.accounting.refundedLamports)} />
+            <Stat label="Remaining" value={solFromLamports(c.accounting.remainingLamports)} />
+            <Stat label="Contributors" value={fmt(c.accounting.contributorCount)} />
+            <Stat label="Trust" value={fmt(c.trustScore)} />
+          </div>
+          <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
+            <span>Escrow: <code>{shortWallet(c.escrowAddress)}</code></span>
+            <span>Created {timeAgo(c.createdAt)}</span>
+            {c.fundedAt && <span>Funded {timeAgo(c.fundedAt)}</span>}
+            {c.settledAt && <span>Settled {timeAgo(c.settledAt)}</span>}
+            <span>Deadline {timeAgo(c.deadlineAt)}</span>
+          </div>
+          {c.fulfillmentNote && (
+            <div className="text-muted-foreground">
+              Fulfillment: {c.fulfillmentNote}
+              {c.fulfillmentUrl ? ` (${c.fulfillmentUrl})` : ""}
+            </div>
+          )}
+
+          {/* Ledger */}
+          {detail.isLoading ? (
+            <div className="flex justify-center py-2">
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            </div>
+          ) : detail.data && detail.data.ledger.length > 0 ? (
+            <div>
+              <div className="mb-1 text-muted-foreground">Ledger</div>
+              <div className="space-y-0.5">
+                {detail.data.ledger.slice(0, 12).map((l: CampaignLedgerEntry, i) => (
+                  <div key={i} className="flex justify-between gap-2">
+                    <span className="text-foreground">{l.kind}</span>
+                    <span className="font-mono">
+                      {solFromLamports(l.lamports)} · {timeAgo(l.createdAt)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {/* Settle is the only real admin action, only for funded campaigns. */}
+          {c.state === "funded" && <CampaignSettle campaign={c} />}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const CAMPAIGN_STATE_FILTERS: string[] = [
+  "all",
+  "live",
+  "funded",
+  "settled",
+  "failed",
+  "refunded",
+  "frozen",
+];
+
+/** Community Campaigns administration: analytics, list, drill-down, settle. */
+function CampaignsSection() {
+  const qc = useQueryClient();
+  const [state, setState] = useState("all");
+  const { data, isFetching } = useQuery({
+    queryKey: ["admin-campaigns", state],
+    queryFn: () => api.admin.campaigns(state),
+  });
+  const a = data?.analytics;
+  const campaigns = data?.campaigns ?? [];
+
+  return (
+    <Card
+      title="Community Campaigns"
+      icon={Megaphone}
+      action={
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => qc.invalidateQueries({ queryKey: ["admin-campaigns"] })}
+          disabled={isFetching}
+        >
+          <RefreshCw className={isFetching ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
+        </Button>
+      }
+    >
+      {a && !a.escrowConfigured && (
+        <div className="mb-3 rounded-lg border border-amber-400/30 bg-amber-400/5 p-2 text-xs text-amber-400">
+          Escrow is not configured on this deployment; settlement payouts are
+          unavailable until it is set up.
+        </div>
+      )}
+
+      {/* Analytics */}
+      <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <Stat label="Total" value={fmt(a?.total)} />
+        <Stat label="Contributions" value={fmt(a?.contributions)} />
+        <Stat label="Organizers" value={fmt(a?.organizers)} />
+        <Stat label="Deposited" value={solFromLamports(a?.depositedLamports)} />
+        <Stat label="Paid out" value={solFromLamports(a?.paidOutLamports)} />
+        <Stat label="Refunded" value={solFromLamports(a?.refundedLamports)} />
+        <Stat label="In escrow" value={solFromLamports(a?.remainingLamports)} />
+        <Stat
+          label="Escrow"
+          value={a ? (a.escrowConfigured ? "Ready" : "Off") : "—"}
+        />
+      </div>
+
+      {/* State filter */}
+      <div className="mb-3 flex flex-wrap gap-1.5">
+        {CAMPAIGN_STATE_FILTERS.map((s) => (
+          <button
+            key={s}
+            type="button"
+            onClick={() => setState(s)}
+            className={cn(
+              "rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors",
+              state === s
+                ? "border-accent/50 bg-accent/15 text-accent"
+                : "border-border/60 text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {s}
+            {a && s !== "all" && a.byState[s]
+              ? ` (${a.byState[s]})`
+              : ""}
+          </button>
+        ))}
+      </div>
+
+      {isFetching && campaigns.length === 0 ? (
+        <div className="flex justify-center py-6">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        </div>
+      ) : campaigns.length === 0 ? (
+        <p className="py-4 text-center text-sm text-muted-foreground">
+          No campaigns{state !== "all" ? ` in "${state}"` : ""}.
+        </p>
+      ) : (
+        <div className="space-y-2">
+          {campaigns.map((c) => (
+            <CampaignCard key={c.publicId} c={c} />
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
 
 function auditActionLabel(a: string): string {
   return AUDIT_ACTION_LABELS[a] ?? a;
@@ -3660,6 +3969,7 @@ export default function AdminPage() {
   const navItems: AdminNavItem[] = [
     { id: "overview", label: "Overview" },
     { id: "trading", label: "Trading" },
+    { id: "campaigns", label: "Campaigns" },
     { id: "utilities", label: "Utilities" },
     { id: "identity", label: "Identity" },
     { id: "social", label: "Social" },
@@ -3693,6 +4003,10 @@ export default function AdminPage() {
           <StatsSection />
           <LeverageSection />
           <OrdersSection />
+        </AdminSection>
+
+        <AdminSection id="campaigns" title="Community Campaigns" icon={Megaphone}>
+          <CampaignsSection />
         </AdminSection>
 
         <AdminSection id="utilities" title="Wallet Utilities" icon={Wrench}>
