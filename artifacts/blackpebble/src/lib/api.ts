@@ -284,6 +284,81 @@ export interface ResetResult {
   applied: string[];
   deleted: Record<string, number>;
   accountsReset: number;
+  /** True when a resolved account had no data to reset (fail-loud signal). */
+  nothingChanged?: boolean;
+  /** True when an idempotent replay returned the first result (no re-execution). */
+  deduped?: boolean;
+  /** Correlation id tying this response to the server audit row + logs. */
+  correlationId?: string;
+  warning?: string;
+  resolved?: {
+    accountKey: string;
+    matchedBy: string | null;
+    isGuest: boolean;
+    identity: AdminUserIdentity | null;
+  };
+}
+
+export interface AdminUserIdentity {
+  userId: number;
+  xId: string;
+  xUsername: string;
+  xDisplayName: string | null;
+  xAvatarUrl: string | null;
+  userCreatedAt: number | null;
+}
+
+/** Rich, read-only admin preview of a resolved user (confirm before reset). */
+export interface AdminUserPreview {
+  found: boolean;
+  /** Ambiguity message when the identifier matched more than one user. */
+  conflict?: string | null;
+  accountKey: string | null;
+  matchedBy: string | null;
+  registered: boolean;
+  isGuest: boolean;
+  identity: AdminUserIdentity | null;
+  connectedWallet: string | null;
+  hasAccount: boolean;
+  createdAt: number | null;
+  balance: number | null;
+  season: number | null;
+  tier: string | null;
+  openSpotPositions: number;
+  openPerpsPositions: number;
+  activeOrders: number;
+  closedTrades: number;
+  executions: number;
+  watchlistCount: number;
+  rank: number | null;
+  trustScore: number | null;
+  officialBadges: string[];
+}
+
+export interface AdminAuditEntry {
+  id: number;
+  created_at: string;
+  admin_user_id: string | null;
+  admin_x_id: string | null;
+  admin_handle: string | null;
+  action: string;
+  target_type: string | null;
+  target_id: string | null;
+  target_label: string | null;
+  success: boolean;
+  error: string | null;
+  before_state: unknown;
+  after_state: unknown;
+  reason: string | null;
+}
+
+export interface AdminAuditFilters {
+  admin?: string;
+  action?: string;
+  targetType?: string;
+  success?: boolean;
+  cursor?: number;
+  limit?: number;
 }
 
 /** Result of a social/journal/test-data/full reset (backup + delete counts). */
@@ -2439,16 +2514,40 @@ export const api = {
         "/admin/feature-flags",
         { method: "POST", body: JSON.stringify({ key, enabled }) },
       ),
-    resetUser: (wallet: string, options: ResetOptions) =>
+    // Resolve any identifier (X handle, X id, internal id, x:<id>, wallet) to a
+    // rich preview shown before a destructive single-user action.
+    resolveUser: (q: string) =>
+      request<{ preview: AdminUserPreview }>(
+        `/admin/resolve-user?q=${encodeURIComponent(q)}`,
+      ),
+    resetUser: (
+      identifier: string,
+      options: ResetOptions,
+      idempotencyKey?: string,
+    ) =>
       request<ResetResult>("/admin/reset-user", {
         method: "POST",
-        body: JSON.stringify({ wallet, options }),
+        body: JSON.stringify({ identifier, options, idempotencyKey }),
       }),
-    resetAll: (options: ResetOptions) =>
+    resetAll: (options: ResetOptions, idempotencyKey?: string) =>
       request<ResetResult>("/admin/reset-all", {
         method: "POST",
-        body: JSON.stringify({ options }),
+        body: JSON.stringify({ options, idempotencyKey }),
       }),
+    auditLog: (filters?: AdminAuditFilters) => {
+      const qs = new URLSearchParams();
+      if (filters?.admin) qs.set("admin", filters.admin);
+      if (filters?.action) qs.set("action", filters.action);
+      if (filters?.targetType) qs.set("targetType", filters.targetType);
+      if (typeof filters?.success === "boolean")
+        qs.set("success", String(filters.success));
+      if (filters?.cursor) qs.set("cursor", String(filters.cursor));
+      if (filters?.limit) qs.set("limit", String(filters.limit));
+      const q = qs.toString();
+      return request<{ entries: AdminAuditEntry[]; nextCursor: number | null }>(
+        `/admin/audit-log${q ? `?${q}` : ""}`,
+      );
+    },
     recoveryStats: () =>
       request<RecoveryStatsResponse>("/admin/recovery-stats"),
     leverageStats: () => request<LeverageStats>("/admin/leverage-stats"),
