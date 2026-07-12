@@ -232,3 +232,22 @@ export function fmtHoldTime(tsSeconds: number | null | undefined): string {
   if (h > 0) return `${h}h ${m}m`;
   return `${m}m`;
 }
+
+/**
+ * Compact human duration from a raw number of SECONDS (not an epoch): "3d 4h",
+ * "5h 12m", "8m 30s", "45s". Used for averaged durations like Avg Hold Time.
+ */
+export function fmtDuration(seconds: number | null | undefined): string {
+  if (seconds == null || !Number.isFinite(seconds) || seconds < 0) return "—";
+  let s = Math.floor(seconds);
+  const d = Math.floor(s / 86400);
+  s -= d * 86400;
+  const h = Math.floor(s / 3600);
+  s -= h * 3600;
+  const m = Math.floor(s / 60);
+  s -= m * 60;
+  if (d > 0) return `${d}d ${h}h`;
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
+}

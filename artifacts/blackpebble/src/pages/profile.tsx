@@ -11,7 +11,6 @@ import {
   Fingerprint,
   Gem,
   History,
-  Info,
   Layers,
   Loader2,
   Lock,
@@ -50,11 +49,6 @@ import { AchievementsShowcase } from "@/components/achievements-showcase";
 import { TrustBadge, trustLabelFromScore } from "@/components/reputation-card";
 import { FilterPills } from "@/components/filter-pills";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
@@ -86,153 +80,14 @@ import {
 } from "@/lib/analytics";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-
-function SectionHeader({
-  icon: Icon,
-  title,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  title: string;
-}) {
-  return (
-    <div className="flex items-center gap-2 mb-2 mt-6">
-      <Icon className="w-4 h-4 text-accent" />
-      <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground">
-        {title}
-      </h2>
-    </div>
-  );
-}
-
-/** Dark-glass panel wrapper used by the compact profile stat sections. */
-function PanelCard({
-  children,
-  testId,
-  className,
-}: {
-  children: React.ReactNode;
-  testId?: string;
-  className?: string;
-}) {
-  return (
-    <div
-      data-testid={testId}
-      className={cn("rounded-2xl bg-card shadow-card p-4 md:p-5", className)}
-    >
-      {children}
-    </div>
-  );
-}
-
-/**
- * Subtle beginner-education affordance: a small info icon that opens a short
- * "what this means" popover on tap (mobile friendly, unlike hover tooltips).
- * Kept tiny so pro users are never slowed down.
- */
-function InfoHint({ title, text }: { title: string; text: string }) {
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          aria-label={`What is ${title}`}
-          onClick={(e) => e.stopPropagation()}
-          className="inline-flex flex-shrink-0 items-center justify-center text-muted-foreground/50 transition-colors hover:text-accent"
-        >
-          <Info className="h-3 w-3" />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent
-        align="start"
-        className="w-56 p-3"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <p className="text-xs font-semibold text-foreground">{title}</p>
-        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-          {text}
-        </p>
-      </PopoverContent>
-    </Popover>
-  );
-}
-
-/**
- * Compact icon stat card used across Trader DNA and the Call Trophy Case. Gives
- * the numbers a premium "insight" feel instead of a flat table row. `sub` adds a
- * small secondary line (e.g. "8 winning") under the value; `hint` adds a beginner
- * info popover next to the label.
- */
-function MiniStat({
-  icon: Icon,
-  label,
-  value,
-  valueClass,
-  sub,
-  hint,
-}: {
-  icon?: React.ComponentType<{ className?: string }>;
-  label: string;
-  value: React.ReactNode;
-  valueClass?: string;
-  sub?: React.ReactNode;
-  hint?: { title: string; text: string };
-}) {
-  return (
-    <div className="rounded-xl border border-border/60 bg-secondary/20 p-3">
-      <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">
-        {Icon && <Icon className="w-3 h-3 flex-shrink-0 text-accent" />}
-        <span className="truncate">{label}</span>
-        {hint && <InfoHint title={hint.title} text={hint.text} />}
-      </div>
-      <div
-        className={cn(
-          "mt-1 font-mono text-base font-semibold tabular-nums text-foreground",
-          valueClass,
-        )}
-      >
-        {value}
-      </div>
-      {sub != null && (
-        <div className="mt-0.5 text-[10px] text-muted-foreground/70">{sub}</div>
-      )}
-    </div>
-  );
-}
-
-type ChipTone = "up" | "down" | "accent" | "muted";
-
-/** Small social-proof pill for the snapshot proof strip. */
-function ProofChip({
-  icon: Icon,
-  children,
-  tone = "muted",
-}: {
-  icon?: React.ComponentType<{ className?: string }>;
-  children: React.ReactNode;
-  tone?: ChipTone;
-}) {
-  const toneCls =
-    tone === "up"
-      ? "text-success"
-      : tone === "down"
-        ? "text-danger"
-        : tone === "accent"
-          ? "text-accent"
-          : "text-foreground";
-  return (
-    <span className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-secondary/30 px-2.5 py-1 text-xs font-medium">
-      {Icon && (
-        <Icon
-          className={cn(
-            "w-3 h-3 flex-shrink-0",
-            tone === "accent" ? "text-accent" : "text-muted-foreground",
-          )}
-        />
-      )}
-      <span className={cn("whitespace-nowrap", toneCls)}>{children}</span>
-    </span>
-  );
-}
+import {
+  SectionHeader,
+  PanelCard,
+  InfoHint,
+  MiniStat,
+  ProofChip,
+} from "@/components/profile-ui";
+import { ProfileEquityChart } from "@/components/equity-chart";
 
 /**
  * Lightweight in-page section nav. Smooth-scrolls to anchored sections so the
@@ -2148,6 +2003,13 @@ export default function ProfilePage() {
       {/* Reputation Passport - flagship identity: BlackPebble Score, Trust
           Score, and a social proof strip */}
       <ReputationPassportSection profile={profile} solUsd={solUsd} />
+
+      {/* Equity trend - a small live curve so the profile feels alive (hidden
+          until the trader has enough paper-account history to draw one) */}
+      <ProfileEquityChart
+        profileId={profile.x_username || profile.user_id}
+        className="mt-3"
+      />
 
       {/* Trader DNA - how this person trades (full behavior stat set) */}
       <TraderDnaSection profile={profile} solUsd={solUsd} />

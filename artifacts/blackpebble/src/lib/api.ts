@@ -699,6 +699,16 @@ export interface PortfolioStats {
   /** Largest winning spot trade, or null when none. */
   bestTrade: number | null;
   worstTrade: number;
+  /** Mean realized pnl of winning closed trades, or null when there are none. */
+  avgWinSol?: number | null;
+  /** Mean realized pnl of losing closed trades (negative), or null when none. */
+  avgLossSol?: number | null;
+  /** Gross profit ÷ gross loss; null when there are no losing trades. */
+  profitFactor?: number | null;
+  /** Mean SOL size of buy executions, or null when there are none. */
+  avgTradeSizeSol?: number | null;
+  /** Amount-weighted average holding time (seconds), or null when no round-trips. */
+  avgHoldSec?: number | null;
   currentStreak: number;
   participationPoints: number;
   graduationTier: string;
@@ -2211,6 +2221,12 @@ export const api = {
     badges: (id: string | number) =>
       request<{ badges: BadgeEntry[]; earnedCount: number }>(
         `/profiles/${encodeURIComponent(String(id))}/badges`,
+      ),
+    // Public equity history (paper-account snapshots) for a profile, keyed by
+    // numeric id or handle. Powers the small "equity trend" chart on profiles.
+    chart: (id: string | number) =>
+      request<{ points: ChartPoint[]; solUsd: number }>(
+        `/profiles/${encodeURIComponent(String(id))}/chart`,
       ),
     // Period-filtered call performance (30d / 90d / all-time), graded live.
     performance: (id: string | number) =>
