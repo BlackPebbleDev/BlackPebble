@@ -53,6 +53,8 @@ import {
   adminFromReq,
   listAdminAudit,
 } from "../lib/adminAudit.js";
+import { runIdempotent } from "../lib/idempotency.js";
+import { randomUUID } from "node:crypto";
 
 const router: IRouter = Router();
 
@@ -631,9 +633,14 @@ router.get(
     if (!q) return res.status(400).json({ error: "q is required" });
     const preview = await getAdminUserPreview(q);
     if (!preview.found) {
-      return res
-        .status(404)
-        .json({ error: `No BlackPebble account matched "${q}".`, preview });
+      // 409 for an ambiguous identifier (matched >1 user); 404 for no match.
+      const status = preview.conflict ? 409 : 404;
+      return res.status(status).json({
+        error:
+          preview.conflict ?? `No BlackPebble account matched "${q}".`,
+        conflict: !!preview.conflict,
+        preview,
+      });
     }
     return res.json({ preview });
   }),
@@ -649,8 +656,9 @@ router.post(
       req.body?.identifier ?? req.body?.wallet ?? "",
     ).trim();
     const admin = adminFromReq(req);
+    const correlationId = randomUUID();
     if (!identifier) {
-      return res.status(400).json({ error: "identifier is required" });
+      return res.status(400).json({ error: "identifier is required", correlationId });
     }
 
     const resolved = await resolveAdminAccount(identifier);
@@ -661,15 +669,27 @@ router.post(
         targetType: "user",
         targetLabel: identifier,
         success: false,
-        error: "user not found",
+        error: resolved.conflict ?? "user not found",
+        correlationId,
       });
-      return res.status(404).json({
-        error: `No BlackPebble account matched "${identifier}". Enter an X handle, X id, internal user id, x:<id> key, or wallet.`,
+      const status = resolved.conflict ? 409 : 404;
+      return res.status(status).json({
+        error:
+          resolved.conflict ??
+          `No BlackPebble account matched "${identifier}". Enter an X handle, X id, internal user id, x:<id> key, or wallet.`,
+        conflict: !!resolved.conflict,
+        correlationId,
       });
     }
 
     const options = parseOptions(req.body?.options);
-    const result = await adminReset("user", resolved.accountKey, options);
+    // Idempotency: a repeated client key (double-click / retry) returns the
+    // first result instead of resetting twice within the TTL window.
+    const idemKey = String(req.body?.idempotencyKey ?? "").trim() || null;
+    const { result, deduped } = await runIdempotent(
+      idemKey ? `reset-user:${idemKey}` : null,
+      () => adminReset("user", resolved.accountKey!, options),
+    );
 
     // Fail loudly: a resolved key that touched zero rows (e.g. the user never
     // traded, so no account exists) must NOT report a misleading success.
@@ -679,26 +699,31 @@ router.post(
     );
     const nothingChanged = result.accountsReset === 0 && totalDeleted === 0;
 
-    await recordAdminAction({
-      admin,
-      action: "reset-user",
-      targetType: "user",
-      targetId: resolved.accountKey,
-      targetLabel: resolved.identity?.xUsername ?? resolved.accountKey,
-      success: !nothingChanged,
-      error: nothingChanged ? "no matching rows / no account" : null,
-      after: {
-        applied: result.applied,
-        deleted: result.deleted,
-        accountsReset: result.accountsReset,
-        matchedBy: resolved.matchedBy,
-      },
-    });
+    if (!deduped) {
+      await recordAdminAction({
+        admin,
+        action: "reset-user",
+        targetType: "user",
+        targetId: resolved.accountKey,
+        targetLabel: resolved.identity?.xUsername ?? resolved.accountKey,
+        success: !nothingChanged,
+        error: nothingChanged ? "no matching rows / no account" : null,
+        correlationId,
+        after: {
+          applied: result.applied,
+          deleted: result.deleted,
+          accountsReset: result.accountsReset,
+          matchedBy: resolved.matchedBy,
+        },
+      });
+    }
 
     return res.json({
       ...result,
       ok: !nothingChanged,
       nothingChanged,
+      deduped,
+      correlationId,
       warning: nothingChanged
         ? "Resolved the account, but nothing was changed (this user has no paper-trading data to reset yet)."
         : undefined,
@@ -716,21 +741,29 @@ router.post(
   "/admin/reset-all",
   asyncHandler(async (req, res) => {
     const admin = adminFromReq(req);
+    const correlationId = randomUUID();
     const options = parseOptions(req.body?.options);
-    const result = await adminReset("all", null, options);
-    await recordAdminAction({
-      admin,
-      action: "reset-all",
-      targetType: "platform",
-      targetLabel: "ALL users",
-      success: result.ok,
-      after: {
-        applied: result.applied,
-        deleted: result.deleted,
-        accountsReset: result.accountsReset,
-      },
-    });
-    return res.json(result);
+    const idemKey = String(req.body?.idempotencyKey ?? "").trim() || null;
+    const { result, deduped } = await runIdempotent(
+      idemKey ? `reset-all:${idemKey}` : null,
+      () => adminReset("all", null, options),
+    );
+    if (!deduped) {
+      await recordAdminAction({
+        admin,
+        action: "reset-all",
+        targetType: "platform",
+        targetLabel: "ALL users",
+        success: result.ok,
+        correlationId,
+        after: {
+          applied: result.applied,
+          deleted: result.deleted,
+          accountsReset: result.accountsReset,
+        },
+      });
+    }
+    return res.json({ ...result, deduped, correlationId });
   }),
 );
 
