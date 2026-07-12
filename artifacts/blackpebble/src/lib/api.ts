@@ -1816,13 +1816,31 @@ export interface LeverageCloseResult {
   balance?: number;
 }
 
+export interface LeverageActivityRow {
+  wallet: string;
+  x_username: string | null;
+  action: string;
+  direction: string;
+  leverage: number;
+  notional_sol: number;
+  pnl_sol: number | null;
+  created_at: number;
+}
+
 export interface LeverageStats {
   totalPositions: number;
   openPositions: number;
+  closedPositions: number;
   liquidations: number;
+  openLongs: number;
+  openShorts: number;
   totalVolumeSol: number;
   totalMarginSol: number;
   realizedPnlSol: number;
+  avgLeverage: number;
+  maxLeverage: number;
+  liquidationRate: number;
+  winRate: number;
   uniqueTraders: number;
   topUsers: {
     wallet: string;
@@ -1831,6 +1849,21 @@ export interface LeverageStats {
     volume_sol: number;
     realized_pnl_sol: number;
   }[];
+  recentActivity: LeverageActivityRow[];
+}
+
+export interface AdminOrderStats {
+  total: number;
+  pending: number;
+  filled: number;
+  canceled: number;
+  failed: number;
+  triggeredTakeProfit: number;
+  triggeredStopLoss: number;
+  triggeredBuyLimit: number;
+  pendingBuyLimit: number;
+  pendingTakeProfit: number;
+  pendingStopLoss: number;
 }
 
 // ---- Real Trading Analysis (read-only on-chain intelligence) ----
@@ -2561,14 +2594,21 @@ export const api = {
     stats: (window: AdminStatsWindow = "24h") =>
       request<AdminStatsResponse>(`/admin/stats?window=${window}`),
     health: () => request<AdminHealth>("/admin/health"),
-    orders: (filters?: { token?: string; user?: string; status?: string }) => {
+    orders: (filters?: {
+      token?: string;
+      user?: string;
+      status?: string;
+      type?: string;
+    }) => {
       const qs = new URLSearchParams();
       if (filters?.token) qs.set("token", filters.token);
       if (filters?.user) qs.set("user", filters.user);
       if (filters?.status) qs.set("status", filters.status);
+      if (filters?.type) qs.set("type", filters.type);
       const q = qs.toString();
       return request<{ orders: PaperOrder[] }>(`/admin/orders${q ? `?${q}` : ""}`);
     },
+    orderStats: () => request<AdminOrderStats>("/admin/order-stats"),
     cancelOrder: (id: number) =>
       request<{ ok: boolean; error?: string }>("/admin/orders/cancel", {
         method: "POST",

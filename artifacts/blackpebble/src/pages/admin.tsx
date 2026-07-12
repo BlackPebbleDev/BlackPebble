@@ -59,6 +59,7 @@ import {
   type AdminAuditFilters,
   type AchievementsAudit,
   type ApiError,
+  type PaperOrder,
   type ProfileResponse,
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -1064,25 +1065,105 @@ function VerificationSection() {
   );
 }
 
+const ORDER_STATUS_OPTS = ["", "all", "pending", "filled", "canceled", "failed"];
+const ORDER_TYPE_OPTS = ["", "take_profit", "stop_loss", "buy_limit"];
+
+/** One order rendered as a mobile-friendly card (used on all breakpoints). */
+function OrderRow({
+  o,
+  onCancel,
+  canceling,
+}: {
+  o: PaperOrder;
+  onCancel: (id: number) => void;
+  canceling: boolean;
+}) {
+  const cancellable = o.status === "pending" || o.status === "filling";
+  const statusColor =
+    o.status === "filled"
+      ? "text-success"
+      : o.status === "failed"
+        ? "text-danger"
+        : o.status === "canceled"
+          ? "text-muted-foreground"
+          : "text-accent";
+  return (
+    <div
+      className="rounded-xl border border-border/60 bg-background/40 p-3"
+      data-testid={`order-row-${o.id}`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-mono text-sm font-semibold text-foreground">
+              {o.token_symbol ?? shortMint(o.token_mint)}
+            </span>
+            <span className="rounded-full bg-secondary/40 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+              {o.order_type}
+            </span>
+            <span className={cn("text-[10px] font-semibold uppercase tracking-wider", statusColor)}>
+              {o.status}
+            </span>
+          </div>
+          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
+            <span className="font-mono">
+              {o.trigger_direction === "gte" ? "≥" : "≤"} {fmt(o.trigger_value)}{" "}
+              {o.trigger_type === "market_cap" ? "MC" : "px"}
+            </span>
+            <span className="font-mono">{shortWallet(o.wallet)}</span>
+            <span>created {timeAgo(o.created_at)}</span>
+            {o.filled_at && <span>filled {timeAgo(o.filled_at)}</span>}
+            {o.fill_reason && <span className="text-foreground/70">{o.fill_reason}</span>}
+          </div>
+        </div>
+        {cancellable && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onCancel(o.id)}
+            disabled={canceling}
+            data-testid={`button-cancel-order-${o.id}`}
+            className="flex-shrink-0"
+          >
+            Cancel
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function OrdersSection() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [token, setToken] = useState("");
   const [user, setUser] = useState("");
-  const filters = useMemo(() => ({ token, user }), [token, user]);
+  const [status, setStatus] = useState("");
+  const [type, setType] = useState("");
+  const filters = useMemo(
+    () => ({ token, user, status, type }),
+    [token, user, status, type],
+  );
   const { data, isFetching } = useQuery({
     queryKey: ["admin-orders", filters],
     queryFn: () => api.admin.orders(filters),
+  });
+  const { data: stats } = useQuery({
+    queryKey: ["admin-order-stats"],
+    queryFn: () => api.admin.orderStats(),
+    refetchInterval: 60_000,
   });
   const cancel = useMutation({
     mutationFn: (id: number) => api.admin.cancelOrder(id),
     onSuccess: () => {
       toast({ title: "Order canceled" });
       qc.invalidateQueries({ queryKey: ["admin-orders"] });
+      qc.invalidateQueries({ queryKey: ["admin-order-stats"] });
     },
     onError: (e: Error) => toast({ title: "Cancel failed", description: e.message, variant: "destructive" }),
   });
   const orders = data?.orders ?? [];
+
   return (
     <Card
       title="Order management"
@@ -1099,68 +1180,75 @@ function OrdersSection() {
         </Button>
       }
     >
-      <div className="mb-3 flex flex-col gap-2 sm:flex-row">
+      {/* Order-status breakdown (real counts, correct type distinction) */}
+      <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <Stat label="Pending" value={fmt(stats?.pending)} />
+        <Stat label="Triggered TP" value={fmt(stats?.triggeredTakeProfit)} />
+        <Stat label="Triggered SL" value={fmt(stats?.triggeredStopLoss)} />
+        <Stat label="Triggered buy-limit" value={fmt(stats?.triggeredBuyLimit)} />
+        <Stat label="Filled" value={fmt(stats?.filled)} />
+        <Stat label="Canceled" value={fmt(stats?.canceled)} />
+        <Stat label="Failed" value={fmt(stats?.failed)} />
+        <Stat label="Total" value={fmt(stats?.total)} />
+      </div>
+
+      <div className="mb-3 flex flex-wrap gap-2">
         <Input
-          placeholder="Filter by token symbol / mint"
+          placeholder="Token symbol / mint"
           value={token}
           onChange={(e) => setToken(e.target.value)}
-          className="sm:max-w-xs"
+          className="sm:max-w-[180px]"
           data-testid="input-filter-token"
         />
         <Input
-          placeholder="Filter by wallet"
+          placeholder="Wallet"
           value={user}
           onChange={(e) => setUser(e.target.value)}
-          className="sm:max-w-xs"
+          className="sm:max-w-[180px]"
           data-testid="input-filter-user"
         />
+        <select
+          value={status}
+          onChange={(e) => setStatus(e.target.value)}
+          className="h-9 rounded-lg border border-border bg-background px-2 text-xs text-foreground"
+          data-testid="input-filter-status"
+        >
+          {ORDER_STATUS_OPTS.map((s) => (
+            <option key={s || "active"} value={s}>
+              {s === "" ? "Active" : s === "all" ? "All statuses" : s}
+            </option>
+          ))}
+        </select>
+        <select
+          value={type}
+          onChange={(e) => setType(e.target.value)}
+          className="h-9 rounded-lg border border-border bg-background px-2 text-xs text-foreground"
+          data-testid="input-filter-type"
+        >
+          {ORDER_TYPE_OPTS.map((t) => (
+            <option key={t || "any"} value={t}>
+              {t === "" ? "Any type" : t}
+            </option>
+          ))}
+        </select>
       </div>
-      <div className="max-h-80 overflow-auto">
-        <table className="w-full text-sm">
-          <thead className="sticky top-0 bg-card text-left text-[11px] uppercase tracking-wider text-muted-foreground">
-            <tr>
-              <th className="py-2 pr-2">Token</th>
-              <th className="py-2 pr-2">Type</th>
-              <th className="py-2 pr-2">Trigger</th>
-              <th className="py-2 pr-2">Wallet</th>
-              <th className="py-2 pr-2 text-right">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {orders.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="py-6 text-center text-muted-foreground">
-                  No active orders.
-                </td>
-              </tr>
-            ) : (
-              orders.map((o) => (
-                <tr key={o.id} className="border-t border-border/60">
-                  <td className="py-2 pr-2 font-mono">{o.token_symbol ?? o.token_mint.slice(0, 6)}</td>
-                  <td className="py-2 pr-2">{o.order_type}</td>
-                  <td className="py-2 pr-2 font-mono">
-                    {o.trigger_direction === "gte" ? "≥" : "≤"} {fmt(o.trigger_value)}
-                  </td>
-                  <td className="py-2 pr-2 font-mono text-xs text-muted-foreground">
-                    {o.wallet.slice(0, 10)}…
-                  </td>
-                  <td className="py-2 pr-2 text-right">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => cancel.mutate(o.id)}
-                      disabled={cancel.isPending}
-                      data-testid={`button-cancel-order-${o.id}`}
-                    >
-                      Cancel
-                    </Button>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+
+      {orders.length === 0 ? (
+        <p className="py-6 text-center text-sm text-muted-foreground">
+          No orders match these filters.
+        </p>
+      ) : (
+        <div className="max-h-96 space-y-2 overflow-auto pr-0.5">
+          {orders.map((o) => (
+            <OrderRow
+              key={o.id}
+              o={o}
+              onCancel={(id) => cancel.mutate(id)}
+              canceling={cancel.isPending}
+            />
+          ))}
+        </div>
+      )}
     </Card>
   );
 }
@@ -2650,9 +2738,22 @@ function LeverageSection() {
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           <Stat label="Total positions" value={fmt(data?.totalPositions)} />
           <Stat label="Open positions" value={fmt(data?.openPositions)} />
+          <Stat label="Closed positions" value={fmt(data?.closedPositions)} />
           <Stat label="Liquidations" value={fmt(data?.liquidations)} />
+          <Stat label="Open longs" value={fmt(data?.openLongs)} />
+          <Stat label="Open shorts" value={fmt(data?.openShorts)} />
           <Stat label="Unique traders" value={fmt(data?.uniqueTraders)} />
-          <Stat label="Volume (SOL)" value={fmt(data?.totalVolumeSol, 2)} />
+          <Stat
+            label="Win rate"
+            value={data ? `${fmt(data.winRate, 1)}%` : "—"}
+          />
+          <Stat
+            label="Liquidation rate"
+            value={data ? `${fmt(data.liquidationRate, 1)}%` : "—"}
+          />
+          <Stat label="Avg leverage" value={data ? `${fmt(data.avgLeverage, 1)}x` : "—"} />
+          <Stat label="Max leverage" value={data ? `${fmt(data.maxLeverage)}x` : "—"} />
+          <Stat label="Notional (SOL)" value={fmt(data?.totalVolumeSol, 2)} />
           <Stat label="Margin (SOL)" value={fmt(data?.totalMarginSol, 2)} />
           <Stat label="Realized P&L (SOL)" value={fmt(data?.realizedPnlSol, 3)} />
         </div>
@@ -2662,40 +2763,80 @@ function LeverageSection() {
             <div className="mb-2 text-[11px] uppercase tracking-wider text-muted-foreground">
               Top leverage traders
             </div>
-            <div className="overflow-auto border border-border">
-              <table className="w-full text-sm">
-                <thead className="text-left text-[11px] uppercase tracking-wider text-muted-foreground">
-                  <tr>
-                    <th className="px-3 py-2">Wallet / X user</th>
-                    <th className="px-3 py-2 text-right">Positions</th>
-                    <th className="px-3 py-2 text-right">Volume (SOL)</th>
-                    <th className="px-3 py-2 text-right">Realized P&L</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {top.map((u, i) => (
-                    <tr key={i} className="border-t border-border/60">
-                      <td className="px-3 py-2 font-mono text-xs">
-                        {u.x_username ? `@${u.x_username}` : shortWallet(u.wallet)}
-                      </td>
-                      <td className="px-3 py-2 text-right font-mono">
-                        {fmt(u.positions)}
-                      </td>
-                      <td className="px-3 py-2 text-right font-mono text-accent">
-                        {fmt(u.volume_sol, 2)}
-                      </td>
-                      <td
-                        className={
-                          "px-3 py-2 text-right font-mono " +
-                          (u.realized_pnl_sol >= 0 ? "text-success" : "text-danger")
-                        }
+            {/* Mobile-friendly cards; readable rows even on 390px. */}
+            <div className="space-y-1.5">
+              {top.map((u, i) => (
+                <div
+                  key={i}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-background/40 p-2.5"
+                >
+                  <span className="min-w-0 truncate font-mono text-xs text-foreground">
+                    {u.x_username ? `@${u.x_username}` : shortWallet(u.wallet)}
+                  </span>
+                  <span className="flex flex-shrink-0 items-center gap-3 font-mono text-xs">
+                    <span className="text-muted-foreground">
+                      {fmt(u.positions)}p
+                    </span>
+                    <span className="text-accent">{fmt(u.volume_sol, 1)}◎</span>
+                    <span
+                      className={
+                        u.realized_pnl_sol >= 0 ? "text-success" : "text-danger"
+                      }
+                    >
+                      {fmt(u.realized_pnl_sol, 2)}
+                    </span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {data?.recentActivity && data.recentActivity.length > 0 && (
+          <div>
+            <div className="mb-2 text-[11px] uppercase tracking-wider text-muted-foreground">
+              Recent perps activity
+            </div>
+            <div className="space-y-1.5">
+              {data.recentActivity.map((r, i) => (
+                <div
+                  key={i}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-background/40 p-2.5 text-xs"
+                >
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span
+                      className={cn(
+                        "rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase",
+                        r.action === "open"
+                          ? "bg-sky-400/15 text-sky-300"
+                          : r.action === "liquidated"
+                            ? "bg-red-400/15 text-red-400"
+                            : "bg-secondary text-muted-foreground",
+                      )}
+                    >
+                      {r.action}
+                    </span>
+                    <span className="truncate font-mono text-foreground">
+                      {r.x_username ? `@${r.x_username}` : shortWallet(r.wallet)}
+                    </span>
+                    <span className="flex-shrink-0 text-muted-foreground">
+                      {r.direction} {fmt(r.leverage)}x
+                    </span>
+                  </span>
+                  <span className="flex flex-shrink-0 items-center gap-2 font-mono">
+                    {r.pnl_sol != null && (
+                      <span
+                        className={r.pnl_sol >= 0 ? "text-success" : "text-danger"}
                       >
-                        {fmt(u.realized_pnl_sol, 3)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                        {fmt(r.pnl_sol, 2)}
+                      </span>
+                    )}
+                    <span className="text-muted-foreground">
+                      {timeAgo(r.created_at)}
+                    </span>
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
         )}
