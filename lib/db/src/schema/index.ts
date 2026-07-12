@@ -8,6 +8,7 @@ import {
   boolean,
   bigint,
   timestamp,
+  jsonb,
   index,
   uniqueIndex,
   primaryKey,
@@ -843,4 +844,43 @@ export const realTimelineEvents = pgTable(
     created_at: bigint("created_at", { mode: "number" }).default(epoch),
   },
   (t) => [index("idx_real_timeline_wallet").on(t.wallet, t.created_at)],
+);
+
+// ── Admin audit log ─────────────────────────────────────────────────────────
+// Persistent, append-only trail of consequential admin actions (resets, flag
+// changes, badge grants, moderation, cache clears, order interventions). Writes
+// are best-effort and never block the primary action. Payloads are small JSON
+// summaries only — never secrets or full sensitive request bodies. Applied via
+// `drizzle-kit push` (the repo's migration path) and also created idempotently
+// at runtime by ensureAdminAuditSchema(), matching the appended-table
+// convention used by analytics_events / user_follows above.
+export const adminAuditLog = pgTable(
+  "admin_audit_log",
+  {
+    id: serial("id").primaryKey(),
+    created_at: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    admin_user_id: text("admin_user_id"),
+    admin_x_id: text("admin_x_id"),
+    admin_handle: text("admin_handle"),
+    action: text("action").notNull(),
+    target_type: text("target_type"),
+    target_id: text("target_id"),
+    target_label: text("target_label"),
+    success: boolean("success").notNull().default(true),
+    error: text("error"),
+    before_state: jsonb("before_state"),
+    after_state: jsonb("after_state"),
+    reason: text("reason"),
+    // Correlation id tying an audit row to its API response + server logs.
+    correlation_id: text("correlation_id"),
+  },
+  (t) => [
+    index("idx_admin_audit_created").on(t.created_at),
+    index("idx_admin_audit_admin").on(t.admin_x_id),
+    index("idx_admin_audit_action").on(t.action),
+    index("idx_admin_audit_target_type").on(t.target_type),
+    index("idx_admin_audit_success").on(t.success),
+  ],
 );

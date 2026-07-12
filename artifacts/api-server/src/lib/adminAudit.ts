@@ -8,6 +8,13 @@ import { logger } from "./logger.js";
  * changes, badge grants, moderation, cache clears, order interventions,
  * campaign actions) is recorded here so operator activity is traceable.
  *
+ * The canonical definition lives in the committed Drizzle schema
+ * (`@workspace/db` -> `adminAuditLog`) and is applied by `drizzle-kit push`.
+ * This runtime bootstrap mirrors that schema exactly and is kept as the belt-
+ * and-suspenders idempotent creation used by every other appended table
+ * (analytics_events, user_follows, ...), so the table exists even if push has
+ * not run yet in a given environment.
+ *
  * Recording is best-effort and NEVER throws: an audit write failure must not
  * break the action it describes. Payload summaries are small JSON blobs; we do
  * not store secrets or full sensitive request bodies.
@@ -33,17 +40,28 @@ export function ensureAdminAuditSchema(): Promise<void> {
           error text,
           before_state jsonb,
           after_state jsonb,
-          reason text
+          reason text,
+          correlation_id text
         )
       `);
+      // Backfill the column on pre-existing installs (idempotent).
       await dbRun(
-        `CREATE INDEX IF NOT EXISTS idx_admin_audit_created ON admin_audit_log (created_at DESC)`,
+        `ALTER TABLE admin_audit_log ADD COLUMN IF NOT EXISTS correlation_id text`,
+      );
+      await dbRun(
+        `CREATE INDEX IF NOT EXISTS idx_admin_audit_created ON admin_audit_log (created_at)`,
+      );
+      await dbRun(
+        `CREATE INDEX IF NOT EXISTS idx_admin_audit_admin ON admin_audit_log (admin_x_id)`,
       );
       await dbRun(
         `CREATE INDEX IF NOT EXISTS idx_admin_audit_action ON admin_audit_log (action)`,
       );
       await dbRun(
-        `CREATE INDEX IF NOT EXISTS idx_admin_audit_admin ON admin_audit_log (admin_x_id)`,
+        `CREATE INDEX IF NOT EXISTS idx_admin_audit_target_type ON admin_audit_log (target_type)`,
+      );
+      await dbRun(
+        `CREATE INDEX IF NOT EXISTS idx_admin_audit_success ON admin_audit_log (success)`,
       );
     })().catch((err) => {
       // Reset so a later call can retry after a transient DB failure.
@@ -65,17 +83,24 @@ export interface AdminAuditInput {
   before?: unknown;
   after?: unknown;
   reason?: string | null;
+  /** Ties this row to its API response and server logs. */
+  correlationId?: string | null;
 }
 
-/** Record an admin action. Best-effort: logs and swallows any failure. */
+/**
+ * Record an admin action. Best-effort: NEVER throws (a failed audit write must
+ * not corrupt the primary admin action). Failures are logged server-side with
+ * the action + correlation id so they are never silently swallowed.
+ */
 export async function recordAdminAction(input: AdminAuditInput): Promise<void> {
   try {
     await ensureAdminAuditSchema();
     await dbRun(
       `INSERT INTO admin_audit_log
         (admin_user_id, admin_x_id, admin_handle, action, target_type,
-         target_id, target_label, success, error, before_state, after_state, reason)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+         target_id, target_label, success, error, before_state, after_state,
+         reason, correlation_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
       [
         input.admin?.sub ?? null,
         input.admin?.x_id ?? null,
@@ -89,10 +114,14 @@ export async function recordAdminAction(input: AdminAuditInput): Promise<void> {
         input.before != null ? JSON.stringify(input.before) : null,
         input.after != null ? JSON.stringify(input.after) : null,
         input.reason ?? null,
+        input.correlationId ?? null,
       ],
     );
   } catch (err) {
-    logger.error({ err, action: input.action }, "admin audit write failed");
+    logger.error(
+      { err, action: input.action, correlationId: input.correlationId ?? null },
+      "admin audit write failed",
+    );
   }
 }
 
@@ -120,6 +149,7 @@ export interface AdminAuditEntry {
   before_state: unknown;
   after_state: unknown;
   reason: string | null;
+  correlation_id: string | null;
 }
 
 export interface AdminAuditFilters {
@@ -164,7 +194,7 @@ export async function listAdminAudit(
   const rows = await dbAll<AdminAuditEntry>(
     `SELECT id, created_at, admin_user_id, admin_x_id, admin_handle, action,
             target_type, target_id, target_label, success, error,
-            before_state, after_state, reason
+            before_state, after_state, reason, correlation_id
        FROM admin_audit_log
        ${whereSql}
        ORDER BY id DESC
