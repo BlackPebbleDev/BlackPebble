@@ -204,7 +204,7 @@ export function ProfileEquityChart({
           </span>
         )}
       </div>
-      <EquityLine points={points} mini className="mt-3 h-16 md:h-20" />
+      <EquityLine points={points} mini className="mt-3 h-20" />
     </div>
   );
 }

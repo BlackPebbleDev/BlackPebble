@@ -20,6 +20,13 @@ import {
   Layers,
   ListChecks,
   Star,
+  Target,
+  Scale,
+  Clock,
+  Flame,
+  ArrowUpRight,
+  ArrowDownRight,
+  Ruler,
 } from "lucide-react";
 import { useAccount } from "@/hooks/use-account";
 import { accountStatusFromGuest } from "@/lib/account-status";
@@ -39,7 +46,13 @@ import {
   ProfileSocialPills,
 } from "@/components/profile-identity";
 import { trackPortfolioView } from "@/lib/analytics";
-import { fmtSol, fmtPercent, pnlColor, xProfileUrl } from "@/lib/format";
+import {
+  fmtSol,
+  fmtPercent,
+  fmtDuration,
+  pnlColor,
+  xProfileUrl,
+} from "@/lib/format";
 import { PnlAmount } from "@/components/pnl-amount";
 import { CurrencyAmount } from "@/components/currency-amount";
 import { useSolUsd } from "@/hooks/use-sol-usd";
@@ -105,6 +118,11 @@ function BestTradeTile({
       }
     />
   );
+}
+
+/** The app-wide "no data yet" glyph, styled to read as absent (not zero). */
+function Dash() {
+  return <span className="text-sm font-normal text-muted-foreground">—</span>;
 }
 
 /** Premium quick-link into a wallet utility subpage (same tile language). */
@@ -498,42 +516,130 @@ export default function Portfolio() {
             )}
           </div>
 
-          {/* ── Trader DNA: private performance in the public-profile language ── */}
+          {/* ── Trader DNA: private performance in the public-profile language.
+              A balanced 12-tile grid (2 / 3 / 4 columns) of real behavioural
+              metrics - the deeper set the public profile doesn't expose. ── */}
           <SectionHeader icon={Dna} title="Trader DNA" />
-          <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
             <MiniStat
-              icon={TrendingUp}
-              label="ROI"
-              value={fmtPercent(stats?.roiPercent)}
-              valueClass={pnlColor(stats?.roiPercent)}
-            />
-            <MiniStat
-              icon={Coins}
-              label="Total P&L"
-              value={
-                <PnlAmount
-                  sol={stats?.totalPnlSol}
-                  solUsd={positionsSolUsd}
-                  unit={false}
-                />
-              }
-              valueClass={pnlColor(stats?.totalPnlSol)}
-            />
-            <MiniStat
-              icon={Activity}
+              icon={Target}
               label="Win Rate"
               value={`${(stats?.winRate ?? 0).toFixed(1)}%`}
+              sub={
+                (stats?.closedTrades ?? 0) > 0
+                  ? `${stats?.winningTrades ?? 0} of ${stats?.closedTrades} won`
+                  : undefined
+              }
+            />
+            <MiniStat
+              icon={Scale}
+              label="Profit Factor"
+              value={
+                stats?.profitFactor != null ? (
+                  stats.profitFactor.toFixed(2)
+                ) : (stats?.closedTrades ?? 0) > 0 &&
+                  (stats?.winningTrades ?? 0) > 0 ? (
+                  "∞"
+                ) : (
+                  <Dash />
+                )
+              }
+              valueClass={
+                stats?.profitFactor != null
+                  ? stats.profitFactor >= 1
+                    ? "text-success"
+                    : "text-danger"
+                  : undefined
+              }
+              hint={{
+                title: "Profit Factor",
+                text: "Gross profit divided by gross loss. Above 1.0 means your winners outweigh your losers.",
+              }}
             />
             <BestTradeTile stats={stats} solUsd={positionsSolUsd} />
             <MiniStat
-              icon={Zap}
-              label="Executions"
-              value={String(stats?.totalExecutions ?? 0)}
+              icon={Flame}
+              label="Win Streak"
+              value={String(stats?.currentStreak ?? 0)}
+              hint={{
+                title: "Win Streak",
+                text: "Consecutive winning closed trades, counting back from your latest.",
+              }}
+            />
+            <MiniStat
+              icon={ArrowUpRight}
+              label="Avg Winner"
+              value={
+                stats?.avgWinSol != null ? (
+                  <PnlAmount
+                    sol={stats.avgWinSol}
+                    solUsd={positionsSolUsd}
+                    unit={false}
+                  />
+                ) : (
+                  <Dash />
+                )
+              }
+              valueClass={stats?.avgWinSol != null ? "text-success" : undefined}
+            />
+            <MiniStat
+              icon={ArrowDownRight}
+              label="Avg Loser"
+              value={
+                stats?.avgLossSol != null ? (
+                  <PnlAmount
+                    sol={stats.avgLossSol}
+                    solUsd={positionsSolUsd}
+                    unit={false}
+                  />
+                ) : (
+                  <Dash />
+                )
+              }
+              valueClass={stats?.avgLossSol != null ? "text-danger" : undefined}
+            />
+            <MiniStat
+              icon={Clock}
+              label="Avg Hold"
+              value={
+                stats?.avgHoldSec != null ? (
+                  fmtDuration(stats.avgHoldSec)
+                ) : (
+                  <Dash />
+                )
+              }
+              hint={{
+                title: "Avg Hold Time",
+                text: "Amount-weighted average time you hold a position from buy to sell.",
+              }}
+            />
+            <MiniStat
+              icon={Ruler}
+              label="Avg Size"
+              value={
+                stats?.avgTradeSizeSol != null ? (
+                  <CurrencyAmount
+                    sol={stats.avgTradeSizeSol}
+                    solUsd={positionsSolUsd}
+                  />
+                ) : (
+                  <Dash />
+                )
+              }
+              hint={{
+                title: "Avg Position Size",
+                text: "Average SOL committed per buy.",
+              }}
             />
             <MiniStat
               icon={History}
               label="Closed Trades"
               value={String(stats?.closedTrades ?? 0)}
+            />
+            <MiniStat
+              icon={Zap}
+              label="Executions"
+              value={String(stats?.totalExecutions ?? 0)}
             />
             <MiniStat
               icon={Medal}
@@ -549,17 +655,26 @@ export default function Portfolio() {
           </div>
 
           {/* ── Portfolio Allocation: one premium expandable card ─────────── */}
-          {!isGuest && serverStats != null && (
+          {stats != null && (
             <PortfolioAllocation
-              stats={serverStats}
-              showLeverage={flags.leverage}
+              stats={stats}
+              showLeverage={!isGuest && flags.leverage}
             />
           )}
 
           {/* ── Trading Intelligence: flagship read-only coaching ─────────── */}
           {flags.real_trading_analysis && (
             <>
-              <SectionHeader icon={Brain} title="Trading Intelligence" />
+              <SectionHeader
+                icon={Brain}
+                title="Trading Intelligence"
+                action={
+                  <span className="inline-flex items-center gap-1 rounded-full border border-accent/30 bg-accent/10 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-accent">
+                    <Sparkles className="h-2.5 w-2.5" />
+                    AI Coach
+                  </span>
+                }
+              />
               <p className="-mt-1 mb-3 text-xs text-muted-foreground">
                 Read-only intelligence from your real on-chain history - your
                 trading DNA, live signals, and milestones.
@@ -704,11 +819,17 @@ function PortfolioAllocation({
                 label="Spot Holdings"
                 value={`${fmtSol(spotValue)} SOL`}
               />
-              {showLeverage && (
+              {showLeverage ? (
                 <MiniStat
                   icon={Zap}
                   label="Perps Equity"
                   value={`${fmtSol(stats.openLeverageEquitySol)} SOL`}
+                />
+              ) : (
+                <MiniStat
+                  icon={Layers}
+                  label="Open Positions"
+                  value={String(stats.openPositions)}
                 />
               )}
               <MiniStat
@@ -724,7 +845,7 @@ function PortfolioAllocation({
                 valueClass={pnlColor(unrealized)}
               />
               <MiniStat
-                icon={Layers}
+                icon={PieChart}
                 label="Total Equity"
                 value={`${fmtSol(stats.equitySol)} SOL`}
               />
