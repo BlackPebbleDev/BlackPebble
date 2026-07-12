@@ -16,6 +16,7 @@ import {
   type LeveragePosition,
 } from "@/lib/api";
 import { tierFromRealizedPnl } from "@/lib/tiers";
+import { computeTradeQualityMetrics } from "@/lib/trade-metrics";
 
 /**
  * Client-side guest trading engine.
@@ -1458,6 +1459,10 @@ export function computeGuestStats(
   const roi =
     ((equitySol - GUEST_STARTING_BALANCE) / GUEST_STARTING_BALANCE) * 100;
 
+  // Guest history is complete on-device, so we can compute the same trade-quality
+  // metrics the server derives for signed-in users (no fabricated numbers).
+  const quality = computeTradeQualityMetrics(state.trades);
+
   return {
     wallet: "guest",
     balance: state.balance,
@@ -1473,6 +1478,11 @@ export function computeGuestStats(
     winRate: closedTrades > 0 ? (winningTrades / closedTrades) * 100 : 0,
     bestTrade: maxPnl > 0 ? maxPnl : null,
     worstTrade: minPnl < 0 ? minPnl : 0,
+    avgWinSol: quality.avgWinSol,
+    avgLossSol: quality.avgLossSol,
+    profitFactor: quality.profitFactor,
+    avgTradeSizeSol: quality.avgTradeSizeSol,
+    avgHoldSec: quality.avgHoldSec,
     currentStreak: streak,
     participationPoints: 0,
     graduationTier: graduationTier(realizedPnl),

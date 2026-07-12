@@ -1,23 +1,38 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { Line } from "react-chartjs-2";
 import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Tooltip,
-  Filler,
-  TimeScale,
-} from "chart.js";
-import { Wallet, Loader2, Sparkles } from "lucide-react";
+  Wallet,
+  Loader2,
+  Sparkles,
+  TrendingUp,
+  Coins,
+  Trophy,
+  Zap,
+  Activity,
+  History,
+  Medal,
+  Dna,
+  Brain,
+  ChevronDown,
+  PieChart,
+  ArrowRight,
+  Layers,
+  ListChecks,
+  Star,
+  Target,
+  Scale,
+  Clock,
+  Flame,
+  ArrowUpRight,
+  ArrowDownRight,
+  Ruler,
+} from "lucide-react";
 import { useAccount } from "@/hooks/use-account";
 import { accountStatusFromGuest } from "@/lib/account-status";
 import { useXAuth } from "@/hooks/use-x-auth";
 import { UserIdentity } from "@/components/user-identity";
-import { api, type PortfolioStats } from "@/lib/api";
+import { api, type PortfolioStats, type FeatureFlags } from "@/lib/api";
 import { OpenPositions } from "@/components/open-positions";
 import { LeveragePortfolioSection } from "@/components/leverage-portfolio";
 import { useFeatureFlags } from "@/hooks/use-feature-flags";
@@ -25,13 +40,20 @@ import { AllOrders } from "@/components/position-orders";
 import { Watchlist } from "@/components/watchlist";
 import { TradeList } from "@/components/trade-list";
 import { GuestCountdown } from "@/components/guest-countdown";
+import { EmptyState } from "@/components/empty-state";
 import { TierBadge } from "@/components/tier-badge";
 import {
   ProfileIdentityMeta,
   ProfileSocialPills,
 } from "@/components/profile-identity";
 import { trackPortfolioView } from "@/lib/analytics";
-import { fmtSol, fmtPercent, pnlColor, xProfileUrl } from "@/lib/format";
+import {
+  fmtSol,
+  fmtPercent,
+  fmtDuration,
+  pnlColor,
+  xProfileUrl,
+} from "@/lib/format";
 import { PnlAmount } from "@/components/pnl-amount";
 import { CurrencyAmount } from "@/components/currency-amount";
 import { useSolUsd } from "@/hooks/use-sol-usd";
@@ -39,15 +61,25 @@ import { LIVE_MS } from "@/lib/live";
 import { LiveIndicator } from "@/components/live-indicator";
 import { RecoveryDiscoveryCard } from "@/components/recovery-discovery-card";
 import { RealTradingAnalysisSection } from "@/components/real-trading-analysis";
-import {
-  bpScales,
-  bpTooltip,
-  accentLineDataset,
-  crosshairPlugin,
-  filterByRange,
-  type ChartRange,
-} from "@/lib/chart-theme";
+import { type ChartRange } from "@/lib/chart-theme";
 import { ChartRangeToggle } from "@/components/chart-range-toggle";
+import {
+  EquityLine,
+  EquityEmptyState,
+  useRangedEquity,
+} from "@/components/equity-chart";
+import {
+  SectionHeader,
+  PanelCard,
+  MiniStat,
+  InfoHint,
+} from "@/components/profile-ui";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import { UTILITIES, type UtilityMeta } from "@/lib/utilities-meta";
 import { cn } from "@/lib/utils";
 import {
   useGuestStore,
@@ -56,42 +88,13 @@ import {
   computeGuestStats,
 } from "@/lib/guest-store";
 
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Tooltip,
-  Filler,
-  TimeScale,
-);
-
-function Stat({
-  label,
-  value,
-  className,
-}: {
-  label: string;
-  value: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <div className="rounded-xl bg-card shadow-card px-4 py-3.5 transition-colors hover:bg-surface-3">
-      <div className="stat-label mb-1.5">{label}</div>
-      <div className={cn("stat-value text-xl md:text-2xl", className)}>
-        {value}
-      </div>
-    </div>
-  );
-}
-
 /**
- * Best Trade is tri-state so it never shows a misleading 0.00:
- *  - a winning closed trade exists  → show the SOL amount (green)
- *  - closed trades exist but none won → "No winning trades yet"
- *  - no closed trades at all          → "No closed trades yet"
+ * Best Trade tile is tri-state so it never shows a misleading 0.00:
+ *  - a winning closed trade exists   → show the SOL amount (green)
+ *  - closed trades exist but none won → "No wins yet"
+ *  - no closed trades at all          → "No trades yet"
  */
-function BestTradeStat({
+function BestTradeTile({
   stats,
   solUsd,
 }: {
@@ -100,21 +103,55 @@ function BestTradeStat({
 }) {
   if (stats?.bestTrade != null) {
     return (
-      <Stat
+      <MiniStat
+        icon={Trophy}
         label="Best Trade"
-        value={<PnlAmount sol={stats.bestTrade} solUsd={solUsd} />}
-        className="text-success"
+        value={<PnlAmount sol={stats.bestTrade} solUsd={solUsd} unit={false} />}
+        valueClass="text-success"
       />
     );
   }
   const hasClosed = (stats?.closedTrades ?? 0) > 0;
   return (
-    <div className="rounded-xl bg-card shadow-card px-4 py-3.5">
-      <div className="stat-label mb-1.5">Best Trade</div>
-      <div className="text-sm text-muted-foreground">
-        {hasClosed ? "No winning trades yet" : "No closed trades yet"}
-      </div>
-    </div>
+    <MiniStat
+      icon={Trophy}
+      label="Best Trade"
+      value={
+        <span className="text-sm font-normal text-muted-foreground">
+          {hasClosed ? "No wins yet" : "No trades yet"}
+        </span>
+      }
+    />
+  );
+}
+
+/** The app-wide "no data yet" glyph, styled to read as absent (not zero). */
+function Dash() {
+  return <span className="text-sm font-normal text-muted-foreground">—</span>;
+}
+
+/** Premium quick-link into a wallet utility subpage (same tile language). */
+function UtilityLinkTile({ meta }: { meta: UtilityMeta }) {
+  const Icon = meta.icon;
+  return (
+    <Link
+      href={meta.href}
+      data-testid={meta.testId}
+      className="group flex items-center gap-3 rounded-xl border border-border/60 bg-secondary/20 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.03),0_1px_2px_rgba(0,0,0,0.35)] transition-colors hover:border-accent/50 hover:bg-surface-3"
+    >
+      <span className="inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-accent/20 to-accent/5 text-accent ring-1 ring-accent/20 transition-colors group-hover:ring-accent/40">
+        <Icon className="h-4 w-4" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-semibold text-foreground">
+          {meta.title}
+        </span>
+        <span className="block truncate text-[11px] text-muted-foreground">
+          {meta.description}
+        </span>
+      </span>
+      <ArrowRight className="h-4 w-4 flex-shrink-0 text-muted-foreground transition-colors group-hover:text-accent" />
+    </Link>
   );
 }
 
@@ -200,37 +237,29 @@ export default function Portfolio() {
   const statsLoading = isGuest ? false : serverStatsLoading;
   const history = isGuest ? { trades: guestHistory(guestState) } : serverHistory;
 
-  // Range-filtered equity points; fall back to full history when the selected
-  // window is too sparse to draw a line. Chart points use ms timestamps, the
-  // shared filter expects seconds.
-  const { chartPoints, chartRangeSparse } = useMemo(() => {
-    const points = chart?.points ?? [];
-    const asSeconds = points.map((p) => ({ ...p, t: Math.floor(p.t / 1000) }));
-    const filtered = filterByRange(asSeconds, chartRange);
-    if (filtered.length > 1) {
-      return { chartPoints: filtered, chartRangeSparse: false };
-    }
-    return { chartPoints: asSeconds, chartRangeSparse: chartRange !== "all" };
-  }, [chart, chartRange]);
-
-  const chartData = useMemo(
-    () => ({
-      labels: chartPoints.map((p) =>
-        new Date(p.t * 1000).toLocaleDateString("en-US", {
-          month: "short",
-          day: "numeric",
-        }),
-      ),
-      datasets: [
-        {
-          ...accentLineDataset,
-          label: "Equity",
-          data: chartPoints.map((p) => p.equity),
-        },
-      ],
-    }),
-    [chartPoints],
+  // Range-filtered equity points (shared logic with the profile chart). Falls
+  // back to the full series when the selected window is too sparse to draw.
+  const { points: rangedPoints, sparse: chartRangeSparse } = useRangedEquity(
+    chart?.points ?? [],
+    chartRange,
   );
+  const hasChart = (chart?.points?.length ?? 0) > 1;
+
+  // Today's P&L: change in equity over the last 24h, using the most recent
+  // snapshot at or before the cutoff as the baseline. Null until we have enough
+  // history to be meaningful (never fabricated).
+  const todayPnl = useMemo(() => {
+    const pts = chart?.points ?? [];
+    if (pts.length < 2) return null;
+    const cutoff = Date.now() - 86_400_000;
+    let baseline = pts[0]!;
+    for (const p of pts) {
+      if (p.t <= cutoff) baseline = p;
+      else break;
+    }
+    const last = pts[pts.length - 1]!;
+    return last.equity - baseline.equity;
+  }, [chart]);
 
   if (!wallet && !isGuest) {
     return (
@@ -252,8 +281,25 @@ export default function Portfolio() {
   // A position-derived rate only exists once the trader holds something. Fall
   // back to the shared SOL/USD rate so USD (the default currency) still renders
   // on an empty/guest portfolio.
-  const positionsSolUsd =
-    derivedSolUsd > 0 ? derivedSolUsd : fallbackSolUsd;
+  const positionsSolUsd = derivedSolUsd > 0 ? derivedSolUsd : fallbackSolUsd;
+
+  const rankValue = isGuest
+    ? "Guest"
+    : leaderboard == null
+      ? "—"
+      : rank != null
+        ? `#${rank}`
+        : "Unranked";
+
+  // Utility quick-links (excluding the ones already surfaced above: SOL recovery
+  // has its own discovery card, and Trading Analysis is the Trading Intelligence
+  // section). Honors feature flags so nothing dead-ends.
+  const utilityLinks = UTILITIES.filter(
+    (u) =>
+      u.key !== "trading_analysis" &&
+      u.key !== "wallet_cleanup" &&
+      (!u.flag || flags[u.flag as keyof FeatureFlags]),
+  );
 
   return (
     <div className="w-full max-w-6xl mx-auto px-4 md:px-6 py-6">
@@ -273,7 +319,7 @@ export default function Portfolio() {
       {!isGuest && selfHandle && (
         <div
           data-testid="portfolio-user-summary"
-          className="hairline-accent overflow-hidden rounded-2xl bg-card shadow-card p-5 md:p-6 mb-6"
+          className="hairline-accent overflow-hidden rounded-2xl bg-card shadow-card p-5 md:p-6 mb-4"
         >
           {/* Identity cluster: avatar + name/badges + compact @handle · tier ·
               #rank, mirroring the approved public profile hero. */}
@@ -343,7 +389,7 @@ export default function Portfolio() {
       {isGuest && (
         <div
           data-testid="banner-portfolio-guest"
-          className="flex items-start gap-2 rounded-xl border border-accent/30 bg-accent/10 px-4 py-3 mb-6"
+          className="flex items-start gap-2 rounded-xl border border-accent/30 bg-accent/10 px-4 py-3 mb-4"
         >
           <Sparkles className="w-4 h-4 shrink-0 mt-0.5 text-accent" />
           <p className="text-xs leading-relaxed text-foreground/90">
@@ -362,187 +408,313 @@ export default function Portfolio() {
         </div>
       ) : (
         <>
-          <div className="flex justify-end mb-2">
-            <LiveIndicator dataUpdatedAt={statsUpdatedAt} />
+          {/* ── Equity hero: the visual centerpiece. Big headline, the chart as
+              the star, then the snapshot tiles. Layered gradient + inset
+              highlight give calm glass depth (Robinhood, not dashboard). ── */}
+          <div
+            data-testid="equity-card"
+            className="relative overflow-hidden rounded-2xl border border-white/[0.06] bg-gradient-to-b from-accent/[0.10] via-card to-card p-5 md:p-7 shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_24px_60px_-30px_rgba(0,0,0,0.75)] mb-5"
+          >
+            <div
+              aria-hidden
+              className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-accent/10 blur-3xl"
+            />
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/40 to-transparent"
+            />
+            <div className="relative flex flex-wrap items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                  <TrendingUp className="h-3 w-3 flex-shrink-0 text-accent" />
+                  <span>Total Equity</span>
+                  <InfoHint
+                    title="Total Equity"
+                    text="Cash plus the live value of all open spot and perps positions."
+                  />
+                </div>
+                <div
+                  data-testid="equity-value"
+                  className="mt-2.5 font-mono text-4xl font-bold leading-none tracking-tight text-foreground md:text-5xl"
+                >
+                  <CurrencyAmount
+                    sol={stats?.equitySol}
+                    solUsd={positionsSolUsd}
+                  />
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <LiveIndicator dataUpdatedAt={statsUpdatedAt} />
+                {hasChart && (
+                  <ChartRangeToggle
+                    value={chartRange}
+                    onChange={setChartRange}
+                    className="shrink-0"
+                  />
+                )}
+              </div>
+            </div>
+
+            {/* Equity curve - the star of the card */}
+            <div className="relative mt-6">
+              {hasChart ? (
+                <>
+                  {chartRangeSparse && (
+                    <p className="mb-2 text-[11px] text-warning/80">
+                      Not enough history in this window - showing full history.
+                    </p>
+                  )}
+                  <EquityLine points={rangedPoints} className="h-56 md:h-72" />
+                </>
+              ) : (
+                <EquityEmptyState className="h-56 md:h-72" />
+              )}
+            </div>
+
+            {/* Snapshot metrics row */}
+            <div className="relative mt-6 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <MiniStat
+                icon={Coins}
+                label="Total P&L"
+                value={
+                  <PnlAmount
+                    sol={stats?.totalPnlSol}
+                    solUsd={positionsSolUsd}
+                    unit={false}
+                  />
+                }
+                valueClass={pnlColor(stats?.totalPnlSol)}
+              />
+              <MiniStat
+                icon={Activity}
+                label="Today's P&L"
+                value={
+                  todayPnl == null ? (
+                    <Dash />
+                  ) : (
+                    <PnlAmount
+                      sol={todayPnl}
+                      solUsd={positionsSolUsd}
+                      unit={false}
+                    />
+                  )
+                }
+                valueClass={todayPnl != null ? pnlColor(todayPnl) : undefined}
+                hint={{
+                  title: "Today's P&L",
+                  text: "Change in your total equity over the last 24 hours.",
+                }}
+              />
+              <MiniStat
+                icon={TrendingUp}
+                label="ROI"
+                value={fmtPercent(stats?.roiPercent)}
+                valueClass={pnlColor(stats?.roiPercent)}
+              />
+              <MiniStat
+                icon={Wallet}
+                label="Cash Balance"
+                value={
+                  <CurrencyAmount
+                    sol={stats?.balance}
+                    solUsd={positionsSolUsd}
+                  />
+                }
+              />
+            </div>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
-            <Stat
-              label="Equity"
-              value={
-                <CurrencyAmount sol={stats?.equitySol} solUsd={positionsSolUsd} />
+
+          {/* ── Trader DNA: private performance in the public-profile language.
+              A balanced 12-tile grid (2 / 3 / 4 columns) of real behavioural
+              metrics - the deeper set the public profile doesn't expose. ── */}
+          <SectionHeader icon={Dna} title="Trader DNA" className="mt-8" />
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+            <MiniStat
+              icon={Target}
+              label="Win Rate"
+              value={`${(stats?.winRate ?? 0).toFixed(1)}%`}
+              sub={
+                (stats?.closedTrades ?? 0) > 0
+                  ? `${stats?.winningTrades ?? 0} of ${stats?.closedTrades} won`
+                  : undefined
               }
             />
-            <Stat
-              label="Cash Balance"
+            <MiniStat
+              icon={Scale}
+              label="Profit Factor"
               value={
-                <CurrencyAmount sol={stats?.balance} solUsd={positionsSolUsd} />
+                stats?.profitFactor != null ? (
+                  stats.profitFactor.toFixed(2)
+                ) : (stats?.closedTrades ?? 0) > 0 &&
+                  (stats?.winningTrades ?? 0) > 0 ? (
+                  "∞"
+                ) : (
+                  <Dash />
+                )
               }
+              valueClass={
+                stats?.profitFactor != null
+                  ? stats.profitFactor >= 1
+                    ? "text-success"
+                    : "text-danger"
+                  : undefined
+              }
+              hint={{
+                title: "Profit Factor",
+                text: "Gross profit divided by gross loss. Above 1.0 means your winners outweigh your losers.",
+              }}
             />
-            <Stat
-              label="Total P&L"
+            <BestTradeTile stats={stats} solUsd={positionsSolUsd} />
+            <MiniStat
+              icon={Flame}
+              label="Win Streak"
+              value={String(stats?.currentStreak ?? 0)}
+              hint={{
+                title: "Win Streak",
+                text: "Consecutive winning closed trades, counting back from your latest.",
+              }}
+            />
+            <MiniStat
+              icon={ArrowUpRight}
+              label="Avg Winner"
               value={
-                <PnlAmount sol={stats?.totalPnlSol} solUsd={positionsSolUsd} />
+                stats?.avgWinSol != null ? (
+                  <PnlAmount
+                    sol={stats.avgWinSol}
+                    solUsd={positionsSolUsd}
+                    unit={false}
+                  />
+                ) : (
+                  <Dash />
+                )
               }
-              className={pnlColor(stats?.totalPnlSol)}
+              valueClass={stats?.avgWinSol != null ? "text-success" : undefined}
             />
-            <Stat
-              label="ROI"
-              value={fmtPercent(stats?.roiPercent)}
-              className={pnlColor(stats?.roiPercent)}
+            <MiniStat
+              icon={ArrowDownRight}
+              label="Avg Loser"
+              value={
+                stats?.avgLossSol != null ? (
+                  <PnlAmount
+                    sol={stats.avgLossSol}
+                    solUsd={positionsSolUsd}
+                    unit={false}
+                  />
+                ) : (
+                  <Dash />
+                )
+              }
+              valueClass={stats?.avgLossSol != null ? "text-danger" : undefined}
             />
-            <Stat
-              label="Executions"
-              value={String(stats?.totalExecutions ?? 0)}
+            <MiniStat
+              icon={Clock}
+              label="Avg Hold"
+              value={
+                stats?.avgHoldSec != null ? (
+                  fmtDuration(stats.avgHoldSec)
+                ) : (
+                  <Dash />
+                )
+              }
+              hint={{
+                title: "Avg Hold Time",
+                text: "Amount-weighted average time you hold a position from buy to sell.",
+              }}
             />
-            <Stat
+            <MiniStat
+              icon={Ruler}
+              label="Avg Size"
+              value={
+                stats?.avgTradeSizeSol != null ? (
+                  <CurrencyAmount
+                    sol={stats.avgTradeSizeSol}
+                    solUsd={positionsSolUsd}
+                  />
+                ) : (
+                  <Dash />
+                )
+              }
+              hint={{
+                title: "Avg Position Size",
+                text: "Average SOL committed per buy.",
+              }}
+            />
+            <MiniStat
+              icon={History}
               label="Closed Trades"
               value={String(stats?.closedTrades ?? 0)}
             />
-            <Stat
-              label="Win Rate"
-              value={`${(stats?.winRate ?? 0).toFixed(1)}%`}
+            <MiniStat
+              icon={Zap}
+              label="Executions"
+              value={String(stats?.totalExecutions ?? 0)}
             />
-            <BestTradeStat stats={stats} solUsd={positionsSolUsd} />
-            <Stat
+            <MiniStat
+              icon={Medal}
               label="Rank"
-              value={
-                isGuest
-                  ? "Guest"
-                  : leaderboard == null
-                    ? "—"
-                    : rank != null
-                      ? `#${rank}`
-                      : "Unranked"
-              }
-              className={rank != null ? "text-accent" : "text-muted-foreground"}
+              value={rankValue}
+              valueClass={rank != null ? "text-accent" : "text-muted-foreground"}
             />
-            <div className="rounded-xl bg-card shadow-card px-4 py-3.5">
-              <div className="stat-label mb-2">Tier</div>
-              <TierBadge tier={stats?.graduationTier} />
-            </div>
+            <MiniStat
+              icon={Star}
+              label="Tier"
+              value={<TierBadge tier={stats?.graduationTier} />}
+            />
           </div>
 
-          {/* P&L breakdown - only shown for signed-in users with any leverage activity */}
-          {!isGuest && flags.leverage && serverStats != null &&
-            (serverStats.leverageOpenCount > 0 ||
-              serverStats.leverageRealizedPnlSol !== 0 ||
-              serverStats.openLeverageEquitySol > 0) && (
-              <div className="rounded-xl bg-card shadow-card p-5 mb-3 text-xs" data-testid="pnl-breakdown">
-                <div className="stat-label mb-3">Equity Breakdown</div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2">
-                  <div>
-                    <div className="text-muted-foreground">Cash</div>
-                    <div className="font-mono">{fmtSol(serverStats.balance)} SOL</div>
-                  </div>
-                  <div>
-                    <div className="text-muted-foreground">Open Spot Value</div>
-                    <div className="font-mono">
-                      {fmtSol(serverStats.equitySol - serverStats.balance - serverStats.openLeverageEquitySol)} SOL
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-muted-foreground">Open Perps Equity</div>
-                    <div className="font-mono">{fmtSol(serverStats.openLeverageEquitySol)} SOL</div>
-                  </div>
-                  <div>
-                    <div className="text-muted-foreground font-semibold">Total Equity</div>
-                    <div className="font-mono font-semibold">{fmtSol(serverStats.equitySol)} SOL</div>
-                  </div>
-                  <div>
-                    <div className="text-muted-foreground">Spot P&L</div>
-                    <div className={cn("font-mono", pnlColor(serverStats.realizedPnlSol + serverStats.unrealizedPnlSol))}>
-                      {fmtSol(serverStats.realizedPnlSol + serverStats.unrealizedPnlSol)} SOL
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-muted-foreground">Perps Realized P&L</div>
-                    <div className={cn("font-mono", pnlColor(serverStats.leverageRealizedPnlSol))}>
-                      {fmtSol(serverStats.leverageRealizedPnlSol)} SOL
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-muted-foreground">Perps Unrealized P&L</div>
-                    <div className={cn("font-mono", pnlColor(serverStats.leverageUnrealizedPnlSol))}>
-                      {fmtSol(serverStats.leverageUnrealizedPnlSol)} SOL
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-muted-foreground font-semibold">Total P&L</div>
-                    <div className={cn("font-mono font-semibold", pnlColor(serverStats.totalPnlSol))}>
-                      {fmtSol(serverStats.totalPnlSol)} SOL
-                    </div>
-                  </div>
-                </div>
+          {/* ── Portfolio Allocation: one premium expandable card ─────────── */}
+          {stats != null && (
+            <PortfolioAllocation
+              stats={stats}
+              showLeverage={!isGuest && flags.leverage}
+            />
+          )}
+
+          {/* ── Trading Intelligence: flagship read-only coaching ─────────── */}
+          {flags.real_trading_analysis && (
+            <>
+              <SectionHeader
+                icon={Brain}
+                title="Trading Intelligence"
+                className="mt-8"
+                action={
+                  <span className="inline-flex items-center gap-1 rounded-full border border-accent/30 bg-accent/10 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-accent">
+                    <Sparkles className="h-2.5 w-2.5" />
+                    AI Coach
+                  </span>
+                }
+              />
+              <p className="mb-4 text-xs leading-relaxed text-muted-foreground">
+                Read-only intelligence from your real on-chain history - your
+                trading DNA, live signals, and milestones.
+              </p>
+              <RealTradingAnalysisSection />
+            </>
+          )}
+
+          {/* ── Wallet Utilities: grouped premium dashboard section ───────── */}
+          <SectionHeader
+            icon={Sparkles}
+            title="Wallet Utilities"
+            className="mt-8"
+          />
+          <div className="space-y-3">
+            <RecoveryDiscoveryCard />
+            {utilityLinks.length > 0 && (
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {utilityLinks.map((u) => (
+                  <UtilityLinkTile key={u.key} meta={u} />
+                ))}
               </div>
             )}
-
-          {/* Wallet utility - strictly isolated from paper-trading metrics above. */}
-          {flags.real_trading_analysis && (
-            <RealTradingAnalysisSection />
-          )}
-          <div className="mb-6">
-            <RecoveryDiscoveryCard />
           </div>
 
-          {!isGuest && (
-            <div className="rounded-xl bg-card shadow-card p-5 mb-6">
-              <div className="flex items-start justify-between gap-3 mb-4">
-                <div className="stat-label">Equity Performance</div>
-                <ChartRangeToggle
-                  value={chartRange}
-                  onChange={setChartRange}
-                  className="shrink-0"
-                />
-              </div>
-              {chartRangeSparse && (
-                <p className="text-[11px] text-warning/80 mb-2">
-                  Not enough history in this window - showing full history.
-                </p>
-              )}
-              <div className="h-64">
-                <Line
-                  data={chartData}
-                  plugins={[crosshairPlugin]}
-                  options={{
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    interaction: { mode: "index", intersect: false },
-                    plugins: {
-                      legend: { display: false },
-                      tooltip: {
-                        ...bpTooltip,
-                        callbacks: {
-                          title: (items) => {
-                            const p =
-                              items[0] != null
-                                ? chartPoints[items[0].dataIndex]
-                                : null;
-                            return p
-                              ? new Date(p.t * 1000).toLocaleDateString(
-                                  "en-US",
-                                  {
-                                    month: "short",
-                                    day: "numeric",
-                                    year: "numeric",
-                                  },
-                                )
-                              : "";
-                          },
-                          label: (item) =>
-                            `Equity: ${fmtSol(item.parsed.y ?? 0)} SOL`,
-                        },
-                      },
-                    },
-                    scales: bpScales,
-                  }}
-                />
-              </div>
-            </div>
-          )}
-
-          <h2 className="text-lg font-semibold mb-3">
-            Open Positions ({positions.length})
-          </h2>
+          {/* ── Open Positions ────────────────────────────────────────────── */}
+          <SectionHeader
+            icon={Layers}
+            title={`Open Positions (${positions.length})`}
+            className="mt-8"
+          />
           <OpenPositions
             positions={positions}
             solUsd={positionsSolUsd}
@@ -559,35 +731,157 @@ export default function Portfolio() {
 
           <AllOrders onNavigate={(mint) => navigate(`/?token=${mint}`)} />
 
-          <h2 className="text-lg font-semibold mb-3 mt-8">Watchlist</h2>
+          {/* ── Watchlist: secondary lane ("what might I trade?") - deliberately
+              lighter than the performance sections above. ─────────────────── */}
+          <SectionHeader
+            icon={Star}
+            title="Watchlist"
+            tone="muted"
+            className="mt-8"
+          />
           <Watchlist onNavigate={(mint) => navigate(`/?token=${mint}`)} />
 
-          <h2 className="text-lg font-semibold mb-3 mt-8">
-            Trade History{" "}
-            <span className="text-sm font-normal text-muted-foreground">
-              {(() => {
+          {/* ── Trade History: premium receipts ───────────────────────────── */}
+          <SectionHeader
+            icon={ListChecks}
+            title="Trade History"
+            className="mt-8"
+            action={
+              (() => {
                 const total = history?.trades?.length ?? 0;
                 if (total === 0) return null;
-                if (historyExpanded) return `${total} trades shown`;
-                const shown = Math.min(5, total);
-                return `${shown} of ${total} shown`;
-              })()}
-            </span>
-          </h2>
-          <div className="rounded-xl bg-card shadow-card overflow-hidden">
-            <TradeList
-              trades={history?.trades ?? []}
-              empty="No trades yet. Your buys and sells will appear here."
-              onNavigate={(mint) => navigate(`/?token=${mint}`)}
-              limit={5}
-              showExpand
-              expanded={historyExpanded}
-              onExpandChange={setHistoryExpanded}
+                const label = historyExpanded
+                  ? `${total} shown`
+                  : `${Math.min(5, total)} of ${total}`;
+                return (
+                  <span className="text-xs font-medium text-muted-foreground">
+                    {label}
+                  </span>
+                );
+              })()
+            }
+          />
+          {(history?.trades?.length ?? 0) === 0 ? (
+            <EmptyState
+              icon={ListChecks}
+              title="No trades yet"
+              body="Your buys and sells will appear here, newest first, once you start trading."
             />
-          </div>
+          ) : (
+            <div className="rounded-2xl bg-card shadow-card overflow-hidden">
+              <TradeList
+                trades={history?.trades ?? []}
+                empty=""
+                onNavigate={(mint) => navigate(`/?token=${mint}`)}
+                limit={5}
+                showExpand
+                expanded={historyExpanded}
+                onExpandChange={setHistoryExpanded}
+              />
+            </div>
+          )}
         </>
       )}
     </div>
   );
 }
 
+/**
+ * Portfolio Allocation - the old debug-style "Equity Breakdown" reimagined as
+ * one premium expandable card that reuses the Trader DNA tile language. Collapsed
+ * it shows just the headline (total equity); expanded it breaks equity into cash,
+ * spot, perps and P&L.
+ */
+function PortfolioAllocation({
+  stats,
+  showLeverage,
+}: {
+  stats: PortfolioStats;
+  showLeverage: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const spotValue =
+    stats.equitySol - stats.balance - stats.openLeverageEquitySol;
+  const realized = stats.realizedPnlSol + stats.leverageRealizedPnlSol;
+  const unrealized = stats.unrealizedPnlSol + stats.leverageUnrealizedPnlSol;
+
+  return (
+    <>
+      <SectionHeader icon={PieChart} title="Portfolio Breakdown" className="mt-8" />
+      <PanelCard testId="pnl-breakdown" className="p-0 md:p-0">
+        <Collapsible open={open} onOpenChange={setOpen}>
+          <CollapsibleTrigger className="flex w-full items-center justify-between gap-3 p-4 md:p-5">
+            <div className="flex items-center gap-2 text-left">
+              <span className="inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-accent/12 text-accent">
+                <PieChart className="h-4 w-4" />
+              </span>
+              <div>
+                <div className="text-sm font-semibold text-foreground">
+                  Total Equity
+                </div>
+                <div className="text-[11px] text-muted-foreground">
+                  Tap to see the full breakdown
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-base font-semibold tabular-nums text-foreground">
+                {fmtSol(stats.equitySol)} SOL
+              </span>
+              <ChevronDown
+                className={cn(
+                  "h-4 w-4 flex-shrink-0 text-muted-foreground transition-transform",
+                  open && "rotate-180",
+                )}
+              />
+            </div>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="grid grid-cols-2 gap-2 px-4 pb-4 sm:grid-cols-3 md:px-5 md:pb-5">
+              <MiniStat
+                icon={Wallet}
+                label="Cash"
+                value={`${fmtSol(stats.balance)} SOL`}
+              />
+              <MiniStat
+                icon={Coins}
+                label="Spot Holdings"
+                value={`${fmtSol(spotValue)} SOL`}
+              />
+              {showLeverage ? (
+                <MiniStat
+                  icon={Zap}
+                  label="Perps Equity"
+                  value={`${fmtSol(stats.openLeverageEquitySol)} SOL`}
+                />
+              ) : (
+                <MiniStat
+                  icon={Layers}
+                  label="Open Positions"
+                  value={String(stats.openPositions)}
+                />
+              )}
+              <MiniStat
+                icon={TrendingUp}
+                label="Realized P&L"
+                value={`${fmtSol(realized)} SOL`}
+                valueClass={pnlColor(realized)}
+              />
+              <MiniStat
+                icon={Activity}
+                label="Unrealized P&L"
+                value={`${fmtSol(unrealized)} SOL`}
+                valueClass={pnlColor(unrealized)}
+              />
+              <MiniStat
+                icon={PieChart}
+                label="Total Equity"
+                value={`${fmtSol(stats.equitySol)} SOL`}
+              />
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+      </PanelCard>
+    </>
+  );
+}

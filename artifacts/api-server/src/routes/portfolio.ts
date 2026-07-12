@@ -5,6 +5,7 @@ import {
   getPortfolio,
   ensureAccount,
   getClosedTradeStats,
+  getAvgHoldSeconds,
   STARTING_BALANCE,
 } from "../lib/trading.js";
 import { getSolPriceUsd } from "../lib/prices.js";
@@ -61,7 +62,7 @@ router.get(
     if (!wallet) return res.status(400).json({ error: "wallet is required" });
 
     // Run all data fetches in parallel to minimise latency.
-    const [a, portfolio, cs, solUsd, levPortfolio, levCounts] =
+    const [a, portfolio, cs, solUsd, levPortfolio, levCounts, avgHoldSec] =
       await Promise.all([
         ensureAccount(wallet),
         getPortfolio(wallet),
@@ -74,6 +75,7 @@ router.get(
            FROM paper_leverage_trades WHERE wallet = $1`,
           [wallet],
         ),
+        getAvgHoldSeconds(wallet),
       ]);
 
     // ── Leverage equity ──────────────────────────────────────────────────────
@@ -143,6 +145,12 @@ router.get(
       winRate: cs.winRate,
       bestTrade: cs.bestTrade,
       worstTrade: cs.worstTrade,
+      // Trade-quality metrics (spot closed trades) - real, never fabricated.
+      avgWinSol: cs.avgWinSol,
+      avgLossSol: cs.avgLossSol,
+      profitFactor: cs.profitFactor,
+      avgTradeSizeSol: cs.avgTradeSizeSol,
+      avgHoldSec,
       // Combined counts for executions and closed-trades display.
       totalExecutions,
       closedTrades: totalClosedTrades,
