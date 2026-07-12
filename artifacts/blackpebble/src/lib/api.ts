@@ -364,15 +364,71 @@ export interface AdminAuditEntry {
   before_state: unknown;
   after_state: unknown;
   reason: string | null;
+  correlation_id: string | null;
 }
 
 export interface AdminAuditFilters {
   admin?: string;
   action?: string;
   targetType?: string;
+  targetId?: string;
+  q?: string;
   success?: boolean;
+  from?: number;
+  to?: number;
   cursor?: number;
   limit?: number;
+}
+
+export interface AdminVersion {
+  backendVersion: string | null;
+  commit: string | null;
+  branch: string | null;
+  service: string | null;
+  instance: string | null;
+  node: string;
+  env: string | null;
+  uptimeSeconds: number;
+  startedAt: number;
+}
+
+export interface AchievementsAuditBadge {
+  key: string;
+  name: string;
+  category: string;
+  rarity: string;
+  hidden: boolean;
+  feedEligible: boolean;
+  hasUnlockPath: boolean;
+  holders: number;
+  globalEarnedPercent: number | null;
+  firstEarnedAt: number | null;
+}
+
+export interface AchievementsAudit {
+  generatedAt: number;
+  totalUsers: number;
+  summary: {
+    totalBadges: number;
+    feedEligible: number;
+    nonFeed: number;
+    hidden: number;
+    everEarned: number;
+    neverEarned: number;
+  };
+  integrity: {
+    ok: boolean;
+    definitionsWithoutPath: string[];
+    evaluatorsWithoutDefinition: string[];
+  };
+  badges: AchievementsAuditBadge[];
+}
+
+export interface RecoveryVerifyResult {
+  processed: number;
+  verified: number;
+  partial: number;
+  failed: number;
 }
 
 /** Result of a social/journal/test-data/full reset (backup + delete counts). */
@@ -2553,8 +2609,12 @@ export const api = {
       if (filters?.admin) qs.set("admin", filters.admin);
       if (filters?.action) qs.set("action", filters.action);
       if (filters?.targetType) qs.set("targetType", filters.targetType);
+      if (filters?.targetId) qs.set("targetId", filters.targetId);
+      if (filters?.q) qs.set("q", filters.q);
       if (typeof filters?.success === "boolean")
         qs.set("success", String(filters.success));
+      if (filters?.from) qs.set("from", String(filters.from));
+      if (filters?.to) qs.set("to", String(filters.to));
       if (filters?.cursor) qs.set("cursor", String(filters.cursor));
       if (filters?.limit) qs.set("limit", String(filters.limit));
       const q = qs.toString();
@@ -2562,6 +2622,16 @@ export const api = {
         `/admin/audit-log${q ? `?${q}` : ""}`,
       );
     },
+    version: () => request<AdminVersion>("/admin/version"),
+    achievementsAudit: () =>
+      request<AchievementsAudit>("/admin/achievements/audit"),
+    sparklineDiagnostics: () =>
+      request<Record<string, unknown>>("/admin/sparkline-diagnostics"),
+    recoveryVerifyPending: (limit?: number) =>
+      request<RecoveryVerifyResult>("/admin/recovery-verify-pending", {
+        method: "POST",
+        body: JSON.stringify({ limit }),
+      }),
     recoveryStats: () =>
       request<RecoveryStatsResponse>("/admin/recovery-stats"),
     leverageStats: () => request<LeverageStats>("/admin/leverage-stats"),
