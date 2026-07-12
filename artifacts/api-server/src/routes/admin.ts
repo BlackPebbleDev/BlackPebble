@@ -558,6 +558,36 @@ router.post(
   }),
 );
 
+/**
+ * Deployment/build identity for the Overview. Every value is derived from real
+ * process/env metadata and falls back to null ("unknown" in the UI) when the
+ * platform does not provide it - never fabricated.
+ */
+router.get(
+  "/admin/version",
+  asyncHandler((_req, res) => {
+    const env = process.env;
+    const commit =
+      env["RENDER_GIT_COMMIT"] ||
+      env["GIT_COMMIT"] ||
+      env["SOURCE_VERSION"] ||
+      env["COMMIT_SHA"] ||
+      null;
+    const uptimeSeconds = Math.floor(process.uptime());
+    return res.json({
+      backendVersion: env["APP_VERSION"] ?? null,
+      commit: commit ? commit.slice(0, 12) : null,
+      branch: env["RENDER_GIT_BRANCH"] ?? env["GIT_BRANCH"] ?? null,
+      service: env["RENDER_SERVICE_NAME"] ?? null,
+      instance: env["RENDER_INSTANCE_ID"] ?? null,
+      node: process.version,
+      env: env["NODE_ENV"] ?? null,
+      uptimeSeconds,
+      startedAt: Math.floor(Date.now() / 1000) - uptimeSeconds,
+    });
+  }),
+);
+
 router.get(
   "/admin/health",
   asyncHandler(async (_req, res) => {
@@ -822,8 +852,12 @@ router.get(
       admin: String(req.query.admin ?? "").trim() || undefined,
       action: String(req.query.action ?? "").trim() || undefined,
       targetType: String(req.query.targetType ?? "").trim() || undefined,
+      targetId: String(req.query.targetId ?? "").trim() || undefined,
+      q: String(req.query.q ?? "").trim() || undefined,
       success:
         successRaw === "true" ? true : successRaw === "false" ? false : undefined,
+      from: Number(req.query.from) || undefined,
+      to: Number(req.query.to) || undefined,
       cursor: Number(req.query.cursor) || undefined,
       limit: Number(req.query.limit) || undefined,
     });

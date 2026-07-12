@@ -156,7 +156,13 @@ export interface AdminAuditFilters {
   admin?: string;
   action?: string;
   targetType?: string;
+  targetId?: string;
+  /** Free-text search across target label, error, correlation id and action. */
+  q?: string;
   success?: boolean;
+  /** Inclusive unix-second range on created_at. */
+  from?: number;
+  to?: number;
   /** Keyset pagination: only rows with id < cursor. */
   cursor?: number;
   limit?: number;
@@ -185,7 +191,19 @@ export async function listAdminAudit(
   if (filters.admin) add("admin_x_id = ?", filters.admin);
   if (filters.action) add("action = ?", filters.action);
   if (filters.targetType) add("target_type = ?", filters.targetType);
+  if (filters.targetId) add("target_id = ?", filters.targetId);
   if (typeof filters.success === "boolean") add("success = ?", filters.success);
+  if (filters.from && Number.isFinite(filters.from))
+    add("created_at >= to_timestamp(?)", filters.from);
+  if (filters.to && Number.isFinite(filters.to))
+    add("created_at <= to_timestamp(?)", filters.to);
+  if (filters.q) {
+    params.push(`%${filters.q}%`);
+    const p = `$${params.length}`;
+    where.push(
+      `(target_label ILIKE ${p} OR error ILIKE ${p} OR correlation_id ILIKE ${p} OR action ILIKE ${p} OR target_id ILIKE ${p})`,
+    );
+  }
   if (filters.cursor && Number.isFinite(filters.cursor))
     add("id < ?", filters.cursor);
 
