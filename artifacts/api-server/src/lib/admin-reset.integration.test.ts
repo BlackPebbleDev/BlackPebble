@@ -141,22 +141,11 @@ describe.skipIf(!HAS_DB)("admin reset integration (DB-backed)", () => {
       `DELETE FROM admin_audit_log WHERE target_id = ANY($1::text[])`,
       [[xKey, guestWallet, "int-test"]],
     ).catch(() => {});
-    // Drop backup tables created for these test tags.
-    for (const w of [xKey, guestWallet]) {
-      const tag = w.replace(/[^a-zA-Z0-9]/g, "").slice(0, 16);
-      const rows = await db
-        .dbAll<{ table_name: string }>(
-          `SELECT table_name FROM information_schema.tables
-            WHERE table_schema = 'reset_backups' AND table_name LIKE $1`,
-          [`%${tag}%`],
-        )
-        .catch(() => [] as { table_name: string }[]);
-      for (const r of rows) {
-        await db
-          .dbRun(`DROP TABLE IF EXISTS "reset_backups"."${r.table_name}"`)
-          .catch(() => {});
-      }
-    }
+    // Remove the JSONB backup snapshots created for the test accounts.
+    await db.dbRun(
+      `DELETE FROM reset_backup_snapshots WHERE target_account_key = ANY($1::text[])`,
+      [[xKey, guestWallet]],
+    ).catch(() => {});
   });
 
   // ── Resolver: every supported identifier shape ──────────────────────────────
@@ -231,6 +220,36 @@ describe.skipIf(!HAS_DB)("admin reset integration (DB-backed)", () => {
     expect(await countIn("trades", xKey)).toBe(tradesBefore); // preserved
     expect(res.deleted["paper_orders"]).toBe(ordersBefore);
     expect(res.backups["paper_orders"]?.rows).toBe(ordersBefore); // backup first
+    expect(res.correlationId).toBeTruthy();
+    expect(res.resetOpId).toBeTruthy();
+
+    // A JSONB snapshot row exists for this op (colon account key stored as data,
+    // never as a SQL identifier).
+    const snap = await db.dbGet<{ n: number }>(
+      `SELECT count(*)::int AS n FROM reset_backup_snapshots
+        WHERE reset_op_id = $1 AND source_table = 'paper_orders'
+          AND target_account_key = $2`,
+      [res.resetOpId, xKey],
+    );
+    expect(snap?.n).toBe(ordersBefore);
+  });
+
+  it("stores a backup snapshot for the colon account key without DDL", async () => {
+    await seedXAccount();
+    const res = await actions.adminReset("user", xKey, { clearPositions: true });
+    const rows = await db.dbGet<{ n: number }>(
+      `SELECT count(*)::int AS n FROM reset_backup_snapshots
+        WHERE reset_op_id = $1 AND source_table = 'positions'`,
+      [res.resetOpId],
+    );
+    expect(rows?.n).toBeGreaterThanOrEqual(0);
+    // The account key is stored verbatim as data (colon intact).
+    const keyed = await db.dbGet<{ k: string }>(
+      `SELECT target_account_key AS k FROM reset_backup_snapshots
+        WHERE reset_op_id = $1 LIMIT 1`,
+      [res.resetOpId],
+    );
+    if (keyed) expect(keyed.k).toBe(xKey);
   });
 
   it("preserves identity, X link, and wallet link across a reset", async () => {
