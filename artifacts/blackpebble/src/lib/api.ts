@@ -699,6 +699,16 @@ export interface PortfolioStats {
   /** Largest winning spot trade, or null when none. */
   bestTrade: number | null;
   worstTrade: number;
+  /** Mean realized pnl of winning closed trades, or null when there are none. */
+  avgWinSol?: number | null;
+  /** Mean realized pnl of losing closed trades (negative), or null when none. */
+  avgLossSol?: number | null;
+  /** Gross profit ÷ gross loss; null when there are no losing trades. */
+  profitFactor?: number | null;
+  /** Mean SOL size of buy executions, or null when there are none. */
+  avgTradeSizeSol?: number | null;
+  /** Amount-weighted average holding time (seconds), or null when no round-trips. */
+  avgHoldSec?: number | null;
   currentStreak: number;
   participationPoints: number;
   graduationTier: string;

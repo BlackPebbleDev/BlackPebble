@@ -1211,6 +1211,18 @@ export interface ClosedTradeStats {
    */
   bestTrade: number | null;
   worstTrade: number;
+  /** Mean realized pnl of winning closed trades, or null when there are none. */
+  avgWinSol: number | null;
+  /** Mean realized pnl of losing closed trades (negative), or null when none. */
+  avgLossSol: number | null;
+  /**
+   * Gross profit ÷ gross loss over closed trades. Null when there are no losing
+   * trades (an undefined ratio) so the UI can show a distinct "∞"/"no losses"
+   * state instead of a misleading number.
+   */
+  profitFactor: number | null;
+  /** Mean SOL size of buy executions, or null when there are none. */
+  avgTradeSizeSol: number | null;
 }
 
 /**
@@ -1246,26 +1258,45 @@ export async function getClosedTradeStats(
     realizedPnl: number;
     maxPnl: number;
     minPnl: number;
+    avgWin: number | null;
+    avgLoss: number | null;
+    sumWin: number;
+    sumLoss: number;
   }>(
     `SELECT
        COUNT(*)::int AS "closedTrades",
        COALESCE(SUM(CASE WHEN pnl > 0 THEN 1 ELSE 0 END), 0)::int AS "winningTrades",
        COALESCE(SUM(pnl), 0) AS "realizedPnl",
        COALESCE(MAX(pnl), 0) AS "maxPnl",
-       COALESCE(MIN(pnl), 0) AS "minPnl"
+       COALESCE(MIN(pnl), 0) AS "minPnl",
+       AVG(CASE WHEN pnl > 0 THEN pnl END) AS "avgWin",
+       AVG(CASE WHEN pnl < 0 THEN pnl END) AS "avgLoss",
+       COALESCE(SUM(CASE WHEN pnl > 0 THEN pnl ELSE 0 END), 0) AS "sumWin",
+       COALESCE(SUM(CASE WHEN pnl < 0 THEN pnl ELSE 0 END), 0) AS "sumLoss"
      FROM trades
      WHERE wallet = $1 AND side = 'sell' AND pnl IS NOT NULL AND executed_at > $2`,
     [wallet, since],
   ))!;
 
-  // All executions (buys + sells) over the same post-reset window.
-  const exec = await dbGet<{ c: number }>(
-    "SELECT COUNT(*)::int AS c FROM trades WHERE wallet = $1 AND executed_at > $2",
-    [wallet, since],
-  );
+  // All executions (buys + sells) over the same post-reset window, plus the mean
+  // buy size (average position size) - a real behavioural metric.
+  const [exec, buyAgg] = await Promise.all([
+    dbGet<{ c: number }>(
+      "SELECT COUNT(*)::int AS c FROM trades WHERE wallet = $1 AND executed_at > $2",
+      [wallet, since],
+    ),
+    dbGet<{ avgSize: number | null }>(
+      `SELECT AVG(sol_amount) AS "avgSize"
+       FROM trades WHERE wallet = $1 AND side = 'buy' AND executed_at > $2`,
+      [wallet, since],
+    ),
+  ]);
   const executions = exec?.c ?? 0;
 
   const closedTrades = row.closedTrades;
+  // Gross loss is stored negative; profit factor is undefined without losses.
+  const grossLoss = Math.abs(row.sumLoss);
+  const profitFactor = grossLoss > 0 ? row.sumWin / grossLoss : null;
   return {
     closedTrades,
     executions,
@@ -1276,7 +1307,70 @@ export async function getClosedTradeStats(
     // "No winning trades yet" instead of a misleading 0.00 SOL.
     bestTrade: row.maxPnl > 0 ? row.maxPnl : null,
     worstTrade: row.minPnl < 0 ? row.minPnl : 0,
+    avgWinSol: row.avgWin,
+    avgLossSol: row.avgLoss,
+    profitFactor,
+    avgTradeSizeSol: buyAgg?.avgSize ?? null,
   };
+}
+
+/**
+ * Average holding time (in seconds) of closed positions since the last reset,
+ * amount-weighted via FIFO lot matching over the immutable `trades` table.
+ *
+ * Spot trades are unpaired buy/sell rows, so we replay them chronologically per
+ * token: buys push lots (amount + time), sells consume the oldest lots first and
+ * accumulate (sell_time − buy_time) weighted by the token amount closed. This is
+ * strictly read-only and never mutates trading state. Returns null when there
+ * are no completed round-trips (nothing to average).
+ */
+export async function getAvgHoldSeconds(
+  wallet: string,
+): Promise<number | null> {
+  const acct = await dbGet<{ last_reset_at: number | null }>(
+    "SELECT last_reset_at FROM accounts WHERE wallet = $1",
+    [wallet],
+  );
+  const since = acct?.last_reset_at ?? 0;
+
+  const rows = await dbAll<{
+    token_mint: string;
+    side: "buy" | "sell";
+    token_amount: number;
+    executed_at: number;
+  }>(
+    `SELECT token_mint, side, token_amount, executed_at
+       FROM trades
+      WHERE wallet = $1 AND executed_at > $2
+      ORDER BY executed_at ASC, id ASC`,
+    [wallet, since],
+  );
+
+  const lots = new Map<string, Array<{ amt: number; t: number }>>();
+  let weighted = 0;
+  let consumed = 0;
+  const EPS = 1e-9;
+
+  for (const r of rows) {
+    const queue = lots.get(r.token_mint) ?? [];
+    if (r.side === "buy") {
+      if (r.token_amount > EPS) queue.push({ amt: r.token_amount, t: r.executed_at });
+      lots.set(r.token_mint, queue);
+      continue;
+    }
+    let remaining = r.token_amount;
+    while (remaining > EPS && queue.length > 0) {
+      const lot = queue[0]!;
+      const take = Math.min(lot.amt, remaining);
+      weighted += (r.executed_at - lot.t) * take;
+      consumed += take;
+      lot.amt -= take;
+      remaining -= take;
+      if (lot.amt <= EPS) queue.shift();
+    }
+  }
+
+  return consumed > EPS ? weighted / consumed : null;
 }
 
 export type LeaderboardPeriod = "daily" | "weekly" | "all";
