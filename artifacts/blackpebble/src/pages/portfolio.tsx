@@ -40,6 +40,7 @@ import { AllOrders } from "@/components/position-orders";
 import { Watchlist } from "@/components/watchlist";
 import { TradeList } from "@/components/trade-list";
 import { GuestCountdown } from "@/components/guest-countdown";
+import { EmptyState } from "@/components/empty-state";
 import { TierBadge } from "@/components/tier-badge";
 import {
   ProfileIdentityMeta,
@@ -62,7 +63,11 @@ import { RecoveryDiscoveryCard } from "@/components/recovery-discovery-card";
 import { RealTradingAnalysisSection } from "@/components/real-trading-analysis";
 import { type ChartRange } from "@/lib/chart-theme";
 import { ChartRangeToggle } from "@/components/chart-range-toggle";
-import { EquityLine, useRangedEquity } from "@/components/equity-chart";
+import {
+  EquityLine,
+  EquityEmptyState,
+  useRangedEquity,
+} from "@/components/equity-chart";
 import {
   SectionHeader,
   PanelCard,
@@ -132,9 +137,9 @@ function UtilityLinkTile({ meta }: { meta: UtilityMeta }) {
     <Link
       href={meta.href}
       data-testid={meta.testId}
-      className="group flex items-center gap-3 rounded-xl border border-border/60 bg-secondary/20 p-3 transition-colors hover:border-accent/50 hover:bg-surface-3"
+      className="group flex items-center gap-3 rounded-xl border border-border/60 bg-secondary/20 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.03),0_1px_2px_rgba(0,0,0,0.35)] transition-colors hover:border-accent/50 hover:bg-surface-3"
     >
-      <span className="inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-accent/12 text-accent">
+      <span className="inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-accent/20 to-accent/5 text-accent ring-1 ring-accent/20 transition-colors group-hover:ring-accent/40">
         <Icon className="h-4 w-4" />
       </span>
       <span className="min-w-0 flex-1">
@@ -403,18 +408,24 @@ export default function Portfolio() {
         </div>
       ) : (
         <>
-          {/* ── Equity centerpiece: snapshot + live equity curve ─────────── */}
+          {/* ── Equity hero: the visual centerpiece. Big headline, the chart as
+              the star, then the snapshot tiles. Layered gradient + inset
+              highlight give calm glass depth (Robinhood, not dashboard). ── */}
           <div
             data-testid="equity-card"
-            className="relative overflow-hidden rounded-2xl border border-accent/30 bg-gradient-to-br from-accent/[0.08] via-card to-card p-4 md:p-5 shadow-card mb-4"
+            className="relative overflow-hidden rounded-2xl border border-white/[0.06] bg-gradient-to-b from-accent/[0.10] via-card to-card p-5 md:p-7 shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_24px_60px_-30px_rgba(0,0,0,0.75)] mb-5"
           >
             <div
               aria-hidden
-              className="pointer-events-none absolute -right-12 -top-12 h-32 w-32 rounded-full bg-accent/10 blur-2xl"
+              className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-accent/10 blur-3xl"
             />
-            <div className="relative flex flex-wrap items-start justify-between gap-3">
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/40 to-transparent"
+            />
+            <div className="relative flex flex-wrap items-start justify-between gap-4">
               <div className="min-w-0">
-                <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
                   <TrendingUp className="h-3 w-3 flex-shrink-0 text-accent" />
                   <span>Total Equity</span>
                   <InfoHint
@@ -424,7 +435,7 @@ export default function Portfolio() {
                 </div>
                 <div
                   data-testid="equity-value"
-                  className="mt-1.5 font-mono text-3xl font-bold leading-none tracking-tight text-foreground md:text-4xl"
+                  className="mt-2.5 font-mono text-4xl font-bold leading-none tracking-tight text-foreground md:text-5xl"
                 >
                   <CurrencyAmount
                     sol={stats?.equitySol}
@@ -444,8 +455,24 @@ export default function Portfolio() {
               </div>
             </div>
 
+            {/* Equity curve - the star of the card */}
+            <div className="relative mt-6">
+              {hasChart ? (
+                <>
+                  {chartRangeSparse && (
+                    <p className="mb-2 text-[11px] text-warning/80">
+                      Not enough history in this window - showing full history.
+                    </p>
+                  )}
+                  <EquityLine points={rangedPoints} className="h-56 md:h-72" />
+                </>
+              ) : (
+                <EquityEmptyState className="h-56 md:h-72" />
+              )}
+            </div>
+
             {/* Snapshot metrics row */}
-            <div className="relative mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div className="relative mt-6 grid grid-cols-2 gap-2 sm:grid-cols-4">
               <MiniStat
                 icon={Coins}
                 label="Total P&L"
@@ -463,9 +490,7 @@ export default function Portfolio() {
                 label="Today's P&L"
                 value={
                   todayPnl == null ? (
-                    <span className="text-sm font-normal text-muted-foreground">
-                      —
-                    </span>
+                    <Dash />
                   ) : (
                     <PnlAmount
                       sol={todayPnl}
@@ -497,29 +522,12 @@ export default function Portfolio() {
                 }
               />
             </div>
-
-            {/* Equity curve */}
-            {hasChart ? (
-              <div className="relative mt-4">
-                {chartRangeSparse && (
-                  <p className="mb-2 text-[11px] text-warning/80">
-                    Not enough history in this window - showing full history.
-                  </p>
-                )}
-                <EquityLine points={rangedPoints} className="h-56 md:h-64" />
-              </div>
-            ) : (
-              <p className="relative mt-4 text-xs text-muted-foreground">
-                Your equity curve builds as you trade. Place a trade to start the
-                line.
-              </p>
-            )}
           </div>
 
           {/* ── Trader DNA: private performance in the public-profile language.
               A balanced 12-tile grid (2 / 3 / 4 columns) of real behavioural
               metrics - the deeper set the public profile doesn't expose. ── */}
-          <SectionHeader icon={Dna} title="Trader DNA" />
+          <SectionHeader icon={Dna} title="Trader DNA" className="mt-8" />
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
             <MiniStat
               icon={Target}
@@ -668,6 +676,7 @@ export default function Portfolio() {
               <SectionHeader
                 icon={Brain}
                 title="Trading Intelligence"
+                className="mt-8"
                 action={
                   <span className="inline-flex items-center gap-1 rounded-full border border-accent/30 bg-accent/10 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-accent">
                     <Sparkles className="h-2.5 w-2.5" />
@@ -675,7 +684,7 @@ export default function Portfolio() {
                   </span>
                 }
               />
-              <p className="-mt-1 mb-3 text-xs text-muted-foreground">
+              <p className="mb-4 text-xs leading-relaxed text-muted-foreground">
                 Read-only intelligence from your real on-chain history - your
                 trading DNA, live signals, and milestones.
               </p>
@@ -684,7 +693,11 @@ export default function Portfolio() {
           )}
 
           {/* ── Wallet Utilities: grouped premium dashboard section ───────── */}
-          <SectionHeader icon={Sparkles} title="Wallet Utilities" />
+          <SectionHeader
+            icon={Sparkles}
+            title="Wallet Utilities"
+            className="mt-8"
+          />
           <div className="space-y-3">
             <RecoveryDiscoveryCard />
             {utilityLinks.length > 0 && (
@@ -700,6 +713,7 @@ export default function Portfolio() {
           <SectionHeader
             icon={Layers}
             title={`Open Positions (${positions.length})`}
+            className="mt-8"
           />
           <OpenPositions
             positions={positions}
@@ -717,14 +731,21 @@ export default function Portfolio() {
 
           <AllOrders onNavigate={(mint) => navigate(`/?token=${mint}`)} />
 
-          {/* ── Watchlist ─────────────────────────────────────────────────── */}
-          <SectionHeader icon={Star} title="Watchlist" />
+          {/* ── Watchlist: secondary lane ("what might I trade?") - deliberately
+              lighter than the performance sections above. ─────────────────── */}
+          <SectionHeader
+            icon={Star}
+            title="Watchlist"
+            tone="muted"
+            className="mt-8"
+          />
           <Watchlist onNavigate={(mint) => navigate(`/?token=${mint}`)} />
 
           {/* ── Trade History: premium receipts ───────────────────────────── */}
           <SectionHeader
             icon={ListChecks}
             title="Trade History"
+            className="mt-8"
             action={
               (() => {
                 const total = history?.trades?.length ?? 0;
@@ -740,17 +761,25 @@ export default function Portfolio() {
               })()
             }
           />
-          <div className="rounded-2xl bg-card shadow-card overflow-hidden">
-            <TradeList
-              trades={history?.trades ?? []}
-              empty="No trades yet. Your buys and sells will appear here."
-              onNavigate={(mint) => navigate(`/?token=${mint}`)}
-              limit={5}
-              showExpand
-              expanded={historyExpanded}
-              onExpandChange={setHistoryExpanded}
+          {(history?.trades?.length ?? 0) === 0 ? (
+            <EmptyState
+              icon={ListChecks}
+              title="No trades yet"
+              body="Your buys and sells will appear here, newest first, once you start trading."
             />
-          </div>
+          ) : (
+            <div className="rounded-2xl bg-card shadow-card overflow-hidden">
+              <TradeList
+                trades={history?.trades ?? []}
+                empty=""
+                onNavigate={(mint) => navigate(`/?token=${mint}`)}
+                limit={5}
+                showExpand
+                expanded={historyExpanded}
+                onExpandChange={setHistoryExpanded}
+              />
+            </div>
+          )}
         </>
       )}
     </div>
@@ -778,7 +807,7 @@ function PortfolioAllocation({
 
   return (
     <>
-      <SectionHeader icon={PieChart} title="Portfolio Allocation" />
+      <SectionHeader icon={PieChart} title="Portfolio Breakdown" className="mt-8" />
       <PanelCard testId="pnl-breakdown" className="p-0 md:p-0">
         <Collapsible open={open} onOpenChange={setOpen}>
           <CollapsibleTrigger className="flex w-full items-center justify-between gap-3 p-4 md:p-5">

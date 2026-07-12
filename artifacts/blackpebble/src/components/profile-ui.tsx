@@ -21,17 +21,36 @@ export function SectionHeader({
   icon: Icon,
   title,
   action,
+  className,
+  tone = "default",
 }: {
   icon: React.ComponentType<{ className?: string }>;
   title: string;
   /** Optional trailing control (range toggle, link, count, ...). */
   action?: React.ReactNode;
+  /** Extra classes on the wrapper (e.g. section rhythm overrides). */
+  className?: string;
+  /** "muted" de-emphasises a secondary section (lighter icon + title). */
+  tone?: "default" | "muted";
 }) {
+  const muted = tone === "muted";
   return (
-    <div className="flex items-center justify-between gap-3 mb-2 mt-6">
+    <div
+      className={cn(
+        "flex items-center justify-between gap-3 mb-2 mt-6",
+        className,
+      )}
+    >
       <div className="flex items-center gap-2">
-        <Icon className="w-4 h-4 text-accent" />
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground">
+        <Icon
+          className={cn("w-4 h-4", muted ? "text-muted-foreground" : "text-accent")}
+        />
+        <h2
+          className={cn(
+            "text-sm font-semibold uppercase tracking-wider",
+            muted ? "text-muted-foreground" : "text-foreground",
+          )}
+        >
           {title}
         </h2>
       </div>
@@ -114,7 +133,7 @@ export function MiniStat({
   hint?: { title: string; text: string };
 }) {
   return (
-    <div className="rounded-xl border border-border/60 bg-secondary/20 p-3">
+    <div className="rounded-xl border border-border/60 bg-secondary/20 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.03),0_1px_2px_rgba(0,0,0,0.35)] transition-colors">
       <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">
         {Icon && <Icon className="w-3 h-3 flex-shrink-0 text-accent" />}
         <span className="truncate">{label}</span>

@@ -146,6 +146,54 @@ export function EquityLine({
 }
 
 /**
+ * Premium empty state for the equity chart: a faint grid, a soft dashed accent
+ * baseline and a calm one-liner - so a fresh account shows an intentional, ready
+ * canvas instead of a blank box. The real line simply starts drawing on the
+ * first trade.
+ */
+export function EquityEmptyState({ className }: { className?: string }) {
+  const rows = [20, 40, 60, 80];
+  return (
+    <div className={cn("relative w-full overflow-hidden", className)}>
+      <svg
+        viewBox="0 0 100 100"
+        preserveAspectRatio="none"
+        className="absolute inset-0 h-full w-full"
+        aria-hidden="true"
+      >
+        {rows.map((y) => (
+          <line
+            key={y}
+            x1="0"
+            y1={y}
+            x2="100"
+            y2={y}
+            stroke="rgba(255,255,255,0.04)"
+            strokeWidth="0.4"
+            vectorEffect="non-scaling-stroke"
+          />
+        ))}
+        <line
+          x1="0"
+          y1="68"
+          x2="100"
+          y2="68"
+          stroke="rgba(201,169,110,0.30)"
+          strokeWidth="1"
+          strokeDasharray="3 3"
+          vectorEffect="non-scaling-stroke"
+        />
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center px-6 text-center">
+        <p className="text-xs text-muted-foreground">
+          Your equity curve starts drawing on your first trade.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/**
  * Compact equity sparkline card for the Public Profile overview. Fetches the
  * trader's equity history by profile id/handle (reusing their paper-account
  * snapshots) and renders a small trend so profiles feel alive. Renders nothing
