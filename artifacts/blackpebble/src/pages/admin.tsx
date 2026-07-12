@@ -41,6 +41,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   api,
   type FeatureFlagKey,
+  type FeatureFlags,
   type OfficialBadgeType,
   type ResetOptions,
   type RecoveryWindowStats,
@@ -170,6 +171,89 @@ const FLAG_DESCRIPTIONS: Partial<Record<FeatureFlagKey, string>> = {
   public_paper_trading:
     "Allows visitors to use Spot and Perps paper trading without X login. Hides X auth walls/nudges. Guest trades are demo/review trades and do not count toward public profiles, reputation, or leaderboards unless the user signs in.",
 };
+
+type FlagGroup = "Trading" | "Wallet & Intelligence" | "Community";
+type FlagEnforcementKind = "full" | "client-only";
+
+interface FlagMeta {
+  group: FlagGroup;
+  /** Code-verified enforcement classification (Phase 3 audit). */
+  enforcement: FlagEnforcementKind;
+  frontend: boolean;
+  backend: boolean;
+  /** Background worker / processor also respects it, where applicable. */
+  worker?: boolean;
+  dependsOn?: FeatureFlagKey[];
+  /** Toggling requires an explicit confirmation modal. */
+  highImpact?: boolean;
+  note?: string;
+}
+
+/**
+ * Enforcement classification for every flag, verified in code during the Phase 3
+ * audit. `full` = frontend gates AND the backend independently rejects the
+ * operation. `client-only` = the surface is client-side by design (no backend
+ * endpoint exists to bypass), which is correct, not a defect.
+ */
+const FLAG_META: Record<FeatureFlagKey, FlagMeta> = {
+  buy_limits: { group: "Trading", enforcement: "full", frontend: true, backend: true },
+  tp_sl: { group: "Trading", enforcement: "full", frontend: true, backend: true },
+  multi_target_tp: {
+    group: "Trading",
+    enforcement: "full",
+    frontend: true,
+    backend: true,
+    dependsOn: ["tp_sl"],
+    note: "A 2nd+ take-profit on a position requires this flag; the backend enforces it via the existing take-profit count.",
+  },
+  leverage: {
+    group: "Trading",
+    enforcement: "full",
+    frontend: true,
+    backend: true,
+    worker: true,
+    highImpact: true,
+    note: "Opening perps + new exit orders are gated; closing existing positions is always allowed. The liquidation sweep runs server-side.",
+  },
+  public_paper_trading: {
+    group: "Trading",
+    enforcement: "client-only",
+    frontend: true,
+    backend: false,
+    highImpact: true,
+    note: "Guest paper trading runs entirely client-side; there is no separate backend guest-trade endpoint to bypass.",
+  },
+  experimental_utilities: {
+    group: "Wallet & Intelligence",
+    enforcement: "client-only",
+    frontend: true,
+    backend: false,
+    highImpact: true,
+    note: "Gates client-side experimental utility surfaces (e.g. trade planner).",
+  },
+  real_trading_analysis: {
+    group: "Wallet & Intelligence",
+    enforcement: "full",
+    frontend: true,
+    backend: true,
+    highImpact: true,
+    note: "The backend returns 404 on every /real-analysis route when disabled.",
+  },
+  community_campaigns: {
+    group: "Community",
+    enforcement: "full",
+    frontend: true,
+    backend: true,
+    highImpact: true,
+    note: "The backend returns 404 on every /campaigns route when disabled.",
+  },
+};
+
+const FLAG_GROUP_ORDER: FlagGroup[] = [
+  "Trading",
+  "Wallet & Intelligence",
+  "Community",
+];
 
 const STATS_WINDOWS: { key: AdminStatsWindow; label: string }[] = [
   { key: "24h", label: "24h" },
@@ -524,6 +608,197 @@ function MarketSection() {
   );
 }
 
+function EnforcementChip({ meta }: { meta: FlagMeta }) {
+  if (meta.enforcement === "full") {
+    return <StatusChip level="healthy" label="Fully Enforced" />;
+  }
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-secondary/30 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+      <span className="h-1.5 w-1.5 rounded-full bg-sky-400/70" aria-hidden />
+      Client-side
+    </span>
+  );
+}
+
+function FlagCard({
+  flagKey,
+  flags,
+  history,
+  onToggle,
+  pending,
+}: {
+  flagKey: FeatureFlagKey;
+  flags: FeatureFlags;
+  history: AdminAuditEntry[];
+  onToggle: (key: FeatureFlagKey, enabled: boolean) => void;
+  pending: boolean;
+}) {
+  const meta = FLAG_META[flagKey];
+  const [open, setOpen] = useState(false);
+  const enabled = !!flags[flagKey];
+
+  // Dependency: can't enable when a required parent flag is off.
+  const missingDep = (meta.dependsOn ?? []).filter((d) => !flags[d]);
+  const blockedByDep = !enabled && missingDep.length > 0;
+  const depDisabledWhileOn = enabled && missingDep.length > 0;
+
+  const last = history[0];
+  const targetState = !enabled;
+  const impactMsg = `${FLAG_LABELS[flagKey]} will be ${targetState ? "ENABLED" : "DISABLED"}.${
+    meta.note ? ` ${meta.note}` : ""
+  }`;
+
+  const Toggle = (
+    <Switch
+      checked={enabled}
+      disabled={pending || blockedByDep}
+      onCheckedChange={(v) => onToggle(flagKey, v)}
+      data-testid={`switch-flag-${flagKey}`}
+      className="mt-0.5 shrink-0"
+    />
+  );
+
+  return (
+    <div
+      className="rounded-xl border border-border/60 bg-background/40 p-3"
+      data-testid={`flag-card-${flagKey}`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-semibold text-foreground">
+              {FLAG_LABELS[flagKey]}
+            </span>
+            <EnforcementChip meta={meta} />
+            {depDisabledWhileOn && (
+              <StatusChip level="warning" label="Dependency disabled" />
+            )}
+          </div>
+          {(FLAG_DESCRIPTIONS[flagKey] || meta.note) && (
+            <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+              {FLAG_DESCRIPTIONS[flagKey] ?? meta.note}
+            </p>
+          )}
+        </div>
+        {/* High-impact toggles require a confirmation modal. */}
+        {meta.highImpact && !blockedByDep ? (
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <button
+                type="button"
+                className="mt-0.5 shrink-0"
+                data-testid={`switch-flag-${flagKey}`}
+                aria-label={`Toggle ${FLAG_LABELS[flagKey]}`}
+              >
+                <span className="pointer-events-none">
+                  <Switch checked={enabled} className="pointer-events-none" />
+                </span>
+              </button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>
+                  {targetState ? "Enable" : "Disable"} {FLAG_LABELS[flagKey]}?
+                </AlertDialogTitle>
+                <AlertDialogDescription>{impactMsg}</AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={() => onToggle(flagKey, targetState)}>
+                  {targetState ? "Enable" : "Disable"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        ) : (
+          Toggle
+        )}
+      </div>
+
+      {blockedByDep && (
+        <p className="mt-2 text-[11px] text-amber-400">
+          Requires{" "}
+          {missingDep.map((d) => FLAG_LABELS[d]).join(", ")} to be enabled first.
+        </p>
+      )}
+
+      <div className="mt-2 flex items-center justify-between gap-2">
+        <span className="text-[11px] text-muted-foreground">
+          {last
+            ? `Changed by ${last.admin_handle ? `@${last.admin_handle}` : last.admin_x_id ?? "admin"} ${timeAgo(Date.parse(last.created_at) / 1000)}`
+            : "No recorded changes"}
+        </span>
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          className="text-[11px] font-medium text-accent hover:underline"
+        >
+          {open ? "Hide" : "Details"}
+        </button>
+      </div>
+
+      {open && (
+        <div className="mt-2 space-y-2 border-t border-border/50 pt-2 text-[11px]">
+          <div className="flex flex-wrap gap-1.5">
+            <EnfPill label="Frontend" on={meta.frontend} />
+            <EnfPill label="Backend" on={meta.backend} />
+            {meta.worker != null && <EnfPill label="Worker" on={meta.worker} />}
+          </div>
+          {meta.dependsOn && meta.dependsOn.length > 0 && (
+            <div className="text-muted-foreground">
+              Depends on: {meta.dependsOn.map((d) => FLAG_LABELS[d]).join(", ")}
+            </div>
+          )}
+          {meta.note && <div className="text-muted-foreground">{meta.note}</div>}
+          {history.length > 0 && (
+            <div>
+              <div className="mb-1 text-muted-foreground">Recent changes</div>
+              <div className="space-y-0.5">
+                {history.slice(0, 5).map((h) => (
+                  <div key={h.id} className="flex justify-between gap-2">
+                    <span className="truncate text-foreground">
+                      {h.admin_handle ? `@${h.admin_handle}` : h.admin_x_id ?? "admin"}
+                      {(() => {
+                        const a = h.after_state as { enabled?: boolean } | null;
+                        return a && typeof a.enabled === "boolean"
+                          ? ` → ${a.enabled ? "on" : "off"}`
+                          : "";
+                      })()}
+                    </span>
+                    <span className="flex-shrink-0 text-muted-foreground">
+                      {timeAgo(Date.parse(h.created_at) / 1000)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function EnfPill({ label, on }: { label: string; on: boolean }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-medium",
+        on
+          ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-300"
+          : "border-border/60 bg-secondary/30 text-muted-foreground",
+      )}
+    >
+      {label}: {on ? "enforced" : "n/a"}
+    </span>
+  );
+}
+
+/**
+ * Feature Flags control center: grouped operational cards with code-verified
+ * enforcement status, dependencies, last-modified (from the audit log) and
+ * per-flag change history. High-impact toggles confirm before applying.
+ */
 function FlagsSection() {
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -531,42 +806,72 @@ function FlagsSection() {
     queryKey: ["admin-feature-flags"],
     queryFn: () => api.admin.featureFlags(),
   });
+  const { data: audit } = useQuery({
+    queryKey: ["admin-flag-audit"],
+    queryFn: () => api.admin.auditLog({ action: "feature-flag", limit: 50 }),
+  });
+
   const setFlag = useMutation({
     mutationFn: ({ key, enabled }: { key: FeatureFlagKey; enabled: boolean }) =>
       api.admin.setFeatureFlag(key, enabled),
-    onSuccess: () => {
+    onSuccess: (_r, vars) => {
       qc.invalidateQueries({ queryKey: ["admin-feature-flags"] });
       qc.invalidateQueries({ queryKey: ["feature-flags"] });
+      qc.invalidateQueries({ queryKey: ["admin-flag-audit"] });
+      toast({
+        title: `${FLAG_LABELS[vars.key]} ${vars.enabled ? "enabled" : "disabled"}`,
+      });
     },
-    onError: (e: Error) => toast({ title: "Update failed", description: e.message, variant: "destructive" }),
+    onError: (e: Error) =>
+      toast({ title: "Update failed", description: e.message, variant: "destructive" }),
   });
+
   const flags = data?.flags;
+  const historyByKey = useMemo(() => {
+    const m = new Map<string, AdminAuditEntry[]>();
+    for (const e of audit?.entries ?? []) {
+      if (!e.target_id) continue;
+      const list = m.get(e.target_id) ?? [];
+      list.push(e);
+      m.set(e.target_id, list);
+    }
+    return m;
+  }, [audit]);
+
   return (
     <Card title="Feature flags" icon={Flag}>
-      <div className="space-y-1">
-        {(Object.keys(FLAG_LABELS) as FeatureFlagKey[]).map((key) => (
-          <div
-            key={key}
-            className="flex items-start justify-between gap-3 border-b border-border/60 py-2 last:border-0"
-          >
-            <div className="min-w-0">
-              <span className="text-sm">{FLAG_LABELS[key]}</span>
-              {FLAG_DESCRIPTIONS[key] && (
-                <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
-                  {FLAG_DESCRIPTIONS[key]}
-                </p>
-              )}
-            </div>
-            <Switch
-              checked={!!flags?.[key]}
-              disabled={!flags || setFlag.isPending}
-              onCheckedChange={(enabled) => setFlag.mutate({ key, enabled })}
-              data-testid={`switch-flag-${key}`}
-              className="mt-0.5 shrink-0"
-            />
-          </div>
-        ))}
-      </div>
+      {!flags ? (
+        <div className="flex justify-center py-6">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {FLAG_GROUP_ORDER.map((group) => {
+            const keys = (Object.keys(FLAG_META) as FeatureFlagKey[]).filter(
+              (k) => FLAG_META[k].group === group,
+            );
+            return (
+              <div key={group}>
+                <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  {group}
+                </div>
+                <div className="space-y-2">
+                  {keys.map((key) => (
+                    <FlagCard
+                      key={key}
+                      flagKey={key}
+                      flags={flags}
+                      history={historyByKey.get(key) ?? []}
+                      pending={setFlag.isPending}
+                      onToggle={(k, enabled) => setFlag.mutate({ key: k, enabled })}
+                    />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </Card>
   );
 }

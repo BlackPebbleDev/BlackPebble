@@ -24,8 +24,23 @@ import {
   evaluateOrders,
   evaluateBuyLimitOrders,
 } from "../lib/orders.js";
+import { getFeatureFlags } from "../lib/featureFlags.js";
+import { evaluateOrderGate } from "../lib/feature-enforcement.js";
 
 const router: IRouter = Router();
+
+/** Reject a 403 when a required feature flag is disabled (safe error body). */
+function featureDisabled(
+  res: import("express").Response,
+  gate: { feature?: string; error?: string },
+): void {
+  res.status(403).json({
+    ok: false,
+    error: gate.error ?? "This feature is disabled.",
+    code: "feature_disabled",
+    feature: gate.feature,
+  });
+}
 
 router.get(
   "/trade/search",
@@ -158,9 +173,31 @@ router.post(
   requireOwnership((req) => String(req.body?.wallet || "").trim()),
   asyncHandler(async (req, res) => {
     const b = req.body ?? {};
+    const wallet = String(b.wallet || "").trim();
+    const mint = String(b.mint || "").trim();
+    const orderType = b.orderType as "take_profit" | "stop_loss";
+
+    // Backend enforcement: TP/SL require tp_sl; a 2nd+ take-profit on the same
+    // position additionally requires multi_target_tp. Creation is gated;
+    // cancelling stays open so users can always tear existing orders down.
+    if (orderType === "take_profit" || orderType === "stop_loss") {
+      const flags = await getFeatureFlags();
+      let existingTp = 0;
+      if (orderType === "take_profit" && wallet && mint) {
+        const existing = await listOrders(wallet, mint);
+        existingTp = existing.filter(
+          (o) =>
+            o.order_type === "take_profit" &&
+            (o.status === "pending" || o.status === "filling"),
+        ).length;
+      }
+      const gate = evaluateOrderGate(orderType, existingTp, flags);
+      if (!gate.ok) return featureDisabled(res, gate);
+    }
+
     const result = await createOrder({
-      wallet: String(b.wallet || "").trim(),
-      mint: String(b.mint || "").trim(),
+      wallet,
+      mint,
       symbol: b.symbol ?? null,
       name: b.name ?? null,
       orderType: b.orderType,
@@ -177,6 +214,11 @@ router.post(
   requireOwnership((req) => String(req.body?.wallet || "").trim()),
   asyncHandler(async (req, res) => {
     const b = req.body ?? {};
+    // Backend enforcement: creating a buy limit requires buy_limits.
+    const flags = await getFeatureFlags();
+    const gate = evaluateOrderGate("buy_limit", 0, flags);
+    if (!gate.ok) return featureDisabled(res, gate);
+
     const result = await createBuyLimitOrder({
       wallet: String(b.wallet || "").trim(),
       mint: String(b.mint || "").trim(),
