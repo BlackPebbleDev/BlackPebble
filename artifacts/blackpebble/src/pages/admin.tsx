@@ -117,11 +117,13 @@ function Card({
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg bg-surface-2 p-3 shadow-card">
+    <div className="min-w-0 rounded-lg bg-surface-2 p-3 shadow-card">
       <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
         {label}
       </div>
-      <div className="mt-1 font-mono text-xl text-foreground">{value}</div>
+      <div className="mt-1 break-all font-mono text-xl text-foreground">
+        {value}
+      </div>
     </div>
   );
 }
@@ -944,6 +946,7 @@ function ResetSection() {
   const qc = useQueryClient();
   const [identifier, setIdentifier] = useState("");
   const [preview, setPreview] = useState<AdminUserPreview | null>(null);
+  const [idemKey, setIdemKey] = useState("");
   const [allConfirm, setAllConfirm] = useState("");
   const [options, setOptions] = useState<ResetOptions>(() =>
     Object.fromEntries(RESET_TOGGLES.map((t) => [t.key, t.defaultOn])) as ResetOptions,
@@ -951,15 +954,20 @@ function ResetSection() {
 
   const resolve = useMutation({
     mutationFn: () => api.admin.resolveUser(identifier.trim()),
-    onSuccess: (r) => setPreview(r.preview),
+    onSuccess: (r) => {
+      setPreview(r.preview);
+      // One stable idempotency key per resolved user, so a double-submit of the
+      // same reset is deduped server-side.
+      setIdemKey(crypto.randomUUID());
+    },
     onError: (e: Error) => {
       setPreview(null);
-      toast({ title: "User not found", description: e.message, variant: "destructive" });
+      toast({ title: "Could not resolve user", description: e.message, variant: "destructive" });
     },
   });
 
   const resetUser = useMutation({
-    mutationFn: (key: string) => api.admin.resetUser(key, options),
+    mutationFn: (key: string) => api.admin.resetUser(key, options, idemKey),
     onSuccess: (r: ResetResult) => {
       if (r.nothingChanged) {
         toast({
@@ -970,23 +978,23 @@ function ResetSection() {
       } else {
         const total = Object.values(r.deleted).reduce((a, b) => a + b, 0);
         toast({
-          title: "User reset complete",
-          description: `${total} rows backed up + cleared; ${r.accountsReset} account(s) reset. Applied: ${r.applied.join(", ") || "none"}.`,
+          title: r.deduped ? "Already applied" : "User reset complete",
+          description: `${total} rows backed up + cleared; ${r.accountsReset} account(s) reset. Applied: ${r.applied.join(", ") || "none"}.${r.correlationId ? ` Ref ${r.correlationId.slice(0, 8)}.` : ""}`,
         });
       }
       qc.invalidateQueries();
-      if (identifier.trim()) resolve.mutate(); // refresh the preview
+      if (identifier.trim()) resolve.mutate(); // refresh the preview + rotate key
     },
     onError: (e: Error) => toast({ title: "Reset failed", description: e.message, variant: "destructive" }),
   });
 
   const resetAll = useMutation({
-    mutationFn: () => api.admin.resetAll(options),
+    mutationFn: () => api.admin.resetAll(options, crypto.randomUUID()),
     onSuccess: (r: ResetResult) => {
       const total = Object.values(r.deleted).reduce((a, b) => a + b, 0);
       toast({
         title: "Global reset complete",
-        description: `${total} rows backed up + cleared; ${r.accountsReset} accounts reset.`,
+        description: `${total} rows backed up + cleared; ${r.accountsReset} accounts reset.${r.correlationId ? ` Ref ${r.correlationId.slice(0, 8)}.` : ""}`,
       });
       setAllConfirm("");
       qc.invalidateQueries();

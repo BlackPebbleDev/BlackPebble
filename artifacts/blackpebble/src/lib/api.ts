@@ -286,6 +286,10 @@ export interface ResetResult {
   accountsReset: number;
   /** True when a resolved account had no data to reset (fail-loud signal). */
   nothingChanged?: boolean;
+  /** True when an idempotent replay returned the first result (no re-execution). */
+  deduped?: boolean;
+  /** Correlation id tying this response to the server audit row + logs. */
+  correlationId?: string;
   warning?: string;
   resolved?: {
     accountKey: string;
@@ -307,6 +311,8 @@ export interface AdminUserIdentity {
 /** Rich, read-only admin preview of a resolved user (confirm before reset). */
 export interface AdminUserPreview {
   found: boolean;
+  /** Ambiguity message when the identifier matched more than one user. */
+  conflict?: string | null;
   accountKey: string | null;
   matchedBy: string | null;
   registered: boolean;
@@ -2514,15 +2520,19 @@ export const api = {
       request<{ preview: AdminUserPreview }>(
         `/admin/resolve-user?q=${encodeURIComponent(q)}`,
       ),
-    resetUser: (identifier: string, options: ResetOptions) =>
+    resetUser: (
+      identifier: string,
+      options: ResetOptions,
+      idempotencyKey?: string,
+    ) =>
       request<ResetResult>("/admin/reset-user", {
         method: "POST",
-        body: JSON.stringify({ identifier, options }),
+        body: JSON.stringify({ identifier, options, idempotencyKey }),
       }),
-    resetAll: (options: ResetOptions) =>
+    resetAll: (options: ResetOptions, idempotencyKey?: string) =>
       request<ResetResult>("/admin/reset-all", {
         method: "POST",
-        body: JSON.stringify({ options }),
+        body: JSON.stringify({ options, idempotencyKey }),
       }),
     auditLog: (filters?: AdminAuditFilters) => {
       const qs = new URLSearchParams();
