@@ -2212,6 +2212,12 @@ export const api = {
       request<{ badges: BadgeEntry[]; earnedCount: number }>(
         `/profiles/${encodeURIComponent(String(id))}/badges`,
       ),
+    // Public equity history (paper-account snapshots) for a profile, keyed by
+    // numeric id or handle. Powers the small "equity trend" chart on profiles.
+    chart: (id: string | number) =>
+      request<{ points: ChartPoint[]; solUsd: number }>(
+        `/profiles/${encodeURIComponent(String(id))}/chart`,
+      ),
     // Period-filtered call performance (30d / 90d / all-time), graded live.
     performance: (id: string | number) =>
       request<{ performance: PerformanceResponse }>(

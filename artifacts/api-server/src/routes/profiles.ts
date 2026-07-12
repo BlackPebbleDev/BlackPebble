@@ -1,5 +1,7 @@
 import { Router, type IRouter } from "express";
 import { asyncHandler } from "../lib/asyncHandler.js";
+import { dbAll } from "../lib/database.js";
+import { getPortfolio } from "../lib/trading.js";
 import { sessionFromRequest } from "../lib/auth.js";
 import { mintBadgesAsync } from "../lib/badge-mint.js";
 import {
@@ -352,6 +354,49 @@ router.get(
     if (!target) return res.status(404).json({ error: "Profile not found" });
     const performance = await getPeriodPerformance(target.user_id);
     return res.json({ performance });
+  }),
+);
+
+/**
+ * Public, read-only equity history for a profile - the trader's paper-account
+ * equity curve, keyed by numeric user id or X handle. Reuses the SAME
+ * portfolio_snapshots series and account key (`x:<x_id>`) as the private
+ * /portfolio/chart endpoint so the public "equity trend" chart matches exactly.
+ * Read-only: it never materializes trading state beyond getPortfolio's existing
+ * no-op upsert.
+ */
+router.get(
+  "/profiles/:id/chart",
+  asyncHandler(async (req, res) => {
+    const target = await resolveUser(String(req.params.id));
+    if (!target) return res.status(404).json({ error: "Profile not found" });
+
+    const accountKey = `x:${target.x_id}`;
+    const rows = await dbAll<{
+      equity: number;
+      balance: number;
+      snapshot_at: number;
+    }>(
+      `SELECT equity, balance, snapshot_at
+       FROM portfolio_snapshots WHERE wallet = $1
+       ORDER BY snapshot_at ASC LIMIT 1000`,
+      [accountKey],
+    );
+
+    // Always append a current live point so the chart reflects the latest state.
+    const portfolio = await getPortfolio(accountKey);
+    const points = rows.map((r) => ({
+      t: r.snapshot_at * 1000,
+      equity: r.equity,
+      balance: r.balance,
+    }));
+    points.push({
+      t: Date.now(),
+      equity: portfolio.equitySol,
+      balance: portfolio.balance,
+    });
+
+    return res.json({ points, solUsd: portfolio.solUsd });
   }),
 );
 
