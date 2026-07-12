@@ -19,6 +19,7 @@ import {
   resetJournal,
   resetSocial,
   resetTestData,
+  ResetStageError,
   type ResetOptions,
 } from "../lib/adminActions.js";
 import {
@@ -686,10 +687,34 @@ router.post(
     // Idempotency: a repeated client key (double-click / retry) returns the
     // first result instead of resetting twice within the TTL window.
     const idemKey = String(req.body?.idempotencyKey ?? "").trim() || null;
-    const { result, deduped } = await runIdempotent(
-      idemKey ? `reset-user:${idemKey}` : null,
-      () => adminReset("user", resolved.accountKey!, options),
-    );
+    let result: Awaited<ReturnType<typeof adminReset>>;
+    let deduped: boolean;
+    try {
+      ({ result, deduped } = await runIdempotent(
+        idemKey ? `reset-user:${idemKey}` : null,
+        () => adminReset("user", resolved.accountKey!, options, { correlationId }),
+      ));
+    } catch (err) {
+      const stage = err instanceof ResetStageError ? err.stage : "unknown";
+      const message = err instanceof Error ? err.message : "reset failed";
+      await recordAdminAction({
+        admin,
+        action: "reset-user",
+        targetType: "user",
+        targetId: resolved.accountKey,
+        targetLabel: resolved.identity?.xUsername ?? resolved.accountKey,
+        success: false,
+        error: message,
+        correlationId,
+        after: { stage },
+      });
+      return res.status(500).json({
+        error: message,
+        stage,
+        correlationId,
+        accountKey: resolved.accountKey,
+      });
+    }
 
     // Fail loudly: a resolved key that touched zero rows (e.g. the user never
     // traded, so no account exists) must NOT report a misleading success.
@@ -744,10 +769,28 @@ router.post(
     const correlationId = randomUUID();
     const options = parseOptions(req.body?.options);
     const idemKey = String(req.body?.idempotencyKey ?? "").trim() || null;
-    const { result, deduped } = await runIdempotent(
-      idemKey ? `reset-all:${idemKey}` : null,
-      () => adminReset("all", null, options),
-    );
+    let result: Awaited<ReturnType<typeof adminReset>>;
+    let deduped: boolean;
+    try {
+      ({ result, deduped } = await runIdempotent(
+        idemKey ? `reset-all:${idemKey}` : null,
+        () => adminReset("all", null, options, { correlationId }),
+      ));
+    } catch (err) {
+      const stage = err instanceof ResetStageError ? err.stage : "unknown";
+      const message = err instanceof Error ? err.message : "reset failed";
+      await recordAdminAction({
+        admin,
+        action: "reset-all",
+        targetType: "platform",
+        targetLabel: "ALL users",
+        success: false,
+        error: message,
+        correlationId,
+        after: { stage },
+      });
+      return res.status(500).json({ error: message, stage, correlationId });
+    }
     if (!deduped) {
       await recordAdminAction({
         admin,

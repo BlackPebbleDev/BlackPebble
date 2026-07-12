@@ -18,9 +18,23 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       (data && typeof data === "object" && "error" in data
         ? String((data as { error: unknown }).error)
         : null) || `Request failed (${res.status})`;
-    throw new Error(message);
+    // Attach the HTTP status + parsed body so callers (e.g. admin diagnostics)
+    // can surface stage / correlation id. Non-breaking: `.message` is unchanged.
+    const err = new Error(message) as Error & {
+      status?: number;
+      data?: unknown;
+    };
+    err.status = res.status;
+    err.data = data;
+    throw err;
   }
   return data as T;
+}
+
+/** Error shape thrown by `request` (adds HTTP status + parsed body). */
+export interface ApiError extends Error {
+  status?: number;
+  data?: unknown;
 }
 
 /** Build the shared ?kinds=&limit= query string for feed endpoints. */

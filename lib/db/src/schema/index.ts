@@ -884,3 +884,32 @@ export const adminAuditLog = pgTable(
     index("idx_admin_audit_success").on(t.success),
   ],
 );
+
+// ── Reset backup snapshots ──────────────────────────────────────────────────
+// Row-level backups taken BEFORE any destructive admin reset. Each affected
+// source row is snapshotted as JSONB into this single committed table (keyed by
+// a reset operation id), so recovery never depends on runtime DDL, a dedicated
+// schema, CREATE-TABLE-AS, or table identifiers derived from a user-controlled
+// account key (which may contain a colon, e.g. `x:1969...`). The account key is
+// stored as data (target_account_key), never interpolated into an identifier.
+// Created idempotently at runtime (CREATE TABLE IF NOT EXISTS) like the other
+// appended tables, so this definition is mirror-only for type-safety.
+export const resetBackupSnapshots = pgTable(
+  "reset_backup_snapshots",
+  {
+    id: serial("id").primaryKey(),
+    reset_op_id: text("reset_op_id").notNull(),
+    correlation_id: text("correlation_id"),
+    scope: text("scope").notNull(),
+    target_account_key: text("target_account_key"),
+    source_table: text("source_table").notNull(),
+    row_json: jsonb("row_json").notNull(),
+    created_at: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("idx_reset_backup_op").on(t.reset_op_id),
+    index("idx_reset_backup_account").on(t.target_account_key),
+  ],
+);
