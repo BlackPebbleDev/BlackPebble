@@ -56,6 +56,13 @@ import {
 } from "../lib/adminAudit.js";
 import { runIdempotent } from "../lib/idempotency.js";
 import { ratePct } from "../lib/admin-metrics.js";
+import {
+  listCampaigns,
+  getCampaign,
+  getCampaignLedger,
+  settleCampaign,
+} from "../lib/campaign-engine.js";
+import { escrowConfigured } from "../lib/campaign-escrow.js";
 import { randomUUID } from "node:crypto";
 
 const router: IRouter = Router();
@@ -663,6 +670,97 @@ router.get(
       uptimeSeconds,
       startedAt: Math.floor(Date.now() / 1000) - uptimeSeconds,
     });
+  }),
+);
+
+// ── Community Campaigns administration ──────────────────────────────────────
+// Admin-scoped, NOT gated by the community_campaigns flag (admins must manage
+// campaigns even when the public feature is toggled off). Read endpoints reuse
+// the existing campaign engine; `settle` is the only mutating action and it is
+// the same fully-implemented payout the public route exposes.
+
+router.get(
+  "/admin/campaigns",
+  asyncHandler(async (req, res) => {
+    const state = String(req.query.state ?? "all");
+    const filter = state && state !== "all" ? state : undefined;
+    const campaigns = await listCampaigns(filter);
+    // Analytics always reflect the whole set, regardless of the active filter.
+    const all = filter ? await listCampaigns(undefined) : campaigns;
+    const byState: Record<string, number> = {};
+    let depositedLamports = 0;
+    let paidOutLamports = 0;
+    let refundedLamports = 0;
+    let remainingLamports = 0;
+    let contributions = 0;
+    const organizers = new Set<string>();
+    for (const c of all) {
+      byState[c.state] = (byState[c.state] ?? 0) + 1;
+      depositedLamports += c.accounting.depositedLamports;
+      paidOutLamports += c.accounting.paidOutLamports;
+      refundedLamports += c.accounting.refundedLamports;
+      remainingLamports += c.accounting.remainingLamports;
+      contributions += c.accounting.contributorCount;
+      if (c.creator.username) organizers.add(c.creator.username);
+    }
+    return res.json({
+      campaigns,
+      analytics: {
+        total: all.length,
+        byState,
+        depositedLamports,
+        paidOutLamports,
+        refundedLamports,
+        remainingLamports,
+        contributions,
+        organizers: organizers.size,
+        escrowConfigured: escrowConfigured(),
+      },
+    });
+  }),
+);
+
+router.get(
+  "/admin/campaigns/:id",
+  asyncHandler(async (req, res) => {
+    const publicId = String(req.params.id);
+    const campaign = await getCampaign(publicId);
+    if (!campaign) return res.status(404).json({ error: "Campaign not found" });
+    const ledger = await getCampaignLedger(publicId);
+    return res.json({ campaign, ledger: ledger ?? [] });
+  }),
+);
+
+router.post(
+  "/admin/campaigns/:id/settle",
+  asyncHandler(async (req, res) => {
+    const admin = adminFromReq(req);
+    const correlationId = randomUUID();
+    const publicId = String(req.params.id);
+    const body = req.body ?? {};
+    const result = await settleCampaign({
+      publicId,
+      payoutDestination: String(body.payoutDestination ?? ""),
+      fulfillmentNote: String(body.fulfillmentNote ?? ""),
+      fulfillmentUrl: body.fulfillmentUrl ? String(body.fulfillmentUrl) : null,
+    });
+    await recordAdminAction({
+      admin,
+      action: "campaign-settle",
+      targetType: "campaign",
+      targetId: publicId,
+      targetLabel: publicId,
+      success: result.ok,
+      error: result.ok ? null : result.error,
+      correlationId,
+      after: result.ok
+        ? { payoutDestination: String(body.payoutDestination ?? "") }
+        : undefined,
+    });
+    if (!result.ok) {
+      return res.status(400).json({ error: result.error, correlationId });
+    }
+    return res.json({ ok: true, correlationId });
   }),
 );
 
