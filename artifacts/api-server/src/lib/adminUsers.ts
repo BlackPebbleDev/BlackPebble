@@ -1,4 +1,4 @@
-import { dbGet } from "./database.js";
+import { dbGet, dbAll } from "./database.js";
 import {
   classifyIdentifier,
   type IdentifierKind,
@@ -61,6 +61,12 @@ export interface ResolvedAccount {
   /** True when the account is a bare wallet with no linked X identity. */
   isGuest: boolean;
   identity: ResolvedIdentity | null;
+  /**
+   * Set when the identifier is ambiguous (e.g. a wallet or handle linked to
+   * more than one distinct user). The caller must surface this as an explicit
+   * conflict rather than silently operating on one of them.
+   */
+  conflict?: string | null;
 }
 
 interface IdentityRow {
@@ -125,6 +131,30 @@ const NOT_FOUND: ResolvedAccount = {
   identity: null,
 };
 
+function conflictResult(message: string): ResolvedAccount {
+  return { ...NOT_FOUND, conflict: message };
+}
+
+/** Distinct user ids owning an X identity for a handle (ambiguity guard). */
+async function distinctUsersForHandle(handle: string): Promise<number[]> {
+  const rows = await dbAll<{ user_id: number }>(
+    `SELECT DISTINCT user_id FROM user_identities
+      WHERE provider = 'x' AND LOWER(x_username) = LOWER($1)`,
+    [handle],
+  );
+  return rows.map((r) => r.user_id);
+}
+
+/** Distinct user ids linked to a wallet address (ambiguity guard). */
+async function distinctUsersForWallet(wallet: string): Promise<number[]> {
+  const rows = await dbAll<{ user_id: number }>(
+    `SELECT DISTINCT user_id FROM user_identities
+      WHERE provider = 'wallet' AND provider_user_id = $1`,
+    [wallet],
+  );
+  return rows.map((r) => r.user_id);
+}
+
 /**
  * Resolve any admin identifier to the canonical paper-trading account key.
  * Returns `found: false` when a handle / numeric id cannot be matched, so
@@ -149,13 +179,14 @@ export async function resolveAdminAccount(
   }
 
   if (c.kind === "wallet") {
-    const linked = await dbGet<{ user_id: number }>(
-      `SELECT user_id FROM user_identities
-        WHERE provider = 'wallet' AND provider_user_id = $1 LIMIT 1`,
-      [c.value],
-    );
-    if (linked) {
-      const identity = await xIdentityByUserId(linked.user_id);
+    const linkedUsers = await distinctUsersForWallet(c.value);
+    if (linkedUsers.length > 1) {
+      return conflictResult(
+        `Wallet ${c.value} is linked to ${linkedUsers.length} different users. Resolve by X handle or id instead.`,
+      );
+    }
+    if (linkedUsers.length === 1) {
+      const identity = await xIdentityByUserId(linkedUsers[0]!);
       if (identity) {
         return {
           found: true,
@@ -177,6 +208,12 @@ export async function resolveAdminAccount(
   }
 
   if (c.kind === "handle") {
+    const users = await distinctUsersForHandle(c.value);
+    if (users.length > 1) {
+      return conflictResult(
+        `Handle @${c.value} matches ${users.length} users. Resolve by X id or internal id instead.`,
+      );
+    }
     const identity = await xIdentityByHandle(c.value);
     if (!identity) return NOT_FOUND;
     return {
@@ -215,6 +252,8 @@ export async function resolveAdminAccount(
 
 export interface AdminUserPreview {
   found: boolean;
+  /** Explicit ambiguity message when the identifier matched multiple users. */
+  conflict: string | null;
   accountKey: string | null;
   matchedBy: MatchedBy | null;
   registered: boolean;
@@ -254,6 +293,7 @@ export async function getAdminUserPreview(
   if (!resolved.found || !resolved.accountKey) {
     return {
       found: false,
+      conflict: resolved.conflict ?? null,
       accountKey: null,
       matchedBy: null,
       registered: false,
@@ -370,6 +410,7 @@ export async function getAdminUserPreview(
 
   return {
     found: true,
+    conflict: null,
     accountKey: key,
     matchedBy: resolved.matchedBy,
     registered: resolved.identity != null,
