@@ -55,6 +55,7 @@ import {
   listAdminAudit,
 } from "../lib/adminAudit.js";
 import { runIdempotent } from "../lib/idempotency.js";
+import { ratePct } from "../lib/admin-metrics.js";
 import { randomUUID } from "node:crypto";
 
 const router: IRouter = Router();
@@ -85,11 +86,29 @@ router.get(
       `SELECT
          (SELECT count(*)::int FROM paper_leverage_positions) AS "totalPositions",
          (SELECT count(*)::int FROM paper_leverage_positions WHERE status IN ('open','closing')) AS "openPositions",
+         (SELECT count(*)::int FROM paper_leverage_positions WHERE status = 'closed') AS "closedPositions",
          (SELECT count(*)::int FROM paper_leverage_positions WHERE status = 'liquidated') AS "liquidations",
+         (SELECT count(*)::int FROM paper_leverage_positions WHERE direction = 'long' AND status IN ('open','closing')) AS "openLongs",
+         (SELECT count(*)::int FROM paper_leverage_positions WHERE direction = 'short' AND status IN ('open','closing')) AS "openShorts",
          (SELECT COALESCE(SUM(notional_sol),0) FROM paper_leverage_trades WHERE action = 'open') AS "totalVolumeSol",
          (SELECT COALESCE(SUM(margin_sol),0) FROM paper_leverage_trades WHERE action = 'open') AS "totalMarginSol",
          (SELECT COALESCE(SUM(pnl_sol),0) FROM paper_leverage_trades WHERE action IN ('close','liquidated')) AS "realizedPnlSol",
+         (SELECT COALESCE(AVG(leverage),0) FROM paper_leverage_trades WHERE action = 'open') AS "avgLeverage",
+         (SELECT COALESCE(MAX(leverage),0) FROM paper_leverage_trades WHERE action = 'open') AS "maxLeverage",
+         (SELECT count(*)::int FROM paper_leverage_trades WHERE action IN ('close','liquidated')) AS "closedTradeCount",
+         (SELECT count(*)::int FROM paper_leverage_trades WHERE action IN ('close','liquidated') AND pnl_sol > 0) AS "winningCloses",
          (SELECT count(DISTINCT wallet)::int FROM paper_leverage_positions) AS "uniqueTraders"`,
+    );
+    const recentActivity = await dbAll<Record<string, unknown>>(
+      `SELECT t.wallet, x.x_username, t.action, t.direction, t.leverage,
+              t.notional_sol, t.pnl_sol, t.created_at
+       FROM paper_leverage_trades t
+       LEFT JOIN user_identities w
+         ON w.provider = 'wallet' AND w.provider_user_id = t.wallet
+       LEFT JOIN user_identities x
+         ON x.user_id = w.user_id AND x.provider = 'x'
+       ORDER BY t.created_at DESC
+       LIMIT 15`,
     );
     const topUsers = await dbAll<Record<string, unknown>>(
       `SELECT t.wallet,
@@ -106,15 +125,66 @@ router.get(
        ORDER BY volume_sol DESC
        LIMIT 10`,
     );
+    const liquidations = agg?.liquidations ?? 0;
+    const closedPositions = agg?.closedPositions ?? 0;
+    const closedTradeCount = agg?.closedTradeCount ?? 0;
+    const winningCloses = agg?.winningCloses ?? 0;
     return res.json({
       totalPositions: agg?.totalPositions ?? 0,
       openPositions: agg?.openPositions ?? 0,
-      liquidations: agg?.liquidations ?? 0,
+      closedPositions,
+      liquidations,
+      openLongs: agg?.openLongs ?? 0,
+      openShorts: agg?.openShorts ?? 0,
       totalVolumeSol: agg?.totalVolumeSol ?? 0,
       totalMarginSol: agg?.totalMarginSol ?? 0,
       realizedPnlSol: agg?.realizedPnlSol ?? 0,
+      avgLeverage: agg?.avgLeverage ?? 0,
+      maxLeverage: agg?.maxLeverage ?? 0,
+      // Liquidations as a share of all resolved positions (closed + liquidated).
+      liquidationRate: ratePct(liquidations, closedPositions + liquidations),
+      // Winning closed/liquidated trades as a share of all closed trades.
+      winRate: ratePct(winningCloses, closedTradeCount),
       uniqueTraders: agg?.uniqueTraders ?? 0,
       topUsers,
+      recentActivity,
+    });
+  }),
+);
+
+/**
+ * Paper order status/type breakdown for the Paper Trading admin (real counts
+ * from paper_orders). Distinguishes buy limits from TP/SL and pending vs
+ * filled/canceled/failed, so triggered-order counts are not conflated.
+ */
+router.get(
+  "/admin/order-stats",
+  asyncHandler(async (_req, res) => {
+    const rows = await dbAll<{ order_type: string; status: string; n: number }>(
+      `SELECT order_type, status, count(*)::int AS n
+         FROM paper_orders GROUP BY order_type, status`,
+    );
+    const count = (type: string, status: string) =>
+      rows
+        .filter((r) => r.order_type === type && r.status === status)
+        .reduce((s, r) => s + r.n, 0);
+    const byStatus = (status: string) =>
+      rows.filter((r) => r.status === status).reduce((s, r) => s + r.n, 0);
+    return res.json({
+      total: rows.reduce((s, r) => s + r.n, 0),
+      pending: byStatus("pending") + byStatus("filling"),
+      filled: byStatus("filled"),
+      canceled: byStatus("canceled"),
+      failed: byStatus("failed"),
+      triggeredTakeProfit: count("take_profit", "filled"),
+      triggeredStopLoss: count("stop_loss", "filled"),
+      triggeredBuyLimit: count("buy_limit", "filled"),
+      pendingBuyLimit:
+        count("buy_limit", "pending") + count("buy_limit", "filling"),
+      pendingTakeProfit:
+        count("take_profit", "pending") + count("take_profit", "filling"),
+      pendingStopLoss:
+        count("stop_loss", "pending") + count("stop_loss", "filling"),
     });
   }),
 );
@@ -478,13 +548,20 @@ router.get(
       500,
     );
 
+    const type = String(req.query.type ?? "").trim();
     const where: string[] = [];
     const params: unknown[] = [];
-    if (status) {
+    if (status === "all") {
+      // no status filter - every order regardless of state
+    } else if (status) {
       params.push(status);
       where.push(`status = $${params.length}`);
     } else {
       where.push(`status IN ('pending', 'filling')`);
+    }
+    if (type) {
+      params.push(type);
+      where.push(`order_type = $${params.length}`);
     }
     if (token) {
       params.push(`%${token}%`);
@@ -498,9 +575,10 @@ router.get(
       where.push(`wallet ILIKE $${params.length}`);
     }
     params.push(limit);
+    const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
     const orders = await dbAll(
       `SELECT * FROM paper_orders
-       WHERE ${where.join(" AND ")}
+       ${whereSql}
        ORDER BY created_at DESC
        LIMIT $${params.length}`,
       params,
