@@ -28,6 +28,7 @@ import {
   Award,
   BadgeCheck,
   ShieldCheck,
+  Copy,
 } from "lucide-react";
 import { useAdmin } from "@/hooks/use-admin";
 import { useToast } from "@/hooks/use-toast";
@@ -48,6 +49,7 @@ import {
   type AdminUserPreview,
   type ResetResult,
   type AdminAuditEntry,
+  type ApiError,
   type ProfileResponse,
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -939,6 +941,100 @@ function ResetUserPreview({ preview }: { preview: AdminUserPreview }) {
   );
 }
 
+interface ResetErrorInfo {
+  status?: number;
+  message: string;
+  stage?: string;
+  correlationId?: string;
+  accountKey?: string;
+}
+
+/**
+ * Admin-only reset diagnostics panel. Surfaces the REAL backend failure (status,
+ * message, failing pipeline stage, correlation id, target account key) instead
+ * of a generic toast, with a copy-diagnostics button. No secrets, SQL, tokens,
+ * env vars, or stack traces are shown - only the sanitized fields the backend
+ * returns for an admin.
+ */
+function ResetDiagnostics({
+  info,
+  onDismiss,
+}: {
+  info: ResetErrorInfo;
+  onDismiss: () => void;
+}) {
+  const { toast } = useToast();
+  const lines = [
+    `Reset failed`,
+    info.stage ? `Stage: ${info.stage}` : null,
+    info.status != null ? `Status: ${info.status}` : null,
+    `Message: ${info.message}`,
+    info.correlationId ? `Correlation ID: ${info.correlationId}` : null,
+    info.accountKey ? `Account key: ${info.accountKey}` : null,
+  ].filter(Boolean) as string[];
+
+  return (
+    <div
+      className="space-y-2 rounded-xl border border-danger/40 bg-red-400/5 p-3"
+      data-testid="reset-diagnostics"
+      role="alert"
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-sm font-semibold text-danger">Reset failed</span>
+        <div className="flex items-center gap-1.5">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              navigator.clipboard?.writeText(lines.join("\n"));
+              toast({ title: "Diagnostics copied" });
+            }}
+            data-testid="button-copy-diagnostics"
+          >
+            <Copy className="mr-1.5 h-3.5 w-3.5" />
+            Copy
+          </Button>
+          <Button size="sm" variant="ghost" onClick={onDismiss}>
+            Dismiss
+          </Button>
+        </div>
+      </div>
+      <dl className="grid grid-cols-[auto,1fr] gap-x-3 gap-y-1 text-xs">
+        {info.stage && (
+          <>
+            <dt className="text-muted-foreground">Stage</dt>
+            <dd className="font-mono text-foreground">{info.stage}</dd>
+          </>
+        )}
+        {info.status != null && (
+          <>
+            <dt className="text-muted-foreground">Status</dt>
+            <dd className="font-mono text-foreground">{info.status}</dd>
+          </>
+        )}
+        <dt className="text-muted-foreground">Message</dt>
+        <dd className="break-words font-mono text-foreground">{info.message}</dd>
+        {info.correlationId && (
+          <>
+            <dt className="text-muted-foreground">Correlation</dt>
+            <dd className="break-all font-mono text-foreground">
+              {info.correlationId}
+            </dd>
+          </>
+        )}
+        {info.accountKey && (
+          <>
+            <dt className="text-muted-foreground">Account</dt>
+            <dd className="break-all font-mono text-foreground">
+              {info.accountKey}
+            </dd>
+          </>
+        )}
+      </dl>
+    </div>
+  );
+}
+
 const ALL_RESET_PHRASE = "RESET ALL";
 
 function ResetSection() {
@@ -947,6 +1043,7 @@ function ResetSection() {
   const [identifier, setIdentifier] = useState("");
   const [preview, setPreview] = useState<AdminUserPreview | null>(null);
   const [idemKey, setIdemKey] = useState("");
+  const [resetError, setResetError] = useState<ResetErrorInfo | null>(null);
   const [allConfirm, setAllConfirm] = useState("");
   const [options, setOptions] = useState<ResetOptions>(() =>
     Object.fromEntries(RESET_TOGGLES.map((t) => [t.key, t.defaultOn])) as ResetOptions,
@@ -956,6 +1053,7 @@ function ResetSection() {
     mutationFn: () => api.admin.resolveUser(identifier.trim()),
     onSuccess: (r) => {
       setPreview(r.preview);
+      setResetError(null);
       // One stable idempotency key per resolved user, so a double-submit of the
       // same reset is deduped server-side.
       setIdemKey(crypto.randomUUID());
@@ -982,10 +1080,26 @@ function ResetSection() {
           description: `${total} rows backed up + cleared; ${r.accountsReset} account(s) reset. Applied: ${r.applied.join(", ") || "none"}.${r.correlationId ? ` Ref ${r.correlationId.slice(0, 8)}.` : ""}`,
         });
       }
+      setResetError(null);
       qc.invalidateQueries();
       if (identifier.trim()) resolve.mutate(); // refresh the preview + rotate key
     },
-    onError: (e: Error) => toast({ title: "Reset failed", description: e.message, variant: "destructive" }),
+    onError: (e: Error) => {
+      const ae = e as ApiError;
+      const body = (ae.data ?? {}) as {
+        stage?: string;
+        correlationId?: string;
+        accountKey?: string;
+      };
+      setResetError({
+        status: ae.status,
+        message: e.message,
+        stage: body.stage,
+        correlationId: body.correlationId,
+        accountKey: body.accountKey ?? preview?.accountKey ?? undefined,
+      });
+      toast({ title: "Reset failed", description: e.message, variant: "destructive" });
+    },
   });
 
   const resetAll = useMutation({
@@ -1039,6 +1153,7 @@ function ResetSection() {
               onChange={(e) => {
                 setIdentifier(e.target.value);
                 setPreview(null);
+                setResetError(null);
               }}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && identifier.trim()) resolve.mutate();
@@ -1056,6 +1171,13 @@ function ResetSection() {
           </div>
 
           {preview?.found && <ResetUserPreview preview={preview} />}
+
+          {resetError && (
+            <ResetDiagnostics
+              info={resetError}
+              onDismiss={() => setResetError(null)}
+            />
+          )}
 
           <AlertDialog>
             <AlertDialogTrigger asChild>
