@@ -45,13 +45,14 @@ export function RouteMeta() {
     const seo = seoForPath(location);
     const url = canonicalForLocation(location);
 
+    const socialTitle = seo.ogTitle ?? seo.title;
     document.title = seo.title;
     setMetaByName("description", seo.description);
     setCanonical(url);
-    setMetaByProperty("og:title", seo.title);
+    setMetaByProperty("og:title", socialTitle);
     setMetaByProperty("og:description", seo.description);
     setMetaByProperty("og:url", url);
-    setMetaByName("twitter:title", seo.title);
+    setMetaByName("twitter:title", socialTitle);
     setMetaByName("twitter:description", seo.description);
   }, [location]);
 
