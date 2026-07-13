@@ -119,10 +119,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [expanded, setExpanded] = useState(false);
   const { wallet, isGuest } = useAccount();
   const { isAdmin } = useAdmin();
+  // Drive automatic TP/SL fill toasts for both signed-in and guest sessions.
   useOrderFillToasts();
+  // ME-scoped milestone/liquidation toasts from the viewer's own timeline.
   useActivityToasts();
+  // Aggregated reaction rollups on the viewer's own content (center + toast).
   useReactionRollups();
 
+  // Admins get an extra nav entry to the dashboard; everyone else sees the
+  // standard set unchanged.
   const items = useMemo(
     () =>
       isAdmin
@@ -137,6 +142,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-[100dvh] flex flex-col w-full bg-background text-foreground dark">
+      {/* Top bar */}
       <header className="fixed top-0 left-0 right-0 z-40 h-20 md:h-28 bg-background/95 backdrop-blur-md border-b border-border">
         <div className="h-full flex items-center gap-3 sm:gap-4 px-4 md:pl-[76px]">
           <Link href="/" className="flex-shrink-0" data-testid="link-logo">
@@ -147,7 +153,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             />
           </Link>
 
+          <div className="flex-1 max-w-xl mx-auto hidden sm:block">
+            <TokenSearch onSelect={handleSearchSelect} wallet={wallet} />
+          </div>
+
           <div className="ml-auto flex min-w-0 items-center gap-1.5 sm:gap-2">
+            {isGuest && (
+              <span
+                data-testid="badge-guest-mode"
+                className="hidden sm:inline-flex items-center text-[11px] font-semibold uppercase tracking-wider text-accent border border-accent/30 bg-accent/10 px-3 py-1.5 rounded-full"
+              >
+                Connect X to rank
+              </span>
+            )}
             <NotificationCenter />
             <div className="account-chip flex min-w-0 items-center gap-1 sm:gap-2">
               <XLoginButton />
@@ -155,10 +173,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
         </div>
-
-        <TokenSearch onSelect={handleSearchSelect} wallet={wallet} />
       </header>
 
+      {/* Mobile search row */}
+      <div className="fixed top-20 left-0 right-0 z-30 sm:hidden bg-background/95 backdrop-blur-md border-b border-border px-4 py-2">
+        <TokenSearch onSelect={handleSearchSelect} wallet={wallet} />
+      </div>
+
+      {/* Desktop sidebar */}
       <aside
         onMouseEnter={() => setExpanded(true)}
         onMouseLeave={() => setExpanded(false)}
@@ -206,28 +228,44 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </nav>
       </aside>
 
+      {/* Main content */}
       <main className="flex-1 flex flex-col pt-20 md:pt-28 md:pl-[60px] pb-16 md:pb-0 min-w-0 overflow-x-hidden">
         <div className="sm:hidden h-14" aria-hidden />
         <div>{children}</div>
         <SiteFooter />
       </main>
 
+      {/* Mobile bottom tabs */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 h-16 bg-card/95 backdrop-blur-md border-t border-border flex items-center justify-around px-1">
-        {items.slice(0, 6).map((item) => {
+        {items.map((item) => {
           const active = isActive(location, item.href);
           const Icon = item.icon;
           return (
             <Link
               key={item.href}
               href={item.href}
-              data-testid={`mobnav-${item.label.toLowerCase().replace(/\s/g, "-")}`}
+              data-testid={`tab-${item.label.toLowerCase().replace(/\s/g, "-")}`}
               className={cn(
-                "flex flex-col items-center justify-center gap-0.5 h-full w-full",
+                "flex flex-col items-center justify-center gap-1 flex-1 h-full transition-colors",
                 active ? "text-accent" : "text-muted-foreground",
               )}
             >
-              <Icon className="w-5 h-5" />
-              <span className="text-[10px] tracking-wide">{item.label}</span>
+              <span
+                className={cn(
+                  "flex items-center justify-center h-8 w-12 rounded-full transition-colors",
+                  active && "bg-accent/12",
+                )}
+              >
+                <Icon className="w-5 h-5" />
+              </span>
+              <span
+                className={cn(
+                  "text-[10px] tracking-wide",
+                  active ? "font-semibold" : "font-medium",
+                )}
+              >
+                {item.label.split(" ")[0]}
+              </span>
             </Link>
           );
         })}
