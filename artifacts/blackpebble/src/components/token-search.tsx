@@ -16,6 +16,7 @@ import {
   Eraser,
   Calculator,
   Shield,
+  GraduationCap,
   type LucideIcon,
 } from "lucide-react";
 import { api, type SearchResult, type OfficialBadgeType } from "@/lib/api";
@@ -52,6 +53,7 @@ const PAGES: RouteEntry[] = [
   { label: "Features", path: "/features", icon: Sparkles, keywords: ["capabilities", "what can"] },
   { label: "Roadmap", path: "/roadmap", icon: MapIcon, keywords: ["plans", "upcoming", "future"] },
   { label: "Wallet Safety", path: "/safety", icon: Shield, keywords: ["safety", "safe", "security", "seed", "sign", "custody", "read-only"] },
+  { label: "BlackPebble Academy", path: "/learn", icon: GraduationCap, keywords: ["learn", "guide", "tutorial", "education", "academy", "help", "glossary", "terms"] },
 ];
 
 const UTILITIES: RouteEntry[] = [

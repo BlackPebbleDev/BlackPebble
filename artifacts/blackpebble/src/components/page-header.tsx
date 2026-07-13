@@ -40,7 +40,7 @@ export function PageHeader({
             {Icon && (
               <Icon className="w-7 h-7 text-accent flex-shrink-0" aria-hidden />
             )}
-            <h1 className="text-3xl md:text-4xl font-bold tracking-tight truncate">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight">
               {title}
             </h1>
           </div>

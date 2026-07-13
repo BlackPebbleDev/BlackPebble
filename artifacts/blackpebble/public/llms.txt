@@ -34,6 +34,7 @@
 - [About](https://blackpebble.fun/about): What BlackPebble is and how it works.
 - [Features](https://blackpebble.fun/features): The full set of live features.
 - [Vision / Roadmap](https://blackpebble.fun/roadmap): What is live today and the future direction.
+- [BlackPebble Academy](https://blackpebble.fun/learn): Solana trading, wallet safety, memecoin markets, and BlackPebble feature education.
 
 ## Building toward (not yet fully live)
 

@@ -76,6 +76,11 @@
       "path": "/safety",
       "title": "Wallet Safety | BlackPebble",
       "description": "Know what is simulated, what is read-only, and what requires your signature. Paper trading uses simulated funds, wallet analysis is read-only, and wallet utilities are user-signed. No custody, no seed phrases, no private keys."
+    },
+    {
+      "path": "/learn",
+      "title": "BlackPebble Academy | Solana Trading and Wallet Education",
+      "description": "Learn Solana trading, memecoin markets, wallet safety, paper trading, liquidity, slippage, contract addresses, risk management, and BlackPebble features."
     }
   ]
 }
