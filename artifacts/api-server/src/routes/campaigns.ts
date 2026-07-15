@@ -1,16 +1,21 @@
 import { Router, type IRouter } from "express";
 import rateLimit from "express-rate-limit";
+import { randomUUID } from "node:crypto";
 import { asyncHandler } from "../lib/asyncHandler.js";
+import { logger } from "../lib/logger.js";
 import { isAdmin, sessionFromRequest } from "../lib/auth.js";
 import { getFeatureFlags } from "../lib/featureFlags.js";
 import {
   FEE_BPS,
+  activateCampaign,
   createCampaign,
   getCampaign,
   getCampaignLedger,
+  getCampaignTimeline,
   listCampaigns,
   settleCampaign,
-  sweepAllCampaigns,
+  submitPublicContribution,
+  sweepCampaignByPublicId,
 } from "../lib/campaign-engine.js";
 import { escrowConfigured } from "../lib/campaign-escrow.js";
 import { CAMPAIGN_TYPE_DEFS } from "../lib/campaign-math.js";
@@ -118,6 +123,19 @@ router.get(
   }),
 );
 
+/** GET /campaigns/:id/timeline - public lifecycle timeline (real events). */
+router.get(
+  "/campaigns/:id/timeline",
+  asyncHandler(async (req, res) => {
+    if (!(await featureEnabled())) {
+      return res.status(404).json({ error: "Feature not enabled" });
+    }
+    const timeline = await getCampaignTimeline(String(req.params.id));
+    if (!timeline) return res.status(404).json({ error: "Campaign not found" });
+    return res.json({ timeline });
+  }),
+);
+
 /** POST /campaigns - create (X-authenticated users only). */
 router.post(
   "/campaigns",
@@ -134,6 +152,7 @@ router.post(
     }
 
     const body = req.body ?? {};
+    const correlationId = randomUUID();
     const result = await createCampaign({
       creatorUserId: Number(session.sub),
       typeKey: String(body.typeKey ?? ""),
@@ -147,8 +166,74 @@ router.post(
       bannerUrl: body.bannerUrl ? String(body.bannerUrl) : null,
       linkUrl: body.linkUrl ? String(body.linkUrl) : null,
     });
-    if (!result.ok) return res.status(400).json({ error: result.error });
+    if (!result.ok) {
+      logger.warn(
+        { correlationId, code: result.error.code, stage: result.error.stage },
+        "Campaign creation failed",
+      );
+      return res
+        .status(result.error.httpStatus)
+        .json(result.error.toResponse(correlationId));
+    }
     return res.json({ campaign: result.campaign });
+  }),
+);
+
+/**
+ * POST /campaigns/:id/activate - creator confirms the opening contribution.
+ * The campaign only becomes publicly live after this transaction verifies.
+ */
+router.post(
+  "/campaigns/:id/activate",
+  createLimiter,
+  asyncHandler(async (req, res) => {
+    if (!(await featureEnabled())) {
+      return res.status(404).json({ error: "Feature not enabled" });
+    }
+    const session = await sessionFromRequest(req);
+    if (!session) {
+      return res.status(401).json({ error: "Sign in with X to activate" });
+    }
+    const body = req.body ?? {};
+    const correlationId = randomUUID();
+    const result = await activateCampaign({
+      publicId: String(req.params.id),
+      creatorUserId: Number(session.sub),
+      creatorWallet: String(body.senderWallet ?? ""),
+      txSignature: String(body.txSignature ?? ""),
+    });
+    if (!result.ok) {
+      return res
+        .status(result.error.httpStatus)
+        .json(result.error.toResponse(correlationId));
+    }
+    return res.json({ campaign: result.campaign });
+  }),
+);
+
+/**
+ * POST /campaigns/:id/contribute - public contributor submits a signed transfer
+ * signature for on-chain verification. No BlackPebble account required.
+ */
+router.post(
+  "/campaigns/:id/contribute",
+  createLimiter,
+  asyncHandler(async (req, res) => {
+    if (!(await featureEnabled())) {
+      return res.status(404).json({ error: "Feature not enabled" });
+    }
+    const body = req.body ?? {};
+    const correlationId = randomUUID();
+    const result = await submitPublicContribution({
+      publicId: String(req.params.id),
+      txSignature: String(body.txSignature ?? ""),
+    });
+    if (!result.ok) {
+      return res
+        .status(result.error.httpStatus)
+        .json(result.error.toResponse(correlationId));
+    }
+    return res.json({ campaign: result.campaign, credited: result.credited });
   }),
 );
 
@@ -163,7 +248,8 @@ router.post(
     if (!(await featureEnabled())) {
       return res.status(404).json({ error: "Feature not enabled" });
     }
-    await sweepAllCampaigns();
+    // Targeted single-campaign sweep (locked) instead of an all-campaign pass.
+    await sweepCampaignByPublicId(String(req.params.id));
     const campaign = await getCampaign(String(req.params.id));
     if (!campaign) return res.status(404).json({ error: "Campaign not found" });
     return res.json({ campaign });
@@ -182,14 +268,17 @@ router.post(
       return res.status(session ? 403 : 401).json({ error: "Unauthorized" });
     }
     const body = req.body ?? {};
+    const correlationId = randomUUID();
     const result = await settleCampaign({
       publicId: String(req.params.id),
       payoutDestination: String(body.payoutDestination ?? ""),
       fulfillmentNote: String(body.fulfillmentNote ?? ""),
       fulfillmentUrl: body.fulfillmentUrl ? String(body.fulfillmentUrl) : null,
+      actor: session?.x_username ? `@${session.x_username}` : "admin",
+      correlationId,
     });
     if (!result.ok) return res.status(400).json({ error: result.error });
-    return res.json({ ok: true });
+    return res.json({ ok: true, correlationId });
   }),
 );
 

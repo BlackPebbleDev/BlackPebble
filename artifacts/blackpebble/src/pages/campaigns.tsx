@@ -22,7 +22,9 @@ import {
   Radar,
   RefreshCw,
   Shield,
+  ShieldAlert,
   ShieldCheck,
+  Clock,
   Users,
   Zap,
 } from "lucide-react";
@@ -100,22 +102,38 @@ function requirementNote(assets: string[]): string | null {
   return `Requires ${text}`;
 }
 
+const ACCENT = "bg-accent/15 text-accent";
+const SUCCESS = "bg-success/15 text-success";
+const WARNING = "bg-warning/15 text-warning";
+const DANGER = "bg-danger/15 text-danger";
+const MUTED = "bg-white/[0.06] text-muted-foreground";
+
 const STATE_META: Record<
   CampaignState,
   { label: string; className: string }
 > = {
-  live: { label: "Live", className: "bg-accent/15 text-accent" },
-  funded: { label: "Funded", className: "bg-success/15 text-success" },
-  settled: {
-    label: "Completed",
-    className: "bg-success/15 text-success",
-  },
-  failed: { label: "Refunding", className: "bg-warning/15 text-warning" },
-  refunded: {
-    label: "Refunded",
-    className: "bg-white/[0.06] text-muted-foreground",
-  },
-  frozen: { label: "Frozen", className: "bg-danger/15 text-danger" },
+  draft: { label: "Draft", className: MUTED },
+  awaiting_initial_contribution: { label: "Awaiting launch", className: WARNING },
+  live: { label: "Live", className: ACCENT },
+  funded: { label: "Funded", className: SUCCESS },
+  awaiting_execution: { label: "Queued", className: ACCENT },
+  executing: { label: "Executing", className: ACCENT },
+  completed: { label: "Completed", className: SUCCESS },
+  expired: { label: "Expired", className: WARNING },
+  execution_failed: { label: "Execution failed", className: DANGER },
+  refunding: { label: "Refunding", className: WARNING },
+  refunded: { label: "Refunded", className: MUTED },
+  frozen: { label: "Frozen", className: DANGER },
+  cancelled: { label: "Cancelled", className: MUTED },
+  // Legacy Phase 1 rows.
+  settled: { label: "Completed", className: SUCCESS },
+  failed: { label: "Refunding", className: WARNING },
+};
+
+const EXECUTION_MODE_LABEL: Record<string, string> = {
+  automatic: "Automatic provider integration",
+  operator_fulfilled: "BlackPebble operator fulfillment",
+  external_provider: "External provider",
 };
 
 function fmtSol(lamports: number): string {
@@ -386,9 +404,14 @@ const SAFETY_META: Record<
   },
 };
 
+const DEADLINE_OPTIONS = [12, 24, 48, 72];
+const OPENING_MIN_SOL = 0.05;
+
 function CreateCampaignDialog() {
   const [open, setOpen] = useState(false);
-  const [step, setStep] = useState<"type" | "details" | "review">("type");
+  const [step, setStep] = useState<"type" | "details" | "review" | "activate">(
+    "type",
+  );
   const [typeKey, setTypeKey] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [brief, setBrief] = useState("");
@@ -399,9 +422,18 @@ function CreateCampaignDialog() {
   const [mintInput, setMintInput] = useState("");
   const [token, setToken] = useState<CampaignTokenValidation | null>(null);
   const [showRisks, setShowRisks] = useState(false);
+  // Activation (opening contribution) step.
+  const [created, setCreated] = useState<CampaignSummary | null>(null);
+  const [openingSig, setOpeningSig] = useState("");
+  const [openingSol, setOpeningSol] = useState("");
+  const [ackRefund, setAckRefund] = useState(false);
+  const [ackGoalLock, setAckGoalLock] = useState(false);
+  const [sending, setSending] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [, navigate] = useLocation();
+  const { connection } = useConnection();
+  const { publicKey, sendTransaction } = useWallet();
 
   const { data: config } = useQuery({
     queryKey: ["campaigns-config"],
@@ -430,6 +462,12 @@ function CreateCampaignDialog() {
     setMintInput("");
     setToken(null);
     setShowRisks(false);
+    setCreated(null);
+    setOpeningSig("");
+    setOpeningSol("");
+    setAckRefund(false);
+    setAckGoalLock(false);
+    setSending(false);
   }
 
   function pickType(def: CampaignTypeDef) {
@@ -485,18 +523,77 @@ function CreateCampaignDialog() {
       }),
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ["campaigns"] });
-      setOpen(false);
-      reset();
+      // The campaign is created but NOT public yet. It stays in
+      // awaiting_initial_contribution until the creator sends and we verify the
+      // opening contribution, so move to the activation step instead of leaving.
+      setCreated(res.campaign);
+      const minSol = res.campaign.openingMinLamports / LAMPORTS_PER_SOL;
+      setOpeningSol(String(Number(minSol.toFixed(4))));
+      setStep("activate");
       toast({
-        title: "Campaign live",
-        description:
-          "Your escrow address is ready. Contributions are tracked on-chain.",
+        title: "Campaign created",
+        description: "Send your opening contribution to launch it publicly.",
       });
-      navigate(`/campaigns/${res.campaign.publicId}`);
     },
     onError: (e: Error) => {
       toast({
         title: "Could not create campaign",
+        description: e.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Creator opening contribution: sign a real SOL transfer to the dedicated
+  // escrow, then submit the signature for on-chain verification. The campaign
+  // only becomes public after the backend verifies sender, destination, and
+  // amount and transitions it to live.
+  const activate = useMutation({
+    mutationFn: async () => {
+      if (!created) throw new Error("Campaign not created yet");
+      if (!publicKey) throw new Error("Connect your wallet to launch");
+      const amount = Number(openingSol);
+      const minSol = created.openingMinLamports / LAMPORTS_PER_SOL;
+      const maxSol = created.openingMaxLamports / LAMPORTS_PER_SOL;
+      if (!Number.isFinite(amount) || amount < minSol) {
+        throw new Error(`Minimum opening contribution is ${minSol} SOL`);
+      }
+      if (created.openingMaxLamports > 0 && amount > maxSol) {
+        throw new Error(`Maximum opening contribution is ${maxSol} SOL`);
+      }
+      let signature = openingSig.trim();
+      // Reuse an already-sent signature on retry; only sign a new transfer once.
+      if (!signature) {
+        const tx = new Transaction().add(
+          SystemProgram.transfer({
+            fromPubkey: publicKey,
+            toPubkey: new PublicKey(created.escrowAddress),
+            lamports: Math.round(amount * LAMPORTS_PER_SOL),
+          }),
+        );
+        signature = await sendTransaction(tx, connection);
+        setOpeningSig(signature);
+        await connection.confirmTransaction(signature, "confirmed");
+      }
+      return api.campaigns.activate(created.publicId, {
+        senderWallet: publicKey.toBase58(),
+        txSignature: signature,
+      });
+    },
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+      const id = res.campaign.publicId;
+      setOpen(false);
+      reset();
+      toast({
+        title: "Campaign activated",
+        description: "Your campaign is now live and publicly discoverable.",
+      });
+      navigate(`/campaigns/${id}`);
+    },
+    onError: (e: Error) => {
+      toast({
+        title: "Activation failed",
         description: e.message,
         variant: "destructive",
       });
@@ -881,7 +978,7 @@ function CreateCampaignDialog() {
               </p>
             </div>
           </>
-        ) : (
+        ) : step === "review" ? (
           <>
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
@@ -1004,11 +1101,139 @@ function CreateCampaignDialog() {
                 onClick={() => create.mutate()}
                 data-testid="button-submit-campaign"
               >
-                {create.isPending ? "Creating…" : "Confirm & Create Campaign"}
+                {create.isPending ? "Creating…" : "Create & Continue to Launch"}
               </Button>
               <p className="text-[11px] text-muted-foreground leading-relaxed text-center">
-                Campaign funding pays for a real third-party service - it never
-                buys tokens or generates trading activity.
+                Next you will send a small opening contribution. Your campaign
+                becomes public only after that transaction confirms. Campaign
+                funding pays for a real third-party service, it never buys
+                tokens or generates trading activity.
+              </p>
+            </div>
+          </>
+        ) : (
+          <>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <HandCoins className="w-5 h-5 text-accent" />
+                Launch your campaign
+              </DialogTitle>
+              <DialogDescription>
+                Send your opening contribution to the dedicated escrow. Your
+                campaign becomes public only after this transaction confirms.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-3">
+              <div className="rounded-xl bg-surface-2 border border-white/[0.05] p-3.5 space-y-2">
+                <div className="stat-label">Dedicated escrow address</div>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-xs break-all min-w-0">
+                    {created?.escrowAddress}
+                  </span>
+                  <button
+                    type="button"
+                    className="text-muted-foreground hover:text-accent transition-colors shrink-0"
+                    onClick={() => {
+                      if (created) {
+                        navigator.clipboard.writeText(created.escrowAddress);
+                        toast({ title: "Escrow address copied" });
+                      }
+                    }}
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="rounded-xl bg-surface-2 border border-white/[0.05] p-3.5 space-y-2">
+                <label className="stat-label">Opening contribution (SOL)</label>
+                <Input
+                  type="number"
+                  min={
+                    created
+                      ? created.openingMinLamports / LAMPORTS_PER_SOL
+                      : OPENING_MIN_SOL
+                  }
+                  step="0.05"
+                  value={openingSol}
+                  onChange={(e) => setOpeningSol(e.target.value)}
+                  data-testid="input-opening-amount"
+                />
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  Minimum{" "}
+                  {created
+                    ? created.openingMinLamports / LAMPORTS_PER_SOL
+                    : OPENING_MIN_SOL}{" "}
+                  SOL. This counts toward your funding goal. The SOL target and
+                  deadline lock in the moment this transaction confirms.
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-white/[0.05] bg-surface-2 p-3.5 space-y-2.5">
+                <label className="flex items-start gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={ackGoalLock}
+                    onChange={(e) => setAckGoalLock(e.target.checked)}
+                    className="mt-0.5 accent-[var(--accent)]"
+                    data-testid="ack-goal-lock"
+                  />
+                  <span className="text-[11px] text-muted-foreground leading-relaxed">
+                    I understand the SOL target becomes fixed when the campaign
+                    launches and the funding deadline begins immediately.
+                  </span>
+                </label>
+                <label className="flex items-start gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={ackRefund}
+                    onChange={(e) => setAckRefund(e.target.checked)}
+                    className="mt-0.5 accent-[var(--accent)]"
+                    data-testid="ack-refund"
+                  />
+                  <span className="text-[11px] text-muted-foreground leading-relaxed">
+                    I understand that if the goal is not reached by the deadline,
+                    contributions are refunded to the sending wallets minus only
+                    the necessary network fee, and fulfillment is completed by
+                    BlackPebble operator with public proof.
+                  </span>
+                </label>
+              </div>
+
+              {!publicKey && (
+                <div className="rounded-lg bg-warning/10 border border-warning/20 p-2.5 text-[11px] text-warning leading-relaxed">
+                  Connect the wallet you want to launch from. Your opening
+                  contribution must come from your connected wallet.
+                </div>
+              )}
+
+              {openingSig && (
+                <div className="rounded-lg bg-surface-2 border border-white/[0.05] p-2.5 text-[11px] text-muted-foreground leading-relaxed break-all">
+                  Opening transaction sent: {openingSig}. If verification did not
+                  complete, use Verify &amp; Launch to retry safely without
+                  sending again.
+                </div>
+              )}
+
+              <Button
+                className="w-full"
+                disabled={
+                  activate.isPending || !publicKey || !ackRefund || !ackGoalLock
+                }
+                onClick={() => activate.mutate()}
+                data-testid="button-activate-campaign"
+              >
+                {activate.isPending
+                  ? "Launching…"
+                  : openingSig
+                    ? "Verify & Launch"
+                    : "Sign Opening Contribution & Launch"}
+              </Button>
+              <p className="text-[11px] text-muted-foreground leading-relaxed text-center">
+                Your campaign is saved and stays private until the opening
+                contribution confirms. You can safely retry if the wallet
+                popup closes.
               </p>
             </div>
           </>
@@ -1165,6 +1390,7 @@ export function CampaignDetailPage() {
   const { publicKey, sendTransaction } = useWallet();
   const [amountSol, setAmountSol] = useState("");
   const [contributing, setContributing] = useState(false);
+  const [ackRefund, setAckRefund] = useState(false);
 
   // Only bounce once the server has answered — never on the loading defaults.
   useEffect(() => {
@@ -1212,6 +1438,15 @@ export function CampaignDetailPage() {
       });
       return;
     }
+    if (!ackRefund) {
+      toast({
+        title: "Please acknowledge the refund policy",
+        description:
+          "Confirm you are contributing from a wallet you control before signing.",
+        variant: "destructive",
+      });
+      return;
+    }
     setContributing(true);
     try {
       const tx = new Transaction().add(
@@ -1223,11 +1458,28 @@ export function CampaignDetailPage() {
       );
       const signature = await sendTransaction(tx, connection);
       await connection.confirmTransaction(signature, "confirmed");
-      toast({
-        title: "Contribution sent",
-        description: "It will be credited to the ledger within ~30 seconds.",
-      });
+      // Submit the signature for on-chain verification and exactly-once credit.
+      // The backend verifies destination + amount and never trusts the client.
+      try {
+        const res = await api.campaigns.contribute(publicId, {
+          txSignature: signature,
+        });
+        toast({
+          title: res.credited ? "Contribution credited" : "Contribution received",
+          description: res.credited
+            ? "Your contribution is verified and on the public ledger."
+            : "It will appear on the ledger within ~30 seconds.",
+        });
+      } catch {
+        // The deposit sweeper is a backstop if verification did not complete.
+        toast({
+          title: "Contribution sent",
+          description: "It will be credited to the ledger within ~30 seconds.",
+        });
+      }
       setAmountSol("");
+      queryClient.invalidateQueries({ queryKey: ["campaign", publicId] });
+      queryClient.invalidateQueries({ queryKey: ["campaign-ledger", publicId] });
       setTimeout(() => refresh.mutate(), 4_000);
     } catch (e) {
       toast({
@@ -1396,6 +1648,60 @@ export function CampaignDetailPage() {
         {canContribute && (
           <div className="rounded-xl bg-surface-2 border border-white/[0.05] p-4 space-y-3">
             <div className="stat-label">Contribute</div>
+
+            <div className="rounded-lg bg-background/40 border border-white/[0.05] p-3 space-y-1.5 text-[11px] text-muted-foreground leading-relaxed">
+              <div className="flex items-center justify-between gap-2">
+                <span>Destination</span>
+                <span className="font-mono text-foreground/80 truncate max-w-[160px]">
+                  {c.escrowAddress.slice(0, 6)}…{c.escrowAddress.slice(-6)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span>Estimated network fee</span>
+                <span className="text-foreground/80">~0.000005 SOL</span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span>Deadline</span>
+                <span className="text-foreground/80">{timeLeft(c.deadlineAt)}</span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span>Execution method</span>
+                <span className="text-foreground/80">
+                  {EXECUTION_MODE_LABEL[c.executionMode] ?? "Operator fulfillment"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span>Refund policy</span>
+                <span className="text-foreground/80">
+                  Full refund if goal missed
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-2 rounded-lg bg-amber-500/[0.07] border border-amber-500/20 p-2.5">
+              <ShieldAlert className="w-3.5 h-3.5 mt-0.5 shrink-0 text-amber-400" />
+              <p className="text-[11px] text-amber-200/90 leading-relaxed">
+                Refunds are returned to the contributing wallet. Contributions
+                from exchanges, custodial platforms, multisigs, or
+                program-controlled wallets may require manual review. Contribute
+                only from a self-custody wallet you control.
+              </p>
+            </div>
+
+            <label className="flex items-start gap-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={ackRefund}
+                onChange={(e) => setAckRefund(e.target.checked)}
+                className="mt-0.5 accent-[var(--accent)]"
+                data-testid="ack-contribute-refund"
+              />
+              <span className="text-[11px] text-muted-foreground leading-relaxed">
+                I am contributing from a self-custody wallet I control and
+                understand the refund and fulfillment policy above.
+              </span>
+            </label>
+
             {publicKey ? (
               <div className="flex gap-2">
                 <Input
@@ -1410,7 +1716,7 @@ export function CampaignDetailPage() {
                 />
                 <Button
                   onClick={contribute}
-                  disabled={contributing}
+                  disabled={contributing || !ackRefund}
                   data-testid="button-contribute"
                 >
                   {contributing ? "Sending…" : "Contribute"}
@@ -1418,7 +1724,8 @@ export function CampaignDetailPage() {
               </div>
             ) : (
               <p className="text-xs text-muted-foreground">
-                Connect your wallet to contribute directly from the app.
+                Connect your Solana wallet to contribute. No BlackPebble account
+                is required.
               </p>
             )}
             <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
@@ -1436,11 +1743,6 @@ export function CampaignDetailPage() {
                 <Copy className="w-3 h-3" />
               </button>
             </div>
-            <p className="text-[11px] text-muted-foreground leading-relaxed">
-              If the goal isn't reached by the deadline, your full contribution
-              is automatically refunded to the sending wallet (network fee
-              only). Overfunding is returned pro-rata.
-            </p>
           </div>
         )}
 
@@ -1514,6 +1816,8 @@ export function CampaignDetailPage() {
         </div>
       </div>
 
+      <CampaignTimeline publicId={publicId} />
+
       <div className="rounded-2xl bg-card shadow-card p-5 md:p-6 space-y-3">
         <div className="flex items-center justify-between">
           <div>
@@ -1553,6 +1857,64 @@ export function CampaignDetailPage() {
       {adminMe?.admin && c.state === "funded" && (
         <AdminSettlePanel publicId={publicId} />
       )}
+    </div>
+  );
+}
+
+const TIMELINE_LABELS: Record<string, string> = {
+  launched: "Campaign created",
+  milestone_25: "25% funded",
+  milestone_50: "50% funded",
+  milestone_75: "75% funded",
+  milestone_100: "100% funded",
+  funded: "Goal reached",
+  failed: "Funding failed",
+  completed: "Settlement completed",
+  refunded: "Contributors refunded",
+};
+
+/**
+ * Real, data-backed campaign timeline. Rendered only when the backend has
+ * recorded lifecycle events (never a fabricated progression).
+ */
+function CampaignTimeline({ publicId }: { publicId: string }) {
+  const { data } = useQuery({
+    queryKey: ["campaign-timeline", publicId],
+    queryFn: () => api.campaigns.timeline(publicId),
+    refetchInterval: 60_000,
+  });
+  const entries = data?.timeline ?? [];
+  if (entries.length === 0) return null;
+
+  return (
+    <div className="rounded-2xl bg-card shadow-card p-5 md:p-6 space-y-3">
+      <div>
+        <h2 className="font-bold">Timeline</h2>
+        <p className="text-xs text-muted-foreground">
+          Every recorded lifecycle milestone for this campaign.
+        </p>
+      </div>
+      <ol className="relative space-y-3 pl-5">
+        {entries.map((e, i) => (
+          <li key={i} className="relative">
+            <span className="absolute -left-5 top-1 flex h-3 w-3 items-center justify-center">
+              <span className="h-2 w-2 rounded-full bg-accent" />
+            </span>
+            {i < entries.length - 1 && (
+              <span className="absolute -left-[15px] top-3 h-full w-px bg-white/10" />
+            )}
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-sm text-foreground">
+                {TIMELINE_LABELS[e.eventKey] ?? e.eventKey}
+              </span>
+              <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                <Clock className="h-3 w-3" />
+                {new Date(e.createdAt * 1000).toLocaleString()}
+              </span>
+            </div>
+          </li>
+        ))}
+      </ol>
     </div>
   );
 }
