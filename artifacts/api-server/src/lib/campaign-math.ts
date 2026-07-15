@@ -359,32 +359,33 @@ export const CAMPAIGN_TYPE_DEFS: CampaignTypeDef[] = [
     group: "DEX Screener",
     label: "DEX Screener Boost",
     description:
-      "Golden flame placement in the DEX Screener Boosted section. Pick the multiplier; 10x to 50x run 12 hours, 100x and up run a full 24 hours.",
+      "Increase your token's visibility in DEX Screener's Boosted section. Choose a boost multiplier and duration: 10x–50x run 12 hours, 100x and above run 24 hours. Fulfilled by BlackPebble via DEX Screener.",
     goalOptions: [
       {
         label: "10x Boost",
         usd: 110,
-        description: "12-hour boost, golden flame on every search result",
+        description: "12-hour boost in the DEX Screener Boosted section",
       },
       {
         label: "30x Boost",
         usd: 275,
-        description: "12-hour boost with priority trending placement",
+        description: "12-hour boost with higher Boosted placement",
       },
       {
         label: "50x Boost",
         usd: 440,
-        description: "12-hour boost with premium trending placement",
+        description: "12-hour boost at the top Boosted tier",
       },
       {
         label: "100x Boost",
         usd: 990,
-        description: "24-hour top-tier boost across the trending carousel",
+        description: "24-hour boost at maximum Boosted visibility",
       },
       {
         label: "500x Golden Ticker",
         usd: 4_400,
-        description: "24-hour Golden Ticker status, the maximum DEXScreener offers",
+        description:
+          "24-hour Golden Ticker status (DEX Screener's 500-boost tier)",
       },
     ],
     requiresToken: true,
@@ -395,7 +396,7 @@ export const CAMPAIGN_TYPE_DEFS: CampaignTypeDef[] = [
     group: "DEX Screener",
     label: "DEX Screener Ads",
     description:
-      "Targeted display advertising on DEX Screener. Tiers are sized by guaranteed impressions in front of the most active traders in crypto.",
+      "Display advertising on DEX Screener. Tiers are sized by targeted impressions in front of active traders. Fulfilled by BlackPebble via DEX Screener.",
     goalOptions: [
       {
         label: "20K Views",
