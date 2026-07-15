@@ -35,6 +35,8 @@ import {
   Brain,
   Gauge,
   LayoutDashboard,
+  HandCoins,
+  Snowflake,
 } from "lucide-react";
 import { useAdmin } from "@/hooks/use-admin";
 import { useToast } from "@/hooks/use-toast";
@@ -59,6 +61,9 @@ import {
   type AchievementsAudit,
   type ApiError,
   type ProfileResponse,
+  type CampaignHealthRow,
+  type CampaignAuditEntry,
+  type ReconSeverity,
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import {
@@ -3188,6 +3193,284 @@ function SocialResetSection() {
   );
 }
 
+// ── Community Campaigns: health, reconciliation & recovery ──────────────────
+
+const LAMPORTS_PER_SOL = 1_000_000_000;
+function sol(lamports: number | null | undefined): string {
+  if (lamports == null) return "—";
+  return `${(lamports / LAMPORTS_PER_SOL).toFixed(4)}`;
+}
+const RECON_LEVEL: Record<ReconSeverity, StatusLevel> = {
+  ok: "healthy",
+  warning: "warning",
+  critical: "critical",
+};
+const CAMPAIGN_STATE_LABEL: Record<string, string> = {
+  live: "Live",
+  funded: "Funded",
+  settled: "Settled",
+  failed: "Failed",
+  refunded: "Refunded",
+  frozen: "Frozen",
+};
+
+function CampaignAdminCard({ c }: { c: CampaignHealthRow }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+
+  const detail = useQuery({
+    queryKey: ["admin-campaign", c.publicId],
+    queryFn: () => api.admin.campaigns.get(c.publicId),
+    enabled: open,
+  });
+
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["admin-campaigns"] });
+    qc.invalidateQueries({ queryKey: ["admin-campaign", c.publicId] });
+  };
+  const makeHandlers = (label: string) => ({
+    onSuccess: (r: unknown) => {
+      const err = (r as { error?: string } | undefined)?.error;
+      if (err) {
+        toast({ title: `${label} failed`, description: err, variant: "destructive" });
+        return;
+      }
+      toast({ title: `${label} done` });
+      invalidate();
+    },
+    onError: (e: Error) =>
+      toast({ title: `${label} failed`, description: e.message, variant: "destructive" }),
+  });
+
+  const rescan = useMutation({
+    mutationFn: () => api.admin.campaigns.rescan(c.publicId),
+    ...makeHandlers("Rescan"),
+  });
+  const reconcile = useMutation({
+    mutationFn: () => api.admin.campaigns.reconcile(c.publicId),
+    ...makeHandlers("Reconcile"),
+  });
+  const retrySettle = useMutation({
+    mutationFn: () => api.admin.campaigns.retrySettlement(c.publicId),
+    ...makeHandlers("Retry settlement"),
+  });
+  const retryRefunds = useMutation({
+    mutationFn: () => api.admin.campaigns.retryRefunds(c.publicId),
+    ...makeHandlers("Retry refunds"),
+  });
+  const unfreeze = useMutation({
+    mutationFn: () => api.admin.campaigns.unfreeze(c.publicId),
+    ...makeHandlers("Unfreeze"),
+  });
+
+  const progress = c.goalLamports > 0 ? c.depositedLamports / c.goalLamports : 0;
+  const anyPending =
+    rescan.isPending ||
+    reconcile.isPending ||
+    retrySettle.isPending ||
+    retryRefunds.isPending ||
+    unfreeze.isPending;
+
+  return (
+    <div className="rounded-lg border border-border bg-surface-2 p-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          onClick={() => setOpen((o) => !o)}
+          className="flex min-w-0 flex-1 items-center gap-2 text-left"
+        >
+          <ChevronRight
+            className={cn(
+              "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
+              open && "rotate-90",
+            )}
+          />
+          <span className="truncate text-sm font-medium text-foreground">
+            {c.title}
+          </span>
+        </button>
+        <StatusChip level={RECON_LEVEL[c.severity]} label={c.severity} />
+        <span className="rounded-full bg-surface-3 px-2 py-0.5 text-[11px] uppercase tracking-wider text-muted-foreground">
+          {CAMPAIGN_STATE_LABEL[c.state] ?? c.state}
+        </span>
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <Stat label="Funded" value={`${(progress * 100).toFixed(0)}%`} />
+        <Stat label="Escrow (SOL)" value={sol(c.onChainBalance)} />
+        <Stat label="Ledger (SOL)" value={sol(c.ledgerRemaining)} />
+        <Stat label="Diff (SOL)" value={sol(c.balanceDiff)} />
+      </div>
+
+      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+        <span>{c.contributorCount} contributor(s)</span>
+        {c.unresolvedDepositFailures > 0 && (
+          <span className="text-amber-400">
+            {c.unresolvedDepositFailures} unparsed deposit(s)
+          </span>
+        )}
+        {c.outstandingRefunds > 0 && (
+          <span className="text-amber-400">
+            {c.outstandingRefunds} refund(s) pending
+          </span>
+        )}
+      </div>
+
+      {c.warnings.length > 0 && (
+        <ul className="mt-2 space-y-1">
+          {c.warnings.map((w, i) => (
+            <li
+              key={i}
+              className={cn(
+                "rounded-md px-2 py-1 text-xs",
+                c.severity === "critical"
+                  ? "bg-red-500/10 text-red-300"
+                  : "bg-amber-500/10 text-amber-300",
+              )}
+            >
+              {w}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Button size="sm" variant="secondary" onClick={() => rescan.mutate()} disabled={anyPending}>
+          <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", rescan.isPending && "animate-spin")} />
+          Re-run scan
+        </Button>
+        <Button size="sm" variant="secondary" onClick={() => reconcile.mutate()} disabled={anyPending}>
+          <Gauge className="mr-1.5 h-3.5 w-3.5" />
+          Reconcile
+        </Button>
+        {c.state === "funded" && (
+          <Button size="sm" variant="secondary" onClick={() => retrySettle.mutate()} disabled={anyPending}>
+            <HandCoins className="mr-1.5 h-3.5 w-3.5" />
+            Retry settlement
+          </Button>
+        )}
+        {c.state === "failed" && (
+          <Button size="sm" variant="secondary" onClick={() => retryRefunds.mutate()} disabled={anyPending}>
+            <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+            Retry refunds
+          </Button>
+        )}
+        {c.state === "frozen" && (
+          <Button size="sm" onClick={() => unfreeze.mutate()} disabled={anyPending}>
+            <Snowflake className="mr-1.5 h-3.5 w-3.5" />
+            Unfreeze
+          </Button>
+        )}
+      </div>
+
+      {open && (
+        <div className="mt-3 border-t border-border pt-3">
+          <div className="mb-2 text-[11px] uppercase tracking-wider text-muted-foreground">
+            Recent money events
+          </div>
+          {detail.isLoading ? (
+            <Loader2 className="h-4 w-4 animate-spin text-accent" />
+          ) : (
+            <div className="max-h-64 space-y-1 overflow-y-auto">
+              {(detail.data?.audit ?? []).length === 0 && (
+                <div className="text-xs text-muted-foreground">No events recorded yet.</div>
+              )}
+              {(detail.data?.audit ?? []).map((e: CampaignAuditEntry) => (
+                <div
+                  key={e.id}
+                  className="flex items-center justify-between gap-2 rounded-md bg-surface-3 px-2 py-1 text-xs"
+                >
+                  <span className="min-w-0 truncate">
+                    <span
+                      className={cn(
+                        "mr-2 font-medium",
+                        e.result === "error"
+                          ? "text-red-300"
+                          : e.result === "warning"
+                            ? "text-amber-300"
+                            : "text-foreground",
+                      )}
+                    >
+                      {e.event}
+                    </span>
+                    <span className="text-muted-foreground">{e.detail ?? ""}</span>
+                  </span>
+                  <span className="shrink-0 text-muted-foreground">
+                    {timeAgo(e.created_at)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CampaignsAdminSection() {
+  const qc = useQueryClient();
+  const [state, setState] = useState<string>("all");
+  const { data, isFetching } = useQuery({
+    queryKey: ["admin-campaigns", state],
+    queryFn: () => api.admin.campaigns.list(state),
+    refetchInterval: 60_000,
+  });
+  const campaigns = data?.campaigns ?? [];
+  const unhealthy = campaigns.filter((c) => c.severity !== "ok").length;
+
+  return (
+    <Card
+      title="Community Campaigns"
+      icon={HandCoins}
+      action={
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => qc.invalidateQueries({ queryKey: ["admin-campaigns"] })}
+          disabled={isFetching}
+        >
+          <RefreshCw className={isFetching ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
+        </Button>
+      }
+    >
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <select
+          value={state}
+          onChange={(e) => setState(e.target.value)}
+          className="rounded-md border border-border bg-surface-2 px-2 py-1 text-sm"
+        >
+          {["all", "live", "funded", "settled", "failed", "refunded", "frozen"].map(
+            (s) => (
+              <option key={s} value={s}>
+                {s === "all" ? "All states" : CAMPAIGN_STATE_LABEL[s] ?? s}
+              </option>
+            ),
+          )}
+        </select>
+        <span className="text-xs text-muted-foreground">
+          {campaigns.length} campaign(s)
+          {unhealthy > 0 && (
+            <span className="ml-2 text-amber-400">{unhealthy} need attention</span>
+          )}
+        </span>
+      </div>
+
+      {campaigns.length === 0 ? (
+        <div className="py-6 text-center text-sm text-muted-foreground">
+          No campaigns found.
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {campaigns.map((c) => (
+            <CampaignAdminCard key={c.publicId} c={c} />
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
 export default function AdminPage() {
   const { isAdmin, loading } = useAdmin();
 
@@ -3215,6 +3498,7 @@ export default function AdminPage() {
     { id: "overview", label: "Overview" },
     { id: "trading", label: "Trading" },
     { id: "utilities", label: "Utilities" },
+    { id: "campaigns", label: "Campaigns" },
     { id: "identity", label: "Identity" },
     { id: "social", label: "Social" },
     { id: "flags", label: "Flags" },
@@ -3252,6 +3536,10 @@ export default function AdminPage() {
         <AdminSection id="utilities" title="Wallet Utilities" icon={Wrench}>
           <MarketSection />
           <RecoverySection />
+        </AdminSection>
+
+        <AdminSection id="campaigns" title="Community Campaigns" icon={HandCoins}>
+          <CampaignsAdminSection />
         </AdminSection>
 
         <AdminSection id="identity" title="Identity & Reputation" icon={Award}>

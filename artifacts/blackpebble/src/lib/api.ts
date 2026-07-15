@@ -86,12 +86,27 @@ export interface AdminMe {
 
 // ---- Community Campaigns ----
 export type CampaignState =
+  | "draft"
+  | "awaiting_initial_contribution"
   | "live"
   | "funded"
-  | "settled"
-  | "failed"
+  | "awaiting_execution"
+  | "executing"
+  | "completed"
+  | "expired"
+  | "execution_failed"
+  | "refunding"
   | "refunded"
-  | "frozen";
+  | "frozen"
+  | "cancelled"
+  // Legacy Phase 1 states (still readable from historical rows).
+  | "settled"
+  | "failed";
+
+export type CampaignExecutionMode =
+  | "automatic"
+  | "operator_fulfilled"
+  | "external_provider";
 
 export interface CampaignSummary {
   publicId: string;
@@ -115,6 +130,24 @@ export interface CampaignSummary {
   settledAt: number | null;
   fulfillmentNote: string | null;
   fulfillmentUrl: string | null;
+  published: boolean;
+  creatorWallet: string | null;
+  activatedAt: number | null;
+  activationPriceUsd: number | null;
+  activationQuoteAt: number | null;
+  durationSec: number;
+  executionMode: CampaignExecutionMode;
+  providerKey: string | null;
+  fulfillmentSlaSeconds: number;
+  executionStatus: string;
+  executionDeadlineAt: number | null;
+  executionStartedAt: number | null;
+  executionCompletedAt: number | null;
+  executionFailureReason: string | null;
+  proofType: string | null;
+  proofValue: string | null;
+  openingMinLamports: number;
+  openingMaxLamports: number;
   creator: {
     username: string | null;
     displayName: string | null;
@@ -169,6 +202,75 @@ export interface CampaignTokenValidation {
   logo: string | null;
   safety: "ok" | "warning" | "danger" | "unknown";
   risks: { name: string; level: string; description: string }[];
+}
+
+export interface CampaignTimelineEntry {
+  eventKey: string;
+  createdAt: number;
+}
+
+export type ReconSeverity = "ok" | "warning" | "critical";
+
+export interface CampaignReconciliation {
+  publicId: string;
+  state: CampaignState;
+  report: { severity: ReconSeverity; balanceDiff: number; warnings: string[] };
+  onChainBalance: number;
+  ledgerRemaining: number;
+  depositedLamports: number;
+  unresolvedDepositFailures: number;
+  outstandingRefunds: number;
+}
+
+export interface CampaignHealthRow {
+  publicId: string;
+  title: string;
+  state: CampaignState;
+  goalLamports: number;
+  depositedLamports: number;
+  onChainBalance: number;
+  ledgerRemaining: number;
+  balanceDiff: number;
+  severity: ReconSeverity;
+  warnings: string[];
+  contributorCount: number;
+  unresolvedDepositFailures: number;
+  outstandingRefunds: number;
+  createdAt: number;
+  deadlineAt: number;
+}
+
+export interface CampaignTransferIntent {
+  id: number;
+  operation_key: string;
+  campaign_id: number;
+  contribution_id: number | null;
+  kind: string;
+  destination: string;
+  lamports: number;
+  state: string;
+  tx_signature: string | null;
+  attempt_count: number;
+  error_code: string | null;
+  error_message: string | null;
+  correlation_id: string | null;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface CampaignAuditEntry {
+  id: number;
+  campaign_id: number | null;
+  public_id: string | null;
+  event: string;
+  actor: string;
+  wallet: string | null;
+  tx_signature: string | null;
+  lamports: number | null;
+  result: string;
+  detail: string | null;
+  correlation_id: string | null;
+  created_at: number;
 }
 
 export type AdminStatsWindow = "24h" | "7d" | "30d" | "all";
@@ -2474,6 +2576,10 @@ export const api = {
       request<{ ledger: CampaignLedgerEntry[] }>(
         `/campaigns/${publicId}/ledger`,
       ),
+    timeline: (publicId: string) =>
+      request<{ timeline: CampaignTimelineEntry[] }>(
+        `/campaigns/${publicId}/timeline`,
+      ),
     create: (body: {
       typeKey: string;
       title: string;
@@ -2490,6 +2596,21 @@ export const api = {
         method: "POST",
         body: JSON.stringify(body),
       }),
+    /** Creator confirms the opening contribution to publish the campaign. */
+    activate: (
+      publicId: string,
+      body: { senderWallet: string; txSignature: string },
+    ) =>
+      request<{ campaign: CampaignSummary }>(
+        `/campaigns/${publicId}/activate`,
+        { method: "POST", body: JSON.stringify(body) },
+      ),
+    /** Public contributor submits a signed transfer signature for verification. */
+    contribute: (publicId: string, body: { txSignature: string }) =>
+      request<{ campaign: CampaignSummary; credited: boolean }>(
+        `/campaigns/${publicId}/contribute`,
+        { method: "POST", body: JSON.stringify(body) },
+      ),
     refresh: (publicId: string) =>
       request<{ campaign: CampaignSummary }>(
         `/campaigns/${publicId}/refresh`,
@@ -2635,6 +2756,59 @@ export const api = {
     recoveryStats: () =>
       request<RecoveryStatsResponse>("/admin/recovery-stats"),
     leverageStats: () => request<LeverageStats>("/admin/leverage-stats"),
+
+    // ── Community Campaigns recovery + diagnostics ──
+    campaigns: {
+      list: (state?: string) =>
+        request<{ campaigns: CampaignHealthRow[] }>(
+          `/admin/campaigns${state && state !== "all" ? `?state=${state}` : ""}`,
+        ),
+      get: (publicId: string) =>
+        request<{
+          campaign: CampaignSummary;
+          reconciliation: CampaignReconciliation | null;
+          intents: CampaignTransferIntent[];
+          audit: CampaignAuditEntry[];
+        }>(`/admin/campaigns/${publicId}`),
+      intents: (publicId: string) =>
+        request<{ intents: CampaignTransferIntent[] }>(
+          `/admin/campaigns/${publicId}/intents`,
+        ),
+      expireActivation: (publicId: string) =>
+        request<{ ok: boolean; error?: string }>(
+          `/admin/campaigns/${publicId}/expire-activation`,
+          { method: "POST" },
+        ),
+      audit: (publicId: string) =>
+        request<{ audit: CampaignAuditEntry[] }>(
+          `/admin/campaigns/${publicId}/audit`,
+        ),
+      reconcile: (publicId: string) =>
+        request<{ reconciliation: CampaignReconciliation }>(
+          `/admin/campaigns/${publicId}/reconcile`,
+          { method: "POST" },
+        ),
+      rescan: (publicId: string) =>
+        request<{ reconciliation: CampaignReconciliation; error?: string }>(
+          `/admin/campaigns/${publicId}/rescan`,
+          { method: "POST" },
+        ),
+      retrySettlement: (publicId: string) =>
+        request<{ ok: boolean; error?: string }>(
+          `/admin/campaigns/${publicId}/retry-settlement`,
+          { method: "POST" },
+        ),
+      retryRefunds: (publicId: string) =>
+        request<{ ok: boolean; error?: string }>(
+          `/admin/campaigns/${publicId}/retry-refunds`,
+          { method: "POST" },
+        ),
+      unfreeze: (publicId: string) =>
+        request<{ ok: boolean; state?: CampaignState; error?: string }>(
+          `/admin/campaigns/${publicId}/unfreeze`,
+          { method: "POST" },
+        ),
+    },
 
     // ── Official Badges ──
     assignOfficialBadge: (x_handle: string, badge_type: OfficialBadgeType) =>

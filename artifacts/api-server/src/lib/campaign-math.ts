@@ -607,3 +607,63 @@ export function validateCampaignInput(c: CampaignInput): string | null {
   }
   return null;
 }
+
+// ── Phase 2: execution mode, opening contribution & deadline policy ──────────
+
+export type ExecutionMode =
+  | "automatic"
+  | "operator_fulfilled"
+  | "external_provider";
+
+export interface ExecutionPolicy {
+  mode: ExecutionMode;
+  /** Provider key for the fulfillment queue / trusted destination lookup. */
+  providerKey: string | null;
+  /** How long after funding fulfillment must complete before it is failed. */
+  fulfillmentSlaSeconds: number;
+}
+
+/**
+ * Every current DEXScreener / DEXTools service is operator-fulfilled: there is
+ * no official, tested automation adapter, so BlackPebble never claims automatic
+ * purchasing. When a real adapter exists, add an `automatic` entry keyed by the
+ * campaign type here.
+ */
+const DEFAULT_EXECUTION_POLICY: ExecutionPolicy = {
+  mode: "operator_fulfilled",
+  providerKey: null,
+  fulfillmentSlaSeconds: 24 * 3600,
+};
+
+const EXECUTION_POLICY_BY_TYPE: Record<string, ExecutionPolicy> = {
+  // Intentionally empty for launch: no automatic adapters are implemented yet.
+  // Example (do NOT enable without a tested adapter):
+  //   some_type: { mode: "automatic", providerKey: "provider", fulfillmentSlaSeconds: 3600 },
+};
+
+export function getExecutionPolicy(typeKey: string): ExecutionPolicy {
+  const def = getCampaignTypeDef(typeKey);
+  const policy = EXECUTION_POLICY_BY_TYPE[typeKey] ?? DEFAULT_EXECUTION_POLICY;
+  return {
+    ...policy,
+    providerKey: policy.providerKey ?? (def ? def.key : null),
+  };
+}
+
+/** Minimum opening contribution the creator must send to activate. */
+export const MIN_OPENING_LAMPORTS = 50_000_000; // 0.05 SOL
+/** Optional cap on the opening contribution (defaults to the max goal). */
+export const MAX_OPENING_LAMPORTS = MAX_GOAL_LAMPORTS;
+
+export const DEADLINE_OPTIONS_HOURS = [12, 24, 48, 72] as const;
+export type DeadlineHours = (typeof DEADLINE_OPTIONS_HOURS)[number];
+
+export function isValidDeadlineHours(hours: number): boolean {
+  return (DEADLINE_OPTIONS_HOURS as readonly number[]).includes(hours);
+}
+
+/**
+ * Maximum age (seconds) of the SOL/USD quote used to lock a campaign's SOL goal
+ * at activation. A stale/missing quote must block activation, never guess.
+ */
+export const SOL_QUOTE_MAX_AGE_SEC = 120;

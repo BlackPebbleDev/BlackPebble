@@ -7,7 +7,12 @@ import { ensureLeverageSchema, sweepAllLeverage } from "./leverage.js";
 import { ensureRealTradingSchema } from "./real-trading-schema.js";
 import { syncAllLinkedWallets } from "./real-trading-engine.js";
 import { ensureCampaignSchema } from "./campaign-schema.js";
-import { sweepAllCampaigns } from "./campaign-engine.js";
+import {
+  expireAbandonedActivations,
+  runReconciliationSweep,
+  runTransferIntentReconciliation,
+  sweepAllCampaigns,
+} from "./campaign-engine.js";
 import { ensureFeedSchema } from "./feed-schema.js";
 import { logger } from "./logger.js";
 
@@ -97,6 +102,26 @@ export function startCron(): void {
   // and a no-op when the escrow seed / feature is not configured.
   cron.schedule("*/30 * * * * *", () => {
     sweepAllCampaigns().catch(() => undefined);
+  });
+
+  // Reconciliation: every 5 minutes, compare each live/funded/failed/frozen
+  // campaign's ledger against its on-chain balance and outstanding refunds, and
+  // record a warning event for anything that does not reconcile. Detection
+  // only - it never moves funds.
+  cron.schedule("*/5 * * * *", () => {
+    runReconciliationSweep().catch(() => undefined);
+  });
+
+  // Recover durable outbound transfer intents that were submitted/confirmed but
+  // never recorded (crash-after-send gap). Every 2 minutes. Never double-sends.
+  cron.schedule("*/2 * * * *", () => {
+    runTransferIntentReconciliation().catch(() => undefined);
+  });
+
+  // Cancel campaigns that never received an opening contribution within the TTL,
+  // freeing the creator's one-active slot. Every 15 minutes.
+  cron.schedule("*/15 * * * *", () => {
+    expireAbandonedActivations().catch(() => undefined);
   });
 
   logger.info("Cron jobs scheduled");
