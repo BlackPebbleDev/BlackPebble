@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { resolveGoalLamports } from "./campaign-math.js";
+import {
+  resolveGoalLamports,
+  isValidDeadlineHours,
+  DEADLINE_OPTIONS_HOURS,
+  validateCampaignInput,
+  getCampaignTypeDef,
+} from "./campaign-math.js";
 import { CampaignError, fail } from "./campaign-errors.js";
 
 /**
@@ -63,5 +69,66 @@ describe("structured campaign errors", () => {
     expect(e.retryable).toBe(false);
     expect(e.httpStatus).toBe(400);
     expect(e.toResponse("x").code).toBe("INVALID_INPUT");
+  });
+});
+
+/**
+ * Contract guardrails: the frontend "Review Campaign" gate (blackpebble
+ * lib/campaign-form.ts) must accept exactly what these backend rules accept.
+ * If these bounds change, the frontend constants must change in lockstep.
+ */
+describe("POST /campaigns contract bounds", () => {
+  it("only 12 / 24 / 48 / 72 hour deadlines are accepted", () => {
+    expect([...DEADLINE_OPTIONS_HOURS]).toEqual([12, 24, 48, 72]);
+    for (const h of [12, 24, 48, 72]) expect(isValidDeadlineHours(h)).toBe(true);
+    for (const h of [6, 36, 100, 336, 0, -1]) {
+      expect(isValidDeadlineHours(h)).toBe(false);
+    }
+  });
+
+  it("title 4-80 and brief 20-2000 are enforced with specific reasons", () => {
+    const base = {
+      typeKey: "dex_boost",
+      goalLamports: 1_000_000_000, // 1 SOL, within the 0.1–10,000 SOL bounds
+      durationSec: 24 * 3600,
+    };
+    expect(
+      validateCampaignInput({ ...base, title: "abc", brief: "x".repeat(30) }),
+    ).toMatch(/Title must be/i);
+    expect(
+      validateCampaignInput({ ...base, title: "Valid title", brief: "too short" }),
+    ).toMatch(/Brief must be/i);
+    expect(
+      validateCampaignInput({
+        ...base,
+        title: "Valid title",
+        brief: "x".repeat(25),
+      }),
+    ).toBeNull();
+  });
+
+  it("banner-required types are exactly the ones the UI marks as needing a banner", () => {
+    const bannerTypes = ["dex_listing", "dextools_listing", "dextools_ads", "community_takeover"];
+    for (const key of bannerTypes) {
+      expect(getCampaignTypeDef(key)?.requiredAssets).toContain("banner");
+    }
+    // dex_boost and dextools_nitro do NOT need a banner.
+    expect(getCampaignTypeDef("dex_boost")?.requiredAssets).not.toContain("banner");
+    expect(getCampaignTypeDef("dextools_nitro")?.requiredAssets).not.toContain("banner");
+  });
+
+  it("every type requires a validated token", () => {
+    for (const key of [
+      "dex_listing",
+      "dex_boost",
+      "dex_ads",
+      "dex_trending",
+      "dextools_listing",
+      "dextools_nitro",
+      "dextools_ads",
+      "community_takeover",
+    ]) {
+      expect(getCampaignTypeDef(key)?.requiresToken).toBe(true);
+    }
   });
 });

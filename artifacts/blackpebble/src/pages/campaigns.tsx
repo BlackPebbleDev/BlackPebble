@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useRoute } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
@@ -9,6 +9,7 @@ import {
   Transaction,
 } from "@solana/web3.js";
 import {
+  AlertCircle,
   BadgeCheck,
   ChevronLeft,
   CircleCheck,
@@ -29,6 +30,19 @@ import {
   Zap,
 } from "lucide-react";
 import { useFeatureFlags } from "@/hooks/use-feature-flags";
+import { useXAuth } from "@/hooks/use-x-auth";
+import {
+  ProviderLogo,
+  providerForType,
+  providerDisclosure,
+} from "@/components/provider-logo";
+import {
+  campaignFormIssues,
+  issueForField,
+  CAMPAIGN_DEADLINE_OPTIONS,
+  type CampaignFormIssue,
+  type CampaignField,
+} from "@/lib/campaign-form";
 import {
   api,
   type CampaignLedgerEntry,
@@ -100,6 +114,20 @@ function requirementNote(assets: string[]): string | null {
       ? parts[0]
       : `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
   return `Requires ${text}`;
+}
+
+/** Inline validation message shown directly under a form field. */
+function FieldError({ issue }: { issue?: CampaignFormIssue }) {
+  if (!issue) return null;
+  return (
+    <p
+      className="flex items-start gap-1.5 text-[11px] text-danger leading-relaxed"
+      role="alert"
+    >
+      <AlertCircle className="w-3 h-3 mt-0.5 shrink-0" />
+      <span>{issue.message}</span>
+    </p>
+  );
 }
 
 const ACCENT = "bg-accent/15 text-accent";
@@ -429,11 +457,18 @@ function CreateCampaignDialog() {
   const [ackRefund, setAckRefund] = useState(false);
   const [ackGoalLock, setAckGoalLock] = useState(false);
   const [sending, setSending] = useState(false);
+  // Only reveal validation messaging after the user tries to advance, so the
+  // form doesn't shout errors before they've had a chance to fill it in.
+  const [showValidation, setShowValidation] = useState(false);
+  const fieldRefs = useRef<Partial<Record<CampaignField, HTMLDivElement | null>>>(
+    {},
+  );
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [, navigate] = useLocation();
   const { connection } = useConnection();
   const { publicKey, sendTransaction } = useWallet();
+  const { loggedIn } = useXAuth();
 
   const { data: config } = useQuery({
     queryKey: ["campaigns-config"],
@@ -468,6 +503,7 @@ function CreateCampaignDialog() {
     setAckRefund(false);
     setAckGoalLock(false);
     setSending(false);
+    setShowValidation(false);
   }
 
   function pickType(def: CampaignTypeDef) {
@@ -600,16 +636,46 @@ function CreateCampaignDialog() {
     },
   });
 
-  const tokenOk = !selectedType?.requiresToken || (token?.valid ?? false);
-  const goalOk = goalUsd != null;
   const needsBanner = selectedType?.requiredAssets.includes("banner") ?? false;
-  const bannerOk = !needsBanner || bannerUrl.trim().length > 8;
-  const canSubmit =
-    tokenOk &&
-    goalOk &&
-    bannerOk &&
-    title.trim().length >= 4 &&
-    brief.trim().length >= 20;
+  // Single source of truth for "can this be reviewed/created?" — mirrors the
+  // backend POST /campaigns contract exactly (see lib/campaign-form.ts).
+  const issues = campaignFormIssues({
+    hasType: !!selectedType,
+    requiresToken: selectedType?.requiresToken ?? false,
+    requiresBanner: needsBanner,
+    tierRequired: (selectedType?.goalOptions.length ?? 0) > 1,
+    goalSelected: goalUsd != null,
+    tokenValidated: token != null,
+    tokenValid: token?.valid ?? false,
+    tokenSafety: token?.safety ?? null,
+    bannerUrl,
+    title,
+    brief,
+    durationHours: Number(durationHours),
+    loggedIn,
+  });
+  const canSubmit = issues.length === 0;
+  // Config still loading is the only reason the Review button is disabled up
+  // front; every other problem is surfaced as an explained validation issue.
+  const configLoading = !config;
+  const shownIssue = (field: CampaignField) =>
+    showValidation ? issueForField(issues, field) : undefined;
+
+  function handleReview() {
+    if (issues.length > 0) {
+      setShowValidation(true);
+      const first = issues[0].field;
+      const el = fieldRefs.current[first];
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        const input = el.querySelector<HTMLElement>("input, textarea, button");
+        input?.focus({ preventScroll: true });
+      }
+      return;
+    }
+    setShowValidation(false);
+    setStep("review");
+  }
 
   const groups = useMemo(() => {
     const out: { group: string; defs: CampaignTypeDef[] }[] = [];
@@ -663,10 +729,12 @@ function CreateCampaignDialog() {
                         >
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex items-center gap-2 min-w-0">
-                              <div className="w-8 h-8 rounded-full bg-accent/12 flex items-center justify-center shrink-0">
-                                <Icon className="w-4 h-4 text-accent" />
-                              </div>
-                              <span className="font-bold text-sm leading-snug">
+                              <ProviderLogo
+                                typeKey={def.key}
+                                fallbackIcon={Icon}
+                                size={32}
+                              />
+                              <span className="font-bold text-sm leading-snug min-w-0 truncate">
                                 {def.label}
                               </span>
                             </div>
@@ -702,22 +770,42 @@ function CreateCampaignDialog() {
         ) : step === "details" ? (
           <>
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
+              <DialogTitle className="flex items-center gap-2 min-w-0">
                 <button
                   type="button"
                   onClick={() => setStep("type")}
-                  className="text-muted-foreground hover:text-accent transition-colors"
+                  className="text-muted-foreground hover:text-accent transition-colors shrink-0"
+                  aria-label="Back to services"
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
-                {selectedType?.label}
+                {selectedType && (
+                  <ProviderLogo
+                    typeKey={selectedType.key}
+                    fallbackIcon={TYPE_ICONS[selectedType.key] ?? Megaphone}
+                    size={24}
+                  />
+                )}
+                <span className="min-w-0 truncate">{selectedType?.label}</span>
               </DialogTitle>
               <DialogDescription>{selectedType?.description}</DialogDescription>
             </DialogHeader>
 
+            {selectedType && (
+              <div className="flex items-start gap-1.5 text-[10.5px] text-muted-foreground/80 leading-relaxed -mt-1">
+                <Shield className="w-3 h-3 mt-0.5 shrink-0 text-muted-foreground/60" />
+                <span>{providerDisclosure(providerForType(selectedType.key).label)}</span>
+              </div>
+            )}
+
             <div className="space-y-3">
               {selectedType?.requiresToken && (
-                <div className="rounded-xl bg-surface-2 border border-white/[0.05] p-3.5 space-y-2.5">
+                <div
+                  ref={(el) => {
+                    fieldRefs.current.token = el;
+                  }}
+                  className="rounded-xl bg-surface-2 border border-white/[0.05] p-3.5 space-y-2.5"
+                >
                   <div className="stat-label">Token</div>
                   <div className="flex gap-2">
                     <Input
@@ -813,10 +901,16 @@ function CreateCampaignDialog() {
                       )}
                     </div>
                   )}
+                  <FieldError issue={shownIssue("token")} />
                 </div>
               )}
 
-              <div className="rounded-xl bg-surface-2 border border-white/[0.05] p-3.5 space-y-2.5">
+              <div
+                ref={(el) => {
+                  fieldRefs.current.tier = el;
+                }}
+                className="rounded-xl bg-surface-2 border border-white/[0.05] p-3.5 space-y-2.5"
+              >
                 <div className="stat-label">
                   {selectedType && selectedType.goalOptions.length > 1
                     ? "Select tier"
@@ -909,10 +1003,16 @@ function CreateCampaignDialog() {
                   campaigns are fulfilled by BlackPebble; contributors are
                   refunded automatically if the goal isn't reached.
                 </p>
+                <FieldError issue={shownIssue("tier")} />
               </div>
 
               {needsBanner && (
-                <div className="rounded-xl bg-surface-2 border border-white/[0.05] p-3.5 space-y-2">
+                <div
+                  ref={(el) => {
+                    fieldRefs.current.banner = el;
+                  }}
+                  className="rounded-xl bg-surface-2 border border-white/[0.05] p-3.5 space-y-2"
+                >
                   <div className="stat-label">Custom banner</div>
                   <Input
                     placeholder="Banner image URL (3:1 ratio, 1500x500px recommended)"
@@ -925,35 +1025,73 @@ function CreateCampaignDialog() {
                     icon is taken from your validated token automatically; the
                     banner is used when BlackPebble fulfills the purchase.
                   </p>
+                  <FieldError issue={shownIssue("banner")} />
                 </div>
               )}
 
-              <Input
-                placeholder="Campaign title"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                maxLength={80}
-                data-testid="input-campaign-title"
-              />
-              <Textarea
-                placeholder="What is being funded, and what happens when the goal is met? Be specific - complete briefs earn a higher trust score."
-                value={brief}
-                onChange={(e) => setBrief(e.target.value)}
-                rows={3}
-                maxLength={2000}
-                data-testid="input-campaign-brief"
-              />
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="stat-label">Duration (hours)</label>
-                  <Input
-                    type="number"
-                    min="6"
-                    max="336"
-                    value={durationHours}
-                    onChange={(e) => setDurationHours(e.target.value)}
-                    data-testid="input-campaign-duration"
-                  />
+              <div
+                ref={(el) => {
+                  fieldRefs.current.title = el;
+                }}
+                className="space-y-1"
+              >
+                <Input
+                  placeholder="Campaign title"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  maxLength={80}
+                  data-testid="input-campaign-title"
+                />
+                <FieldError issue={shownIssue("title")} />
+              </div>
+              <div
+                ref={(el) => {
+                  fieldRefs.current.brief = el;
+                }}
+                className="space-y-1"
+              >
+                <Textarea
+                  placeholder="What is being funded, and what happens when the goal is met? Be specific - complete briefs earn a higher trust score."
+                  value={brief}
+                  onChange={(e) => setBrief(e.target.value)}
+                  rows={3}
+                  maxLength={2000}
+                  data-testid="input-campaign-brief"
+                />
+                <div className="flex items-center justify-between gap-2">
+                  <FieldError issue={shownIssue("brief")} />
+                  <span className="text-[10px] text-muted-foreground/70 ml-auto tabular-nums shrink-0">
+                    {brief.trim().length}/20 min
+                  </span>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div
+                  ref={(el) => {
+                    fieldRefs.current.duration = el;
+                  }}
+                  className="space-y-1"
+                >
+                  <label className="stat-label">Funding deadline</label>
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {CAMPAIGN_DEADLINE_OPTIONS.map((h) => (
+                      <button
+                        key={h}
+                        type="button"
+                        onClick={() => setDurationHours(String(h))}
+                        className={cn(
+                          "rounded-lg px-2 py-2 text-xs font-semibold transition-colors border",
+                          Number(durationHours) === h
+                            ? "bg-accent/15 border-accent/40 text-accent"
+                            : "bg-background/40 border-white/[0.05] hover:border-white/[0.12] text-foreground",
+                        )}
+                        data-testid={`duration-${h}`}
+                      >
+                        {h}h
+                      </button>
+                    ))}
+                  </div>
+                  <FieldError issue={shownIssue("duration")} />
                 </div>
                 <div className="space-y-1">
                   <label className="stat-label">Link (optional)</label>
@@ -964,18 +1102,46 @@ function CreateCampaignDialog() {
                   />
                 </div>
               </div>
+
+              {showValidation && issues.length > 0 && (
+                <div className="rounded-xl bg-danger/[0.07] border border-danger/20 p-3.5 space-y-2">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-danger">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    Complete these items to continue
+                  </div>
+                  <ul className="space-y-1">
+                    {issues.map((issue) => (
+                      <li
+                        key={`${issue.field}-${issue.kind}`}
+                        className="text-[11px] text-foreground/80 leading-relaxed flex items-start gap-1.5"
+                      >
+                        <span className="text-danger/70 mt-0.5">•</span>
+                        <span>{issue.message}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               <Button
                 className="w-full"
-                disabled={!canSubmit}
-                onClick={() => setStep("review")}
+                disabled={configLoading}
+                onClick={handleReview}
                 data-testid="button-review-campaign"
               >
-                Review Campaign
+                {configLoading ? "Loading…" : "Review Campaign"}
               </Button>
-              <p className="text-[11px] text-muted-foreground leading-relaxed">
-                Requires an X-linked BlackPebble account. Your platform
-                reputation determines the campaign's starting trust score.
-              </p>
+              {!loggedIn ? (
+                <p className="text-[11px] text-warning/90 leading-relaxed">
+                  Sign in with X to create a campaign. Your platform reputation
+                  determines the campaign's starting trust score.
+                </p>
+              ) : (
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  Your platform reputation determines the campaign's starting
+                  trust score.
+                </p>
+              )}
             </div>
           </>
         ) : step === "review" ? (
