@@ -92,6 +92,8 @@ interface CampaignRow {
   title: string;
   brief: string;
   token_mint: string | null;
+  token_name: string | null;
+  token_symbol: string | null;
   image_url: string | null;
   banner_url: string | null;
   link_url: string | null;
@@ -138,6 +140,8 @@ export interface CampaignSummary {
   title: string;
   brief: string;
   tokenMint: string | null;
+  tokenName: string | null;
+  tokenSymbol: string | null;
   imageUrl: string | null;
   bannerUrl: string | null;
   linkUrl: string | null;
@@ -238,6 +242,8 @@ export async function createCampaign(
   // ── token_verification ──
   let tokenMint: string | null = null;
   let tokenImage: string | null = null;
+  let tokenName: string | null = null;
+  let tokenSymbol: string | null = null;
   if (typeDef.requiresToken) {
     const mint = input.tokenMint?.trim() ?? "";
     if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(mint)) {
@@ -264,6 +270,8 @@ export async function createCampaign(
     }
     tokenMint = mint;
     tokenImage = token.logo;
+    tokenName = token.name ?? null;
+    tokenSymbol = token.symbol ?? null;
   }
 
   // ── validation: fulfillment assets ──
@@ -351,13 +359,15 @@ export async function createCampaign(
     await dbRun(
       `INSERT INTO campaigns
          (public_id, kind, type_key, creator_user_id, title, brief, token_mint,
+          token_name, token_symbol,
           image_url, banner_url, link_url, goal_lamports, goal_usd, goal_label,
           deadline_at, state, published, trust_score, escrow_address, created_at,
           duration_sec, execution_mode, provider_key, fulfillment_sla_seconds,
           execution_status)
        VALUES ($1, 'goal', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
-               'awaiting_initial_contribution', FALSE, $14, $15, $16,
-               $17, $18, $19, $20, 'none')`,
+               $14, $15,
+               'awaiting_initial_contribution', FALSE, $16, $17, $18,
+               $19, $20, $21, $22, 'none')`,
       [
         publicId,
         input.typeKey,
@@ -365,6 +375,8 @@ export async function createCampaign(
         input.title.trim(),
         input.brief.trim(),
         tokenMint,
+        tokenName,
+        tokenSymbol,
         imageUrl,
         bannerUrl,
         input.linkUrl ?? null,
@@ -727,6 +739,8 @@ async function toSummary(row: CampaignRow): Promise<CampaignSummary> {
     title: row.title,
     brief: row.brief,
     tokenMint: row.token_mint,
+    tokenName: row.token_name,
+    tokenSymbol: row.token_symbol,
     imageUrl: row.image_url,
     bannerUrl: row.banner_url,
     linkUrl: row.link_url,
@@ -793,6 +807,29 @@ export async function listCampaigns(
     params,
   );
   return Promise.all(rows.map(toSummary));
+}
+
+/**
+ * Duplicate detection: find an existing publicly-active campaign for the same
+ * token + service (type key). Used before creation so the UI can offer
+ * "Contribute instead" rather than silently spawning a competing campaign.
+ * "Active" = accepting funds or mid-fulfillment (not terminal, not a private
+ * pre-activation draft).
+ */
+export async function findActiveCampaignForToken(
+  tokenMint: string,
+  typeKey: string,
+): Promise<CampaignSummary | null> {
+  await ensureCampaignSchema();
+  const row = await dbGet<CampaignRow>(
+    `SELECT * FROM campaigns
+       WHERE token_mint = $1 AND type_key = $2 AND published = TRUE
+         AND state IN ('live','funded','awaiting_execution','executing')
+       ORDER BY created_at DESC
+       LIMIT 1`,
+    [tokenMint, typeKey],
+  );
+  return row ? toSummary(row) : null;
 }
 
 export async function getCampaign(

@@ -115,6 +115,14 @@ export interface CampaignSummary {
   title: string;
   brief: string;
   tokenMint: string | null;
+  tokenName: string | null;
+  tokenSymbol: string | null;
+  /**
+   * Live token market cap in USD. Enrichment is intentionally deferred (a
+   * batched price endpoint is planned), so this is optional/undefined today.
+   * Cards reserve layout space for it now so it can drop in without a redesign.
+   */
+  tokenMarketCapUsd?: number | null;
   imageUrl: string | null;
   bannerUrl: string | null;
   linkUrl: string | null;
@@ -2557,6 +2565,10 @@ export const api = {
     list: (state?: string) =>
       request<{ campaigns: CampaignSummary[]; escrowReady: boolean }>(
         `/campaigns${state && state !== "all" ? `?state=${state}` : ""}`,
+      ),
+    activeFor: (tokenMint: string, typeKey: string) =>
+      request<{ campaign: CampaignSummary | null }>(
+        `/campaigns/active-for?token=${encodeURIComponent(tokenMint)}&type=${encodeURIComponent(typeKey)}`,
       ),
     config: () =>
       request<{

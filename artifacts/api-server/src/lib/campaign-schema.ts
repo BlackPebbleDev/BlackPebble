@@ -113,6 +113,10 @@ export async function ensureCampaignSchema(): Promise<void> {
   );
   await dbRun(`ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS proof_type TEXT`);
   await dbRun(`ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS proof_value TEXT`);
+  // Token identity captured at creation (from the token safety validation) so
+  // campaign cards can lead with the token name/ticker without a live lookup.
+  await dbRun(`ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS token_name TEXT`);
+  await dbRun(`ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS token_symbol TEXT`);
 
   await dbRun(`
     CREATE TABLE IF NOT EXISTS campaign_ledger (

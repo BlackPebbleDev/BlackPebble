@@ -1,4 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+} from "react";
 import { Link, useLocation, useRoute } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
@@ -11,9 +17,11 @@ import {
 import {
   AlertCircle,
   BadgeCheck,
+  Check,
   ChevronLeft,
   CircleCheck,
   Copy,
+  Loader2,
   Crown,
   ExternalLink,
   Flame,
@@ -31,11 +39,12 @@ import {
 } from "lucide-react";
 import { useFeatureFlags } from "@/hooks/use-feature-flags";
 import { useXAuth } from "@/hooks/use-x-auth";
+import { ProviderLogo, providerDisclosure } from "@/components/provider-logo";
 import {
-  ProviderLogo,
-  providerForType,
-  providerDisclosure,
-} from "@/components/provider-logo";
+  providerForTypeKey,
+  serviceBrand,
+  type ProviderBrand,
+} from "@/lib/provider-branding";
 import {
   campaignFormIssues,
   issueForField,
@@ -176,6 +185,14 @@ function fmtUsd(usd: number): string {
   return `$${usd.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
 }
 
+/** Compact market-cap style, e.g. $2.3M / $48.2K / $1.2B. */
+function fmtCompactUsd(usd: number): string {
+  if (usd >= 1e9) return `$${(usd / 1e9).toFixed(usd >= 1e10 ? 0 : 1)}B`;
+  if (usd >= 1e6) return `$${(usd / 1e6).toFixed(usd >= 1e7 ? 0 : 1)}M`;
+  if (usd >= 1e3) return `$${(usd / 1e3).toFixed(usd >= 1e4 ? 0 : 1)}K`;
+  return `$${Math.round(usd)}`;
+}
+
 function timeLeft(deadlineAt: number): string {
   const s = deadlineAt - Math.floor(Date.now() / 1000);
   if (s <= 0) return "Ended";
@@ -219,6 +236,196 @@ function TrustBadge({ score }: { score: number }) {
   );
 }
 
+type ActivateStage =
+  | "idle"
+  | "preparing"
+  | "signing"
+  | "confirming"
+  | "activating"
+  | "timeout";
+
+const ACTIVATE_STEPS: { key: ActivateStage; label: string; hint?: string }[] = [
+  { key: "preparing", label: "Preparing transaction" },
+  { key: "signing", label: "Waiting for your wallet signature" },
+  {
+    key: "confirming",
+    label: "Confirming on the blockchain",
+    hint: "This normally takes 5–20 seconds.",
+  },
+  { key: "activating", label: "Finalizing your campaign" },
+];
+
+/**
+ * Token-first identity block used on both the browse card and the detail
+ * header. Hierarchy: logo → token name → ticker · market cap. Market cap space
+ * is reserved now (enrichment deferred) so a future value drops in without any
+ * layout change. Non-token (community) campaigns fall back to the title.
+ */
+function TokenIdentity({
+  c,
+  size = 48,
+  large = false,
+}: {
+  c: CampaignSummary;
+  size?: number;
+  large?: boolean;
+}) {
+  const hasToken = !!c.tokenMint;
+  const name = c.tokenName
+    ? c.tokenName
+    : c.tokenSymbol
+      ? `$${c.tokenSymbol}`
+      : hasToken
+        ? "Token campaign"
+        : c.title;
+  const ticker = c.tokenSymbol ? `$${c.tokenSymbol}` : null;
+  const mc = c.tokenMarketCapUsd;
+  return (
+    <div className="flex items-center gap-3 min-w-0">
+      {c.imageUrl ? (
+        <img
+          src={c.imageUrl}
+          alt=""
+          className={cn(
+            "rounded-full object-cover shrink-0 ring-1 ring-white/10",
+            large ? "w-14 h-14" : "w-12 h-12",
+          )}
+          style={{ width: size, height: size }}
+        />
+      ) : (
+        <ProviderLogo typeKey={c.typeKey} size={size} className="ring-1 ring-white/10" />
+      )}
+      <div className="min-w-0">
+        <div
+          className={cn(
+            "font-bold truncate leading-tight",
+            large ? "text-2xl md:text-3xl tracking-tight" : "text-base",
+          )}
+        >
+          {name}
+        </div>
+        {hasToken ? (
+          <div
+            className={cn(
+              "flex items-center gap-1.5 min-w-0 mt-0.5 text-muted-foreground",
+              large ? "text-xs" : "text-[11px]",
+            )}
+          >
+            {ticker && (
+              <span className="font-semibold text-foreground/70 truncate">
+                {ticker}
+              </span>
+            )}
+            {ticker && <span className="text-muted-foreground/40">·</span>}
+            <span
+              className={cn(
+                "truncate tabular-nums",
+                mc == null && "text-muted-foreground/60",
+              )}
+              title={mc == null ? "Live market cap coming soon" : undefined}
+            >
+              {mc != null ? `${fmtCompactUsd(mc)} MC` : "Market cap —"}
+            </span>
+          </div>
+        ) : (
+          <div
+            className={cn(
+              "text-muted-foreground truncate mt-0.5",
+              large ? "text-xs" : "text-[11px]",
+            )}
+          >
+            Community campaign
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Address row used to visually separate the token contract from the escrow
+ * wallet. The escrow variant is shield-marked and accented so contributors
+ * never confuse where to send funds. `stopClicks` prevents the copy button
+ * from triggering a parent <Link> navigation on the browse card.
+ */
+function AddressRow({
+  label,
+  address,
+  variant,
+  tooltip,
+  sublabel,
+  stopClicks,
+}: {
+  label: string;
+  address: string;
+  variant: "token" | "escrow";
+  tooltip?: string;
+  sublabel?: string;
+  stopClicks?: boolean;
+}) {
+  const [copied, setCopied] = useState(false);
+  const isEscrow = variant === "escrow";
+  const copy = (e: ReactMouseEvent) => {
+    if (stopClicks) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    navigator.clipboard.writeText(address);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1400);
+  };
+  return (
+    <div
+      className={cn(
+        "rounded-xl px-3 py-2 flex items-center justify-between gap-2 border",
+        isEscrow
+          ? "bg-emerald-500/[0.07] border-emerald-400/25"
+          : "bg-surface-2 border-white/[0.05]",
+      )}
+      title={tooltip}
+    >
+      <div className="min-w-0">
+        <div
+          className={cn(
+            "text-[10px] font-semibold uppercase tracking-wide flex items-center gap-1",
+            isEscrow ? "text-emerald-300" : "text-muted-foreground",
+          )}
+        >
+          {isEscrow && <Shield className="w-3 h-3" />}
+          {label}
+        </div>
+        <div className="font-mono text-[11px] truncate mt-0.5">
+          {address.slice(0, 10)}…{address.slice(-8)}
+        </div>
+        {sublabel && (
+          <div
+            className={cn(
+              "text-[10px] font-medium mt-0.5 flex items-center gap-1",
+              isEscrow ? "text-emerald-300/80" : "text-muted-foreground/70",
+            )}
+          >
+            {isEscrow && <Shield className="w-2.5 h-2.5" />}
+            {sublabel}
+          </div>
+        )}
+      </div>
+      <button
+        type="button"
+        className={cn(
+          "shrink-0 transition-colors",
+          isEscrow
+            ? "text-emerald-300 hover:text-emerald-200"
+            : "text-muted-foreground hover:text-accent",
+        )}
+        onClick={copy}
+        title={copied ? "Copied" : `Copy ${label.toLowerCase()}`}
+      >
+        {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+      </button>
+    </div>
+  );
+}
+
 function ProgressBar({ progress }: { progress: number }) {
   const pct = Math.min(100, Math.round(progress * 100));
   return (
@@ -238,7 +445,9 @@ function ProgressBar({ progress }: { progress: number }) {
 
 function CampaignCard({ c }: { c: CampaignSummary }) {
   const pct = Math.min(100, Math.round(c.accounting.progress * 100));
-  const Icon = TYPE_ICONS[c.typeKey] ?? Megaphone;
+  const brand = providerForTypeKey(c.typeKey);
+  const service = serviceBrand(c.typeKey);
+  const ServiceIcon = service.icon;
   const neededUsd =
     c.goalUsd != null
       ? Math.max(0, c.goalUsd * (1 - Math.min(1, c.accounting.progress)))
@@ -257,43 +466,40 @@ function CampaignCard({ c }: { c: CampaignSummary }) {
       <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-accent/[0.07] to-transparent" />
 
       <div className="relative p-5 pb-5 flex flex-col gap-3.5 flex-1">
+        {/* Token identity leads — users fund a TOKEN, not a form title. */}
         <div className="flex items-start justify-between gap-2">
-          <div className="flex items-center gap-3 min-w-0">
-            {c.imageUrl ? (
-              <img
-                src={c.imageUrl}
-                alt=""
-                className="w-11 h-11 rounded-full object-cover shrink-0 ring-1 ring-white/10"
-              />
-            ) : (
-              <div className="w-11 h-11 rounded-full bg-accent/12 ring-1 ring-accent/20 flex items-center justify-center shrink-0">
-                <Icon className="w-5 h-5 text-accent" />
-              </div>
-            )}
-            <div className="min-w-0">
-              <div className="font-bold text-sm truncate leading-snug">
-                {c.title}
-              </div>
-              <div className="text-[11px] text-muted-foreground truncate mt-0.5">
-                {c.creator.username ? `@${c.creator.username}` : "Anonymous"}
-              </div>
-            </div>
-          </div>
+          <TokenIdentity c={c} size={48} />
           <StateBadge state={c.state} />
         </div>
 
+        {/* Provider-branded service + tier (secondary) */}
         <div className="flex items-center gap-1.5 flex-wrap">
-          <span className="inline-flex items-center gap-1 rounded-full bg-surface-2 border border-white/[0.06] px-2.5 py-1 text-[11px] font-semibold">
-            <Icon className="w-3 h-3 text-accent" />
-            {c.goalLabel
-              ? `${TYPE_LABELS[c.typeKey] ?? c.typeKey}: ${c.goalLabel}`
-              : (TYPE_LABELS[c.typeKey] ?? c.typeKey)}
+          <span
+            className={cn(
+              "inline-flex items-center gap-1 rounded-full border border-transparent px-2.5 py-1 text-[11px] font-semibold",
+              brand.accentBg,
+              brand.accentText,
+            )}
+          >
+            <ServiceIcon className="w-3 h-3" />
+            {brand.name} {service.short}
           </span>
+          {c.goalLabel && (
+            <span className="inline-flex items-center rounded-full bg-surface-2 border border-white/[0.06] px-2.5 py-1 text-[11px] font-semibold">
+              {c.goalLabel}
+            </span>
+          )}
           {c.state === "live" && (
             <span className="inline-flex items-center rounded-full bg-warning/10 text-warning px-2.5 py-1 text-[11px] font-semibold">
               {timeLeft(c.deadlineAt)}
             </span>
           )}
+        </div>
+
+        {/* Campaign title + creator — tertiary supporting line */}
+        <div className="text-[13px] text-muted-foreground/90 truncate">
+          {c.title}
+          {c.creator.username ? ` · @${c.creator.username}` : ""}
         </div>
 
         <div className="space-y-2">
@@ -351,30 +557,25 @@ function CampaignCard({ c }: { c: CampaignSummary }) {
           </div>
         </div>
 
-        {c.tokenMint && (
-          <div className="rounded-xl bg-surface-2 border border-white/[0.05] px-3 py-2 flex items-center justify-between gap-2">
-            <div className="min-w-0">
-              <div className="text-[10px] text-muted-foreground">
-                Contract Address
-              </div>
-              <div className="font-mono text-[11px] truncate">
-                {c.tokenMint.slice(0, 10)}...{c.tokenMint.slice(-8)}
-              </div>
-            </div>
-            <button
-              type="button"
-              className="text-muted-foreground hover:text-accent transition-colors shrink-0"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                navigator.clipboard.writeText(c.tokenMint!);
-              }}
-              title="Copy contract address"
-            >
-              <Copy className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        )}
+        <div className="space-y-2">
+          {c.tokenMint && (
+            <AddressRow
+              label="Token Contract"
+              address={c.tokenMint}
+              variant="token"
+              tooltip="The token's contract address — do not send funds here."
+              stopClicks
+            />
+          )}
+          <AddressRow
+            label="Escrow Wallet"
+            address={c.escrowAddress}
+            variant="escrow"
+            sublabel="Funding Wallet"
+            tooltip="This is the only wallet used for campaign funding."
+            stopClicks
+          />
+        </div>
 
         <div className="mt-auto space-y-2.5">
           <div className="flex items-center justify-between">
@@ -457,6 +658,12 @@ function CreateCampaignDialog() {
   const [ackRefund, setAckRefund] = useState(false);
   const [ackGoalLock, setAckGoalLock] = useState(false);
   const [sending, setSending] = useState(false);
+  // Activation progress stages (Part 8) — clear step-by-step feedback + a
+  // recovery path if confirmation times out (never re-send funds).
+  const [activateStage, setActivateStage] = useState<ActivateStage>("idle");
+  // Duplicate campaign detection (Part 5): if an active campaign already exists
+  // for this token + service the user must explicitly choose to create anyway.
+  const [dupAcknowledged, setDupAcknowledged] = useState(false);
   // Only reveal validation messaging after the user tries to advance, so the
   // form doesn't shout errors before they've had a chance to fill it in.
   const [showValidation, setShowValidation] = useState(false);
@@ -476,6 +683,15 @@ function CreateCampaignDialog() {
     enabled: open,
     staleTime: 60_000,
   });
+  const dupMint = token?.valid ? token.mint : null;
+  const { data: dupData } = useQuery({
+    queryKey: ["campaign-dup", dupMint, typeKey],
+    queryFn: () => api.campaigns.activeFor(dupMint!, typeKey!),
+    enabled: open && !!dupMint && !!typeKey,
+    staleTime: 30_000,
+  });
+  const duplicate = dupData?.campaign ?? null;
+
   const types = config?.types ?? [];
   const solPrice = config?.solPriceUsd ?? 0;
   const feeBps = config?.feeBps ?? 0;
@@ -504,6 +720,8 @@ function CreateCampaignDialog() {
     setAckGoalLock(false);
     setSending(false);
     setShowValidation(false);
+    setActivateStage("idle");
+    setDupAcknowledged(false);
   }
 
   function pickType(def: CampaignTypeDef) {
@@ -600,17 +818,43 @@ function CreateCampaignDialog() {
       let signature = openingSig.trim();
       // Reuse an already-sent signature on retry; only sign a new transfer once.
       if (!signature) {
-        const tx = new Transaction().add(
+        // Build with an explicit fee payer + recent blockhash so Phantom can
+        // simulate a clean, previewable SOL transfer (Part 7) and so we can
+        // confirm against the blockhash window rather than a bare signature.
+        setActivateStage("preparing");
+        const { blockhash, lastValidBlockHeight } =
+          await connection.getLatestBlockhash("finalized");
+        const tx = new Transaction({
+          feePayer: publicKey,
+          blockhash,
+          lastValidBlockHeight,
+        }).add(
           SystemProgram.transfer({
             fromPubkey: publicKey,
             toPubkey: new PublicKey(created.escrowAddress),
             lamports: Math.round(amount * LAMPORTS_PER_SOL),
           }),
         );
+        setActivateStage("signing");
         signature = await sendTransaction(tx, connection);
+        // Persist immediately so a timeout never asks the user to re-send.
         setOpeningSig(signature);
-        await connection.confirmTransaction(signature, "confirmed");
+        setActivateStage("confirming");
+        try {
+          await connection.confirmTransaction(
+            { signature, blockhash, lastValidBlockHeight },
+            "confirmed",
+          );
+        } catch {
+          // Confirmation window elapsed — the transfer may still land. Do NOT
+          // resend. Surface a recovery path that verifies on-chain instead.
+          setActivateStage("timeout");
+          throw new Error(
+            "Your transaction may still confirm. Use Verify on-chain to finish activation without re-sending funds.",
+          );
+        }
       }
+      setActivateStage("activating");
       return api.campaigns.activate(created.publicId, {
         senderWallet: publicKey.toBase58(),
         txSignature: signature,
@@ -619,6 +863,7 @@ function CreateCampaignDialog() {
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ["campaigns"] });
       const id = res.campaign.publicId;
+      setActivateStage("idle");
       setOpen(false);
       reset();
       toast({
@@ -628,6 +873,8 @@ function CreateCampaignDialog() {
       navigate(`/campaigns/${id}`);
     },
     onError: (e: Error) => {
+      // Keep the timeout stage (recovery UI) visible; otherwise reset to idle.
+      setActivateStage((s) => (s === "timeout" ? "timeout" : "idle"));
       toast({
         title: "Activation failed",
         description: e.message,
@@ -637,6 +884,11 @@ function CreateCampaignDialog() {
   });
 
   const needsBanner = selectedType?.requiredAssets.includes("banner") ?? false;
+  const brand: ProviderBrand | null = selectedType
+    ? providerForTypeKey(selectedType.key)
+    : null;
+  const selectedSol =
+    goalUsd != null ? usdToSol(goalUsd) : null;
   // Single source of truth for "can this be reviewed/created?" — mirrors the
   // backend POST /campaigns contract exactly (see lib/campaign-form.ts).
   const issues = campaignFormIssues({
@@ -719,12 +971,13 @@ function CreateCampaignDialog() {
                     {defs.map((def) => {
                       const Icon = TYPE_ICONS[def.key] ?? Megaphone;
                       const note = requirementNote(def.requiredAssets);
+                      const b = providerForTypeKey(def.key);
                       return (
                         <button
                           key={def.key}
                           type="button"
                           onClick={() => pickType(def)}
-                          className="text-left rounded-xl bg-surface-2 border border-white/[0.05] hover:border-accent/40 hover:bg-surface-2/80 transition-colors p-4 flex flex-col gap-2 group"
+                          className="text-left rounded-xl bg-surface-2 border border-white/[0.05] hover:border-white/[0.18] hover:bg-surface-2/80 transition-colors p-4 flex flex-col gap-2 group"
                           data-testid={`type-${def.key}`}
                         >
                           <div className="flex items-start justify-between gap-2">
@@ -738,7 +991,13 @@ function CreateCampaignDialog() {
                                 {def.label}
                               </span>
                             </div>
-                            <span className="inline-flex items-center rounded-full bg-accent/10 text-accent px-2.5 py-0.5 text-[11px] font-bold shrink-0">
+                            <span
+                              className={cn(
+                                "inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold shrink-0",
+                                b.accentBg,
+                                b.accentText,
+                              )}
+                            >
                               {goalChip(def)}
                             </span>
                           </div>
@@ -794,7 +1053,7 @@ function CreateCampaignDialog() {
             {selectedType && (
               <div className="flex items-start gap-1.5 text-[10.5px] text-muted-foreground/80 leading-relaxed -mt-1">
                 <Shield className="w-3 h-3 mt-0.5 shrink-0 text-muted-foreground/60" />
-                <span>{providerDisclosure(providerForType(selectedType.key).label)}</span>
+                <span>{providerDisclosure(selectedType.key)}</span>
               </div>
             )}
 
@@ -943,54 +1202,89 @@ function CreateCampaignDialog() {
                       </div>
                     </div>
                   ) : (
-                    <div className="space-y-1.5">
-                      {selectedType.goalOptions.map((opt) => (
-                        <button
-                          key={opt.usd}
-                          type="button"
-                          onClick={() => setGoalUsd(opt.usd)}
-                          className={cn(
-                            "w-full rounded-xl px-4 py-3 text-left transition-colors border flex items-center justify-between gap-3",
-                            goalUsd === opt.usd
-                              ? "bg-accent/15 border-accent/40"
-                              : "bg-background/40 border-white/[0.05] hover:border-white/[0.12]",
-                          )}
-                          data-testid={`tier-${opt.usd}`}
-                        >
-                          <div className="min-w-0">
-                            <div
-                              className={cn(
-                                "text-sm font-bold",
-                                goalUsd === opt.usd
-                                  ? "text-accent"
-                                  : "text-foreground",
-                              )}
-                            >
-                              {opt.label}
+                    <div className="grid grid-cols-2 gap-2">
+                      {selectedType.goalOptions.map((opt) => {
+                        const active = goalUsd === opt.usd;
+                        const ServiceIcon = serviceBrand(selectedType.key).icon;
+                        return (
+                          <button
+                            key={opt.usd}
+                            type="button"
+                            onClick={() => setGoalUsd(opt.usd)}
+                            aria-pressed={active}
+                            className={cn(
+                              "rounded-xl px-3 py-3 text-left transition-all border min-h-[92px] flex flex-col justify-between gap-1.5",
+                              active
+                                ? cn(
+                                    "bg-background/60",
+                                    brand?.accentBorder,
+                                    brand?.accentGlow,
+                                  )
+                                : "bg-background/40 border-white/[0.05] hover:border-white/[0.18] active:scale-[0.99]",
+                            )}
+                            data-testid={`tier-${opt.usd}`}
+                          >
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <ServiceIcon
+                                className={cn(
+                                  "w-4 h-4 shrink-0",
+                                  active ? brand?.accentText : "text-muted-foreground",
+                                )}
+                              />
+                              <span
+                                className={cn(
+                                  "text-sm font-bold truncate",
+                                  active && brand?.accentText,
+                                )}
+                              >
+                                {opt.label}
+                              </span>
                             </div>
-                            <div className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
-                              {opt.description}
+                            <div>
+                              <div className="text-base font-bold tabular-nums leading-none">
+                                {fmtUsd(opt.usd)}
+                              </div>
+                              <div className="text-[10px] text-muted-foreground tabular-nums mt-0.5">
+                                {usdToSol(opt.usd) != null
+                                  ? `≈ ${usdToSol(opt.usd)!.toFixed(2)} SOL`
+                                  : "goal locks at launch"}
+                              </div>
                             </div>
-                          </div>
-                          <div className="text-right shrink-0">
-                            <div
-                              className={cn(
-                                "text-sm font-bold tabular-nums",
-                                goalUsd === opt.usd && "text-accent",
-                              )}
-                            >
-                              {fmtUsd(opt.usd)}
-                            </div>
-                            <div className="text-[10px] text-muted-foreground tabular-nums">
-                              {usdToSol(opt.usd) != null
-                                ? `≈ ${usdToSol(opt.usd)!.toFixed(2)} SOL`
-                                : "goal"}
-                            </div>
-                          </div>
-                        </button>
-                      ))}
+                          </button>
+                        );
+                      })}
                     </div>
                   ))}
+
+                {/* Live selection summary — updates instantly, no scrolling. */}
+                {selectedType && selectedType.goalOptions.length > 1 && (
+                  <div
+                    className={cn(
+                      "rounded-lg px-3 py-2 flex items-center justify-between gap-2 text-xs transition-colors",
+                      goalUsd != null
+                        ? cn(brand?.accentBg, "text-foreground")
+                        : "bg-background/40 text-muted-foreground",
+                    )}
+                  >
+                    {goalUsd != null ? (
+                      <>
+                        <span className="font-semibold truncate">
+                          {selectedType.goalOptions.find((o) => o.usd === goalUsd)?.label}
+                        </span>
+                        <span className="tabular-nums shrink-0 font-bold">
+                          {fmtUsd(goalUsd)}
+                          {selectedSol != null && (
+                            <span className="text-muted-foreground font-medium">
+                              {" "}≈ {selectedSol.toFixed(2)} SOL
+                            </span>
+                          )}
+                        </span>
+                      </>
+                    ) : (
+                      <span>Select a tier to see the goal in SOL.</span>
+                    )}
+                  </div>
+                )}
                 {typeKey === "dex_listing" && (
                   <p className="text-[11px] text-accent/90 leading-relaxed">
                     Bundle tiers fund the listing and boost together so
@@ -1261,14 +1555,144 @@ function CreateCampaignDialog() {
                 </ul>
               </div>
 
-              <Button
-                className="w-full"
-                disabled={create.isPending || !canSubmit}
-                onClick={() => create.mutate()}
-                data-testid="button-submit-campaign"
-              >
-                {create.isPending ? "Creating…" : "Create & Continue to Launch"}
-              </Button>
+              {/* Duplicate detection (Part 5): an active campaign already
+                  exists for this token + service. */}
+              {duplicate && !dupAcknowledged && (
+                <div
+                  className="rounded-xl border border-warning/30 bg-warning/10 p-4 space-y-3"
+                  data-testid="duplicate-warning"
+                >
+                  {/* Existing campaign shown first — it is the default path. */}
+                  <div className="rounded-lg bg-background/50 border border-white/[0.08] p-3 space-y-2.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <TokenIdentity c={duplicate} size={40} />
+                      <StateBadge state={duplicate.state} />
+                    </div>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span
+                        className={cn(
+                          "inline-flex items-center gap-1 rounded-full border border-transparent px-2 py-0.5 text-[10px] font-semibold",
+                          providerForTypeKey(duplicate.typeKey).accentBg,
+                          providerForTypeKey(duplicate.typeKey).accentText,
+                        )}
+                      >
+                        {providerForTypeKey(duplicate.typeKey).name}{" "}
+                        {serviceBrand(duplicate.typeKey).short}
+                      </span>
+                      {duplicate.goalLabel && (
+                        <span className="inline-flex items-center rounded-full bg-surface-2 border border-white/[0.06] px-2 py-0.5 text-[10px] font-semibold">
+                          {duplicate.goalLabel}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-muted-foreground">Funding</span>
+                      <span className="text-muted-foreground tabular-nums">
+                        {Math.min(
+                          100,
+                          Math.round(duplicate.accounting.progress * 100),
+                        )}
+                        % funded
+                      </span>
+                    </div>
+                    <ProgressBar progress={duplicate.accounting.progress} />
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-[11px] text-muted-foreground">
+                      <span>
+                        Raised{" "}
+                        <span className="text-foreground font-medium tabular-nums">
+                          {duplicate.goalUsd != null
+                            ? fmtUsd(
+                                duplicate.goalUsd *
+                                  Math.min(1, duplicate.accounting.progress),
+                              )
+                            : `${fmtSol(duplicate.accounting.depositedLamports)} SOL`}
+                        </span>
+                      </span>
+                      <span className="text-right">
+                        Remaining{" "}
+                        <span className="text-foreground font-medium tabular-nums">
+                          {duplicate.goalUsd != null
+                            ? fmtUsd(
+                                Math.max(
+                                  0,
+                                  duplicate.goalUsd *
+                                    (1 -
+                                      Math.min(
+                                        1,
+                                        duplicate.accounting.progress,
+                                      )),
+                                ),
+                              )
+                            : "—"}
+                        </span>
+                      </span>
+                      <span>
+                        {duplicate.accounting.contributorCount} contributor
+                        {duplicate.accounting.contributorCount === 1 ? "" : "s"}
+                      </span>
+                      <span className="text-right">
+                        Ends{" "}
+                        <span className="text-foreground font-medium">
+                          {timeLeft(duplicate.deadlineAt)}
+                        </span>
+                      </span>
+                      <span className="col-span-2 truncate">
+                        by{" "}
+                        <span className="text-foreground font-medium">
+                          {duplicate.creator.username
+                            ? `@${duplicate.creator.username}`
+                            : "Anonymous"}
+                        </span>
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-warning shrink-0 mt-0.5" />
+                    <div className="text-[12px] leading-relaxed">
+                      <span className="font-semibold text-warning">
+                        This campaign already exists.
+                      </span>{" "}
+                      Contributing to the existing campaign keeps all funding in
+                      one place. Creating a duplicate splits contributors.
+                    </div>
+                  </div>
+
+                  <Button
+                    className="w-full"
+                    onClick={() => {
+                      const id = duplicate.publicId;
+                      setOpen(false);
+                      reset();
+                      navigate(`/campaigns/${id}`);
+                    }}
+                    data-testid="button-contribute-instead"
+                  >
+                    Contribute to Existing Campaign
+                  </Button>
+                  <button
+                    type="button"
+                    className="w-full text-center text-[11px] text-muted-foreground hover:text-foreground transition-colors py-1"
+                    onClick={() => setDupAcknowledged(true)}
+                    data-testid="button-create-separate"
+                  >
+                    Create New Campaign Anyway
+                  </button>
+                </div>
+              )}
+
+              {!(duplicate && !dupAcknowledged) && (
+                <Button
+                  className="w-full"
+                  disabled={create.isPending || !canSubmit}
+                  onClick={() => create.mutate()}
+                  data-testid="button-submit-campaign"
+                >
+                  {create.isPending
+                    ? "Creating…"
+                    : "Create & Continue to Launch"}
+                </Button>
+              )}
               <p className="text-[11px] text-muted-foreground leading-relaxed text-center">
                 Next you will send a small opening contribution. Your campaign
                 becomes public only after that transaction confirms. Campaign
@@ -1374,33 +1798,127 @@ function CreateCampaignDialog() {
                 </div>
               )}
 
-              {openingSig && (
-                <div className="rounded-lg bg-surface-2 border border-white/[0.05] p-2.5 text-[11px] text-muted-foreground leading-relaxed break-all">
-                  Opening transaction sent: {openingSig}. If verification did not
-                  complete, use Verify &amp; Launch to retry safely without
-                  sending again.
-                </div>
-              )}
+              {/* Live activation progress (Part 8) */}
+              {(activate.isPending || activateStage === "timeout") &&
+                activateStage !== "idle" && (
+                  <div className="rounded-xl border border-white/[0.06] bg-surface-2 p-3.5 space-y-2.5">
+                    <div className="flex items-center gap-2 text-[12px] font-semibold">
+                      <CircleCheck className="w-4 h-4 text-success shrink-0" />
+                      Campaign created
+                    </div>
+                    <div className="h-px bg-white/[0.06]" />
+                    {ACTIVATE_STEPS.map((s) => {
+                      const order = ACTIVATE_STEPS.findIndex(
+                        (x) => x.key === s.key,
+                      );
+                      const current = ACTIVATE_STEPS.findIndex(
+                        (x) => x.key === activateStage,
+                      );
+                      const done =
+                        current > order ||
+                        (activateStage === "timeout" && s.key !== "confirming");
+                      const active = activateStage === s.key;
+                      return (
+                        <div key={s.key} className="flex items-start gap-2.5">
+                          {done ? (
+                            <CircleCheck className="w-4 h-4 text-success shrink-0 mt-0.5" />
+                          ) : active ? (
+                            <Loader2 className="w-4 h-4 text-accent animate-spin shrink-0 mt-0.5" />
+                          ) : (
+                            <div className="w-4 h-4 rounded-full border border-white/15 shrink-0 mt-0.5" />
+                          )}
+                          <div className="text-[12px]">
+                            <div
+                              className={cn(
+                                done
+                                  ? "text-muted-foreground"
+                                  : active
+                                    ? "font-semibold"
+                                    : "text-muted-foreground/60",
+                              )}
+                            >
+                              {s.label}
+                            </div>
+                            {active && s.hint && (
+                              <div className="text-[11px] text-muted-foreground/70 mt-0.5">
+                                {s.hint}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
 
-              <Button
-                className="w-full"
-                disabled={
-                  activate.isPending || !publicKey || !ackRefund || !ackGoalLock
-                }
-                onClick={() => activate.mutate()}
-                data-testid="button-activate-campaign"
-              >
-                {activate.isPending
-                  ? "Launching…"
-                  : openingSig
-                    ? "Verify & Launch"
-                    : "Sign Opening Contribution & Launch"}
-              </Button>
-              <p className="text-[11px] text-muted-foreground leading-relaxed text-center">
-                Your campaign is saved and stays private until the opening
-                contribution confirms. You can safely retry if the wallet
-                popup closes.
-              </p>
+              {activateStage === "timeout" ? (
+                <div className="rounded-xl border border-warning/25 bg-warning/10 p-3.5 space-y-2.5">
+                  <div className="flex items-start gap-2 text-[12px] text-warning leading-relaxed">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <span>
+                      Confirmation is taking longer than expected. Your
+                      transaction may still confirm on-chain — we will not ask
+                      you to send funds again.
+                    </span>
+                  </div>
+                  {openingSig && (
+                    <a
+                      href={`https://solscan.io/tx/${openingSig}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-[11px] text-accent hover:underline break-all"
+                    >
+                      <ExternalLink className="w-3 h-3 shrink-0" />
+                      Verify transaction on Solscan
+                    </a>
+                  )}
+                  <Button
+                    className="w-full"
+                    disabled={activate.isPending}
+                    onClick={() => activate.mutate()}
+                    data-testid="button-retry-activation"
+                  >
+                    {activate.isPending ? "Verifying…" : "Retry verification"}
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  {openingSig && (
+                    <div className="rounded-lg bg-surface-2 border border-white/[0.05] p-2.5 text-[11px] text-muted-foreground leading-relaxed break-all">
+                      Opening transaction sent: {openingSig}. If verification did
+                      not complete, use Verify &amp; Launch to retry safely
+                      without sending again.
+                    </div>
+                  )}
+                  <Button
+                    className="w-full"
+                    disabled={
+                      activate.isPending ||
+                      !publicKey ||
+                      !ackRefund ||
+                      !ackGoalLock
+                    }
+                    onClick={() => activate.mutate()}
+                    data-testid="button-activate-campaign"
+                  >
+                    {activate.isPending ? (
+                      <span className="inline-flex items-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Please wait…
+                      </span>
+                    ) : openingSig ? (
+                      "Verify & Launch"
+                    ) : (
+                      "Sign Opening Contribution & Launch"
+                    )}
+                  </Button>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed text-center">
+                    Your campaign is saved and stays private until the opening
+                    contribution confirms. You can safely retry if the wallet
+                    popup closes.
+                  </p>
+                </>
+              )}
             </div>
           </>
         )}
@@ -1615,7 +2133,15 @@ export function CampaignDetailPage() {
     }
     setContributing(true);
     try {
-      const tx = new Transaction().add(
+      // Explicit fee payer + recent blockhash → clean Phantom preview and a
+      // deterministic confirmation window (Part 7).
+      const { blockhash, lastValidBlockHeight } =
+        await connection.getLatestBlockhash("finalized");
+      const tx = new Transaction({
+        feePayer: publicKey,
+        blockhash,
+        lastValidBlockHeight,
+      }).add(
         SystemProgram.transfer({
           fromPubkey: publicKey,
           toPubkey: new PublicKey(c.escrowAddress),
@@ -1623,7 +2149,10 @@ export function CampaignDetailPage() {
         }),
       );
       const signature = await sendTransaction(tx, connection);
-      await connection.confirmTransaction(signature, "confirmed");
+      await connection.confirmTransaction(
+        { signature, blockhash, lastValidBlockHeight },
+        "confirmed",
+      );
       // Submit the signature for on-chain verification and exactly-once credit.
       // The backend verifies destination + amount and never trusts the client.
       try {
@@ -1678,6 +2207,10 @@ export function CampaignDetailPage() {
     );
   }
 
+  const detailBrand = providerForTypeKey(c.typeKey);
+  const detailService = serviceBrand(c.typeKey);
+  const DetailServiceIcon = detailService.icon;
+
   return (
     <div className="flex flex-col gap-6 px-4 md:px-6 py-6 sm:py-10 w-full max-w-4xl mx-auto">
       <div className="space-y-2">
@@ -1689,51 +2222,64 @@ export function CampaignDetailPage() {
           Campaigns
         </Link>
         <div className="flex items-start justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-3 min-w-0">
-            {c.imageUrl ? (
-              <img
-                src={c.imageUrl}
-                alt=""
-                className="w-12 h-12 rounded-full object-cover shrink-0"
-              />
-            ) : (
-              <div className="w-12 h-12 rounded-full bg-accent/12 flex items-center justify-center shrink-0">
-                <Megaphone className="w-5 h-5 text-accent" />
-              </div>
-            )}
-            <div className="min-w-0">
-              <h1 className="text-2xl md:text-3xl font-bold tracking-tight truncate">
-                {c.title}
-              </h1>
-              <div className="text-xs text-muted-foreground flex items-center gap-1.5 flex-wrap">
-                <span>
-                  {TYPE_LABELS[c.typeKey] ?? c.typeKey}
-                  {c.creator.username ? (
-                    <>
-                      {" · by "}
-                      <Link
-                        href={`/u/${c.creator.username}`}
-                        className="text-accent hover:underline"
-                      >
-                        @{c.creator.username}
-                      </Link>
-                    </>
-                  ) : null}
-                </span>
-                {c.goalLabel && (
-                  <span className="inline-flex items-center rounded-full bg-accent/10 text-accent px-2 py-0.5 text-[10px] font-bold">
-                    {c.goalLabel}
-                    {c.goalUsd != null ? ` · ${fmtUsd(c.goalUsd)}` : ""}
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
+          <TokenIdentity c={c} size={56} large />
           <div className="flex items-center gap-2">
             <TrustBadge score={c.trustScore} />
             <StateBadge state={c.state} />
           </div>
         </div>
+        {/* Provider-branded service + tier + campaign title (secondary). */}
+        <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+          <span
+            className={cn(
+              "inline-flex items-center gap-1 rounded-full border border-transparent px-2.5 py-1 text-[11px] font-semibold",
+              detailBrand.accentBg,
+              detailBrand.accentText,
+            )}
+          >
+            <DetailServiceIcon className="w-3 h-3" />
+            {detailBrand.name} {detailService.short}
+          </span>
+          {c.goalLabel && (
+            <span className="inline-flex items-center rounded-full bg-surface-2 border border-white/[0.06] px-2.5 py-1 text-[11px] font-semibold">
+              {c.goalLabel}
+              {c.goalUsd != null ? ` · ${fmtUsd(c.goalUsd)}` : ""}
+            </span>
+          )}
+        </div>
+        <div className="text-sm text-foreground/90 font-medium pt-0.5">
+          {c.title}
+          {c.creator.username ? (
+            <>
+              {" · by "}
+              <Link
+                href={`/u/${c.creator.username}`}
+                className="text-accent hover:underline font-normal"
+              >
+                @{c.creator.username}
+              </Link>
+            </>
+          ) : null}
+        </div>
+      </div>
+
+      {/* Escrow clarity (Part 4): token contract vs escrow wallet, never mixed. */}
+      <div className="grid sm:grid-cols-2 gap-2.5">
+        {c.tokenMint && (
+          <AddressRow
+            label="Token Contract"
+            address={c.tokenMint}
+            variant="token"
+            tooltip="The token's contract address — do not send funds here."
+          />
+        )}
+        <AddressRow
+          label="Escrow Wallet"
+          address={c.escrowAddress}
+          variant="escrow"
+          sublabel="Funding Wallet"
+          tooltip="This is the only wallet used for campaign funding."
+        />
       </div>
 
       {c.state === "funded" && (
@@ -1817,8 +2363,11 @@ export function CampaignDetailPage() {
 
             <div className="rounded-lg bg-background/40 border border-white/[0.05] p-3 space-y-1.5 text-[11px] text-muted-foreground leading-relaxed">
               <div className="flex items-center justify-between gap-2">
-                <span>Destination</span>
-                <span className="font-mono text-foreground/80 truncate max-w-[160px]">
+                <span className="inline-flex items-center gap-1 text-emerald-300">
+                  <Shield className="w-3 h-3" />
+                  Escrow wallet (only destination)
+                </span>
+                <span className="font-mono text-foreground/80 truncate max-w-[150px]">
                   {c.escrowAddress.slice(0, 6)}…{c.escrowAddress.slice(-6)}
                 </span>
               </div>

@@ -1,87 +1,64 @@
 import { useState, type ComponentType } from "react";
 import { cn } from "@/lib/utils";
+import {
+  providerForTypeKey,
+  serviceBrand,
+  type ProviderBrand,
+} from "@/lib/provider-branding";
 
 /**
- * Maps a campaign type key to the third-party provider that actually fulfills
- * the service. Logos are served from locally stored, optimized assets in
- * /public/provider-logos (never hotlinked). If the official brand asset is not
- * present, the component gracefully falls back to the BlackPebble gold service
- * icon so nothing breaks and no lookalike/trademarked art is invented.
+ * Renders a provider's official logo when a locally stored, licensed asset
+ * loads; otherwise falls back to the service icon on the provider accent. All
+ * provider identity comes from lib/provider-branding.ts — this component only
+ * handles presentation. No lookalike/trademarked art is ever fabricated.
  */
-export interface CampaignProvider {
-  key: "dexscreener" | "dextools" | "community";
-  label: string;
-  /** Public path to the local logo asset, or null for the community icon. */
-  logo: string | null;
-}
 
-export function providerForType(typeKey: string): CampaignProvider {
-  if (typeKey.startsWith("dextools")) {
-    return {
-      key: "dextools",
-      label: "DEXTools",
-      logo: "/provider-logos/dextools.svg",
-    };
-  }
-  if (typeKey.startsWith("dex_") || typeKey === "dex_listing") {
-    return {
-      key: "dexscreener",
-      label: "DEX Screener",
-      logo: "/provider-logos/dexscreener.svg",
-    };
-  }
-  return { key: "community", label: "Community", logo: null };
-}
-
-/** Standard third-party disclosure shown near provider-branded services. */
-export function providerDisclosure(label: string): string {
-  return `Third-party service fulfilled through ${label}. BlackPebble is not affiliated with or endorsed by the provider.`;
+/** Standard third-party disclosure for a campaign type. */
+export function providerDisclosure(typeKey: string): string {
+  return providerForTypeKey(typeKey).disclaimer;
 }
 
 interface ProviderLogoProps {
   typeKey: string;
-  /** BlackPebble gold service icon used as the fallback / secondary mark. */
-  fallbackIcon: ComponentType<{ className?: string }>;
+  /** Optional explicit fallback icon; defaults to the service icon. */
+  fallbackIcon?: ComponentType<{ className?: string }>;
   className?: string;
   /** Size in px for the rendered logo box. */
   size?: number;
 }
 
-/**
- * Renders the provider's official logo when the local asset loads, otherwise
- * the BlackPebble gold service icon. The provider logo makes the source
- * immediately recognizable; the gold icon remains the graceful fallback.
- */
 export function ProviderLogo({
   typeKey,
-  fallbackIcon: Fallback,
+  fallbackIcon,
   className,
   size = 32,
 }: ProviderLogoProps) {
-  const provider = providerForType(typeKey);
+  const provider: ProviderBrand = providerForTypeKey(typeKey);
+  const service = serviceBrand(typeKey);
+  const Fallback = fallbackIcon ?? service.icon;
   const [errored, setErrored] = useState(false);
+  const showLogo = provider.logo && provider.logoLicensed && !errored;
 
-  const box = (
+  return (
     <div
       className={cn(
-        "rounded-full bg-accent/12 flex items-center justify-center shrink-0 overflow-hidden",
+        "rounded-full flex items-center justify-center shrink-0 overflow-hidden",
+        provider.accentBg,
         className,
       )}
       style={{ width: size, height: size }}
     >
-      {provider.logo && !errored ? (
+      {showLogo ? (
         <img
-          src={provider.logo}
-          alt={`${provider.label} logo`}
+          src={provider.logo!}
+          alt={`${provider.name} logo`}
           className="w-full h-full object-contain p-1"
           loading="lazy"
           onError={() => setErrored(true)}
         />
       ) : (
-        <Fallback className="w-1/2 h-1/2 text-accent" />
+        <Fallback className={cn("w-1/2 h-1/2", provider.accentText)} />
       )}
     </div>
   );
-
-  return box;
 }
