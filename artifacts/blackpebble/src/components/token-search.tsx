@@ -232,7 +232,7 @@ export function TokenSearch({
   return (
     <div ref={containerRef} className={cn("relative w-full", className)}>
       <div className="relative group">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-muted-foreground group-focus-within:text-accent transition-colors pointer-events-none" />
+        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-muted-foreground group-focus-within:text-accent transition-colors pointer-events-none" />
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -246,10 +246,10 @@ export function TokenSearch({
           onKeyDown={onKeyDown}
           placeholder={placeholder}
           data-testid="input-token-search"
-          className="w-full h-12 rounded-2xl bg-surface-2 border border-border pl-11 pr-10 text-sm text-foreground placeholder:text-muted-foreground shadow-card focus:outline-none focus:border-accent/50 focus:ring-2 focus:ring-ring/30 focus:bg-surface-3 transition-all"
+          className="w-full h-11 rounded-xl bg-surface-2 border border-border pl-10 pr-9 text-sm text-foreground placeholder:text-muted-foreground shadow-card focus:outline-none focus:border-accent/50 focus:ring-2 focus:ring-ring/30 focus:bg-surface-3 transition-all"
         />
         {loading && (
-          <Loader2 className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground animate-spin" />
+          <Loader2 className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground animate-spin" />
         )}
       </div>
 

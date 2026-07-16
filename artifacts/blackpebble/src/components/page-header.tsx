@@ -33,25 +33,27 @@ export function PageHeader({
   className?: string;
 }) {
   return (
-    <div className={cn("mb-6", className)}>
+    <div className={cn("mb-4 sm:mb-5", className)}>
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-3 mb-1">
+          <div className="flex items-center gap-2.5">
             {Icon && (
               <Icon className="w-7 h-7 text-accent flex-shrink-0" aria-hidden />
             )}
-            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight">
+            {/* Design System v2: professional app title (~30px mobile, ~36px
+                desktop), one consistent weight everywhere. */}
+            <h1 className="text-3xl md:text-[2.25rem] font-bold tracking-tight leading-tight">
               {title}
             </h1>
           </div>
           {meta && (
-            <div className="flex items-center gap-2 min-w-0 mb-1.5">{meta}</div>
+            <div className="flex items-center gap-2 min-w-0 mt-1.5">{meta}</div>
           )}
           {subtitle && (
-            <div className="text-sm text-muted-foreground">{subtitle}</div>
+            <div className="text-sm text-muted-foreground mt-1">{subtitle}</div>
           )}
         </div>
-        {actions && <div className="flex-shrink-0 pt-1">{actions}</div>}
+        {actions && <div className="flex-shrink-0 pt-0.5">{actions}</div>}
       </div>
     </div>
   );
