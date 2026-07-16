@@ -195,11 +195,22 @@ describe("reconcileHoldings", () => {
     expect(holdings[0]!.tokenAmount).toBeCloseTo(100);
   });
 
-  it("passes FIFO through unverified when balances are unavailable", () => {
-    const { holdings, verified, droppedMints } = reconcileHoldings(fifo, null);
+  it("returns NO current positions when balances are unavailable (never ghosts)", () => {
+    const { holdings, verified, droppedMints, diagnostics } = reconcileHoldings(
+      fifo,
+      null,
+    );
     expect(verified).toBe(false);
     expect(droppedMints).toBe(0);
-    expect(holdings).toHaveLength(3);
+    // Unverified must never present trade-history holdings as current positions.
+    expect(holdings).toHaveLength(0);
+    // Every mint is still reported in diagnostics, flagged unverified.
+    expect(diagnostics).toHaveLength(3);
+    for (const d of diagnostics) {
+      expect(d.liveQuantity).toBeNull();
+      expect(d.reconciledQuantity).toBe(0);
+      expect(d.includedInOpenPositions).toBe(false);
+    }
   });
 });
 
