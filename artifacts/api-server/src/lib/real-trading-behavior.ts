@@ -4,7 +4,7 @@
  */
 
 import type { ClosedRoundTrip, ParsedSwapEvent, TradingMetrics } from "./real-trading-math.js";
-import { stdDev } from "./real-trading-math.js";
+import { classifyOutcome, stdDev } from "./real-trading-math.js";
 
 export interface BehaviorInsight {
   key: string;
@@ -33,11 +33,52 @@ interface RuleContext {
 
 type BehaviorRule = (ctx: RuleContext) => BehaviorInsight | null;
 
+/**
+ * A buy smaller than this in SOL is treated as dust for BEHAVIOR detection: it
+ * must never, on its own, trigger a behavioral conclusion (FOMO, averaging
+ * down, conviction, sizing). Trades this small are dominated by fees, slippage,
+ * and rounding, so their swap-implied prices are not trustworthy signals.
+ */
+export const MIN_MEANINGFUL_BUY_SOL = 0.01;
+
+/**
+ * Minimum consecutive-buy price decline (10%) required to count as "averaging
+ * down". A strict `<` would fire on sub-percent moves that are really slippage
+ * or fee noise, not a deliberate decision.
+ */
+const AVERAGE_DOWN_DROP = 0.1;
+
+/**
+ * Minimum consecutive-buy price rise (15%) within a short window to count as a
+ * FOMO re-entry. Absorbs slippage/fee noise on the swap-implied price.
+ */
+const FOMO_RISE = 0.15;
+
+/** Meaningful buys per mint: dust-filtered and de-duplicated by signature. */
+function meaningfulBuysByMint(
+  events: ParsedSwapEvent[],
+): Map<string, ParsedSwapEvent[]> {
+  const seen = new Set<string>();
+  const byMint = new Map<string, ParsedSwapEvent[]>();
+  for (const e of events) {
+    if (e.side !== "buy") continue;
+    if (e.solAmount < MIN_MEANINGFUL_BUY_SOL) continue; // dust
+    if (e.tokenAmount <= 0) continue;
+    const id = `${e.signature}:${e.tokenMint}`;
+    if (seen.has(id)) continue; // duplicate tx
+    seen.add(id);
+    const list = byMint.get(e.tokenMint) ?? [];
+    list.push(e);
+    byMint.set(e.tokenMint, list);
+  }
+  return byMint;
+}
+
 const RULES: BehaviorRule[] = [
   // Early seller: winners closed faster than losers.
   (ctx) => {
-    const wins = ctx.closed.filter((c) => c.realizedPnlSol > 0);
-    const losses = ctx.closed.filter((c) => c.realizedPnlSol <= 0);
+    const wins = ctx.closed.filter((c) => classifyOutcome(c.realizedPnlSol) === "win");
+    const losses = ctx.closed.filter((c) => classifyOutcome(c.realizedPnlSol) === "loss");
     if (wins.length < 3 || losses.length < 2) return null;
     const avgWinHold =
       wins.reduce((s, c) => s + c.holdDurationSec, 0) / wins.length;
@@ -59,14 +100,11 @@ const RULES: BehaviorRule[] = [
     return null;
   },
 
-  // Averages down: multiple buys on same token while declining.
+  // Averages down: multiple meaningful buys on same token at materially lower
+  // prices. Dust and duplicate txs are excluded, and a 10% decline threshold
+  // absorbs slippage/fee noise so sub-percent moves never trigger it.
   (ctx) => {
-    const buysByMint = new Map<string, ParsedSwapEvent[]>();
-    for (const e of ctx.events.filter((x) => x.side === "buy")) {
-      const list = buysByMint.get(e.tokenMint) ?? [];
-      list.push(e);
-      buysByMint.set(e.tokenMint, list);
-    }
+    const buysByMint = meaningfulBuysByMint(ctx.events);
     let avgDownCount = 0;
     let mintsConsidered = 0;
     for (const buys of buysByMint.values()) {
@@ -77,7 +115,7 @@ const RULES: BehaviorRule[] = [
       for (let i = 1; i < sorted.length; i++) {
         const prevPrice = sorted[i - 1]!.solAmount / sorted[i - 1]!.tokenAmount;
         const curPrice = sorted[i]!.solAmount / sorted[i]!.tokenAmount;
-        if (curPrice >= prevPrice) {
+        if (curPrice >= prevPrice * (1 - AVERAGE_DOWN_DROP)) {
           declining = false;
           break;
         }
@@ -100,10 +138,10 @@ const RULES: BehaviorRule[] = [
     return null;
   },
 
-  // Good position sizing: low variance in buy sizes.
+  // Good position sizing: low variance in buy sizes (dust excluded).
   (ctx) => {
     const sizes = ctx.events
-      .filter((e) => e.side === "buy")
+      .filter((e) => e.side === "buy" && e.solAmount >= MIN_MEANINGFUL_BUY_SOL)
       .map((e) => e.solAmount);
     if (sizes.length < 5) return null;
     const mean = sizes.reduce((a, b) => a + b, 0) / sizes.length;
@@ -125,10 +163,10 @@ const RULES: BehaviorRule[] = [
     return null;
   },
 
-  // High conviction: large positions relative to average.
+  // High conviction: large positions relative to average (dust excluded).
   (ctx) => {
     const sizes = ctx.events
-      .filter((e) => e.side === "buy")
+      .filter((e) => e.side === "buy" && e.solAmount >= MIN_MEANINGFUL_BUY_SOL)
       .map((e) => e.solAmount);
     if (sizes.length < 3) return null;
     const avg = sizes.reduce((a, b) => a + b, 0) / sizes.length;
@@ -191,8 +229,8 @@ const RULES: BehaviorRule[] = [
 
   // Diamond hands: holds losers much longer than winners.
   (ctx) => {
-    const wins = ctx.closed.filter((c) => c.realizedPnlSol > 0);
-    const losses = ctx.closed.filter((c) => c.realizedPnlSol <= 0);
+    const wins = ctx.closed.filter((c) => classifyOutcome(c.realizedPnlSol) === "win");
+    const losses = ctx.closed.filter((c) => classifyOutcome(c.realizedPnlSol) === "loss");
     if (wins.length < 2 || losses.length < 2) return null;
     const avgWinHold =
       wins.reduce((s, c) => s + c.holdDurationSec, 0) / wins.length;
@@ -217,15 +255,15 @@ const RULES: BehaviorRule[] = [
   // Panic seller: many sells within 1h at a loss.
   (ctx) => {
     const panic = ctx.closed.filter(
-      (c) => c.holdDurationSec < 3600 && c.realizedPnlSol < 0,
+      (c) => c.holdDurationSec < 3600 && classifyOutcome(c.realizedPnlSol) === "loss",
     );
     if (panic.length >= 3 && panic.length / ctx.closed.length > 0.25) {
       return {
         key: "panic_seller",
         category: "weakness",
-        title: "Serial panic seller",
+        title: "Fast exits under pressure",
         description:
-          "A notable share of your losses come from exits within an hour of entry. Pausing before selling may help.",
+          "A notable share of your losses come from exits within an hour of entry. A brief pause before selling may help.",
         severity: "warning",
         confidence: 0.8,
         sampleSize: ctx.closed.length,
@@ -247,20 +285,17 @@ const RULES: BehaviorRule[] = [
         severity: "positive",
         confidence: 0.85,
         sampleSize: ctx.closed.length,
-        evidenceCount: ctx.closed.filter((c) => c.realizedPnlSol > 0).length,
+        evidenceCount: ctx.closed.filter((c) => classifyOutcome(c.realizedPnlSol) === "win").length,
       };
     }
     return null;
   },
 
-  // FOMO: buys clustered after large prior run-up (proxy: rapid rebuys same token).
+  // FOMO: meaningful re-buys of the same token at materially higher prices in a
+  // short window. Dust and duplicate txs are excluded; the 15% rise threshold
+  // absorbs slippage/fee noise on the swap-implied price.
   (ctx) => {
-    const buysByMint = new Map<string, ParsedSwapEvent[]>();
-    for (const e of ctx.events.filter((x) => x.side === "buy")) {
-      const list = buysByMint.get(e.tokenMint) ?? [];
-      list.push(e);
-      buysByMint.set(e.tokenMint, list);
-    }
+    const buysByMint = meaningfulBuysByMint(ctx.events);
     let fomoCount = 0;
     let rebuyPairs = 0;
     for (const buys of buysByMint.values()) {
@@ -270,7 +305,7 @@ const RULES: BehaviorRule[] = [
         const gap = sorted[i]!.blockTime - sorted[i - 1]!.blockTime;
         const prevPrice = sorted[i - 1]!.solAmount / sorted[i - 1]!.tokenAmount;
         const curPrice = sorted[i]!.solAmount / sorted[i]!.tokenAmount;
-        if (gap < 3600 && curPrice > prevPrice * 1.15) fomoCount++;
+        if (gap < 3600 && curPrice > prevPrice * (1 + FOMO_RISE)) fomoCount++;
       }
     }
     if (fomoCount >= 2) {
