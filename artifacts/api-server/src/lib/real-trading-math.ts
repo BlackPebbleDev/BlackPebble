@@ -5,6 +5,23 @@
 
 export const WSOL_MINT = "So11111111111111111111111111111111111111112";
 
+/**
+ * Trusted stablecoin mints (USDC, USDT). These are quote/settlement assets, not
+ * speculative tokens: a SOL<->USDC swap is parking, not a trade. They are never
+ * treated as a traded position, so they cannot appear as winners, losers,
+ * conviction positions, diversification assets, or unique-token counts. A
+ * genuine intentional stablecoin position would still be visible in raw balances
+ * but is intentionally excluded from speculative trade analysis.
+ */
+export const STABLECOIN_MINTS = new Set<string>([
+  "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", // USDC
+  "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB", // USDT
+]);
+
+export function isStablecoinMint(mint: string): boolean {
+  return STABLECOIN_MINTS.has(mint);
+}
+
 export interface ParsedSwapEvent {
   signature: string;
   blockTime: number;
@@ -68,11 +85,50 @@ export interface TradingMetrics {
   tradingFrequencyPerWeek: number;
   uniqueTokensTraded: number;
   holdingConcentration: number;
+  /**
+   * Legacy field kept for backward compatibility. Now equals
+   * `historicalTradingBreadth` so no consumer conflates historical breadth with
+   * current diversification. Prefer the two explicit fields below.
+   */
   diversificationScore: number;
+  /**
+   * Descriptive: how many distinct assets the wallet has traded over time
+   * (0-100). This is turnover/variety, NOT automatically good, and is NOT the
+   * current portfolio's diversification.
+   */
+  historicalTradingBreadth: number;
+  /**
+   * Current portfolio diversification (0-100) computed ONLY from verified
+   * current open positions. Null when there are no priced current positions
+   * (e.g. holdings unverified or fully closed) - never inferred from sold
+   * positions.
+   */
+  currentDiversification: number | null;
+  /** Completed round trips whose realized P&L is within the breakeven band. */
+  breakevenCount: number;
   avgMarketCapPurchasedUsd: number | null;
+  /** Median USD market cap of buys, when true market cap was available. */
+  medianMarketCapPurchasedUsd: number | null;
+  /** True when `avgMarketCapPurchasedUsd` is an FDV fallback, not market cap. */
+  avgMarketCapIsFdv: boolean;
   walletAgeDays: number;
   firstTradeAt: number | null;
   lastTradeAt: number | null;
+}
+
+/**
+ * Realized P&L within +/- this SOL band is a BREAKEVEN, not a win or a loss.
+ * Prevents rounding noise (fees, slippage dust) from being scored as a loss.
+ */
+export const BREAKEVEN_EPSILON_SOL = 1e-4;
+
+export type RoundTripOutcome = "win" | "loss" | "breakeven";
+
+/** Classify a round trip by realized P&L using the breakeven epsilon band. */
+export function classifyOutcome(realizedPnlSol: number): RoundTripOutcome {
+  if (realizedPnlSol > BREAKEVEN_EPSILON_SOL) return "win";
+  if (realizedPnlSol < -BREAKEVEN_EPSILON_SOL) return "loss";
+  return "breakeven";
 }
 
 
@@ -110,7 +166,8 @@ export interface SwapParseOptions {
 export type SwapSkipReason =
   | "no_token_delta"
   | "token_to_token_no_sol"
-  | "zero_sol_leg";
+  | "zero_sol_leg"
+  | "stablecoin_quote";
 
 export interface SwapParseResult {
   event: ParsedSwapEvent | null;
@@ -163,10 +220,12 @@ export function classifySwap(
       ? opts!.feeLamports!
       : 0;
 
-  // Non-WSOL token legs.
+  // Non-WSOL, non-stablecoin token legs (the speculative positions).
   const netTokenByMint = new Map<string, number>();
   // WSOL token legs count toward the SOL settlement, not as a position.
   let netWsol = 0;
+  // Trusted stablecoins are quote/settlement assets, never positions.
+  let hadStableLeg = false;
   for (const t of tokenTransfers) {
     const mint = t.mint;
     if (!mint) continue;
@@ -178,6 +237,10 @@ export function classifySwap(
     if (delta === 0) continue;
     if (mint === WSOL_MINT) {
       netWsol += delta; // uiAmount is already denominated in SOL
+      continue;
+    }
+    if (isStablecoinMint(mint)) {
+      hadStableLeg = true; // quote asset - not a speculative position
       continue;
     }
     netTokenByMint.set(mint, (netTokenByMint.get(mint) ?? 0) + delta);
@@ -213,6 +276,16 @@ export function classifySwap(
   const base = { rentStrippedLamports, feeLamports };
 
   if (!bestMint || bestDelta === 0) {
+    // A stablecoin-only leg (e.g. SOL<->USDC parking) is a quote settlement,
+    // not a speculative trade - report it distinctly so it is never a position.
+    if (hadStableLeg) {
+      return {
+        event: null,
+        skipReason: "stablecoin_quote",
+        tokenToToken: false,
+        ...base,
+      };
+    }
     return { event: null, skipReason: "no_token_delta", tokenToToken: false, ...base };
   }
 
@@ -485,8 +558,14 @@ export function computeMetrics(
 ): TradingMetrics {
   const buys = events.filter((e) => e.side === "buy");
   const sells = events.filter((e) => e.side === "sell");
-  const wins = closed.filter((c) => c.realizedPnlSol > 0);
-  const losses = closed.filter((c) => c.realizedPnlSol <= 0);
+  // Breakeven-aware classification: tiny rounding noise is NOT a loss.
+  const wins = closed.filter((c) => classifyOutcome(c.realizedPnlSol) === "win");
+  const losses = closed.filter(
+    (c) => classifyOutcome(c.realizedPnlSol) === "loss",
+  );
+  const breakevens = closed.filter(
+    (c) => classifyOutcome(c.realizedPnlSol) === "breakeven",
+  );
 
   const realizedPnlSol = closed.reduce((s, c) => s + c.realizedPnlSol, 0);
   const unrealizedPnlSol = openPositions.reduce(
@@ -495,10 +574,7 @@ export function computeMetrics(
   );
 
   const holdDurations = closed.map((c) => c.holdDurationSec).sort((a, b) => a - b);
-  const medianHold =
-    holdDurations.length === 0
-      ? 0
-      : holdDurations[Math.floor(holdDurations.length / 2)]!;
+  const medianHold = median(holdDurations);
 
   const buySizes = buys.map((b) => b.solAmount);
   const avgPositionSize =
@@ -529,12 +605,18 @@ export function computeMetrics(
     }, 0);
   }
 
-  const diversificationScore = Math.round(
-    Math.min(100, uniqueTokens * 8 + (1 - holdingConcentration) * 40),
-  );
+  // Historical trading breadth: distinct assets traded over time (descriptive).
+  const historicalTradingBreadth = Math.round(Math.min(100, uniqueTokens * 8));
+  // Current diversification: derived ONLY from verified current holdings. Null
+  // when there are no priced current positions so it can never be inferred from
+  // sold/old positions.
+  const currentDiversification =
+    values.length > 0 ? Math.round((1 - holdingConcentration) * 100) : null;
 
-  const winRate = closed.length > 0 ? wins.length / closed.length : 0;
-  const lossRate = closed.length > 0 ? losses.length / closed.length : 0;
+  // Win rate excludes breakevens from the denominator: wins / (wins + losses).
+  const decisive = wins.length + losses.length;
+  const winRate = decisive > 0 ? wins.length / decisive : 0;
+  const lossRate = decisive > 0 ? losses.length / decisive : 0;
 
   const gainAmounts = wins.map((w) => w.realizedPnlSol);
   const lossAmounts = losses.map((l) => Math.abs(l.realizedPnlSol));
@@ -568,12 +650,26 @@ export function computeMetrics(
     tradingFrequencyPerWeek,
     uniqueTokensTraded: uniqueTokens,
     holdingConcentration,
-    diversificationScore,
+    diversificationScore: historicalTradingBreadth,
+    historicalTradingBreadth,
+    currentDiversification,
+    breakevenCount: breakevens.length,
     avgMarketCapPurchasedUsd: null,
+    medianMarketCapPurchasedUsd: null,
+    avgMarketCapIsFdv: false,
     walletAgeDays,
     firstTradeAt,
     lastTradeAt,
   };
+}
+
+/** True median: averages the two middle values for even-sized datasets. */
+export function median(sortedOrUnsorted: number[]): number {
+  const n = sortedOrUnsorted.length;
+  if (n === 0) return 0;
+  const s = [...sortedOrUnsorted].sort((a, b) => a - b);
+  const mid = Math.floor(n / 2);
+  return n % 2 === 1 ? s[mid]! : (s[mid - 1]! + s[mid]!) / 2;
 }
 
 export function stdDev(values: number[]): number {

@@ -1966,8 +1966,19 @@ export interface RealTradingMetrics {
   tradingFrequencyPerWeek: number;
   uniqueTokensTraded: number;
   holdingConcentration: number;
+  /** Legacy; equals historicalTradingBreadth. Prefer the two fields below. */
   diversificationScore: number;
+  /** Descriptive historical breadth of distinct assets traded (0-100). */
+  historicalTradingBreadth?: number;
+  /** Current-holdings diversification (0-100); null when no priced positions. */
+  currentDiversification?: number | null;
+  /** Completed round trips within the breakeven band (not wins or losses). */
+  breakevenCount?: number;
   avgMarketCapPurchasedUsd: number | null;
+  /** Median USD market cap of buys, when true market cap was available. */
+  medianMarketCapPurchasedUsd?: number | null;
+  /** True when avgMarketCapPurchasedUsd is an FDV fallback, not market cap. */
+  avgMarketCapIsFdv?: boolean;
   walletAgeDays: number;
   firstTradeAt: number | null;
   lastTradeAt: number | null;
