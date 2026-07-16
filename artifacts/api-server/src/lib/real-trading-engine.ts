@@ -22,6 +22,7 @@ import { getSolPriceUsd } from "./prices.js";
 import { logger } from "./logger.js";
 import { mintBadgesAsync } from "./badge-mint.js";
 import { analyzeBehavior } from "./real-trading-behavior.js";
+import { resolveInsightContradictions } from "./real-trading-contradictions.js";
 import {
   computeWalletHealth,
   type WalletHealthBreakdown,
@@ -131,7 +132,7 @@ const TRAIT_LABELS: Record<string, string> = {
   patience: "Patient holds",
   conviction: "Conviction bets",
   risk_tolerance: "Risk appetite",
-  diversification: "Diversified",
+  diversification: "Trades many tokens",
   discipline: "Disciplined",
   recovery: "Resilient",
   rotation: "Narrative rotation",
@@ -475,6 +476,9 @@ export async function runAnalysis(
   await enrichAvgMarketCap(events, metrics);
 
   const behavior = analyzeBehavior(events, closed, metrics);
+  // Never surface two opposite statements about the same trader (e.g. "diamond
+  // hands" alongside "sells winners early"). Keep the strongest-evidence one.
+  behavior.insights = resolveInsightContradictions(behavior.insights);
   const health = computeWalletHealth(openPositions, metrics);
   const computedAt = Math.floor(Date.now() / 1000);
 
