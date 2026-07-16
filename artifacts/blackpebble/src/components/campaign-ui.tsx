@@ -25,11 +25,11 @@ const STATE_META: Record<CampaignState, { label: string; className: string }> = 
   awaiting_initial_contribution: { label: "Awaiting launch", className: WARNING },
   live: { label: "Live", className: ACCENT },
   funded: { label: "Funded", className: SUCCESS },
-  awaiting_execution: { label: "Queued", className: ACCENT },
+  awaiting_execution: { label: "Awaiting exec", className: ACCENT },
   executing: { label: "Executing", className: ACCENT },
   completed: { label: "Completed", className: SUCCESS },
   expired: { label: "Expired", className: WARNING },
-  execution_failed: { label: "Execution failed", className: DANGER },
+  execution_failed: { label: "Exec failed", className: DANGER },
   refunding: { label: "Refunding", className: WARNING },
   refunded: { label: "Refunded", className: MUTED },
   frozen: { label: "Frozen", className: DANGER },
@@ -185,9 +185,9 @@ export function TokenIdentity({
 }
 
 /**
- * Creator row: avatar + @username + trust. Links to the BlackPebble profile
- * (`/u/:handle`), never X. Uses programmatic navigation + stopPropagation so
- * it works when nested inside the campaign card <Link>.
+ * Creator row: avatar + @username + trust as one tight information group.
+ * Trust sits immediately beside the handle (not pushed to the far right).
+ * Links to the BlackPebble profile (`/u/:handle`), never X.
  */
 export function CreatorRow({
   creator,
@@ -214,10 +214,10 @@ export function CreatorRow({
         "_200x200$1$2",
       )}
       alt=""
-      className="w-6 h-6 rounded-full object-cover shrink-0 ring-1 ring-white/10"
+      className="w-7 h-7 rounded-full object-cover shrink-0 ring-1 ring-white/10"
     />
   ) : (
-    <div className="w-6 h-6 rounded-full bg-surface-2 border border-white/[0.08] flex items-center justify-center text-[10px] font-semibold text-muted-foreground shrink-0">
+    <div className="w-7 h-7 rounded-full bg-surface-2 border border-white/[0.08] flex items-center justify-center text-[10px] font-semibold text-muted-foreground shrink-0">
       {initials}
     </div>
   );
@@ -225,20 +225,22 @@ export function CreatorRow({
   const inner = (
     <>
       {avatar}
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0">
         <div className="text-[10px] uppercase tracking-wide text-muted-foreground/80 leading-none">
           Created by
         </div>
-        <div className="text-[12px] font-semibold text-foreground/90 truncate leading-tight mt-0.5 group-hover/creator:text-accent transition-colors">
-          {label}
+        <div className="flex items-center gap-1.5 mt-0.5 min-w-0">
+          <span className="text-[12px] font-semibold text-foreground/90 truncate leading-tight group-hover/creator:text-accent transition-colors">
+            {label}
+          </span>
+          <TrustBadge score={trustScore} />
         </div>
       </div>
-      <TrustBadge score={trustScore} />
     </>
   );
 
   const rowClass =
-    "group/creator flex items-center gap-2 min-w-0 rounded-lg -mx-1 px-1 py-0.5";
+    "group/creator inline-flex items-center gap-2.5 max-w-full rounded-lg -mx-1 px-1 py-0.5";
 
   if (profileHref) {
     const go = (e: MouseEvent | KeyboardEvent) => {
@@ -413,16 +415,21 @@ export function ProgressBar({ progress }: { progress: number }) {
 }
 
 /**
- * Campaign title as metadata — user-generated, never auto-rewritten, never
- * competing with the token name.
+ * Campaign title as intentional metadata — user-generated, never auto-rewritten,
+ * never competing with the token name. Small label + clearer title.
  */
 export function CampaignTitle({ title }: { title: string }) {
   return (
-    <div
-      className="text-[13px] font-medium text-foreground/75 leading-snug line-clamp-2 break-words"
-      title={title}
-    >
-      {title}
+    <div className="min-w-0 space-y-1">
+      <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/80 leading-none">
+        Campaign Title
+      </div>
+      <div
+        className="text-sm font-semibold text-foreground/85 leading-snug line-clamp-2 break-words"
+        title={title}
+      >
+        {title}
+      </div>
     </div>
   );
 }

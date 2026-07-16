@@ -250,7 +250,7 @@ function CampaignCard({ c }: { c: CampaignSummary }) {
       {/* Soft accent wash behind the header for depth */}
       <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-accent/[0.07] to-transparent" />
 
-      <div className="relative p-5 pb-5 flex flex-col gap-3.5 flex-1">
+      <div className="relative p-5 flex flex-col gap-3.5 flex-1">
         {/* Token identity leads — identical to detail (shared TokenIdentity). */}
         <div className="flex items-start justify-between gap-2">
           <TokenIdentity c={c} size={48} />
@@ -282,7 +282,7 @@ function CampaignCard({ c }: { c: CampaignSummary }) {
         </div>
 
         {/* Title (metadata) → creator (avatar + trust) */}
-        <div className="min-w-0 space-y-2">
+        <div className="min-w-0 space-y-2.5">
           <CampaignTitle title={c.title} />
           <CreatorRow creator={c.creator} trustScore={c.trustScore} />
         </div>
@@ -290,7 +290,7 @@ function CampaignCard({ c }: { c: CampaignSummary }) {
         <div className="space-y-2">
           <div className="flex items-baseline justify-between">
             <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Funding Progress
+              Goal Progress
             </span>
             {neededUsd != null && c.state === "live" && (
               <span className="text-[11px] font-semibold text-muted-foreground tabular-nums">
@@ -317,7 +317,7 @@ function CampaignCard({ c }: { c: CampaignSummary }) {
                 pct >= 100 ? "text-success" : "text-accent",
               )}
             >
-              {pct}%
+              {pct}% complete
             </span>
           </div>
         </div>
@@ -2113,7 +2113,7 @@ export function CampaignDetailPage() {
           )}
         </div>
         {/* Title (metadata) → creator (avatar + trust) — same hierarchy as card */}
-        <div className="space-y-2 pt-1">
+        <div className="space-y-2.5 pt-1">
           <CampaignTitle title={c.title} />
           <CreatorRow creator={c.creator} trustScore={c.trustScore} />
         </div>
@@ -2167,7 +2167,7 @@ export function CampaignDetailPage() {
         <div className="space-y-2.5">
           <div className="flex items-baseline justify-between">
             <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Funding Progress
+              Goal Progress
             </span>
             <span
               className={cn(
@@ -2175,7 +2175,7 @@ export function CampaignDetailPage() {
                 (acct?.progress ?? 0) >= 1 ? "text-success" : "text-accent",
               )}
             >
-              {Math.min(100, Math.round((acct?.progress ?? 0) * 100))}%
+              {Math.min(100, Math.round((acct?.progress ?? 0) * 100))}% complete
             </span>
           </div>
           <ProgressBar progress={acct?.progress ?? 0} />
@@ -2197,21 +2197,25 @@ export function CampaignDetailPage() {
             label="Raised"
             value={`${fmtSol(acct?.depositedLamports ?? 0)} SOL`}
             hint="Total SOL deposited into this campaign's escrow, verified on-chain."
+            className="h-full"
           />
           <MetricTile
-            label="Remaining in Escrow"
+            label="Goal Remaining"
             value={`${fmtSol(acct?.remainingLamports ?? 0)} SOL`}
-            hint="What the escrow currently holds after payouts, refunds, and fees. Must always match the on-chain balance - mismatches freeze the campaign."
+            hint="SOL still held in escrow after payouts, refunds, and fees. Must match the on-chain balance — mismatches freeze the campaign."
+            className="h-full"
           />
           <MetricTile
             label="Contributors"
             value={acct?.contributorCount ?? 0}
             hint="Unique wallets that have contributed."
+            className="h-full"
           />
           <MetricTile
             label="Paid / Refunded"
             value={`${fmtSol((acct?.paidOutLamports ?? 0) + (acct?.refundedLamports ?? 0))} SOL`}
-            hint="SOL that has left escrow as fulfillment payouts or contributor refunds - every transfer carries a transaction signature in the ledger below."
+            hint="SOL that has left escrow as fulfillment payouts or contributor refunds — every transfer is signed in the ledger."
+            className="h-full"
           />
         </div>
 
@@ -2341,7 +2345,7 @@ export function CampaignDetailPage() {
         )}
       </div>
 
-      {/* Transparency: every campaign answers the six trust questions. */}
+      {/* Transparency: every campaign answers the core trust questions. */}
       <div className="rounded-2xl bg-card shadow-card p-5 md:p-6 space-y-3">
         <h2 className="font-bold flex items-center gap-2">
           <ShieldCheck className="w-4 h-4 text-accent" />
@@ -2352,28 +2356,28 @@ export function CampaignDetailPage() {
             {
               q: "What is being funded?",
               a: c.goalLabel
-                ? `${TYPE_LABELS[c.typeKey] ?? c.typeKey} - "${c.goalLabel}"${c.goalUsd != null ? ` (${fmtUsd(c.goalUsd)})` : ""}, a real third-party service. Funding never buys tokens or creates trading activity.`
-                : "A real third-party service priced at the campaign goal. Funding never buys tokens or creates trading activity.",
+                ? `${TYPE_LABELS[c.typeKey] ?? c.typeKey} — "${c.goalLabel}"${c.goalUsd != null ? ` (${fmtUsd(c.goalUsd)})` : ""}. Funds pay for a third-party service, never tokens or trading activity.`
+                : "A third-party service priced at the campaign goal. Funds never buy tokens or create trading activity.",
             },
             {
               q: "Who fulfills it?",
-              a: "BlackPebble purchases the service directly from the provider once the goal is reached - the creator never touches the funds.",
+              a: "BlackPebble buys the service from the provider once the goal is reached. The creator never holds the funds.",
             },
             {
               q: "What proves completion?",
-              a: "A fulfillment note and proof link are posted on this page, and the payout appears in the ledger below with an on-chain signature.",
+              a: "A fulfillment note and proof link are posted here, and the payout appears in the ledger with an on-chain signature.",
             },
             {
-              q: "What if it fails?",
-              a: "If the goal isn't reached by the deadline, the campaign fails and no service is purchased. Escrow never pays out on a failed campaign.",
+              q: "What if the goal is missed?",
+              a: "The campaign fails and no service is purchased. Escrow never pays out on a failed campaign.",
             },
             {
               q: "What gets refunded?",
-              a: "Failed campaigns refund every contribution in full to the sending wallet automatically (network fee only). Overfunding on successful campaigns is returned pro-rata.",
+              a: "Failed campaigns refund every contribution in full to the sending wallet (network fee only). Overfunding on success is returned pro-rata.",
             },
             {
               q: "Are there platform fees?",
-              a: "Only on success: a small platform fee (included in the tier price) is taken from the goal at settlement and recorded in the ledger. Failed campaigns pay no fee.",
+              a: "Only on success — a small fee included in the tier price is taken at settlement and recorded in the ledger. Failed campaigns pay no fee.",
             },
           ].map((item) => (
             <div
@@ -2389,15 +2393,14 @@ export function CampaignDetailPage() {
         </div>
       </div>
 
-      <CampaignTimeline publicId={publicId} />
+      <CampaignTimeline campaign={c} publicId={publicId} />
 
       <div className="rounded-2xl bg-card shadow-card p-5 md:p-6 space-y-3">
-        <div className="flex items-center justify-between">
-          <div>
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
             <h2 className="font-bold">Escrow Ledger</h2>
             <p className="text-xs text-muted-foreground">
-              The complete money trail - append-only, every transfer signed
-              on-chain.
+              Append-only money trail — every transfer signed on-chain.
             </p>
           </div>
           <Button
@@ -2406,6 +2409,7 @@ export function CampaignDetailPage() {
             onClick={() => refresh.mutate()}
             disabled={refresh.isPending}
             data-testid="button-refresh-ledger"
+            className="shrink-0"
           >
             <RefreshCw
               className={cn("w-3.5 h-3.5 mr-1.5", refresh.isPending && "animate-spin")}
@@ -2415,9 +2419,15 @@ export function CampaignDetailPage() {
         </div>
 
         {ledgerRows.length === 0 ? (
-          <p className="text-xs text-muted-foreground py-4 text-center">
-            No ledger entries yet - the first contribution starts the trail.
-          </p>
+          <div className="rounded-xl bg-surface-2 border border-white/[0.05] px-4 py-5 text-center space-y-1.5">
+            <div className="text-sm font-medium text-foreground/85">
+              No transactions yet
+            </div>
+            <p className="text-[11px] text-muted-foreground leading-relaxed max-w-sm mx-auto">
+              The first contribution will appear here with the wallet, amount,
+              timestamp, and transaction signature.
+            </p>
+          </div>
         ) : (
           <div className="space-y-1.5">
             {ledgerRows.map((e, i) => (
@@ -2446,41 +2456,140 @@ const TIMELINE_LABELS: Record<string, string> = {
   refunded: "Contributors refunded",
 };
 
+/** Visual lifecycle milestones — future steps stay subdued until state warrants them. */
+const LIFECYCLE_MILESTONES: {
+  key: string;
+  label: string;
+  done: (c: CampaignSummary) => boolean;
+}[] = [
+  {
+    key: "created",
+    label: "Created",
+    done: () => true,
+  },
+  {
+    key: "funding",
+    label: "Funding Started",
+    done: (c) =>
+      c.accounting.depositedLamports > 0 ||
+      ["live", "funded", "awaiting_execution", "executing", "completed", "settled"].includes(
+        c.state,
+      ),
+  },
+  {
+    key: "goal",
+    label: "Goal Reached",
+    done: (c) =>
+      ["funded", "awaiting_execution", "executing", "completed", "settled"].includes(
+        c.state,
+      ),
+  },
+  {
+    key: "purchased",
+    label: "Provider Purchased",
+    done: (c) =>
+      ["executing", "completed", "settled"].includes(c.state) ||
+      !!c.fulfillmentNote,
+  },
+  {
+    key: "completed",
+    label: "Completed",
+    done: (c) => ["completed", "settled"].includes(c.state),
+  },
+];
+
 /**
- * Real, data-backed campaign timeline. Rendered only when the backend has
- * recorded lifecycle events (never a fabricated progression).
+ * Campaign timeline: fixed visual milestones (ready for future events) plus
+ * any additional real backend lifecycle entries. Future milestones are
+ * subdued — no fabricated timestamps or fake backend events.
  */
-function CampaignTimeline({ publicId }: { publicId: string }) {
+function CampaignTimeline({
+  campaign,
+  publicId,
+}: {
+  campaign: CampaignSummary;
+  publicId: string;
+}) {
   const { data } = useQuery({
     queryKey: ["campaign-timeline", publicId],
     queryFn: () => api.campaigns.timeline(publicId),
     refetchInterval: 60_000,
   });
   const entries = data?.timeline ?? [];
-  if (entries.length === 0) return null;
+  const milestones = LIFECYCLE_MILESTONES.map((m) => ({
+    ...m,
+    active: m.done(campaign),
+  }));
+  // Extra real events not covered by the visual milestones (e.g. refunded).
+  const coveredKeys = new Set([
+    "launched",
+    "funded",
+    "completed",
+    "milestone_25",
+    "milestone_50",
+    "milestone_75",
+    "milestone_100",
+  ]);
+  const extras = entries.filter((e) => !coveredKeys.has(e.eventKey));
 
   return (
-    <div className="rounded-2xl bg-card shadow-card p-5 md:p-6 space-y-3">
+    <div className="rounded-2xl bg-card shadow-card p-5 md:p-6 space-y-4">
       <div>
         <h2 className="font-bold">Timeline</h2>
         <p className="text-xs text-muted-foreground">
-          Every recorded lifecycle milestone for this campaign.
+          Campaign lifecycle — current step highlighted, upcoming steps ready.
         </p>
       </div>
-      <ol className="relative space-y-3 pl-5">
-        {entries.map((e, i) => (
-          <li key={i} className="relative">
-            <span className="absolute -left-5 top-1 flex h-3 w-3 items-center justify-center">
-              <span className="h-2 w-2 rounded-full bg-accent" />
+      <ol className="relative space-y-0 pl-1">
+        {milestones.map((m, i) => {
+          const isLast = i === milestones.length - 1 && extras.length === 0;
+          return (
+            <li key={m.key} className="relative flex gap-3 pb-4 last:pb-0">
+              {!isLast && (
+                <span
+                  className={cn(
+                    "absolute left-[7px] top-4 bottom-0 w-px",
+                    m.active ? "bg-accent/40" : "bg-white/[0.08]",
+                  )}
+                />
+              )}
+              <span className="relative z-[1] mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center">
+                {m.active ? (
+                  <CircleCheck className="h-4 w-4 text-accent" />
+                ) : (
+                  <span className="h-3 w-3 rounded-full border border-white/20 bg-surface-2" />
+                )}
+              </span>
+              <div className="min-w-0 pt-px">
+                <div
+                  className={cn(
+                    "text-sm leading-tight",
+                    m.active
+                      ? "font-semibold text-foreground"
+                      : "text-muted-foreground/60",
+                  )}
+                >
+                  {m.label}
+                </div>
+                {!m.active && (
+                  <div className="text-[10px] text-muted-foreground/50 mt-0.5">
+                    Upcoming
+                  </div>
+                )}
+              </div>
+            </li>
+          );
+        })}
+        {extras.map((e, i) => (
+          <li key={`extra-${i}`} className="relative flex gap-3 pb-4 last:pb-0">
+            <span className="relative z-[1] mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center">
+              <CircleCheck className="h-4 w-4 text-accent" />
             </span>
-            {i < entries.length - 1 && (
-              <span className="absolute -left-[15px] top-3 h-full w-px bg-white/10" />
-            )}
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-sm text-foreground">
+            <div className="min-w-0 flex-1 flex items-center justify-between gap-2 pt-px">
+              <span className="text-sm font-semibold text-foreground">
                 {TIMELINE_LABELS[e.eventKey] ?? e.eventKey}
               </span>
-              <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+              <span className="flex items-center gap-1 text-[11px] text-muted-foreground shrink-0">
                 <Clock className="h-3 w-3" />
                 {new Date(e.createdAt * 1000).toLocaleString()}
               </span>

@@ -96,4 +96,32 @@ describe("campaigns UI — token + creator deep links", () => {
     // Floating TrustBadge under escrow was removed from the card footer.
     expect(page).not.toMatch(/mt-auto[\s\S]{0,200}<TrustBadge/);
   });
+
+  it("Trust badge sits beside the handle (not flex-pushed to the far right)", () => {
+    const row = ui.slice(
+      ui.indexOf("export function CreatorRow"),
+      ui.indexOf("export function AddressRow"),
+    );
+    // Handle + Trust share one inline flex row; text column is not flex-1.
+    expect(row).toContain("flex items-center gap-1.5");
+    expect(row).toContain("<TrustBadge score={trustScore} />");
+    expect(row).not.toMatch(/min-w-0 flex-1[\s\S]{0,200}<TrustBadge/);
+  });
+});
+
+describe("campaigns UI — title + progress polish", () => {
+  it("CampaignTitle uses a dedicated metadata label", () => {
+    expect(ui).toContain("Campaign Title");
+  });
+
+  it("progress label is Goal Progress with % complete", () => {
+    expect(page).toContain("Goal Progress");
+    expect(page).toContain("% complete");
+    expect(page).not.toContain("Funding Progress");
+  });
+
+  it("metric uses Goal Remaining (no truncating Remaining in Escrow)", () => {
+    expect(page).toContain('label="Goal Remaining"');
+    expect(page).not.toContain("Remaining in Escrow");
+  });
 });
