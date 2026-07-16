@@ -5,6 +5,10 @@ import {
   isPercentSane,
   pnlColorSafe,
   PERCENT_SANITY_CEILING,
+  fmtSolMag,
+  fmtSignedSolMag,
+  fmtUsdSmart,
+  solMagnitudeBody,
 } from "./format";
 
 describe("fmtPercentSafe - external 24h market change guard", () => {
@@ -69,5 +73,61 @@ describe("fmtPercent (unchanged baseline P&L formatter)", () => {
     // Position/portfolio P&L is intentionally NOT clamped - a paper memecoin
     // can legitimately exceed 1000x (100,000%).
     expect(fmtPercent(250_000)).toBe("+250000.00%");
+  });
+});
+
+// ── Phase 2: mobile financial formatting (magnitude-aware, no ellipsis) ──────
+
+describe("solMagnitudeBody - magnitude-scaled precision", () => {
+  it("compacts thousands with a K suffix", () => {
+    expect(solMagnitudeBody(1240)).toBe("1.24K");
+    expect(solMagnitudeBody(12_300)).toBe("12.3K");
+    expect(solMagnitudeBody(124_000)).toBe("124K");
+  });
+  it("uses fewer decimals as magnitude grows", () => {
+    expect(solMagnitudeBody(123.4)).toBe("123.4");
+    expect(solMagnitudeBody(39.73)).toBe("39.73");
+    expect(solMagnitudeBody(1.234)).toBe("1.234");
+  });
+  it("keeps meaningful precision below 1 without trailing-zero noise", () => {
+    expect(solMagnitudeBody(0.0249)).toBe("0.0249");
+    expect(solMagnitudeBody(0.0017)).toBe("0.0017");
+    expect(solMagnitudeBody(0)).toBe("0");
+  });
+});
+
+describe("fmtSolMag / fmtSignedSolMag", () => {
+  it("never emits a partial/ellipsized number for a large negative P&L", () => {
+    // The production -39.73... clip must render as a complete value.
+    expect(fmtSignedSolMag(-39.73)).toBe("-39.73");
+    expect(fmtSignedSolMag(-39.7312)).toBe("-39.73");
+  });
+  it("signs positive values and shows a bare 0 for zero", () => {
+    expect(fmtSignedSolMag(1.234)).toBe("+1.234");
+    expect(fmtSignedSolMag(0)).toBe("0");
+  });
+  it("handles null / non-finite as an em-dash placeholder", () => {
+    expect(fmtSolMag(null)).toBe("—");
+    expect(fmtSolMag(undefined)).toBe("—");
+    expect(fmtSignedSolMag(NaN)).toBe("—");
+  });
+  it("compacts large positive values", () => {
+    expect(fmtSignedSolMag(1240)).toBe("+1.24K");
+  });
+});
+
+describe("fmtUsdSmart", () => {
+  it("compacts large USD and keeps cents for small USD", () => {
+    expect(fmtUsdSmart(3000)).toBe("$3.0K");
+    expect(fmtUsdSmart(773.17)).toBe("$773.17");
+    expect(fmtUsdSmart(2.03)).toBe("$2.03");
+  });
+  it("shows <$0.01 for a tiny nonzero balance rather than $0.00", () => {
+    expect(fmtUsdSmart(0.004)).toBe("<$0.01");
+    expect(fmtUsdSmart(0)).toBe("$0.00");
+  });
+  it("signs negatives and handles null", () => {
+    expect(fmtUsdSmart(-2.03)).toBe("-$2.03");
+    expect(fmtUsdSmart(null)).toBe("—");
   });
 });

@@ -22,6 +22,7 @@ import { getSolPriceUsd } from "./prices.js";
 import { logger } from "./logger.js";
 import { mintBadgesAsync } from "./badge-mint.js";
 import { analyzeBehavior } from "./real-trading-behavior.js";
+import { resolveInsightContradictions } from "./real-trading-contradictions.js";
 import {
   computeWalletHealth,
   type WalletHealthBreakdown,
@@ -36,6 +37,7 @@ import {
   computeMetrics,
   aggregateLotsByMint,
   reconcileHoldings,
+  median,
   type MintHolding,
   type OpenPosition,
   type ParsedSwapEvent,
@@ -131,7 +133,7 @@ const TRAIT_LABELS: Record<string, string> = {
   patience: "Patient holds",
   conviction: "Conviction bets",
   risk_tolerance: "Risk appetite",
-  diversification: "Diversified",
+  diversification: "Trades many tokens",
   discipline: "Disciplined",
   recovery: "Resilient",
   rotation: "Narrative rotation",
@@ -309,7 +311,16 @@ async function buildPortfolio(
   return reconcilePortfolio(nativeSol ?? 0, inputs);
 }
 
-/** Average market cap of purchased tokens, from one batched lookup. */
+/**
+ * Average market cap of purchased tokens, from one batched lookup.
+ *
+ * Honest MC vs FDV (Phase 2, Part 3B): DexScreener's blended `marketCapUsd`
+ * silently falls back to FDV. We prefer TRUE circulating market cap and only
+ * fall back to FDV when no true market cap is available for any buy - and in
+ * that case we FLAG it (`avgMarketCapIsFdv`) so the UI never calls FDV
+ * "market cap". Also reports the median so a few mega-cap outliers cannot skew
+ * the headline number.
+ */
 async function enrichAvgMarketCap(
   events: ParsedSwapEvent[],
   metrics: TradingMetrics,
@@ -317,16 +328,25 @@ async function enrichAvgMarketCap(
   const buyMints = [...new Set(events.filter((e) => e.side === "buy").map((e) => e.tokenMint))];
   if (buyMints.length === 0) return;
   const stats = await getTokenStatsBatch(buyMints);
-  let sum = 0;
-  let count = 0;
+  const trueMc: number[] = [];
+  const fdv: number[] = [];
   for (const mint of buyMints) {
-    const mc = stats.get(mint)?.marketCapUsd;
-    if (mc != null && mc > 0) {
-      sum += mc;
-      count++;
-    }
+    const s = stats.get(mint);
+    const mc = s?.trueMarketCapUsd;
+    const f = s?.fdvUsd;
+    if (mc != null && mc > 0) trueMc.push(mc);
+    else if (f != null && f > 0) fdv.push(f);
   }
-  if (count > 0) metrics.avgMarketCapPurchasedUsd = sum / count;
+  const avg = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+  if (trueMc.length > 0) {
+    metrics.avgMarketCapPurchasedUsd = avg(trueMc);
+    metrics.medianMarketCapPurchasedUsd = median(trueMc);
+    metrics.avgMarketCapIsFdv = false;
+  } else if (fdv.length > 0) {
+    metrics.avgMarketCapPurchasedUsd = avg(fdv);
+    metrics.medianMarketCapPurchasedUsd = median(fdv);
+    metrics.avgMarketCapIsFdv = true;
+  }
 }
 
 function emptySummary(
@@ -475,6 +495,9 @@ export async function runAnalysis(
   await enrichAvgMarketCap(events, metrics);
 
   const behavior = analyzeBehavior(events, closed, metrics);
+  // Never surface two opposite statements about the same trader (e.g. "diamond
+  // hands" alongside "sells winners early"). Keep the strongest-evidence one.
+  behavior.insights = resolveInsightContradictions(behavior.insights);
   const health = computeWalletHealth(openPositions, metrics);
   const computedAt = Math.floor(Date.now() / 1000);
 

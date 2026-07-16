@@ -18,7 +18,11 @@ import type {
   TradingMetrics,
 } from "./real-trading-math.js";
 import { stdDev } from "./real-trading-math.js";
-import { confidenceTier, type ConfidenceTier } from "./real-trading-confidence.js";
+import {
+  confidenceTier,
+  MIN_SAMPLES_FOR_SCORE,
+  type ConfidenceTier,
+} from "./real-trading-confidence.js";
 
 export const SIGNAL_KEYS = [
   "consistency",
@@ -36,6 +40,44 @@ export const SIGNAL_KEYS = [
 ] as const;
 
 export type SignalKey = (typeof SIGNAL_KEYS)[number];
+
+/**
+ * How to read a signal's direction of "good". A raw +/- delta is meaningless
+ * without this: a lower Risk Appetite can be safer, not worse. Change badges
+ * and colours MUST respect this rather than the sign alone.
+ *  - higher_better: more is better (consistency, discipline, profitability...)
+ *  - descriptive:   a style, not a grade (risk appetite, patience, conviction,
+ *                   activity) - never coloured good/bad.
+ */
+export type SignalDirection = "higher_better" | "descriptive";
+
+/** Which raw inputs each signal is computed from (for honest explainability). */
+export type SignalBasis =
+  | "completed_round_trips"
+  | "swaps"
+  | "buys"
+  | "current_holdings"
+  | "combination";
+
+export interface SignalMeta {
+  direction: SignalDirection;
+  basis: SignalBasis;
+}
+
+export const SIGNAL_META: Record<SignalKey, SignalMeta> = {
+  consistency: { direction: "higher_better", basis: "combination" },
+  risk: { direction: "descriptive", basis: "combination" },
+  discipline: { direction: "higher_better", basis: "completed_round_trips" },
+  timing: { direction: "higher_better", basis: "completed_round_trips" },
+  patience: { direction: "descriptive", basis: "completed_round_trips" },
+  recovery: { direction: "higher_better", basis: "completed_round_trips" },
+  profitability: { direction: "higher_better", basis: "completed_round_trips" },
+  conviction: { direction: "descriptive", basis: "buys" },
+  position_sizing: { direction: "higher_better", basis: "buys" },
+  diversification: { direction: "descriptive", basis: "combination" },
+  drawdown_management: { direction: "higher_better", basis: "completed_round_trips" },
+  activity: { direction: "descriptive", basis: "swaps" },
+};
 
 export interface SignalResult {
   key: SignalKey;
@@ -394,17 +436,47 @@ export function computeSignals(ctx: SignalContext): SignalResult[] {
 
 // ── Persistence + deltas ─────────────────────────────────────────────────────
 
-export interface SignalWithDelta extends SignalResult {
-  /** Value ~30 days ago (closest snapshot), null when no history exists. */
+/**
+ * Auditable comparison behind a 30-day change badge. A badge may only present a
+ * numeric change when `status === "comparable"`; otherwise the prior baseline
+ * is missing or too thin to trust (never treated as a synthetic zero).
+ */
+export interface SignalComparison {
+  status: "comparable" | "new" | "insufficient_prior";
   previousValue: number | null;
-  /** value − previousValue, null when no history exists. */
+  /** Unix seconds of the prior snapshot used (comparison window start). */
+  comparisonStart: number | null;
+  /** Unix seconds of this computation (comparison window end). */
+  comparisonEnd: number;
+  /** currentValue - previousValue, only when comparable. */
+  delta: number | null;
+  /** Evidence count backing the prior reading. */
+  previousSampleSize: number | null;
+}
+
+export interface SignalWithDelta extends SignalResult {
+  /** Value ~30 days ago (closest trustworthy snapshot), null when none. */
+  previousValue: number | null;
+  /** value − previousValue, null unless the comparison is trustworthy. */
   delta30d: number | null;
+  /** Static directionality (how to read good/bad). */
+  direction: SignalDirection;
+  /** Which raw inputs this signal reads. */
+  basis: SignalBasis;
+  /** Full auditable comparison for change-badge integrity. */
+  comparison: SignalComparison;
 }
 
 /**
  * Persist a signal computation run and return each signal alongside its ~30-day
- * delta. Writes are throttled to one row per signal per calendar day so the
- * time series stays compact under frequent refreshes.
+ * comparison. Writes are throttled to one row per signal per calendar day so
+ * the time series stays compact under frequent refreshes.
+ *
+ * Change-badge integrity (Phase 2): a prior reading is only a valid baseline
+ * when it carried enough evidence (>= MIN_SAMPLES_FOR_SCORE). A thin early
+ * reading is NOT treated as a real "0" to subtract from - that produced fake
+ * "improved" badges. Insufficient priors yield status "insufficient_prior";
+ * absent priors yield "new".
  */
 export async function persistSignalsWithDeltas(
   wallet: string,
@@ -415,19 +487,21 @@ export async function persistSignalsWithDeltas(
   const dayStart = computedAt - (computedAt % 86400);
   const monthAgo = computedAt - 30 * 86400;
 
-  // Previous values: closest reading at least ~1 day old, preferring ~30d ago.
+  // Previous readings: closest snapshot at least ~1 day old, preferring ~30d
+  // ago, WITH its evidence count so we can reject thin baselines.
   const history = await dbAll<{
     signal_key: string;
     value: number;
     computed_at: number;
+    sample_size: number | null;
   }>(
-    `SELECT DISTINCT ON (signal_key) signal_key, value, computed_at
+    `SELECT DISTINCT ON (signal_key) signal_key, value, computed_at, sample_size
        FROM real_signal_values
       WHERE wallet = $1 AND computed_at <= $2
       ORDER BY signal_key, ABS(computed_at - $3) ASC`,
     [wallet, dayStart, monthAgo],
   );
-  const prevByKey = new Map(history.map((h) => [h.signal_key, h.value]));
+  const prevByKey = new Map(history.map((h) => [h.signal_key, h]));
 
   for (const s of signals) {
     // One row per signal per day: replace today's reading if it exists.
@@ -437,18 +511,63 @@ export async function persistSignalsWithDeltas(
       [wallet, s.key, dayStart],
     );
     await dbRun(
-      `INSERT INTO real_signal_values (wallet, user_id, signal_key, value, confidence, computed_at)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [wallet, userId, s.key, s.value, s.confidence, computedAt],
+      `INSERT INTO real_signal_values (wallet, user_id, signal_key, value, confidence, sample_size, computed_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [wallet, userId, s.key, s.value, s.confidence, s.sampleSize, computedAt],
     );
   }
 
   return signals.map((s) => {
-    const prev = prevByKey.get(s.key) ?? null;
+    const meta = SIGNAL_META[s.key];
+    const comparison = buildComparison(s, prevByKey.get(s.key), computedAt);
     return {
       ...s,
-      previousValue: prev,
-      delta30d: prev != null ? Math.round(s.value - prev) : null,
+      previousValue: comparison.previousValue,
+      delta30d: comparison.delta,
+      direction: meta.direction,
+      basis: meta.basis,
+      comparison,
     };
   });
+}
+
+/** Decide whether a prior reading is a trustworthy comparison baseline. */
+function buildComparison(
+  current: SignalResult,
+  prev: { value: number; computed_at: number; sample_size: number | null } | undefined,
+  computedAt: number,
+): SignalComparison {
+  if (!prev) {
+    return {
+      status: "new",
+      previousValue: null,
+      comparisonStart: null,
+      comparisonEnd: computedAt,
+      delta: null,
+      previousSampleSize: null,
+    };
+  }
+  const prevSamples = prev.sample_size ?? 0;
+  // A thin prior (or a current reading we cannot yet score) is not comparable.
+  if (
+    prevSamples < MIN_SAMPLES_FOR_SCORE ||
+    current.tier === "insufficient"
+  ) {
+    return {
+      status: "insufficient_prior",
+      previousValue: prev.value,
+      comparisonStart: prev.computed_at,
+      comparisonEnd: computedAt,
+      delta: null,
+      previousSampleSize: prevSamples,
+    };
+  }
+  return {
+    status: "comparable",
+    previousValue: prev.value,
+    comparisonStart: prev.computed_at,
+    comparisonEnd: computedAt,
+    delta: Math.round(current.value - prev.value),
+    previousSampleSize: prevSamples,
+  };
 }

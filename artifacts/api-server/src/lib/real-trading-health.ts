@@ -9,6 +9,7 @@
  * Internal field names keep the walletHealth key for API compatibility.
  */
 
+import { currentConcentrationNote } from "./real-trading-contradictions.js";
 import type { OpenPosition, TradingMetrics } from "./real-trading-math.js";
 
 export interface WalletHealthBreakdown {
@@ -66,12 +67,15 @@ export function computeWalletHealth(
       `${dustPositions} dust positions detected - consider consolidating.`,
     );
   }
-  if (concentrationRisk > 60) {
-    notes.push("High concentration in a few tokens increases portfolio risk.");
-  }
-  if (diversification > 70) {
-    notes.push("Well-diversified across multiple tokens.");
-  }
+  // Concentration vs diversification describe the SAME current holdings, so
+  // exactly one (at most) may appear. Historical trading breadth is NOT phrased
+  // as current diversification here - that was the source of the contradiction
+  // where "well diversified" showed alongside 100% current concentration.
+  const concentrationNote = currentConcentrationNote(
+    concentrationRisk,
+    openPositions.length,
+  );
+  if (concentrationNote) notes.push(concentrationNote);
   if (notes.length === 0) {
     notes.push("Portfolio appears organized with balanced exposure.");
   }

@@ -477,6 +477,14 @@ export interface MarketToken extends SearchResult {
   pairCreatedAt?: number | null;
   /** Server-computed trending score (0..100). Higher = hotter right now. */
   trendingScore?: number | null;
+  /**
+   * True circulating market cap (DexScreener pair.marketCap only), null when the
+   * upstream did not provide one. Kept SEPARATE from `marketCapUsd` (which falls
+   * back to FDV) so callers can avoid silently presenting FDV as market cap.
+   */
+  trueMarketCapUsd?: number | null;
+  /** Fully-diluted valuation (DexScreener pair.fdv only), null when absent. */
+  fdvUsd?: number | null;
 }
 
 function pairToMarketToken(p: DexPair): MarketToken {
@@ -497,6 +505,8 @@ function pairToMarketToken(p: DexPair): MarketToken {
     volume6hUsd: p.volume?.h6 ?? null,
     volume1hUsd: p.volume?.h1 ?? null,
     pairCreatedAt: p.pairCreatedAt ?? null,
+    trueMarketCapUsd: p.marketCap ?? null,
+    fdvUsd: p.fdv ?? null,
   };
 }
 

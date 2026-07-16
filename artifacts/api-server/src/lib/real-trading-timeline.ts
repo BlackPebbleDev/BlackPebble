@@ -44,27 +44,40 @@ const SIGNAL_LABELS: Record<string, string> = {
 
 /** Improvement threshold (points) before a signal change becomes an event. */
 const SIGNAL_EVENT_THRESHOLD = 8;
-/** Per-event-type dedup window (seconds). */
-const DEDUP_WINDOW_SEC = 7 * 86400;
 
 const TRADE_MILESTONES = [100, 250, 500, 1000, 2500, 5000];
 
-async function recentEventExists(
+/** Bucket a score to its tens digit so re-firing at the same level is deduped. */
+function scoreBucket(value: number): number {
+  return Math.floor(value / 10);
+}
+
+/**
+ * Canonical milestone identity. Two runs that describe the SAME milestone
+ * produce the SAME key, so the unique index collapses them to one row - even
+ * under concurrent refreshes. A genuinely new threshold (a higher score bucket,
+ * a new archetype, a new trade milestone) produces a DIFFERENT key and is
+ * allowed through exactly once. Identity intentionally excludes the raw
+ * computation timestamp so repeated refreshes are idempotent.
+ */
+export function milestoneDedupKey(
+  eventType: TimelineEventType,
+  parts: Record<string, string | number>,
+): string {
+  const suffix = Object.keys(parts)
+    .sort()
+    .map((k) => `${k}=${parts[k]}`)
+    .join(":");
+  return suffix ? `${eventType}:${suffix}` : eventType;
+}
+
+async function keyedEventExists(
   wallet: string,
-  eventType: string,
-  metaMatch: string | null,
-  now: number,
+  dedupKey: string,
 ): Promise<boolean> {
   const row = await dbGet<{ id: number }>(
-    metaMatch
-      ? `SELECT id FROM real_timeline_events
-          WHERE wallet = $1 AND event_type = $2 AND created_at > $3
-            AND meta_json LIKE $4 LIMIT 1`
-      : `SELECT id FROM real_timeline_events
-          WHERE wallet = $1 AND event_type = $2 AND created_at > $3 LIMIT 1`,
-    metaMatch
-      ? [wallet, eventType, now - DEDUP_WINDOW_SEC, `%${metaMatch}%`]
-      : [wallet, eventType, now - DEDUP_WINDOW_SEC],
+    `SELECT id FROM real_timeline_events WHERE wallet = $1 AND dedup_key = $2 LIMIT 1`,
+    [wallet, dedupKey],
   );
   return !!row;
 }
@@ -77,11 +90,25 @@ async function emit(
   body: string | null,
   meta: Record<string, unknown> | null,
   now: number,
+  dedupKey: string,
 ): Promise<void> {
+  // ON CONFLICT DO NOTHING is the real guarantee: even if two refreshes race
+  // past the pre-check, the partial unique index keeps exactly one row.
   await dbRun(
-    `INSERT INTO real_timeline_events (wallet, user_id, event_type, title, body, meta_json, visibility, created_at)
-     VALUES ($1, $2, $3, $4, $5, $6, 'public', $7)`,
-    [wallet, userId, eventType, title, body, meta ? JSON.stringify(meta) : null, now],
+    `INSERT INTO real_timeline_events
+       (wallet, user_id, event_type, title, body, meta_json, visibility, created_at, dedup_key)
+     VALUES ($1, $2, $3, $4, $5, $6, 'public', $7, $8)
+     ON CONFLICT (wallet, dedup_key) WHERE dedup_key IS NOT NULL DO NOTHING`,
+    [
+      wallet,
+      userId,
+      eventType,
+      title,
+      body,
+      meta ? JSON.stringify(meta) : null,
+      now,
+      dedupKey,
+    ],
   );
 }
 
@@ -108,23 +135,35 @@ export async function emitTimelineEvents(ctx: TimelineEmitContext): Promise<void
   const { wallet, userId } = ctx;
 
   if (ctx.isFirstAnalysis) {
-    await emit(
-      wallet,
-      userId,
-      "verified_wallet_connected",
-      "Verified wallet connected",
-      "Real trading analysis is now active for this trader.",
-      null,
-      now,
-    );
+    const key = milestoneDedupKey("verified_wallet_connected", {});
+    if (!(await keyedEventExists(wallet, key))) {
+      await emit(
+        wallet,
+        userId,
+        "verified_wallet_connected",
+        "Verified wallet connected",
+        "Real trading analysis is now active for this trader.",
+        null,
+        now,
+        key,
+      );
+    }
   }
 
-  // Signal improvements (meaningful positive deltas only; risk is direction-neutral so skip it).
+  // Signal improvements. Only fire when the change is TRUSTWORTHY: delta30d is
+  // null unless the comparison is "comparable" (valid prior baseline with
+  // enough samples), so synthetic-zero baselines can never mint a milestone.
+  // Risk/Activity are descriptive (no good/bad direction) so they never fire.
   for (const s of ctx.signals) {
-    if (s.key === "risk" || s.key === "activity") continue;
+    if (s.direction === "descriptive") continue;
     if (s.delta30d == null || s.delta30d < SIGNAL_EVENT_THRESHOLD) continue;
     if (s.confidence < 0.4) continue;
-    if (await recentEventExists(wallet, "signal_improved", `"signal":"${s.key}"`, now)) continue;
+    const key = milestoneDedupKey("signal_improved", {
+      signal: s.key,
+      from: s.comparison?.comparisonStart ?? 0,
+      bucket: scoreBucket(s.value),
+    });
+    if (await keyedEventExists(wallet, key)) continue;
     const label = SIGNAL_LABELS[s.key] ?? s.key;
     await emit(
       wallet,
@@ -134,47 +173,56 @@ export async function emitTimelineEvents(ctx: TimelineEmitContext): Promise<void
       `Up ${s.delta30d} points over the last month.`,
       { signal: s.key, delta: s.delta30d, value: s.value },
       now,
+      key,
     );
   }
 
   // Wallet health.
   if (
     ctx.previousWalletHealthScore != null &&
-    ctx.walletHealthScore - ctx.previousWalletHealthScore >= 10 &&
-    !(await recentEventExists(wallet, "wallet_health_improved", null, now))
+    ctx.walletHealthScore - ctx.previousWalletHealthScore >= 10
   ) {
-    await emit(
-      wallet,
-      userId,
-      "wallet_health_improved",
-      "Portfolio quality improved",
-      `Portfolio quality climbed from ${ctx.previousWalletHealthScore} to ${ctx.walletHealthScore}.`,
-      { from: ctx.previousWalletHealthScore, to: ctx.walletHealthScore },
-      now,
-    );
+    const key = milestoneDedupKey("wallet_health_improved", {
+      bucket: scoreBucket(ctx.walletHealthScore),
+    });
+    if (!(await keyedEventExists(wallet, key))) {
+      await emit(
+        wallet,
+        userId,
+        "wallet_health_improved",
+        "Portfolio quality improved",
+        `Portfolio quality climbed from ${ctx.previousWalletHealthScore} to ${ctx.walletHealthScore}.`,
+        { from: ctx.previousWalletHealthScore, to: ctx.walletHealthScore },
+        now,
+        key,
+      );
+    }
   }
 
-  // DNA evolution (archetype change only - trait drift alone is too noisy for the feed).
-  if (
-    ctx.dna.archetypeChanged &&
-    ctx.dna.confidence >= 0.5 &&
-    !(await recentEventExists(wallet, "dna_evolved", null, now))
-  ) {
-    await emit(
-      wallet,
-      userId,
-      "dna_evolved",
-      "Trading DNA evolved",
-      `Now trading as ${ctx.dna.primaryLabel}.`,
-      { archetype: ctx.dna.primaryArchetype, label: ctx.dna.primaryLabel },
-      now,
-    );
+  // DNA evolution (archetype change only - trait drift alone is too noisy).
+  if (ctx.dna.archetypeChanged && ctx.dna.confidence >= 0.5) {
+    const key = milestoneDedupKey("dna_evolved", {
+      archetype: ctx.dna.primaryArchetype,
+    });
+    if (!(await keyedEventExists(wallet, key))) {
+      await emit(
+        wallet,
+        userId,
+        "dna_evolved",
+        "Trading DNA evolved",
+        `Now trading as ${ctx.dna.primaryLabel}.`,
+        { archetype: ctx.dna.primaryArchetype, label: ctx.dna.primaryLabel },
+        now,
+        key,
+      );
+    }
   }
 
   // Trade-count milestones (fires when a threshold is crossed this run).
   for (const m of TRADE_MILESTONES) {
     if (ctx.previousTradeCount < m && ctx.tradeCount >= m) {
-      if (await recentEventExists(wallet, "milestone_trades", `"milestone":${m}`, now)) continue;
+      const key = milestoneDedupKey("milestone_trades", { milestone: m });
+      if (await keyedEventExists(wallet, key)) continue;
       await emit(
         wallet,
         userId,
@@ -183,6 +231,7 @@ export async function emitTimelineEvents(ctx: TimelineEmitContext): Promise<void
         `This trader's on-chain history now spans ${m}+ analyzed swaps.`,
         { milestone: m },
         now,
+        key,
       );
     }
   }
@@ -191,18 +240,23 @@ export async function emitTimelineEvents(ctx: TimelineEmitContext): Promise<void
   if (
     ctx.previousLargestGainSol != null &&
     ctx.largestGainSol > ctx.previousLargestGainSol &&
-    ctx.largestGainSol >= 0.5 &&
-    !(await recentEventExists(wallet, "best_trade_record", null, now))
+    ctx.largestGainSol >= 0.5
   ) {
-    await emit(
-      wallet,
-      userId,
-      "best_trade_record",
-      "New best trade",
-      "A new personal record for a single realized gain.",
-      null,
-      now,
-    );
+    const key = milestoneDedupKey("best_trade_record", {
+      bucket: Math.floor(ctx.largestGainSol),
+    });
+    if (!(await keyedEventExists(wallet, key))) {
+      await emit(
+        wallet,
+        userId,
+        "best_trade_record",
+        "New best trade",
+        "A new personal record for a single realized gain.",
+        null,
+        now,
+        key,
+      );
+    }
   }
 }
 
@@ -211,6 +265,10 @@ export async function getTimeline(
   wallet: string,
   limit = 20,
 ): Promise<TimelineEvent[]> {
+  // Over-fetch so read-time dedup of legacy duplicate rows still leaves a full
+  // page. New rows are guaranteed unique by the DB index; this only collapses
+  // pre-existing duplicates that predate the dedup_key column.
+  const cap = Math.min(Math.max(1, limit), 100);
   const rows = await dbAll<{
     id: number;
     event_type: string;
@@ -218,16 +276,21 @@ export async function getTimeline(
     body: string | null;
     meta_json: string | null;
     created_at: number;
+    dedup_key: string | null;
   }>(
-    `SELECT id, event_type, title, body, meta_json, created_at
+    `SELECT id, event_type, title, body, meta_json, created_at, dedup_key
        FROM real_timeline_events
       WHERE wallet = $1 AND visibility = 'public'
-      ORDER BY created_at DESC
+      ORDER BY created_at ASC
       LIMIT $2`,
-    [wallet, Math.min(Math.max(1, limit), 100)],
+    [wallet, cap * 4],
   );
 
-  return rows.map((r) => {
+  // Collapse duplicates by canonical identity, keeping the EARLIEST occurrence
+  // so a re-emitted card no longer resets its relative timestamp to "1m ago".
+  const seen = new Set<string>();
+  const deduped: TimelineEvent[] = [];
+  for (const r of rows) {
     let meta: Record<string, unknown> | null = null;
     if (r.meta_json) {
       try {
@@ -236,13 +299,20 @@ export async function getTimeline(
         meta = null;
       }
     }
-    return {
+    const identity =
+      r.dedup_key ??
+      `${r.event_type}|${r.title}|${r.body ?? ""}|${r.meta_json ?? ""}`;
+    if (seen.has(identity)) continue;
+    seen.add(identity);
+    deduped.push({
       id: r.id,
       eventType: r.event_type as TimelineEventType,
       title: r.title,
       body: r.body,
       meta,
       createdAt: r.created_at,
-    };
-  });
+    });
+  }
+
+  return deduped.sort((a, b) => b.createdAt - a.createdAt).slice(0, cap);
 }

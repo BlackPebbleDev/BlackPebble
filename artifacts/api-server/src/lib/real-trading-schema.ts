@@ -157,6 +157,12 @@ export function ensureRealTradingSchema(): Promise<void> {
         CREATE INDEX IF NOT EXISTS idx_real_signal_values_lookup
           ON real_signal_values (wallet, signal_key, computed_at DESC)
       `);
+      // Evidence count backing each stored reading, so change badges can refuse
+      // to compare against a low-sample (synthetic) prior baseline.
+      await dbRun(
+        `ALTER TABLE real_signal_values
+           ADD COLUMN IF NOT EXISTS sample_size INTEGER NOT NULL DEFAULT 0`,
+      );
 
       // ── Trader DNA (evolving trait vector, not static labels) ─────────────
       await dbRun(`
@@ -196,6 +202,19 @@ export function ensureRealTradingSchema(): Promise<void> {
         CREATE INDEX IF NOT EXISTS idx_real_timeline_public
           ON real_timeline_events (created_at DESC)
           WHERE visibility = 'public'
+      `);
+      // Canonical milestone identity so the SAME milestone can never be inserted
+      // twice, even under concurrent refreshes. Additive + idempotent: legacy
+      // rows keep dedup_key NULL and the unique index is partial so it only
+      // constrains new, keyed rows.
+      await dbRun(
+        `ALTER TABLE real_timeline_events
+           ADD COLUMN IF NOT EXISTS dedup_key TEXT`,
+      );
+      await dbRun(`
+        CREATE UNIQUE INDEX IF NOT EXISTS real_timeline_dedup
+          ON real_timeline_events (wallet, dedup_key)
+          WHERE dedup_key IS NOT NULL
       `);
 
       await dbRun(`

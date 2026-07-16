@@ -1,4 +1,4 @@
-import { ArrowDownRight, ArrowUpRight } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, Info } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -23,17 +23,54 @@ const TONE_CLASSES: Record<MetricTone, string> = {
   muted: "text-muted-foreground",
 };
 
-/** Small green/red chip used for period-over-period change. */
-function DeltaChip({ delta }: { delta: number }) {
-  if (delta === 0) return null;
-  const up = delta > 0;
+/**
+ * Direction meaning for a change badge. A raw +/- is not enough: for a
+ * lower-is-better signal (e.g. Risk Appetite) a decrease is an improvement, so
+ * the badge must colour by MEANING, not by sign.
+ */
+export type DeltaDirection = "up-good" | "down-good" | "neutral";
+
+export interface DeltaInfo {
+  /** Numeric change (currentScore - previousScore). */
+  value: number;
+  /** How to interpret the sign. */
+  direction?: DeltaDirection;
+  /**
+   * When set, the badge shows this text instead of a number (e.g. "New",
+   * "Low data"). Used when a trustworthy prior comparison does not exist.
+   */
+  label?: string;
+}
+
+/**
+ * Small change chip. Colours by MEANING (direction), not raw sign, and never
+ * overlaps the label (label owns the flexible space, chip is shrink-0).
+ */
+function DeltaChip({ delta }: { delta: DeltaInfo }) {
+  // Non-numeric status badge (New / Low data): neutral, muted styling.
+  if (delta.label) {
+    return (
+      <span className="shrink-0 inline-flex items-center rounded-full bg-white/[0.06] px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
+        {delta.label}
+      </span>
+    );
+  }
+  if (delta.value === 0) return null;
+  const up = delta.value > 0;
+  const dir = delta.direction ?? "up-good";
+  const good =
+    dir === "neutral" ? null : dir === "up-good" ? up : !up;
+  const toneClass =
+    good == null
+      ? "bg-white/[0.06] text-muted-foreground"
+      : good
+        ? "bg-success/10 text-success"
+        : "bg-danger/10 text-danger";
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums",
-        up
-          ? "bg-success/10 text-success"
-          : "bg-danger/10 text-danger",
+        "shrink-0 inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums",
+        toneClass,
       )}
     >
       {up ? (
@@ -41,7 +78,7 @@ function DeltaChip({ delta }: { delta: number }) {
       ) : (
         <ArrowDownRight className="w-3 h-3" />
       )}
-      {Math.abs(delta)}
+      {Math.abs(delta.value)}
     </span>
   );
 }
@@ -51,15 +88,22 @@ export interface MetricTileProps {
   value: React.ReactNode;
   /** Optional secondary line rendered under the value (e.g. USD equivalent). */
   sub?: React.ReactNode;
-  /** Optional signed change chip (e.g. 30-day delta). */
-  delta?: number | null;
+  /**
+   * Optional change chip. Accepts a bare number (legacy: treated as up-good)
+   * or a DeltaInfo for direction-aware, status-aware badges.
+   */
+  delta?: number | DeltaInfo | null;
   tone?: MetricTone;
   size?: "sm" | "md" | "lg";
   /**
    * Explanation of what the metric means. Shown in a BlackPebble-styled
-   * rounded info box on hover (not a browser-native tooltip).
+   * rounded info box on hover (desktop) and always available via the info dot.
    */
   hint?: string;
+  /** Makes the tile a button (mobile-friendly tap target for detail views). */
+  onClick?: () => void;
+  /** Visually marks the tile as opened/active (for accordions). */
+  active?: boolean;
   className?: string;
   "data-testid"?: string;
 }
@@ -67,9 +111,11 @@ export interface MetricTileProps {
 /**
  * BlackPebble's reusable premium metric tile.
  *
- * Designed to sit INSIDE a parent `bg-card` container: the tile surface is one
- * step darker (`surface-2`), with a soft border and a subtle top highlight so
- * groups of tiles read as a clean instrument panel rather than rows of text.
+ * Mobile-first rules (Phase 2):
+ * - Labels never use a destructive ellipsis: they wrap to at most two lines.
+ * - Values never ellipsize: they use tabular numerals and responsive sizing so
+ *   an exact financial number is always readable at 360px.
+ * - Change chips colour by meaning (direction) and never overlap the label.
  */
 export function MetricTile({
   label,
@@ -79,40 +125,81 @@ export function MetricTile({
   tone = "default",
   size = "md",
   hint,
+  onClick,
+  active,
   className,
   "data-testid": testId,
 }: MetricTileProps) {
+  const deltaInfo: DeltaInfo | null =
+    delta == null ? null : typeof delta === "number" ? { value: delta } : delta;
+
+  const clickable = onClick != null;
+
   const tile = (
     <div
       data-testid={testId}
       className={cn(
         "rounded-xl bg-surface-2 border border-white/[0.05]",
         "shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]",
-        "transition-colors hover:border-white/[0.09]",
-        size === "sm" ? "px-3 py-2.5" : size === "lg" ? "px-5 py-4" : "px-4 py-3",
+        "transition-colors",
+        clickable && "cursor-pointer hover:border-white/[0.12] active:border-accent/40",
+        active && "border-accent/40 bg-surface-3",
+        !clickable && "hover:border-white/[0.09]",
+        size === "sm" ? "px-3 py-2.5" : size === "lg" ? "px-4 py-3.5 sm:px-5 sm:py-4" : "px-3.5 py-3",
         className,
       )}
     >
-      <div className="flex items-center justify-between gap-2">
-        <span className="stat-label truncate">{label}</span>
-        {delta != null && <DeltaChip delta={delta} />}
-      </div>
-      <div
-        className={cn(
-          "stat-value mt-1 truncate",
-          size === "sm" ? "text-lg" : size === "lg" ? "text-2xl md:text-3xl" : "text-xl",
-          TONE_CLASSES[tone],
+      <div className="flex items-start justify-between gap-1">
+        {/* Label gets nearly the full tile width so single-word labels like
+            "Consistency" or "Profitability" never clip; only the tiny info dot
+            shares this row. The change chip lives on the value row below. */}
+        <span className="stat-label !whitespace-normal leading-tight line-clamp-2 break-words min-w-0">
+          {label}
+        </span>
+        {(hint || clickable) && (
+          <Info className="w-3 h-3 shrink-0 text-muted-foreground/50" aria-hidden />
         )}
-      >
-        {value}
+      </div>
+      <div className="mt-1 flex items-end justify-between gap-1.5">
+        <div
+          className={cn(
+            "stat-value tabular-nums leading-tight break-words min-w-0",
+            size === "sm"
+              ? "text-base"
+              : size === "lg"
+                ? "text-xl sm:text-2xl md:text-3xl"
+                : "text-lg sm:text-xl",
+            TONE_CLASSES[tone],
+          )}
+        >
+          {value}
+        </div>
+        {deltaInfo != null && (
+          <div className="shrink-0 pb-0.5">
+            <DeltaChip delta={deltaInfo} />
+          </div>
+        )}
       </div>
       {sub != null && (
-        <div className="text-[11px] text-muted-foreground mt-0.5 truncate">
+        <div className="text-[11px] text-muted-foreground mt-0.5 leading-snug line-clamp-2">
           {sub}
         </div>
       )}
     </div>
   );
+
+  if (clickable) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className="text-left w-full"
+        aria-expanded={active ? true : undefined}
+      >
+        {tile}
+      </button>
+    );
+  }
 
   if (!hint) return tile;
 
