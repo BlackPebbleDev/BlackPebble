@@ -115,6 +115,13 @@ export interface RealAnalysisSummary {
    * dropped. Empty when there is nothing to reconcile.
    */
   reconciliation: PositionReconciliation[];
+  /**
+   * Single identifier shared by every current-wallet metric produced in the
+   * same reconciliation run (valuation, exposure, holdings, open positions).
+   * The frontend uses it to guarantee it never mixes surfaces from different
+   * snapshots. Equal to `computedAt`.
+   */
+  reconciliationId: number;
   empty?: boolean;
   message?: string;
 }
@@ -328,9 +335,10 @@ function emptySummary(
   lastSyncedAt: number | null,
 ): RealAnalysisSummary {
   const metrics = computeMetrics([], [], [], 0);
+  const computedAt = Math.floor(Date.now() / 1000);
   return {
     wallet,
-    computedAt: Math.floor(Date.now() / 1000),
+    computedAt,
     syncStatus,
     lastSyncedAt,
     tradeCount: 0,
@@ -349,6 +357,7 @@ function emptySummary(
     historyTruncated: false,
     skippedTokenToToken: 0,
     reconciliation: [],
+    reconciliationId: computedAt,
     empty: true,
     message:
       "No swap history found yet. Connect your wallet and sync to begin analysis.",
@@ -619,6 +628,7 @@ export async function runAnalysis(
     historyTruncated,
     skippedTokenToToken,
     reconciliation,
+    reconciliationId: computedAt,
   };
 }
 
@@ -653,6 +663,14 @@ export async function getCachedAnalysis(
     [wallet],
   );
   if (!row) return null;
+
+  // A snapshot written before the live-balance reconciliation pipeline has no
+  // reconciliation_json. Such snapshots stored raw FIFO leftovers as
+  // "open positions" and could report holdings_verified=true, which is exactly
+  // how a sold/transferred token (e.g. a ghost ANSEM row) survived into the UI.
+  // We refuse to serve legacy snapshots as current data: returning null forces
+  // the caller to recompute a fresh, fully reconciled snapshot.
+  if (row.reconciliation_json == null) return null;
 
   const job = await dbGet<{
     status: string;
@@ -690,9 +708,28 @@ export async function getCachedAnalysis(
     notes: [],
   });
 
-  // Old snapshots predate live-balance reconciliation - surface them as
-  // unverified so the UI prompts a refresh instead of asserting stale data.
   const holdingsVerified = row.holdings_verified ?? false;
+  const reconciliation = parse<PositionReconciliation[]>(
+    row.reconciliation_json,
+    [],
+  );
+
+  // Canonical current-positions rule. A stored position may only be replayed
+  // when (a) holdings were verified against live balances in this snapshot AND
+  // (b) the reconciliation audit for that exact mint says it is a currently
+  // held, non-ghost open position. This makes a stale snapshot physically
+  // incapable of resurrecting a token the wallet no longer holds.
+  const canonicalMints = new Set(
+    reconciliation
+      .filter((r) => r.includedInOpenPositions && !r.droppedAsGhost)
+      .map((r) => r.mint),
+  );
+  const storedPositions = holdingsVerified
+    ? parse<OpenPosition[]>(row.open_positions_json, [])
+    : [];
+  const openPositions = holdingsVerified
+    ? storedPositions.filter((p) => canonicalMints.has(p.tokenMint))
+    : [];
 
   return {
     wallet,
@@ -706,12 +743,7 @@ export async function getCachedAnalysis(
     dna: parse<TraderDna | null>(row.dna_json, null),
     personality,
     walletHealth,
-    // Canonical rule: current open positions are only ever the reconciled set.
-    // If a (possibly old) snapshot is unverified, we never replay its stored
-    // positions - they could be ghosts the wallet no longer holds.
-    openPositions: holdingsVerified
-      ? parse<OpenPosition[]>(row.open_positions_json, [])
-      : [],
+    openPositions,
     holdingsVerified,
     droppedGhostMints: row.dropped_ghost_mints ?? 0,
     insights: parse<BehaviorInsight[]>(row.insights_json, []),
@@ -722,7 +754,8 @@ export async function getCachedAnalysis(
     ),
     historyTruncated: job?.history_truncated ?? false,
     skippedTokenToToken: job?.skipped_token_to_token ?? 0,
-    reconciliation: parse<PositionReconciliation[]>(row.reconciliation_json, []),
+    reconciliation,
+    reconciliationId: row.computed_at,
   };
 }
 
