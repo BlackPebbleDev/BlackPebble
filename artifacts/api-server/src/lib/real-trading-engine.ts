@@ -388,6 +388,21 @@ export async function runAnalysis(
     balances,
   } = await markOpenPositions(wallet, openLots);
 
+  logger.info(
+    {
+      analyzedWallet: wallet,
+      balanceLookup: balances == null ? "FAILED" : `${balances.size} mints`,
+      holdingsVerified,
+      droppedGhostMints,
+      openPositions: openPositions.length,
+      openPositionsValueSol: openPositions.reduce(
+        (s, p) => s + (p.currentValueSol ?? 0),
+        0,
+      ),
+    },
+    "TI holdings reconciled against live balances",
+  );
+
   const portfolio = await buildPortfolio(
     wallet,
     balances,
@@ -396,6 +411,23 @@ export async function runAnalysis(
     logger.warn({ err: e, wallet }, "Portfolio valuation failed");
     return null;
   });
+
+  logger.info(
+    {
+      analyzedWallet: wallet,
+      portfolio:
+        portfolio == null
+          ? "NULL"
+          : {
+              nativeSol: portfolio.nativeSol,
+              totalOnChainSol: portfolio.totalOnChainPortfolioSol,
+              analyzedTradingSol: portfolio.analyzedTradingPortfolioSol,
+              priced: portfolio.counts.priced,
+              unpriced: portfolio.counts.unpriced,
+            },
+    },
+    "TI portfolio reconciled",
+  );
 
   const analysisConfidence = overallAnalysisConfidence(
     closed.length,
