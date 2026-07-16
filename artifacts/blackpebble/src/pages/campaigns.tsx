@@ -290,7 +290,7 @@ function CampaignCard({ c }: { c: CampaignSummary }) {
         <div className="space-y-2">
           <div className="flex items-baseline justify-between">
             <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Goal Progress
+              Funding Progress
             </span>
             {neededUsd != null && c.state === "live" && (
               <span className="text-[11px] font-semibold text-muted-foreground tabular-nums">
@@ -2167,7 +2167,7 @@ export function CampaignDetailPage() {
         <div className="space-y-2.5">
           <div className="flex items-baseline justify-between">
             <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Goal Progress
+              Funding Progress
             </span>
             <span
               className={cn(

@@ -114,10 +114,10 @@ describe("campaigns UI — title + progress polish", () => {
     expect(ui).toContain("Campaign Title");
   });
 
-  it("progress label is Goal Progress with % complete", () => {
-    expect(page).toContain("Goal Progress");
+  it("progress label is Funding Progress with % complete", () => {
+    expect(page).toContain("Funding Progress");
     expect(page).toContain("% complete");
-    expect(page).not.toContain("Funding Progress");
+    expect(page).not.toContain("Goal Progress");
   });
 
   it("metric uses Goal Remaining (no truncating Remaining in Escrow)", () => {
