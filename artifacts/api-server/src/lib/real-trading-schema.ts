@@ -132,6 +132,12 @@ export function ensureRealTradingSchema(): Promise<void> {
         `ALTER TABLE real_analysis_snapshots
            ADD COLUMN IF NOT EXISTS portfolio_json TEXT`,
       );
+      // Per-mint position reconciliation audit (kept / capped / dropped-ghost),
+      // so current holdings are always explainable against live balances.
+      await dbRun(
+        `ALTER TABLE real_analysis_snapshots
+           ADD COLUMN IF NOT EXISTS reconciliation_json TEXT`,
+      );
 
       // ── Signal registry time series (reputation engine foundation) ────────
       // One row per (wallet, signal, computation). History powers profile

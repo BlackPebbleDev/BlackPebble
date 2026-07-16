@@ -1,10 +1,15 @@
 import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useMemo, useEffect } from "react";
+import { useMemo, useEffect, useRef } from "react";
 import {
   ConnectionProvider,
   WalletProvider,
+  useWallet,
 } from "@solana/wallet-adapter-react";
+import {
+  walletExplicitlyDisconnected,
+  setWalletExplicitlyDisconnected,
+} from "@/lib/wallet-connection";
 import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
 import {
   PhantomWalletAdapter,
@@ -132,13 +137,46 @@ function SolanaProviders({ children }: { children: React.ReactNode }) {
     [],
   );
 
+  // Only eager-reconnect when the user has NOT explicitly disconnected. Read
+  // once at mount so a refresh/new tab after an explicit disconnect stays
+  // disconnected until the user deliberately presses Connect again.
+  const autoConnect = useMemo(() => !walletExplicitlyDisconnected(), []);
+
   return (
     <ConnectionProvider endpoint={endpoint}>
-      <WalletProvider wallets={wallets} autoConnect>
-        <WalletModalProvider>{children}</WalletModalProvider>
+      <WalletProvider wallets={wallets} autoConnect={autoConnect}>
+        <WalletModalProvider>
+          <WalletConnectionPolicy />
+          {children}
+        </WalletModalProvider>
       </WalletProvider>
     </ConnectionProvider>
   );
+}
+
+/**
+ * Single centralized wallet-connection policy. Observes connect/disconnect
+ * transitions from ANY surface (header button, dropdown, wallet-side, custom
+ * Disconnect) and records the user's intent:
+ *  - connected -> disconnected  = explicit disconnect  -> persist, block auto-reconnect
+ *  - -> connected               = deliberate reconnect -> clear, resume persistence
+ * This never touches auth, portfolio, or analysis data.
+ */
+function WalletConnectionPolicy(): null {
+  const { connected } = useWallet();
+  const wasConnected = useRef(false);
+
+  useEffect(() => {
+    if (connected) {
+      wasConnected.current = true;
+      setWalletExplicitlyDisconnected(false);
+    } else if (wasConnected.current) {
+      wasConnected.current = false;
+      setWalletExplicitlyDisconnected(true);
+    }
+  }, [connected]);
+
+  return null;
 }
 
 function App() {

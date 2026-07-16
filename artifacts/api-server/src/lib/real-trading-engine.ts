@@ -39,6 +39,7 @@ import {
   type MintHolding,
   type OpenPosition,
   type ParsedSwapEvent,
+  type PositionReconciliation,
   type TradingMetrics,
 } from "./real-trading-math.js";
 import {
@@ -108,6 +109,12 @@ export interface RealAnalysisSummary {
   historyTruncated: boolean;
   /** Token↔token swaps that could not be reconstructed in SOL terms. */
   skippedTokenToToken: number;
+  /**
+   * Per-mint reconciliation audit trail for current positions: what FIFO
+   * believed, what the chain says, and why each mint was kept / capped /
+   * dropped. Empty when there is nothing to reconcile.
+   */
+  reconciliation: PositionReconciliation[];
   empty?: boolean;
   message?: string;
 }
@@ -155,6 +162,8 @@ interface MarkedPositions {
   droppedGhostMints: number;
   /** Raw live balances (all mints) - reused for portfolio valuation. */
   balances: Map<string, number> | null;
+  /** Per-mint reconciliation audit trail (kept/dropped/capped). */
+  reconciliation: PositionReconciliation[];
 }
 
 /**
@@ -176,16 +185,26 @@ async function markOpenPositions(
 
   const fifo = aggregateLotsByMint(openLots);
   if (fifo.length === 0) {
-    return { positions: [], holdingsVerified: true, droppedGhostMints: 0, balances };
+    return {
+      positions: [],
+      holdingsVerified: balances != null,
+      droppedGhostMints: 0,
+      balances,
+      reconciliation: [],
+    };
   }
 
-  const { holdings, verified, droppedMints } = reconcileHoldings(fifo, balances);
+  const { holdings, verified, droppedMints, diagnostics } = reconcileHoldings(
+    fifo,
+    balances,
+  );
   if (holdings.length === 0) {
     return {
       positions: [],
       holdingsVerified: verified,
       droppedGhostMints: droppedMints,
       balances,
+      reconciliation: diagnostics,
     };
   }
 
@@ -205,6 +224,10 @@ async function markOpenPositions(
       stat?.priceSol ??
       (stat?.priceUsd != null && solUsd > 0 ? stat.priceUsd / solUsd : null);
     const currentValueSol = priceSol != null ? h.tokenAmount * priceSol : null;
+    // An open position only counts toward the Analyzed Trading Portfolio when
+    // it is actually priced; unpriced holdings are disclosed, not valued.
+    const diag = diagnostics.find((d) => d.mint === h.tokenMint);
+    if (diag) diag.includedInAnalyzed = priceSol != null && priceSol > 0;
     return {
       tokenMint: h.tokenMint,
       symbol: m?.symbol ?? stat?.symbol ?? null,
@@ -227,6 +250,7 @@ async function markOpenPositions(
     holdingsVerified: verified,
     droppedGhostMints: droppedMints,
     balances,
+    reconciliation: diagnostics,
   };
 }
 
@@ -324,6 +348,7 @@ function emptySummary(
     analysisConfidence: overallAnalysisConfidence(0, 0),
     historyTruncated: false,
     skippedTokenToToken: 0,
+    reconciliation: [],
     empty: true,
     message:
       "No swap history found yet. Connect your wallet and sync to begin analysis.",
@@ -386,6 +411,7 @@ export async function runAnalysis(
     holdingsVerified,
     droppedGhostMints,
     balances,
+    reconciliation,
   } = await markOpenPositions(wallet, openLots);
 
   logger.info(
@@ -471,8 +497,8 @@ export async function runAnalysis(
         wallet_health_score, open_positions_json, insights_json, sync_trade_count,
         wallet_age_days, data_sources, personality_json, wallet_health_json,
         signals_json, dna_json, holdings_verified, dropped_ghost_mints,
-        portfolio_json)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+        portfolio_json, reconciliation_json)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
      ON CONFLICT (wallet) DO UPDATE SET
        user_id = EXCLUDED.user_id,
        computed_at = EXCLUDED.computed_at,
@@ -491,7 +517,8 @@ export async function runAnalysis(
        dna_json = EXCLUDED.dna_json,
        holdings_verified = EXCLUDED.holdings_verified,
        dropped_ghost_mints = EXCLUDED.dropped_ghost_mints,
-       portfolio_json = EXCLUDED.portfolio_json`,
+       portfolio_json = EXCLUDED.portfolio_json,
+       reconciliation_json = EXCLUDED.reconciliation_json`,
     [
       wallet,
       userId,
@@ -514,6 +541,7 @@ export async function runAnalysis(
       holdingsVerified,
       droppedGhostMints,
       portfolio ? JSON.stringify(portfolio) : null,
+      JSON.stringify(reconciliation),
     ],
   );
 
@@ -590,6 +618,7 @@ export async function runAnalysis(
     analysisConfidence,
     historyTruncated,
     skippedTokenToToken,
+    reconciliation,
   };
 }
 
@@ -613,11 +642,13 @@ export async function getCachedAnalysis(
     holdings_verified: boolean | null;
     dropped_ghost_mints: number | null;
     portfolio_json: string | null;
+    reconciliation_json: string | null;
   }>(
     `SELECT computed_at, metrics_json, personality, wallet_health_score,
             open_positions_json, insights_json, sync_trade_count, data_sources,
             personality_json, wallet_health_json, signals_json, dna_json,
-            holdings_verified, dropped_ghost_mints, portfolio_json
+            holdings_verified, dropped_ghost_mints, portfolio_json,
+            reconciliation_json
      FROM real_analysis_snapshots WHERE wallet = $1`,
     [wallet],
   );
@@ -659,6 +690,10 @@ export async function getCachedAnalysis(
     notes: [],
   });
 
+  // Old snapshots predate live-balance reconciliation - surface them as
+  // unverified so the UI prompts a refresh instead of asserting stale data.
+  const holdingsVerified = row.holdings_verified ?? false;
+
   return {
     wallet,
     computedAt: row.computed_at,
@@ -671,10 +706,13 @@ export async function getCachedAnalysis(
     dna: parse<TraderDna | null>(row.dna_json, null),
     personality,
     walletHealth,
-    openPositions: parse<OpenPosition[]>(row.open_positions_json, []),
-    // Old snapshots predate live-balance reconciliation - surface them as
-    // unverified so the UI prompts a refresh instead of asserting stale data.
-    holdingsVerified: row.holdings_verified ?? false,
+    // Canonical rule: current open positions are only ever the reconciled set.
+    // If a (possibly old) snapshot is unverified, we never replay its stored
+    // positions - they could be ghosts the wallet no longer holds.
+    openPositions: holdingsVerified
+      ? parse<OpenPosition[]>(row.open_positions_json, [])
+      : [],
+    holdingsVerified,
     droppedGhostMints: row.dropped_ghost_mints ?? 0,
     insights: parse<BehaviorInsight[]>(row.insights_json, []),
     portfolio: parse<PortfolioReconciliation | null>(row.portfolio_json, null),
@@ -684,6 +722,7 @@ export async function getCachedAnalysis(
     ),
     historyTruncated: job?.history_truncated ?? false,
     skippedTokenToToken: job?.skipped_token_to_token ?? 0,
+    reconciliation: parse<PositionReconciliation[]>(row.reconciliation_json, []),
   };
 }
 
