@@ -9,6 +9,7 @@ import {
   FEE_BPS,
   activateCampaign,
   createCampaign,
+  findActiveCampaignForToken,
   getCampaign,
   getCampaignLedger,
   getCampaignTimeline,
@@ -55,6 +56,27 @@ router.get(
     const state = typeof req.query.state === "string" ? req.query.state : "all";
     const campaigns = await listCampaigns(state);
     return res.json({ campaigns, escrowReady: escrowConfigured() });
+  }),
+);
+
+/**
+ * GET /campaigns/active-for?token=<mint>&type=<typeKey> - duplicate detection.
+ * Returns the existing publicly-active campaign for this token+service (if any)
+ * so the create flow can offer "Contribute instead". MUST precede /campaigns/:id.
+ */
+router.get(
+  "/campaigns/active-for",
+  asyncHandler(async (req, res) => {
+    if (!(await featureEnabled())) {
+      return res.status(404).json({ error: "Feature not enabled" });
+    }
+    const token = typeof req.query.token === "string" ? req.query.token : "";
+    const type = typeof req.query.type === "string" ? req.query.type : "";
+    if (!token || !type) {
+      return res.json({ campaign: null });
+    }
+    const campaign = await findActiveCampaignForToken(token, type);
+    return res.json({ campaign });
   }),
 );
 
