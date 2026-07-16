@@ -1973,11 +1973,20 @@ export interface RealTradingMetrics {
   lastTradeAt: number | null;
 }
 
+export type RealConfidenceTier = "high" | "medium" | "low" | "insufficient";
+
 /** One registry signal (0–100) with a ~30-day delta for progression display. */
 export interface RealTradingSignal {
   key: string;
   value: number;
   confidence: number;
+  /** Number of observations backing this reading. */
+  sampleSize: number;
+  /**
+   * Honesty gate. When "insufficient", `value` must NOT be shown as a precise
+   * number - there is not enough evidence to trust it.
+   */
+  tier: RealConfidenceTier;
   evidence: string[];
   previousValue: number | null;
   delta30d: number | null;
@@ -2028,6 +2037,57 @@ export interface RealTradingInsight {
   description: string;
   severity: "info" | "positive" | "warning";
   confidence: number;
+  /** Population the rule examined. */
+  sampleSize?: number;
+  /** Observations that matched the pattern. */
+  evidenceCount?: number;
+}
+
+export type RealAssetInclusion =
+  | "priced"
+  | "unpriced"
+  | "excluded"
+  | "spam"
+  | "unsupported";
+
+export interface RealAssetValuation {
+  mint: string;
+  symbol: string | null;
+  amount: number;
+  priceSol: number | null;
+  priceSource: string | null;
+  valueSol: number | null;
+  inclusion: RealAssetInclusion;
+  reason: string;
+  includedInOnChain: boolean;
+  includedInAnalyzed: boolean;
+}
+
+export interface RealPortfolioCounts {
+  priced: number;
+  unpriced: number;
+  excluded: number;
+  spam: number;
+  unsupported: number;
+}
+
+/** Truthful wallet valuation (Total On-Chain vs Analyzed Trading portfolio). */
+export interface RealPortfolio {
+  nativeSol: number;
+  assets: RealAssetValuation[];
+  totalOnChainPortfolioSol: number;
+  analyzedTradingPortfolioSol: number;
+  pricedHoldingsValueSol: number;
+  unpricedHoldingsCount: number;
+  counts: RealPortfolioCounts;
+}
+
+export interface RealAnalysisConfidence {
+  tier: RealConfidenceTier;
+  closedTrades: number;
+  totalTrades: number;
+  hasSufficientData: boolean;
+  reason: string;
 }
 
 export interface RealOpenPosition {
@@ -2100,6 +2160,14 @@ export interface RealAnalysisSummary {
   /** Trade-history tokens no longer actually held (excluded from positions). */
   droppedGhostMints: number;
   insights: RealTradingInsight[];
+  /** Truthful wallet valuation with per-asset audit trail. */
+  portfolio?: RealPortfolio | null;
+  /** Overall confidence gate for scores. */
+  analysisConfidence?: RealAnalysisConfidence;
+  /** True when swap history exceeds the per-sync reconstruction limit. */
+  historyTruncated?: boolean;
+  /** Token↔token swaps that could not be reconstructed in SOL terms. */
+  skippedTokenToToken?: number;
   empty?: boolean;
   message?: string;
 }

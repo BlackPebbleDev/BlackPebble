@@ -27,6 +27,16 @@ export function ensureRealTradingSchema(): Promise<void> {
           updated_at BIGINT DEFAULT EXTRACT(EPOCH FROM NOW())::bigint
         )
       `);
+      // Coverage diagnostics: whether the last sync hit the deep-history cap,
+      // and how many token↔token swaps could not be reconstructed in SOL terms.
+      await dbRun(
+        `ALTER TABLE real_wallet_sync_jobs
+           ADD COLUMN IF NOT EXISTS history_truncated BOOLEAN NOT NULL DEFAULT FALSE`,
+      );
+      await dbRun(
+        `ALTER TABLE real_wallet_sync_jobs
+           ADD COLUMN IF NOT EXISTS skipped_token_to_token INTEGER NOT NULL DEFAULT 0`,
+      );
 
       await dbRun(`
         CREATE TABLE IF NOT EXISTS real_token_trades (
@@ -115,6 +125,12 @@ export function ensureRealTradingSchema(): Promise<void> {
       await dbRun(
         `ALTER TABLE real_analysis_snapshots
            ADD COLUMN IF NOT EXISTS dropped_ghost_mints INTEGER NOT NULL DEFAULT 0`,
+      );
+      // Truthful wallet valuation: native SOL + priced/unpriced/spam breakdown
+      // (Total On-Chain vs Analyzed Trading portfolio) persisted per snapshot.
+      await dbRun(
+        `ALTER TABLE real_analysis_snapshots
+           ADD COLUMN IF NOT EXISTS portfolio_json TEXT`,
       );
 
       // ── Signal registry time series (reputation engine foundation) ────────

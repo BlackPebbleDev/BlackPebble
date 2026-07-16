@@ -12,7 +12,12 @@ export interface BehaviorInsight {
   title: string;
   description: string;
   severity: "info" | "positive" | "warning";
+  /** 0–1 internal trust in this detection. */
   confidence: number;
+  /** Population the rule examined (e.g. closed trades or buys considered). */
+  sampleSize: number;
+  /** Number of observations that actually matched the pattern. */
+  evidenceCount: number;
 }
 
 export interface BehaviorAnalysis {
@@ -47,6 +52,8 @@ const RULES: BehaviorRule[] = [
           "Your winning trades are closed significantly faster than losing ones. Letting winners run may improve overall returns.",
         severity: "warning",
         confidence: 0.75,
+        sampleSize: ctx.closed.length,
+        evidenceCount: wins.length,
       };
     }
     return null;
@@ -61,8 +68,10 @@ const RULES: BehaviorRule[] = [
       buysByMint.set(e.tokenMint, list);
     }
     let avgDownCount = 0;
+    let mintsConsidered = 0;
     for (const buys of buysByMint.values()) {
       if (buys.length < 3) continue;
+      mintsConsidered++;
       const sorted = [...buys].sort((a, b) => a.blockTime - b.blockTime);
       let declining = true;
       for (let i = 1; i < sorted.length; i++) {
@@ -84,6 +93,8 @@ const RULES: BehaviorRule[] = [
           "Multiple buys on the same token while price was declining detected. Consider whether this aligns with your risk plan.",
         severity: "warning",
         confidence: 0.7,
+        sampleSize: mintsConsidered,
+        evidenceCount: avgDownCount,
       };
     }
     return null;
@@ -107,6 +118,8 @@ const RULES: BehaviorRule[] = [
           "Your buy sizes are remarkably consistent - a hallmark of disciplined risk management.",
         severity: "positive",
         confidence: 0.8,
+        sampleSize: sizes.length,
+        evidenceCount: sizes.length,
       };
     }
     return null;
@@ -129,6 +142,8 @@ const RULES: BehaviorRule[] = [
           "You occasionally take significantly larger positions than your average - conviction sizing is part of your style.",
         severity: "info",
         confidence: 0.7,
+        sampleSize: sizes.length,
+        evidenceCount: sizes.filter((s) => s > avg * 3).length,
       };
     }
     return null;
@@ -146,6 +161,8 @@ const RULES: BehaviorRule[] = [
           "Most positions are closed within an hour. You thrive on quick, tactical entries and exits.",
         severity: "info",
         confidence: 0.85,
+        sampleSize: ctx.closed.length,
+        evidenceCount: ctx.closed.filter((c) => c.holdDurationSec < 3600).length,
       };
     }
     return null;
@@ -163,6 +180,10 @@ const RULES: BehaviorRule[] = [
           "Your typical hold duration spans days, not minutes - a patient, swing-oriented approach.",
         severity: "info",
         confidence: 0.8,
+        sampleSize: ctx.closed.length,
+        evidenceCount: ctx.closed.filter(
+          (c) => c.holdDurationSec >= 86400 && c.holdDurationSec <= 7 * 86400,
+        ).length,
       };
     }
     return null;
@@ -186,6 +207,8 @@ const RULES: BehaviorRule[] = [
           "You hold losing positions significantly longer than winners - conviction through drawdowns is your style.",
         severity: "info",
         confidence: 0.75,
+        sampleSize: wins.length + losses.length,
+        evidenceCount: losses.length,
       };
     }
     return null;
@@ -205,6 +228,8 @@ const RULES: BehaviorRule[] = [
           "A notable share of your losses come from exits within an hour of entry. Pausing before selling may help.",
         severity: "warning",
         confidence: 0.8,
+        sampleSize: ctx.closed.length,
+        evidenceCount: panic.length,
       };
     }
     return null;
@@ -221,6 +246,8 @@ const RULES: BehaviorRule[] = [
           "Your win rate across closed trades shows consistent, measured decision-making.",
         severity: "positive",
         confidence: 0.85,
+        sampleSize: ctx.closed.length,
+        evidenceCount: ctx.closed.filter((c) => c.realizedPnlSol > 0).length,
       };
     }
     return null;
@@ -235,9 +262,11 @@ const RULES: BehaviorRule[] = [
       buysByMint.set(e.tokenMint, list);
     }
     let fomoCount = 0;
+    let rebuyPairs = 0;
     for (const buys of buysByMint.values()) {
       const sorted = [...buys].sort((a, b) => a.blockTime - b.blockTime);
       for (let i = 1; i < sorted.length; i++) {
+        rebuyPairs++;
         const gap = sorted[i]!.blockTime - sorted[i - 1]!.blockTime;
         const prevPrice = sorted[i - 1]!.solAmount / sorted[i - 1]!.tokenAmount;
         const curPrice = sorted[i]!.solAmount / sorted[i]!.tokenAmount;
@@ -253,6 +282,8 @@ const RULES: BehaviorRule[] = [
           "Repeated buys at rising prices within short windows suggest chasing momentum. Consider waiting for pullbacks.",
         severity: "warning",
         confidence: 0.65,
+        sampleSize: rebuyPairs,
+        evidenceCount: fomoCount,
       };
     }
     return null;

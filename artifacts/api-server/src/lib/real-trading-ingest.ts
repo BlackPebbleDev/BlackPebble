@@ -9,7 +9,7 @@ import { hasHelius } from "./helius.js";
 import { logger } from "./logger.js";
 import {
   type ParsedSwapEvent,
-  parseSwapDeltas,
+  classifySwap,
 } from "./real-trading-math.js";
 import { ensureRealTradingSchema } from "./real-trading-schema.js";
 
@@ -25,6 +25,10 @@ interface HeliusParsedTx {
   timestamp?: number;
   type?: string;
   source?: string;
+  /** Network fee (base + priority) in lamports, from the tx envelope. */
+  fee?: number;
+  /** Account that paid the fee - fees only affect this wallet's SOL leg. */
+  feePayer?: string;
   tokenTransfers?: Array<{
     mint?: string;
     fromUserAccount?: string;
@@ -43,6 +47,8 @@ export interface SyncResult {
   wallet: string;
   newTrades: number;
   totalTrades: number;
+  /** True when the wallet's history exceeds the per-sync reconstruction cap. */
+  historyTruncated?: boolean;
   error?: string;
 }
 
@@ -139,6 +145,11 @@ export async function syncWalletTrades(
   let before: string | undefined;
   let lastSignature: string | null = null;
   let lastBlockTime: number | null = null;
+  // Coverage diagnostics (Part 7): detect when a wallet's history exceeds the
+  // per-sync reconstruction limit so analysis is never presented as complete
+  // when it is not.
+  let historyTruncated = false;
+  let skippedTokenToToken = 0;
 
   await dbRun(
     `INSERT INTO real_wallet_sync_jobs (wallet, user_id, status, updated_at)
@@ -165,14 +176,17 @@ export async function syncWalletTrades(
           continue;
         }
 
-        const ev = parseSwapDeltas(
+        const parsed = classifySwap(
           wallet,
           sig,
           tx.timestamp ?? Math.floor(Date.now() / 1000),
           tx.tokenTransfers ?? [],
           tx.nativeTransfers ?? [],
           tx.source ?? null,
+          { feeLamports: tx.fee, feePayer: tx.feePayer },
         );
+        if (parsed.tokenToToken) skippedTokenToToken++;
+        const ev = parsed.event;
         if (!ev) continue;
 
         await withTx(async () => {
@@ -195,6 +209,12 @@ export async function syncWalletTrades(
       if (!options?.force && alreadySeenOnPage === txs.length) break;
       before = txs[txs.length - 1]?.signature;
       if (!before) break;
+
+      // Reached the deep-history cap with a still-full final page and more to
+      // fetch: this wallet's history is deeper than one sync can reconstruct.
+      if (page === MAX_PAGES_PER_SYNC - 1) {
+        historyTruncated = true;
+      }
     }
 
     const countRow = await dbGet<{ cnt: number }>(
@@ -210,13 +230,22 @@ export async function syncWalletTrades(
            last_synced_at = EXTRACT(EPOCH FROM NOW())::bigint,
            last_block_time = $3,
            trade_count = $4,
+           history_truncated = $5,
+           skipped_token_to_token = $6,
            error_message = NULL,
            updated_at = EXTRACT(EPOCH FROM NOW())::bigint
        WHERE wallet = $1`,
-      [wallet, lastSignature, lastBlockTime, totalTrades],
+      [
+        wallet,
+        lastSignature,
+        lastBlockTime,
+        totalTrades,
+        historyTruncated,
+        skippedTokenToToken,
+      ],
     );
 
-    return { ok: true, wallet, newTrades, totalTrades };
+    return { ok: true, wallet, newTrades, totalTrades, historyTruncated };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     logger.warn({ err: e, wallet }, "Real trading sync failed");

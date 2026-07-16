@@ -76,73 +76,198 @@ export interface TradingMetrics {
 }
 
 
-/** Parse net token/SOL deltas from a Helius-style SWAP into a directional event. */
-export function parseSwapDeltas(
+/**
+ * Rent-exempt minimum for a standard SPL / Token-2022 associated token account.
+ * ATA creation deposits this from the wallet and account close reclaims it;
+ * neither is a trading cost, so it must be stripped from the SOL leg.
+ */
+export const ATA_RENT_LAMPORTS = 2_039_280;
+/** Tolerance around known rent values (accounts for minor variants). */
+const RENT_TOLERANCE_LAMPORTS = 5_000;
+/** SOL leg smaller than this is treated as "no SOL settlement". */
+const DUST_SOL = 1e-7;
+
+export interface TokenTransferLike {
+  mint?: string;
+  fromUserAccount?: string;
+  toUserAccount?: string;
+  tokenAmount?: number | { uiAmount?: number };
+}
+export interface NativeTransferLike {
+  fromUserAccount?: string;
+  toUserAccount?: string;
+  amount?: number;
+}
+
+/** Extra transaction-level context for accurate cost-basis / fee separation. */
+export interface SwapParseOptions {
+  /** Total network fee (base + priority) in lamports, from the tx envelope. */
+  feeLamports?: number;
+  /** Fee payer account - fees only affect this wallet's SOL. */
+  feePayer?: string;
+}
+
+export type SwapSkipReason =
+  | "no_token_delta"
+  | "token_to_token_no_sol"
+  | "zero_sol_leg";
+
+export interface SwapParseResult {
+  event: ParsedSwapEvent | null;
+  skipReason: SwapSkipReason | null;
+  /** True when this looked like a token↔token swap with no SOL/WSOL leg. */
+  tokenToToken: boolean;
+  /** ATA rent lamports stripped from the SOL leg (cost-basis hygiene). */
+  rentStrippedLamports: number;
+  /** Network fee attributed to this wallet, kept OUT of cost basis. */
+  feeLamports: number;
+}
+
+function uiAmount(t: TokenTransferLike): number {
+  const amt =
+    typeof t.tokenAmount === "number"
+      ? t.tokenAmount
+      : (t.tokenAmount?.uiAmount ?? 0);
+  return Number.isFinite(amt) ? amt : 0;
+}
+
+function isRentSized(lamports: number): boolean {
+  return Math.abs(Math.abs(lamports) - ATA_RENT_LAMPORTS) <= RENT_TOLERANCE_LAMPORTS;
+}
+
+/**
+ * Parse a Helius-style SWAP into a directional event WITH diagnostics.
+ *
+ * Improvements over the naive delta parser:
+ *  - WSOL-settled swaps: Wrapped SOL token transfers are folded into the SOL
+ *    leg, so aggregator/mixed routes that settle in WSOL are no longer dropped.
+ *  - Rent separation: ATA rent deposits/reclaims are stripped from the SOL leg
+ *    so they never contaminate cost basis or proceeds.
+ *  - Priority fee separation: the network fee lives in the tx envelope, never
+ *    in nativeTransfers, so it is inherently excluded from cost basis; we
+ *    surface it for transparency only.
+ *  - Token-to-token detection: swaps with no SOL/WSOL leg are reported (not
+ *    silently discarded) so ingestion can flag coverage gaps.
+ */
+export function classifySwap(
   wallet: string,
   signature: string,
   blockTime: number,
-  tokenTransfers: Array<{
-    mint?: string;
-    fromUserAccount?: string;
-    toUserAccount?: string;
-    tokenAmount?: number | { uiAmount?: number };
-  }>,
-  nativeTransfers: Array<{
-    fromUserAccount?: string;
-    toUserAccount?: string;
-    amount?: number;
-  }>,
+  tokenTransfers: TokenTransferLike[],
+  nativeTransfers: NativeTransferLike[],
   dexSource: string | null,
-): ParsedSwapEvent | null {
+  opts?: SwapParseOptions,
+): SwapParseResult {
+  const feeLamports =
+    opts?.feePayer === wallet && Number.isFinite(opts?.feeLamports)
+      ? opts!.feeLamports!
+      : 0;
+
+  // Non-WSOL token legs.
   const netTokenByMint = new Map<string, number>();
+  // WSOL token legs count toward the SOL settlement, not as a position.
+  let netWsol = 0;
   for (const t of tokenTransfers) {
     const mint = t.mint;
-    if (!mint || mint === WSOL_MINT) continue;
-    const amt =
-      typeof t.tokenAmount === "number"
-        ? t.tokenAmount
-        : (t.tokenAmount?.uiAmount ?? 0);
-    if (!Number.isFinite(amt) || amt === 0) continue;
+    if (!mint) continue;
+    const amt = uiAmount(t);
+    if (amt === 0) continue;
     let delta = 0;
     if (t.toUserAccount === wallet) delta += amt;
     if (t.fromUserAccount === wallet) delta -= amt;
     if (delta === 0) continue;
+    if (mint === WSOL_MINT) {
+      netWsol += delta; // uiAmount is already denominated in SOL
+      continue;
+    }
     netTokenByMint.set(mint, (netTokenByMint.get(mint) ?? 0) + delta);
   }
 
+  // Native SOL leg, with ATA rent stripped out.
   let netSolLamports = 0;
+  let rentStrippedLamports = 0;
   for (const n of nativeTransfers) {
     const amt = n.amount ?? 0;
+    if (amt === 0) continue;
+    if (isRentSized(amt)) {
+      rentStrippedLamports += Math.abs(amt);
+      continue;
+    }
     if (n.toUserAccount === wallet) netSolLamports += amt;
     if (n.fromUserAccount === wallet) netSolLamports -= amt;
   }
-  const netSol = netSolLamports / 1e9;
+  const netSol = netSolLamports / 1e9 + netWsol;
 
-  // Pick the mint with the largest absolute token delta.
+  // Largest absolute non-WSOL token delta is the traded position.
   let bestMint: string | null = null;
   let bestDelta = 0;
+  let significantMints = 0;
   for (const [mint, delta] of netTokenByMint) {
+    if (Math.abs(delta) > 0) significantMints++;
     if (Math.abs(delta) > Math.abs(bestDelta)) {
       bestMint = mint;
       bestDelta = delta;
     }
   }
-  if (!bestMint || bestDelta === 0) return null;
+
+  const base = { rentStrippedLamports, feeLamports };
+
+  if (!bestMint || bestDelta === 0) {
+    return { event: null, skipReason: "no_token_delta", tokenToToken: false, ...base };
+  }
+
+  const solAmount = Math.abs(netSol);
+
+  // Token-to-token swap: no SOL/WSOL settlement but two token legs move.
+  const tokenToToken = solAmount < DUST_SOL && significantMints >= 2;
+  if (solAmount < DUST_SOL) {
+    return {
+      event: null,
+      skipReason: tokenToToken ? "token_to_token_no_sol" : "zero_sol_leg",
+      tokenToToken,
+      ...base,
+    };
+  }
 
   const side: "buy" | "sell" = bestDelta > 0 ? "buy" : "sell";
-  const tokenAmount = Math.abs(bestDelta);
-  const solAmount = Math.abs(netSol);
-  if (tokenAmount <= 0 || solAmount <= 0) return null;
-
   return {
+    event: {
+      signature,
+      blockTime,
+      tokenMint: bestMint,
+      side,
+      tokenAmount: Math.abs(bestDelta),
+      solAmount,
+      dexSource,
+    },
+    skipReason: null,
+    tokenToToken: false,
+    ...base,
+  };
+}
+
+/**
+ * Parse net token/SOL deltas from a Helius-style SWAP into a directional event.
+ * Thin wrapper over {@link classifySwap} for callers that only need the event.
+ */
+export function parseSwapDeltas(
+  wallet: string,
+  signature: string,
+  blockTime: number,
+  tokenTransfers: TokenTransferLike[],
+  nativeTransfers: NativeTransferLike[],
+  dexSource: string | null,
+  opts?: SwapParseOptions,
+): ParsedSwapEvent | null {
+  return classifySwap(
+    wallet,
     signature,
     blockTime,
-    tokenMint: bestMint,
-    side,
-    tokenAmount,
-    solAmount,
+    tokenTransfers,
+    nativeTransfers,
     dexSource,
-  };
+    opts,
+  ).event;
 }
 
 /** FIFO cost-basis matching for sells → closed round trips + remaining lots. */

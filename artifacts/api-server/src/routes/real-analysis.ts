@@ -1,10 +1,11 @@
 import { Router, type IRouter } from "express";
 import rateLimit from "express-rate-limit";
 import { asyncHandler } from "../lib/asyncHandler.js";
-import { sessionFromRequest } from "../lib/auth.js";
+import { isAdmin, ownsWallet, sessionFromRequest } from "../lib/auth.js";
 import { dbGet } from "../lib/database.js";
 import { getFeatureFlags } from "../lib/featureFlags.js";
 import { getTokenMetadataBatch } from "../lib/helius.js";
+import { getSolPriceUsd } from "../lib/prices.js";
 import {
   getCachedAnalysis,
   runAnalysis,
@@ -162,6 +163,111 @@ router.get(
     }
 
     return res.json({ performance: report });
+  }),
+);
+
+/**
+ * GET /real-analysis/:wallet/diagnostics - protected line-by-line portfolio
+ * reconciliation for staging sign-off (Phase 1 validation).
+ *
+ * Access: the authenticated OWNER of the wallet, or an admin. Returns ONLY
+ * public on-chain + market data (balances, prices, valuations, classifications)
+ * plus the derived totals in SOL and USD. Never exposes secrets, tokens, seed
+ * phrases, or other users' data.
+ *
+ * `?refresh=true` forces a fresh sync + recompute before reporting.
+ */
+router.get(
+  "/real-analysis/:wallet/diagnostics",
+  asyncHandler(async (req, res) => {
+    if (!(await assertFeatureEnabled())) {
+      return res.status(404).json({ error: "Feature not enabled" });
+    }
+
+    const wallet = String(req.params.wallet ?? "").trim();
+    if (!isValidWallet(wallet)) {
+      return res.status(400).json({ error: "Invalid wallet address" });
+    }
+
+    // Owner-or-admin gate: this is a diagnostics surface, not public data.
+    const session = await sessionFromRequest(req);
+    if (!session) {
+      return res.status(401).json({ error: "Sign in required" });
+    }
+    const allowed = isAdmin(session) || (await ownsWallet(session, wallet));
+    if (!allowed) {
+      return res
+        .status(403)
+        .json({ error: "Diagnostics are limited to the wallet owner or an admin" });
+    }
+
+    await ensureRealTradingSchema();
+
+    const refresh = req.query.refresh === "true";
+    const analysis = refresh
+      ? await runAnalysis(wallet, { sync: true })
+      : ((await getCachedAnalysis(wallet)) ?? (await runAnalysis(wallet, { sync: true })));
+
+    const solUsd = await getSolPriceUsd().catch(() => 0);
+    const toUsd = (sol: number | null): number | null =>
+      sol != null && solUsd > 0 ? sol * solUsd : null;
+
+    const p = analysis.portfolio;
+    const m = analysis.metrics;
+
+    const summary = p
+      ? {
+          nativeSol: p.nativeSol,
+          nativeValueUsd: toUsd(p.nativeSol),
+          totalOnChainPortfolioSol: p.totalOnChainPortfolioSol,
+          totalOnChainPortfolioUsd: toUsd(p.totalOnChainPortfolioSol),
+          analyzedTradingPortfolioSol: p.analyzedTradingPortfolioSol,
+          analyzedTradingPortfolioUsd: toUsd(p.analyzedTradingPortfolioSol),
+          // Current Exposure uses the SAME source as Analyzed Trading Portfolio.
+          currentExposureSol: p.analyzedTradingPortfolioSol,
+          currentExposureUsd: toUsd(p.analyzedTradingPortfolioSol),
+          pricedHoldingsValueSol: p.pricedHoldingsValueSol,
+          counts: p.counts,
+        }
+      : null;
+
+    const assets = p
+      ? p.assets.map((a) => ({
+          mint: a.mint,
+          symbol: a.symbol,
+          normalizedBalance: a.amount,
+          priceSol: a.priceSol,
+          priceSource: a.priceSource,
+          valueSol: a.valueSol,
+          valueUsd: toUsd(a.valueSol),
+          inclusion: a.inclusion,
+          reason: a.reason,
+          includedInOnChain: a.includedInOnChain,
+          includedInAnalyzed: a.includedInAnalyzed,
+        }))
+      : [];
+
+    return res.json({
+      wallet,
+      computedAt: analysis.computedAt,
+      pricing: { solUsd, computedAt: analysis.computedAt },
+      holdingsVerified: analysis.holdingsVerified,
+      historyTruncated: analysis.historyTruncated,
+      skippedTokenToToken: analysis.skippedTokenToToken,
+      analysisConfidence: analysis.analysisConfidence,
+      portfolioAvailable: p != null,
+      summary,
+      pnl: {
+        realizedPnlSol: m.realizedPnlSol,
+        unrealizedPnlSol: m.unrealizedPnlSol,
+        totalPnlSol: m.totalPnlSol,
+        largestGainSol: m.largestGainSol,
+        largestLossSol: m.largestLossSol,
+        openPositions: analysis.openPositions.length,
+        closedRoundTrips: m.closedRoundTrips,
+      },
+      assets,
+    });
   }),
 );
 

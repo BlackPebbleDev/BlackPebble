@@ -268,6 +268,10 @@ export function useRealAnalysis() {
     performance: performanceQuery.data?.performance ?? null,
     isLoading: query.isLoading,
     isFetching: query.isFetching,
+    isError: query.isError,
+    error: query.error as Error | null,
+    refetch: query.refetch,
+    performanceFailed: performanceQuery.isError,
     syncMutation,
     syncError,
   };
@@ -338,7 +342,17 @@ function WalletSummaryHero({
     (s, p) => s + (p.currentValueSol ?? 0),
     0,
   );
-  const walletValueSol = solBalance != null ? solBalance + holdingsSol : null;
+  // Prefer the server's truthful "Total On-Chain Portfolio" (native SOL + every
+  // priced live holding). Fall back to the live SOL balance + traced holdings
+  // only when the reconciliation is unavailable, so totals never conflict.
+  const portfolio = analysis.portfolio ?? null;
+  const walletValueSol =
+    portfolio != null
+      ? portfolio.totalOnChainPortfolioSol
+      : solBalance != null
+        ? solBalance + holdingsSol
+        : null;
+  const unpricedCount = portfolio?.counts.unpriced ?? 0;
   const quality = analysis.walletHealth.score;
   const qualityTone: MetricTone =
     quality >= 70 ? "positive" : quality >= 40 ? "warning" : "negative";
@@ -410,10 +424,15 @@ function WalletSummaryHero({
           sub={
             walletValueSol != null && solUsd > 0
               ? fmtUsd(walletValueSol * solUsd)
-              : "SOL + verified holdings"
+              : "Native SOL + priced holdings"
           }
           tone={analysis.holdingsVerified ? "default" : "warning"}
-          hint="Your wallet's live SOL balance plus the current value of open positions verified against actual on-chain token balances. Tokens you traded but no longer hold are excluded."
+          hint={
+            "Total On-Chain Portfolio: your live native SOL plus the current value of every priced token you hold." +
+            (unpricedCount > 0
+              ? ` ${unpricedCount} holding${unpricedCount === 1 ? "" : "s"} could not be priced and are excluded from this total (not counted as zero).`
+              : "")
+          }
           data-testid="tile-wallet-value"
         />
         <MetricTile
@@ -714,20 +733,29 @@ function IntelligenceSection({ analysis }: { analysis: RealAnalysisSummary }) {
         description="Twelve signals scored 0–100 from your history, with 30-day change. These evolve as you trade."
       />
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
-        {analysis.signals.map((s: RealTradingSignal) => (
-          <MetricTile
-            key={s.key}
-            label={SIGNAL_LABELS[s.key] ?? s.key}
-            value={s.value}
-            delta={s.delta30d}
-            tone={signalTone(s.key, s.value)}
-            hint={
-              (SIGNAL_HINTS[s.key] ?? "") +
-              (s.evidence.length > 0 ? ` - ${s.evidence.join(" · ")}` : "")
-            }
-            data-testid={`signal-${s.key}`}
-          />
-        ))}
+        {analysis.signals.map((s: RealTradingSignal) => {
+          // Confidence gating: never present a precise score without enough
+          // evidence. Older snapshots (no tier) are shown as before.
+          const insufficient = s.tier === "insufficient";
+          return (
+            <MetricTile
+              key={s.key}
+              label={SIGNAL_LABELS[s.key] ?? s.key}
+              value={insufficient ? "—" : s.value}
+              delta={insufficient ? null : s.delta30d}
+              tone={insufficient ? "default" : signalTone(s.key, s.value)}
+              hint={
+                insufficient
+                  ? `Insufficient data to score this reliably yet${
+                      s.sampleSize != null ? ` (${s.sampleSize} sample${s.sampleSize === 1 ? "" : "s"})` : ""
+                    }. ${SIGNAL_HINTS[s.key] ?? ""}`
+                  : (SIGNAL_HINTS[s.key] ?? "") +
+                    (s.evidence.length > 0 ? ` - ${s.evidence.join(" · ")}` : "")
+              }
+              data-testid={`signal-${s.key}`}
+            />
+          );
+        })}
       </div>
     </section>
   );
@@ -830,10 +858,16 @@ function BehaviorSection({ analysis }: { analysis: RealAnalysisSummary }) {
 function RiskSection({ analysis }: { analysis: RealAnalysisSummary }) {
   const m = analysis.metrics;
   const h = analysis.walletHealth;
-  const exposureSol = analysis.openPositions.reduce(
-    (s, p) => s + (p.currentValueSol ?? p.costBasisSol),
-    0,
-  );
+  // Use the same valuation source as Wallet Value: the Analyzed Trading
+  // Portfolio (priced holdings reconstructed from swap history). Fall back to
+  // the position sum only when the reconciliation is unavailable.
+  const exposureSol =
+    analysis.portfolio != null
+      ? analysis.portfolio.analyzedTradingPortfolioSol
+      : analysis.openPositions.reduce(
+          (s, p) => s + (p.currentValueSol ?? p.costBasisSol),
+          0,
+        );
   const concentrationTone: MetricTone =
     h.concentrationRisk > 60 ? "negative" : h.concentrationRisk > 35 ? "warning" : "positive";
 
@@ -1177,6 +1211,10 @@ export function RealTradingAnalysisFull() {
     performance,
     isLoading,
     isFetching,
+    isError,
+    error,
+    refetch,
+    performanceFailed,
     syncMutation,
     syncError,
   } = useRealAnalysis();
@@ -1210,7 +1248,39 @@ export function RealTradingAnalysisFull() {
     );
   }
 
-  if (!analysis) return null;
+  if (!analysis) {
+    // Never blank the page on a fetch failure - show a recoverable error state.
+    return (
+      <div className="rounded-2xl bg-card shadow-card p-6 space-y-4">
+        <div className="flex items-start gap-2">
+          <AlertTriangle className="w-4 h-4 text-warning shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <p className="text-sm font-medium">
+              Couldn't load your trading analysis
+            </p>
+            <p className="text-xs text-muted-foreground leading-relaxed max-w-lg">
+              {isError && error?.message
+                ? error.message
+                : "The analysis service is temporarily unavailable. Your on-chain history is safe - this is only a display issue."}
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => refetch()}
+          disabled={isFetching}
+          className="inline-flex items-center gap-2 text-sm text-accent hover:underline disabled:opacity-50"
+        >
+          {isFetching ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <RefreshCw className="w-4 h-4" />
+          )}
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   if (analysis.empty) {
     return (
@@ -1246,7 +1316,27 @@ export function RealTradingAnalysisFull() {
         syncBusy={syncMutation.isPending || isFetching}
         syncError={syncError}
       />
-      {performance && <PerformanceSection performance={performance} />}
+      {analysis.historyTruncated && (
+        <div className="flex items-start gap-2 rounded-xl border border-amber-500/25 bg-amber-500/5 px-3.5 py-2.5">
+          <AlertTriangle className="w-3.5 h-3.5 text-warning shrink-0 mt-0.5" />
+          <p className="text-xs text-amber-200/90 leading-relaxed">
+            Analysis may be incomplete due to transaction history limits. This
+            wallet has more swaps than a single sync can reconstruct, so older
+            trades are not yet included in the numbers below.
+          </p>
+        </div>
+      )}
+      {performance ? (
+        <PerformanceSection performance={performance} />
+      ) : (
+        performanceFailed && (
+          <div className="rounded-2xl bg-card shadow-card p-5 text-xs text-muted-foreground flex items-center gap-2">
+            <AlertTriangle className="w-3.5 h-3.5 text-warning shrink-0" />
+            Performance charts are temporarily unavailable. The rest of your
+            analysis is shown below.
+          </div>
+        )
+      )}
       <IntelligenceSection analysis={analysis} />
       <BehaviorSection analysis={analysis} />
       <RiskSection analysis={analysis} />
@@ -1268,7 +1358,7 @@ export function RealTradingAnalysisSection() {
   const { wallet, connected, analysis, isLoading } = useRealAnalysis();
 
   const topSignals = (analysis?.signals ?? [])
-    .filter((s) => s.key !== "activity")
+    .filter((s) => s.key !== "activity" && s.tier !== "insufficient")
     .sort((a, b) => b.value - a.value)
     .slice(0, 3);
 

@@ -18,6 +18,7 @@ import type {
   TradingMetrics,
 } from "./real-trading-math.js";
 import { stdDev } from "./real-trading-math.js";
+import { confidenceTier, type ConfidenceTier } from "./real-trading-confidence.js";
 
 export const SIGNAL_KEYS = [
   "consistency",
@@ -42,6 +43,13 @@ export interface SignalResult {
   value: number;
   /** 0–1 - how much data backs this reading. */
   confidence: number;
+  /** Number of observations this signal was computed from (evidence count). */
+  sampleSize: number;
+  /**
+   * Discrete honesty gate. When "insufficient", display layers MUST NOT present
+   * `value` as a precise number - there is not enough evidence to trust it.
+   */
+  tier: ConfidenceTier;
   /** Human-readable reasons, consumable by UI and future AI coaching. */
   evidence: string[];
 }
@@ -63,7 +71,10 @@ function dataConfidence(n: number, full: number): number {
   return Math.max(0, Math.min(1, n / full));
 }
 
-type SignalFn = (ctx: SignalContext) => SignalResult;
+/** A signal before the confidence tier + sample size are attached. */
+type RawSignal = Omit<SignalResult, "sampleSize" | "tier">;
+
+type SignalFn = (ctx: SignalContext) => RawSignal;
 
 const SIGNAL_COMPUTERS: Record<SignalKey, SignalFn> = {
   consistency: (ctx) => {
@@ -346,9 +357,39 @@ const SIGNAL_COMPUTERS: Record<SignalKey, SignalFn> = {
   },
 };
 
-/** Compute all registry signals for a context. Pure - no I/O. */
+/**
+ * Evidence count backing each signal. Trade-quality signals are only as
+ * trustworthy as the number of *closed* round trips; sizing signals depend on
+ * buy count; activity/diversification scale with total swap volume.
+ */
+function signalSampleSize(key: SignalKey, ctx: SignalContext): number {
+  const buyCount = ctx.events.filter((e) => e.side === "buy").length;
+  switch (key) {
+    case "conviction":
+    case "position_sizing":
+      return buyCount;
+    case "diversification":
+    case "activity":
+      return ctx.metrics.totalTrades;
+    default:
+      return ctx.closed.length;
+  }
+}
+
+/**
+ * Compute all registry signals for a context, each gated with a confidence
+ * tier + sample size. Pure - no I/O.
+ */
 export function computeSignals(ctx: SignalContext): SignalResult[] {
-  return SIGNAL_KEYS.map((key) => SIGNAL_COMPUTERS[key](ctx));
+  return SIGNAL_KEYS.map((key) => {
+    const raw = SIGNAL_COMPUTERS[key](ctx);
+    const sampleSize = signalSampleSize(key, ctx);
+    return {
+      ...raw,
+      sampleSize,
+      tier: confidenceTier(raw.confidence, sampleSize),
+    };
+  });
 }
 
 // ── Persistence + deltas ─────────────────────────────────────────────────────
