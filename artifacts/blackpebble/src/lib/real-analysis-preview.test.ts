@@ -36,6 +36,10 @@ describe("isHigherBetter / DESCRIPTIVE_SIGNALS", () => {
       expect(isHigherBetter(k)).toBe(true);
     }
   });
+  it("treats historical trading breadth (diversification) as descriptive", () => {
+    expect(DESCRIPTIVE_SIGNALS.has("diversification")).toBe(true);
+    expect(isHigherBetter("diversification")).toBe(false);
+  });
 });
 
 describe("selectPreviewSignals - intentional strongest/weakness/change mix", () => {
@@ -87,5 +91,18 @@ describe("selectPreviewSignals - intentional strongest/weakness/change mix", () 
       sig(`k${i}`, 50 + i),
     );
     expect(selectPreviewSignals(signals).length).toBeLessThanOrEqual(3);
+  });
+
+  it("never shows a descriptive signal as the strongest trait", () => {
+    // Diversification has the highest raw score but is descriptive, so it must
+    // NOT be picked as the strongest trait; a graded signal must lead instead.
+    const signals = [
+      sig("diversification", 100),
+      sig("consistency", 70),
+      sig("timing", 60),
+    ];
+    const picked = selectPreviewSignals(signals);
+    expect(picked[0]!.key).not.toBe("diversification");
+    expect(picked[0]!.key).toBe("consistency");
   });
 });

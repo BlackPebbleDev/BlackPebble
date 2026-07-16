@@ -12,6 +12,9 @@ export const DESCRIPTIVE_SIGNALS = new Set<string>([
   "patience",
   "conviction",
   "activity",
+  // Historical trading breadth is a style/turnover reading, not a grade, and
+  // must never be shown as a "strength" in the preview.
+  "diversification",
 ]);
 
 export function isHigherBetter(key: string): boolean {

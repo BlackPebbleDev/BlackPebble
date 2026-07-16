@@ -91,7 +91,7 @@ const SIGNAL_LABELS: Record<string, string> = {
   profitability: "Profitability",
   conviction: "Conviction",
   position_sizing: "Sizing",
-  diversification: "Diversification",
+  diversification: "Trading Breadth",
   drawdown_management: "Drawdowns",
   activity: "Activity",
 };
@@ -107,7 +107,7 @@ const SIGNAL_HINTS: Record<string, string> = {
   conviction: "Tendency to take meaningful positions in fewer names.",
   position_sizing: "How well position sizes match your account and outcomes.",
   diversification:
-    "How many different tokens you have traded over time. This is your historical trading breadth, not your current portfolio concentration.",
+    "How many different tokens you have traded over time (a descriptive style reading). This is your historical trading breadth, not your current portfolio concentration.",
   drawdown_management: "How well losses are contained when trades go wrong.",
   activity: "How active this wallet has been recently.",
 };
@@ -183,11 +183,11 @@ const SIGNAL_EXPLAIN: Record<string, SignalExplain> = {
     improve: "Sizing losers smaller than winners tends to raise this.",
   },
   diversification: {
-    direction: "higher_better",
+    direction: "descriptive",
     basis: "Distinct tokens traded over time (historical breadth)",
     meaning:
-      "Higher means you have traded a wider set of tokens historically. This is separate from current portfolio concentration.",
-    improve: "This reflects history and is not a current-portfolio target.",
+      "A style reading, not a grade: higher means you have traded a wider set of tokens historically. This is separate from current portfolio concentration.",
+    improve: "There is no target here. It reflects your historical variety.",
   },
   drawdown_management: {
     direction: "higher_better",
@@ -1255,6 +1255,11 @@ function RiskSection({ analysis }: { analysis: RealAnalysisSummary }) {
             tone={m.avgLossSol > 0 ? "negative" : "default"}
             hint="Average size of your losing completed round trips (historical)."
           />
+          <MetricTile
+            label="Historical Breadth"
+            value={m.uniqueTokensTraded}
+            hint="Distinct tokens traded over time (historical variety). This is descriptive turnover, not your current diversification."
+          />
         </div>
       </div>
     </section>
@@ -1595,8 +1600,18 @@ function DetailedMetricsSection({ analysis }: { analysis: RealAnalysisSummary })
           />
           <MetricTile label="Unique Tokens" value={m.uniqueTokensTraded} />
           <MetricTile
-            label="Avg Mkt Cap Bought"
+            label="Breakeven Trades"
+            value={m.breakevenCount ?? 0}
+            hint="Completed round trips within a tiny rounding band. Not counted as wins or losses."
+          />
+          <MetricTile
+            label={m.avgMarketCapIsFdv ? "Avg FDV Bought" : "Avg Mkt Cap Bought"}
             value={m.avgMarketCapPurchasedUsd != null ? fmtUsdSmart(m.avgMarketCapPurchasedUsd) : "—"}
+            hint={
+              m.avgMarketCapIsFdv
+                ? "Fully-diluted valuation of buys. True market cap was unavailable, so this is labeled FDV, not market cap."
+                : "Circulating market cap of buys, when available (not FDV)."
+            }
           />
           <MetricTile label="Wallet Age" value={`${m.walletAgeDays}d`} />
         </div>

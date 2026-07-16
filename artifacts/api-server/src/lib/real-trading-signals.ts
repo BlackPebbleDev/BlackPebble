@@ -74,7 +74,7 @@ export const SIGNAL_META: Record<SignalKey, SignalMeta> = {
   profitability: { direction: "higher_better", basis: "completed_round_trips" },
   conviction: { direction: "descriptive", basis: "buys" },
   position_sizing: { direction: "higher_better", basis: "buys" },
-  diversification: { direction: "higher_better", basis: "combination" },
+  diversification: { direction: "descriptive", basis: "combination" },
   drawdown_management: { direction: "higher_better", basis: "completed_round_trips" },
   activity: { direction: "descriptive", basis: "swaps" },
 };
