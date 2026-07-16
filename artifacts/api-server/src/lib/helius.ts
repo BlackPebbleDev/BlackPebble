@@ -12,6 +12,41 @@ export function hasHelius(): boolean {
   return Boolean(HELIUS_API_KEY);
 }
 
+/** Public/standard Solana RPC used as a fallback for balance reads. */
+function fallbackRpcUrl(): string {
+  return process.env["SOLANA_RPC_URL"] || "https://api.mainnet-beta.solana.com";
+}
+
+/**
+ * POST a JSON-RPC request against Helius first, then the configured Solana RPC
+ * (and finally public mainnet) so a single provider hiccup can never silently
+ * degrade critical balance reads. Throws only when EVERY endpoint fails or all
+ * return a JSON-RPC error. A `result` (even null) is returned as-is.
+ */
+async function rpcCall(body: Record<string, unknown>): Promise<any> {
+  const urls = [
+    HELIUS_API_KEY ? heliusRpcUrl() : null,
+    fallbackRpcUrl(),
+  ].filter((u): u is string => Boolean(u));
+  const seen = new Set<string>();
+  let lastErr: unknown = null;
+  for (const url of urls) {
+    if (seen.has(url)) continue;
+    seen.add(url);
+    try {
+      const res = await axios.post(url, body, { timeout: 10000 });
+      if (res.data?.error) {
+        lastErr = new Error(res.data.error?.message ?? "JSON-RPC error");
+        continue;
+      }
+      return res.data;
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  throw lastErr ?? new Error("All RPC endpoints failed");
+}
+
 const TOKEN_PROGRAM_ID = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
 const TOKEN_2022_PROGRAM_ID = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
 
@@ -28,21 +63,15 @@ const TOKEN_2022_PROGRAM_ID = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
 export async function getWalletTokenBalances(
   owner: string,
 ): Promise<Map<string, number> | null> {
-  if (!HELIUS_API_KEY) return null;
-
   const balances = new Map<string, number>();
   for (const programId of [TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID]) {
     try {
-      const res = await axios.post(
-        heliusRpcUrl(),
-        {
-          jsonrpc: "2.0",
-          id: "token-balances",
-          method: "getTokenAccountsByOwner",
-          params: [owner, { programId }, { encoding: "jsonParsed" }],
-        },
-        { timeout: 10000 },
-      );
+      const data = await rpcCall({
+        jsonrpc: "2.0",
+        id: "token-balances",
+        method: "getTokenAccountsByOwner",
+        params: [owner, { programId }, { encoding: "jsonParsed" }],
+      });
       const accounts: Array<{
         account?: {
           data?: {
@@ -54,7 +83,7 @@ export async function getWalletTokenBalances(
             };
           };
         };
-      }> = res.data?.result?.value ?? [];
+      }> = data?.result?.value ?? [];
       for (const acc of accounts) {
         const info = acc.account?.data?.parsed?.info;
         const mint = info?.mint;
@@ -63,7 +92,7 @@ export async function getWalletTokenBalances(
         balances.set(mint, (balances.get(mint) ?? 0) + amount);
       }
     } catch (e) {
-      logger.warn({ err: e, owner }, "Wallet token balance lookup failed");
+      logger.warn({ err: e, owner, programId }, "Wallet token balance lookup failed");
       return null;
     }
   }
@@ -76,19 +105,14 @@ export async function getWalletTokenBalances(
  * callers never treat an RPC error as a zero balance.
  */
 export async function getNativeSolBalance(owner: string): Promise<number | null> {
-  if (!HELIUS_API_KEY) return null;
   try {
-    const res = await axios.post(
-      heliusRpcUrl(),
-      {
-        jsonrpc: "2.0",
-        id: "native-balance",
-        method: "getBalance",
-        params: [owner, { commitment: "confirmed" }],
-      },
-      { timeout: 10000 },
-    );
-    const lamports = res.data?.result?.value;
+    const data = await rpcCall({
+      jsonrpc: "2.0",
+      id: "native-balance",
+      method: "getBalance",
+      params: [owner, { commitment: "confirmed" }],
+    });
+    const lamports = data?.result?.value;
     if (typeof lamports !== "number" || !Number.isFinite(lamports)) return null;
     return lamports / 1e9;
   } catch (e) {

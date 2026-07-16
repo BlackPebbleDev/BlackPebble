@@ -4,7 +4,8 @@ import { asyncHandler } from "../lib/asyncHandler.js";
 import { isAdmin, ownsWallet, sessionFromRequest } from "../lib/auth.js";
 import { dbGet } from "../lib/database.js";
 import { getFeatureFlags } from "../lib/featureFlags.js";
-import { getTokenMetadataBatch } from "../lib/helius.js";
+import { getNativeSolBalance, getTokenMetadataBatch } from "../lib/helius.js";
+import { logger } from "../lib/logger.js";
 import { getSolPriceUsd } from "../lib/prices.js";
 import {
   getCachedAnalysis,
@@ -53,15 +54,27 @@ router.get(
     const refresh = req.query.refresh === "true";
     if (refresh) {
       const analysis = await runAnalysis(wallet, { sync: true });
+      logger.info(
+        { analyzedWallet: wallet, source: "fresh", computedAt: analysis.computedAt },
+        "TI analysis served (refresh)",
+      );
       return res.json({ analysis });
     }
 
     const cached = await getCachedAnalysis(wallet);
     if (cached) {
+      logger.info(
+        { analyzedWallet: wallet, source: "cache", computedAt: cached.computedAt },
+        "TI analysis served (cache)",
+      );
       return res.json({ analysis: cached });
     }
 
     const analysis = await runAnalysis(wallet, { sync: true });
+    logger.info(
+      { analyzedWallet: wallet, source: "fresh-cold", computedAt: analysis.computedAt },
+      "TI analysis served (cold)",
+    );
     return res.json({ analysis });
   }),
 );
@@ -204,9 +217,41 @@ router.get(
     await ensureRealTradingSchema();
 
     const refresh = req.query.refresh === "true";
-    const analysis = refresh
-      ? await runAnalysis(wallet, { sync: true })
-      : ((await getCachedAnalysis(wallet)) ?? (await runAnalysis(wallet, { sync: true })));
+    let source: "fresh" | "cache" | "fresh-cold" = "fresh";
+    let analysis: Awaited<ReturnType<typeof runAnalysis>>;
+    if (refresh) {
+      analysis = await runAnalysis(wallet, { sync: true });
+      source = "fresh";
+    } else {
+      const cached = await getCachedAnalysis(wallet);
+      if (cached) {
+        analysis = cached;
+        source = "cache";
+      } else {
+        analysis = await runAnalysis(wallet, { sync: true });
+        source = "fresh-cold";
+      }
+    }
+
+    // Live native SOL read directly from chain at request time - lets the owner
+    // confirm the analyzed wallet against Phantom/Explorer independent of the
+    // (possibly cached) snapshot.
+    const liveNativeSol = await getNativeSolBalance(wallet).catch(() => null);
+
+    logger.info(
+      {
+        analyzedWallet: wallet,
+        sessionWallet: session.wallet ?? null,
+        isAdmin: isAdmin(session),
+        source,
+        snapshotComputedAt: analysis.computedAt,
+        holdingsVerified: analysis.holdingsVerified,
+        droppedGhostMints: analysis.droppedGhostMints,
+        portfolioAvailable: analysis.portfolio != null,
+        liveNativeSol,
+      },
+      "TI diagnostics requested",
+    );
 
     const solUsd = await getSolPriceUsd().catch(() => 0);
     const toUsd = (sol: number | null): number | null =>
@@ -248,14 +293,29 @@ router.get(
       : [];
 
     return res.json({
-      wallet,
+      // ── Wallet mapping (verify the RIGHT wallet is analyzed) ──────────────
+      analyzedWallet: wallet,
+      sessionWallet: session.wallet ?? null,
+      walletMatchesSession:
+        session.wallet == null ? null : session.wallet === wallet,
+      viewerIsAdmin: isAdmin(session),
+      // ── Data provenance (cache vs fresh, snapshot age) ───────────────────
+      source,
       computedAt: analysis.computedAt,
-      pricing: { solUsd, computedAt: analysis.computedAt },
+      snapshotAgeSeconds: Math.max(
+        0,
+        Math.floor(Date.now() / 1000) - analysis.computedAt,
+      ),
+      // ── Live on-chain read at request time (independent of snapshot) ─────
+      liveNativeSol,
+      // ── Reconciliation health ────────────────────────────────────────────
       holdingsVerified: analysis.holdingsVerified,
+      droppedGhostMints: analysis.droppedGhostMints,
+      portfolioAvailable: p != null,
+      pricing: { solUsd, computedAt: analysis.computedAt },
       historyTruncated: analysis.historyTruncated,
       skippedTokenToToken: analysis.skippedTokenToToken,
       analysisConfidence: analysis.analysisConfidence,
-      portfolioAvailable: p != null,
       summary,
       pnl: {
         realizedPnlSol: m.realizedPnlSol,
@@ -266,6 +326,17 @@ router.get(
         openPositions: analysis.openPositions.length,
         closedRoundTrips: m.closedRoundTrips,
       },
+      // ── Reconstructed open positions (what "Current Exposure" is built on).
+      // When holdingsVerified is false these are UNVERIFIED trade-history
+      // estimates and must not be treated as live holdings.
+      openPositions: analysis.openPositions.map((pos) => ({
+        mint: pos.tokenMint,
+        symbol: pos.symbol,
+        tokenAmount: pos.tokenAmount,
+        currentValueSol: pos.currentValueSol,
+        currentValueUsd: toUsd(pos.currentValueSol),
+        costBasisSol: pos.costBasisSol,
+      })),
       assets,
     });
   }),
