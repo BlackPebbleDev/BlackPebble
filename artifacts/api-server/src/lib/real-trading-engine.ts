@@ -12,7 +12,11 @@
  */
 
 import { dbGet, dbRun } from "./database.js";
-import { getTokenMetadataBatch, getWalletTokenBalances } from "./helius.js";
+import {
+  getNativeSolBalance,
+  getTokenMetadataBatch,
+  getWalletTokenBalances,
+} from "./helius.js";
 import { getTokenStatsBatch } from "./prices.js";
 import { getSolPriceUsd } from "./prices.js";
 import { logger } from "./logger.js";
@@ -51,6 +55,15 @@ import {
 import { emitTimelineEvents } from "./real-trading-timeline.js";
 import { ensureRealTradingSchema } from "./real-trading-schema.js";
 import type { BehaviorInsight } from "./real-trading-behavior.js";
+import {
+  reconcilePortfolio,
+  type AssetValuationInput,
+  type PortfolioReconciliation,
+} from "./real-trading-portfolio.js";
+import {
+  overallAnalysisConfidence,
+  type AnalysisConfidence,
+} from "./real-trading-confidence.js";
 
 export interface PersonalityView {
   personality: string;
@@ -83,6 +96,18 @@ export interface RealAnalysisSummary {
   /** Trade-history tokens the wallet no longer holds (excluded from positions). */
   droppedGhostMints: number;
   insights: BehaviorInsight[];
+  /**
+   * Truthful wallet valuation: native SOL + priced holdings (Total On-Chain)
+   * vs current value reconstructable from swap history (Analyzed Trading),
+   * with a per-asset audit trail. Null when balances could not be read.
+   */
+  portfolio: PortfolioReconciliation | null;
+  /** Overall confidence gate for scores (driven by closed round-trip count). */
+  analysisConfidence: AnalysisConfidence;
+  /** True when swap history exceeds the per-sync reconstruction limit. */
+  historyTruncated: boolean;
+  /** Token↔token swaps that could not be reconstructed in SOL terms. */
+  skippedTokenToToken: number;
   empty?: boolean;
   message?: string;
 }
@@ -128,6 +153,8 @@ interface MarkedPositions {
   holdingsVerified: boolean;
   /** Trade-history mints the wallet no longer actually holds. */
   droppedGhostMints: number;
+  /** Raw live balances (all mints) - reused for portfolio valuation. */
+  balances: Map<string, number> | null;
 }
 
 /**
@@ -142,21 +169,23 @@ async function markOpenPositions(
   wallet: string,
   openLots: ReturnType<typeof matchFifo>["openLots"],
 ): Promise<MarkedPositions> {
-  const fifo = aggregateLotsByMint(openLots);
-  if (fifo.length === 0) {
-    return { positions: [], holdingsVerified: true, droppedGhostMints: 0 };
-  }
-
   const balances = await getWalletTokenBalances(wallet);
   if (balances == null) {
     logger.warn({ wallet }, "Holdings unverified - live balance lookup failed");
   }
+
+  const fifo = aggregateLotsByMint(openLots);
+  if (fifo.length === 0) {
+    return { positions: [], holdingsVerified: true, droppedGhostMints: 0, balances };
+  }
+
   const { holdings, verified, droppedMints } = reconcileHoldings(fifo, balances);
   if (holdings.length === 0) {
     return {
       positions: [],
       holdingsVerified: verified,
       droppedGhostMints: droppedMints,
+      balances,
     };
   }
 
@@ -197,7 +226,56 @@ async function markOpenPositions(
     positions,
     holdingsVerified: verified,
     droppedGhostMints: droppedMints,
+    balances,
   };
+}
+
+/**
+ * Build a truthful portfolio valuation (Part 1). Prices EVERY live holding -
+ * not just swap-traced ones - and classifies each as priced / unpriced / spam /
+ * unsupported / excluded so totals are never silently understated. `tracedMints`
+ * are the mints reconstructable from swap history (they power the Analyzed
+ * Trading Portfolio). Returns null only when live balances are unavailable.
+ */
+async function buildPortfolio(
+  wallet: string,
+  balances: Map<string, number> | null,
+  tracedMints: Set<string>,
+): Promise<PortfolioReconciliation | null> {
+  const nativeSol = await getNativeSolBalance(wallet).catch(() => null);
+
+  if (balances == null) {
+    // No token balances, but native SOL alone is still a truthful partial total.
+    if (nativeSol == null) return null;
+    return reconcilePortfolio(nativeSol, []);
+  }
+
+  const mints = [...balances.keys()];
+  const [stats, solUsd, meta] = await Promise.all([
+    getTokenStatsBatch(mints),
+    getSolPriceUsd().catch(() => 0),
+    getTokenMetadataBatch(mints).catch(
+      () => ({}) as Awaited<ReturnType<typeof getTokenMetadataBatch>>,
+    ),
+  ]);
+
+  const inputs: AssetValuationInput[] = mints.map((mint) => {
+    const amount = balances.get(mint) ?? 0;
+    const stat = stats.get(mint);
+    const priceSol =
+      stat?.priceSol ??
+      (stat?.priceUsd != null && solUsd > 0 ? stat.priceUsd / solUsd : null);
+    return {
+      mint,
+      symbol: meta[mint]?.symbol ?? stat?.symbol ?? null,
+      amount,
+      priceSol: priceSol != null && priceSol > 0 ? priceSol : null,
+      priceSource: priceSol != null && priceSol > 0 ? "dexscreener" : null,
+      tracedByHistory: tracedMints.has(mint),
+    };
+  });
+
+  return reconcilePortfolio(nativeSol ?? 0, inputs);
 }
 
 /** Average market cap of purchased tokens, from one batched lookup. */
@@ -242,6 +320,10 @@ function emptySummary(
     holdingsVerified: true,
     droppedGhostMints: 0,
     insights: [],
+    portfolio: null,
+    analysisConfidence: overallAnalysisConfidence(0, 0),
+    historyTruncated: false,
+    skippedTokenToToken: 0,
     empty: true,
     message:
       "No swap history found yet. Connect your wallet and sync to begin analysis.",
@@ -262,10 +344,15 @@ export async function runAnalysis(
   const job = await dbGet<{
     status: string;
     last_synced_at: number | null;
+    history_truncated: boolean | null;
+    skipped_token_to_token: number | null;
   }>(
-    `SELECT status, last_synced_at FROM real_wallet_sync_jobs WHERE wallet = $1`,
+    `SELECT status, last_synced_at, history_truncated, skipped_token_to_token
+       FROM real_wallet_sync_jobs WHERE wallet = $1`,
     [wallet],
   );
+  const historyTruncated = job?.history_truncated ?? false;
+  const skippedTokenToToken = job?.skipped_token_to_token ?? 0;
 
   if (events.length === 0) {
     return emptySummary(wallet, job?.status ?? "idle", job?.last_synced_at ?? null);
@@ -294,8 +381,26 @@ export async function runAnalysis(
 
   // ── Compute ────────────────────────────────────────────────────────────────
   const { closed, openLots } = matchFifo(events);
-  const { positions: openPositions, holdingsVerified, droppedGhostMints } =
-    await markOpenPositions(wallet, openLots);
+  const {
+    positions: openPositions,
+    holdingsVerified,
+    droppedGhostMints,
+    balances,
+  } = await markOpenPositions(wallet, openLots);
+
+  const portfolio = await buildPortfolio(
+    wallet,
+    balances,
+    new Set(openPositions.map((p) => p.tokenMint)),
+  ).catch((e) => {
+    logger.warn({ err: e, wallet }, "Portfolio valuation failed");
+    return null;
+  });
+
+  const analysisConfidence = overallAnalysisConfidence(
+    closed.length,
+    events.length,
+  );
 
   const firstTradeAt = events[0]!.blockTime;
   const walletAgeDays = await estimateWalletAgeDays(wallet, firstTradeAt);
@@ -333,8 +438,9 @@ export async function runAnalysis(
        (wallet, user_id, computed_at, metrics_json, scores_json, personality,
         wallet_health_score, open_positions_json, insights_json, sync_trade_count,
         wallet_age_days, data_sources, personality_json, wallet_health_json,
-        signals_json, dna_json, holdings_verified, dropped_ghost_mints)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+        signals_json, dna_json, holdings_verified, dropped_ghost_mints,
+        portfolio_json)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
      ON CONFLICT (wallet) DO UPDATE SET
        user_id = EXCLUDED.user_id,
        computed_at = EXCLUDED.computed_at,
@@ -352,7 +458,8 @@ export async function runAnalysis(
        signals_json = EXCLUDED.signals_json,
        dna_json = EXCLUDED.dna_json,
        holdings_verified = EXCLUDED.holdings_verified,
-       dropped_ghost_mints = EXCLUDED.dropped_ghost_mints`,
+       dropped_ghost_mints = EXCLUDED.dropped_ghost_mints,
+       portfolio_json = EXCLUDED.portfolio_json`,
     [
       wallet,
       userId,
@@ -374,6 +481,7 @@ export async function runAnalysis(
       JSON.stringify(dna),
       holdingsVerified,
       droppedGhostMints,
+      portfolio ? JSON.stringify(portfolio) : null,
     ],
   );
 
@@ -446,6 +554,10 @@ export async function runAnalysis(
     holdingsVerified,
     droppedGhostMints,
     insights: behavior.insights,
+    portfolio,
+    analysisConfidence,
+    historyTruncated,
+    skippedTokenToToken,
   };
 }
 
@@ -468,18 +580,25 @@ export async function getCachedAnalysis(
     dna_json: string | null;
     holdings_verified: boolean | null;
     dropped_ghost_mints: number | null;
+    portfolio_json: string | null;
   }>(
     `SELECT computed_at, metrics_json, personality, wallet_health_score,
             open_positions_json, insights_json, sync_trade_count, data_sources,
             personality_json, wallet_health_json, signals_json, dna_json,
-            holdings_verified, dropped_ghost_mints
+            holdings_verified, dropped_ghost_mints, portfolio_json
      FROM real_analysis_snapshots WHERE wallet = $1`,
     [wallet],
   );
   if (!row) return null;
 
-  const job = await dbGet<{ status: string; last_synced_at: number | null }>(
-    `SELECT status, last_synced_at FROM real_wallet_sync_jobs WHERE wallet = $1`,
+  const job = await dbGet<{
+    status: string;
+    last_synced_at: number | null;
+    history_truncated: boolean | null;
+    skipped_token_to_token: number | null;
+  }>(
+    `SELECT status, last_synced_at, history_truncated, skipped_token_to_token
+       FROM real_wallet_sync_jobs WHERE wallet = $1`,
     [wallet],
   );
 
@@ -526,6 +645,13 @@ export async function getCachedAnalysis(
     holdingsVerified: row.holdings_verified ?? false,
     droppedGhostMints: row.dropped_ghost_mints ?? 0,
     insights: parse<BehaviorInsight[]>(row.insights_json, []),
+    portfolio: parse<PortfolioReconciliation | null>(row.portfolio_json, null),
+    analysisConfidence: overallAnalysisConfidence(
+      metrics.closedRoundTrips,
+      metrics.totalTrades,
+    ),
+    historyTruncated: job?.history_truncated ?? false,
+    skippedTokenToToken: job?.skipped_token_to_token ?? 0,
   };
 }
 

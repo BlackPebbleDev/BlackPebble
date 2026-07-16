@@ -70,6 +70,33 @@ export async function getWalletTokenBalances(
   return balances;
 }
 
+/**
+ * The wallet's live NATIVE SOL balance (UI amount), read from the chain. Used
+ * for the "Total On-Chain Portfolio" valuation. Returns null on failure so
+ * callers never treat an RPC error as a zero balance.
+ */
+export async function getNativeSolBalance(owner: string): Promise<number | null> {
+  if (!HELIUS_API_KEY) return null;
+  try {
+    const res = await axios.post(
+      heliusRpcUrl(),
+      {
+        jsonrpc: "2.0",
+        id: "native-balance",
+        method: "getBalance",
+        params: [owner, { commitment: "confirmed" }],
+      },
+      { timeout: 10000 },
+    );
+    const lamports = res.data?.result?.value;
+    if (typeof lamports !== "number" || !Number.isFinite(lamports)) return null;
+    return lamports / 1e9;
+  } catch (e) {
+    logger.warn({ err: e, owner }, "Native SOL balance lookup failed");
+    return null;
+  }
+}
+
 export interface TokenMetadata {
   mint: string;
   name: string;

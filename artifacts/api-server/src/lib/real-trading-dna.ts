@@ -237,10 +237,51 @@ export function evolveVector(
   return { vector, evolvedTraits };
 }
 
-/** Project archetypes from a vector. Pure. */
+/**
+ * The stored primary must be beaten by at least this margin before the archetype
+ * flips - hysteresis that stops noisy run-to-run label churn.
+ */
+export const ARCHETYPE_HYSTERESIS_MARGIN = 0.08;
+
+/**
+ * Archetype pairs that must never be shown together (primary + secondary). A
+ * trader cannot simultaneously be a "Degenerate Gambler" and a "Disciplined
+ * Investor"; when both score highly the contradictory secondary is dropped.
+ */
+export const CONTRADICTORY_ARCHETYPES: Record<string, string[]> = {
+  degen_gambler: [
+    "disciplined_investor",
+    "profit_taker",
+    "diamond_hands",
+    "recovery_specialist",
+    "swing_trader",
+  ],
+  risk_addict: ["disciplined_investor", "profit_taker", "swing_trader"],
+  disciplined_investor: ["degen_gambler", "risk_addict", "volatility_hunter"],
+  profit_taker: ["degen_gambler", "risk_addict", "diamond_hands"],
+  diamond_hands: ["degen_gambler", "profit_taker"],
+  recovery_specialist: ["degen_gambler"],
+  volatility_hunter: ["disciplined_investor"],
+};
+
+export function areContradictory(a: string, b: string): boolean {
+  if (a === b) return false;
+  return (
+    (CONTRADICTORY_ARCHETYPES[a]?.includes(b) ?? false) ||
+    (CONTRADICTORY_ARCHETYPES[b]?.includes(a) ?? false)
+  );
+}
+
+/**
+ * Project archetypes from a vector. Pure.
+ *
+ * `previousPrimaryId` enables hysteresis: an incumbent archetype is only
+ * dethroned when a challenger beats it by {@link ARCHETYPE_HYSTERESIS_MARGIN}.
+ */
 export function classifyArchetypes(
   vector: DnaVector,
   totalTrades: number,
+  previousPrimaryId?: string | null,
 ): {
   primary: ArchetypeDefinition;
   secondary: ArchetypeDefinition | null;
@@ -272,18 +313,36 @@ export function classifyArchetypes(
     }))
     .sort((x, y) => y.score - x.score);
 
-  const primary = scored[0]!;
-  const secondary =
-    scored.length > 1 && scored[1]!.score >= primary.score - 0.12
-      ? scored[1]!.a
-      : null;
+  const topEntry = scored[0]!;
+  let primaryEntry = topEntry;
+
+  // Hysteresis: keep the incumbent unless a challenger clears the margin.
+  if (previousPrimaryId && previousPrimaryId !== topEntry.a.id) {
+    const incumbent = scored.find((s) => s.a.id === previousPrimaryId);
+    if (incumbent && topEntry.score < incumbent.score + ARCHETYPE_HYSTERESIS_MARGIN) {
+      primaryEntry = incumbent;
+    }
+  }
+
+  const primary = primaryEntry.a;
+
+  // Secondary: strongest remaining archetype within range that does NOT
+  // contradict the primary.
+  let secondary: ArchetypeDefinition | null = null;
+  for (const entry of scored) {
+    if (entry.a.id === primary.id) continue;
+    if (entry.score < primaryEntry.score - 0.12) break;
+    if (areContradictory(primary.id, entry.a.id)) continue;
+    secondary = entry.a;
+    break;
+  }
 
   const confidence = Math.min(
     1,
-    primary.score * 0.7 + Math.min(totalTrades, 50) / 50 * 0.3,
+    primaryEntry.score * 0.7 + Math.min(totalTrades, 50) / 50 * 0.3,
   );
 
-  return { primary: primary.a, secondary, confidence };
+  return { primary, secondary, confidence };
 }
 
 /**
@@ -316,7 +375,11 @@ export async function updateTraderDna(
   }
 
   const { vector, evolvedTraits } = evolveVector(previous, observed);
-  const { primary, secondary, confidence } = classifyArchetypes(vector, totalTrades);
+  const { primary, secondary, confidence } = classifyArchetypes(
+    vector,
+    totalTrades,
+    stored?.primary_archetype ?? null,
+  );
   const archetypeChanged =
     stored != null && stored.primary_archetype !== primary.id;
 
