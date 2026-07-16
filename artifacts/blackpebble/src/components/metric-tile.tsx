@@ -149,29 +149,36 @@ export function MetricTile({
         className,
       )}
     >
-      <div className="flex items-start justify-between gap-1.5">
-        <span className="stat-label !whitespace-normal leading-tight line-clamp-2 min-w-0">
+      <div className="flex items-start justify-between gap-1">
+        {/* Label gets nearly the full tile width so single-word labels like
+            "Consistency" or "Profitability" never clip; only the tiny info dot
+            shares this row. The change chip lives on the value row below. */}
+        <span className="stat-label !whitespace-normal leading-tight line-clamp-2 break-words min-w-0">
           {label}
         </span>
-        <div className="flex items-center gap-1 shrink-0">
-          {deltaInfo != null && <DeltaChip delta={deltaInfo} />}
-          {(hint || clickable) && (
-            <Info className="w-3 h-3 text-muted-foreground/50" aria-hidden />
-          )}
-        </div>
-      </div>
-      <div
-        className={cn(
-          "stat-value mt-1 tabular-nums leading-tight break-words",
-          size === "sm"
-            ? "text-base"
-            : size === "lg"
-              ? "text-xl sm:text-2xl md:text-3xl"
-              : "text-lg sm:text-xl",
-          TONE_CLASSES[tone],
+        {(hint || clickable) && (
+          <Info className="w-3 h-3 shrink-0 text-muted-foreground/50" aria-hidden />
         )}
-      >
-        {value}
+      </div>
+      <div className="mt-1 flex items-end justify-between gap-1.5">
+        <div
+          className={cn(
+            "stat-value tabular-nums leading-tight break-words min-w-0",
+            size === "sm"
+              ? "text-base"
+              : size === "lg"
+                ? "text-xl sm:text-2xl md:text-3xl"
+                : "text-lg sm:text-xl",
+            TONE_CLASSES[tone],
+          )}
+        >
+          {value}
+        </div>
+        {deltaInfo != null && (
+          <div className="shrink-0 pb-0.5">
+            <DeltaChip delta={deltaInfo} />
+          </div>
+        )}
       </div>
       {sub != null && (
         <div className="text-[11px] text-muted-foreground mt-0.5 leading-snug line-clamp-2">
