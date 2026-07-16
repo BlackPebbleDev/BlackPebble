@@ -4,6 +4,7 @@ import {
   shortenMint,
   deriveTokenIdentity,
   checkOpeningBalance,
+  tokenPageHref,
   type TokenIdentityInput,
 } from "./campaign-identity";
 
@@ -61,7 +62,7 @@ describe("deriveTokenIdentity", () => {
 
   it("shows compact MC when available and 'MC unavailable' otherwise", () => {
     expect(deriveTokenIdentity(input({ tokenMarketCapUsd: 2_300_000 })).mcLabel).toBe(
-      "$2.3M MC",
+      "MC $2.3M",
     );
     expect(deriveTokenIdentity(input({ tokenMarketCapUsd: null })).mcLabel).toBe(
       "MC unavailable",
@@ -70,6 +71,19 @@ describe("deriveTokenIdentity", () => {
     expect(deriveTokenIdentity(input({ tokenMarketCapUsd: null })).mcLabel).not.toContain(
       "$0",
     );
+  });
+});
+
+describe("tokenPageHref", () => {
+  it("builds the in-app token route from a mint", () => {
+    expect(tokenPageHref("So11111111111111111111111111111111111111112")).toBe(
+      "/?token=So11111111111111111111111111111111111111112",
+    );
+  });
+  it("returns null when there is no mint (no broken link)", () => {
+    expect(tokenPageHref(null)).toBeNull();
+    expect(tokenPageHref(undefined)).toBeNull();
+    expect(tokenPageHref("")).toBeNull();
   });
 });
 

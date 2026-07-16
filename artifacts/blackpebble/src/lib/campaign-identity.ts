@@ -28,6 +28,15 @@ export function shortenMint(mint: string): string {
   return `${mint.slice(0, 4)}…${mint.slice(-4)}`;
 }
 
+/**
+ * In-app token page href (Trading Desk with ?token=<mint>) — the same internal
+ * route the feed, markets, portfolio, and search use. Returns null when there
+ * is no mint so callers render identity without a broken link.
+ */
+export function tokenPageHref(mint: string | null | undefined): string | null {
+  return mint ? `/?token=${mint}` : null;
+}
+
 export interface TokenIdentityInput {
   tokenMint: string | null;
   tokenName: string | null;
@@ -45,7 +54,7 @@ export interface TokenIdentityView {
   hasMeta: boolean;
   /** True when we're showing the shortened mint because metadata is missing. */
   isMintFallback: boolean;
-  /** "$2.3M MC" when known, "MC unavailable" otherwise. */
+  /** "MC $2.3M" when known, "MC unavailable" otherwise. */
   mcLabel: string;
 }
 
@@ -65,7 +74,7 @@ export function deriveTokenIdentity(c: TokenIdentityInput): TokenIdentityView {
 
   const mcLabel =
     c.tokenMarketCapUsd != null
-      ? `${fmtCompactUsd(c.tokenMarketCapUsd)} MC`
+      ? `MC ${fmtCompactUsd(c.tokenMarketCapUsd)}`
       : "MC unavailable";
 
   return {

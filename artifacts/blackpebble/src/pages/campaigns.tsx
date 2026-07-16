@@ -4,6 +4,7 @@ import {
   useRef,
   useState,
   type MouseEvent as ReactMouseEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
 import { Link, useLocation, useRoute } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -56,6 +57,7 @@ import {
   fmtCompactUsd,
   deriveTokenIdentity,
   checkOpeningBalance,
+  tokenPageHref,
 } from "@/lib/campaign-identity";
 import {
   api,
@@ -199,12 +201,17 @@ function timeLeft(deadlineAt: number): string {
   return `${Math.floor(s / 86_400)}d ${Math.floor((s % 86_400) / 3600)}h left`;
 }
 
+/**
+ * Compact, single-line lifecycle chip. One sizing system for every state so no
+ * status renders larger than another or steals width from the token identity.
+ * `shrink-0` + `whitespace-nowrap` keep it to one line and off the identity row.
+ */
 function StateBadge({ state }: { state: CampaignState }) {
   const meta = STATE_META[state];
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide",
+        "inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide leading-none",
         meta.className,
       )}
     >
@@ -301,68 +308,107 @@ function TokenIdentity({
 }) {
   const { name, ticker, hasToken, hasMeta, isMintFallback, mcLabel } =
     deriveTokenIdentity(c);
-  return (
-    <div className="flex items-center gap-3 min-w-0">
-      {c.imageUrl ? (
-        <img
-          src={c.imageUrl}
-          alt=""
-          className="rounded-full object-cover shrink-0 ring-1 ring-white/10"
-          style={{ width: size, height: size }}
-        />
-      ) : (
-        <ProviderLogo typeKey={c.typeKey} size={size} className="ring-1 ring-white/10" />
-      )}
-      <div className="min-w-0">
+  const [, navigate] = useLocation();
+  const mint = c.tokenMint;
+
+  const logo = c.imageUrl ? (
+    <img
+      src={c.imageUrl}
+      alt=""
+      className="rounded-full object-cover shrink-0 ring-1 ring-white/10"
+      style={{ width: size, height: size }}
+    />
+  ) : (
+    <ProviderLogo typeKey={c.typeKey} size={size} className="ring-1 ring-white/10" />
+  );
+
+  const textBlock = (
+    <div className="min-w-0 flex-1">
+      <div
+        className={cn(
+          "font-bold truncate leading-tight transition-colors group-hover:text-accent",
+          large ? "text-2xl md:text-3xl tracking-tight" : "text-base",
+          isMintFallback && "font-mono text-sm",
+        )}
+      >
+        {name}
+      </div>
+      {hasToken ? (
+        // Ticker + MC stay on one compact line and never truncate (short by
+        // design); only the token name above may truncate when genuinely long.
         <div
           className={cn(
-            "font-bold truncate leading-tight",
-            large ? "text-2xl md:text-3xl tracking-tight" : "text-base",
-            isMintFallback && "font-mono text-sm",
+            "flex items-center gap-1.5 min-w-0 mt-0.5 text-muted-foreground",
+            large ? "text-xs" : "text-[11px]",
           )}
         >
-          {name}
+          {ticker ? (
+            <>
+              <span className="font-semibold text-foreground/70 shrink-0">
+                {ticker}
+              </span>
+              <span className="text-muted-foreground/40 shrink-0">·</span>
+            </>
+          ) : !hasMeta ? (
+            <>
+              <span className="shrink-0">Metadata unavailable</span>
+              <span className="text-muted-foreground/40 shrink-0">·</span>
+            </>
+          ) : null}
+          <span
+            className={cn(
+              "shrink-0 tabular-nums",
+              c.tokenMarketCapUsd == null && "text-muted-foreground/60",
+            )}
+          >
+            {mcLabel}
+          </span>
         </div>
-        {hasToken ? (
-          <div
-            className={cn(
-              "flex items-center gap-1.5 min-w-0 mt-0.5 text-muted-foreground",
-              large ? "text-xs" : "text-[11px]",
-            )}
-          >
-            {ticker ? (
-              <>
-                <span className="font-semibold text-foreground/70 truncate">
-                  {ticker}
-                </span>
-                <span className="text-muted-foreground/40">·</span>
-              </>
-            ) : !hasMeta ? (
-              <>
-                <span className="truncate">Metadata unavailable</span>
-                <span className="text-muted-foreground/40">·</span>
-              </>
-            ) : null}
-            <span
-              className={cn(
-                "truncate tabular-nums",
-                c.tokenMarketCapUsd == null && "text-muted-foreground/60",
-              )}
-            >
-              {mcLabel}
-            </span>
-          </div>
-        ) : (
-          <div
-            className={cn(
-              "text-muted-foreground truncate mt-0.5",
-              large ? "text-xs" : "text-[11px]",
-            )}
-          >
-            Community campaign
-          </div>
-        )}
+      ) : (
+        <div
+          className={cn(
+            "text-muted-foreground truncate mt-0.5",
+            large ? "text-xs" : "text-[11px]",
+          )}
+        >
+          Community campaign
+        </div>
+      )}
+    </div>
+  );
+
+  // Token image + identity link to the in-app token page (Trading Desk with
+  // ?token=<mint>). Programmatic navigation + stopPropagation so it works even
+  // when nested inside the campaign card <Link>, without a nested anchor and
+  // without making the whole card navigate to the token.
+  const href = tokenPageHref(mint);
+  if (hasToken && href) {
+    const go = (e: ReactMouseEvent | ReactKeyboardEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      navigate(href);
+    };
+    return (
+      <div
+        role="link"
+        tabIndex={0}
+        aria-label={`View ${name} token page`}
+        onClick={go}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") go(e);
+        }}
+        className="group flex items-center gap-3 min-w-0 flex-1 -m-1 p-1 rounded-lg cursor-pointer transition-colors hover:bg-white/[0.03] active:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+      >
+        {logo}
+        {textBlock}
       </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-3 min-w-0 flex-1">
+      {logo}
+      {textBlock}
     </div>
   );
 }
@@ -419,11 +465,6 @@ function AddressRow({
         >
           {isEscrow && <Shield className="w-3.5 h-3.5 shrink-0" />}
           {label}
-          {isEscrow && (
-            <span className="inline-flex items-center rounded-full bg-emerald-400/15 border border-emerald-400/30 px-1.5 py-[1px] text-[9px] font-bold tracking-wide text-emerald-200 normal-case">
-              Funding Wallet
-            </span>
-          )}
         </div>
         <div
           className={cn(
@@ -613,11 +654,11 @@ function CampaignCard({ c }: { c: CampaignSummary }) {
             />
           )}
           <AddressRow
-            label="Campaign Funding Wallet"
+            label="Escrow Wallet"
             address={c.escrowAddress}
             variant="escrow"
-            subtitle="This is the ONLY wallet that accepts campaign contributions."
-            tooltip="Destination for all campaign funding. Every contribution goes to this dedicated escrow wallet — nowhere else."
+            subtitle="This is the only wallet that accepts campaign contributions."
+            tooltip="Every contribution goes to this dedicated escrow wallet — nowhere else."
             stopClicks
           />
         </div>
@@ -1627,7 +1668,7 @@ function CreateCampaignDialog() {
                   <li className="flex gap-2">
                     <ShieldCheck className="w-3.5 h-3.5 text-accent shrink-0 mt-0.5" />
                     <span>
-                      A dedicated escrow address is created. Every deposit,
+                      A dedicated escrow wallet is created. Every deposit,
                       payout, and refund is recorded in a public append-only
                       ledger with on-chain signatures.
                     </span>
@@ -1823,24 +1864,30 @@ function CreateCampaignDialog() {
             </DialogHeader>
 
             <div className="space-y-3">
-              <div className="rounded-xl bg-surface-2 border border-white/[0.05] p-3.5 space-y-2">
-                <div className="stat-label">Dedicated escrow address</div>
+              <div className="rounded-xl bg-emerald-500/[0.10] border border-emerald-400/40 ring-1 ring-emerald-400/20 p-3.5 space-y-2">
+                <div className="text-[10px] font-semibold uppercase tracking-wide flex items-center gap-1.5 text-emerald-300">
+                  <Shield className="w-3.5 h-3.5 shrink-0" />
+                  Escrow Wallet
+                </div>
                 <div className="flex items-center gap-2">
-                  <span className="font-mono text-xs break-all min-w-0">
+                  <span className="font-mono text-xs break-all min-w-0 text-emerald-50">
                     {created?.escrowAddress}
                   </span>
                   <button
                     type="button"
-                    className="text-muted-foreground hover:text-accent transition-colors shrink-0"
+                    className="text-emerald-300 hover:text-emerald-200 transition-colors shrink-0"
                     onClick={() => {
                       if (created) {
                         navigator.clipboard.writeText(created.escrowAddress);
-                        toast({ title: "Escrow address copied" });
+                        toast({ title: "Escrow wallet copied" });
                       }
                     }}
                   >
                     <Copy className="w-3.5 h-3.5" />
                   </button>
+                </div>
+                <div className="text-[10px] font-medium text-emerald-300/90 leading-snug">
+                  This is the only wallet that accepts campaign contributions.
                 </div>
               </div>
 
@@ -2159,7 +2206,7 @@ export default function CampaignsPage() {
       <div className="flex items-start gap-2 text-[11px] text-muted-foreground/70 leading-relaxed">
         <Shield className="w-3 h-3 shrink-0 mt-0.5" />
         <span>
-          Every campaign has a dedicated escrow address and an append-only
+          Every campaign has a dedicated escrow wallet and an append-only
           public ledger - every deposit, payout, and refund carries an on-chain
           transaction signature. BlackPebble never asks for keys, signing
           authority, or approvals beyond the SOL you choose to contribute.
@@ -2422,11 +2469,11 @@ export function CampaignDetailPage() {
           />
         )}
         <AddressRow
-          label="Campaign Funding Wallet"
+          label="Escrow Wallet"
           address={c.escrowAddress}
           variant="escrow"
-          subtitle="This is the ONLY wallet that accepts campaign contributions."
-          tooltip="Destination for all campaign funding. Every contribution goes to this dedicated escrow wallet — nowhere else."
+          subtitle="This is the only wallet that accepts campaign contributions."
+          tooltip="Every contribution goes to this dedicated escrow wallet — nowhere else."
         />
       </div>
 
@@ -2513,7 +2560,7 @@ export function CampaignDetailPage() {
               <div className="flex items-center justify-between gap-2">
                 <span className="inline-flex items-center gap-1 text-emerald-300">
                   <Shield className="w-3 h-3" />
-                  Escrow wallet (only destination)
+                  Escrow Wallet
                 </span>
                 <span className="font-mono text-foreground/80 truncate max-w-[150px]">
                   {c.escrowAddress.slice(0, 6)}…{c.escrowAddress.slice(-6)}
@@ -2593,14 +2640,14 @@ export function CampaignDetailPage() {
             )}
             <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
               <span className="truncate">
-                Escrow: <span className="font-mono">{c.escrowAddress}</span>
+                Escrow Wallet: <span className="font-mono">{c.escrowAddress}</span>
               </span>
               <button
                 type="button"
                 className="hover:text-accent transition-colors"
                 onClick={() => {
                   navigator.clipboard.writeText(c.escrowAddress);
-                  toast({ title: "Escrow address copied" });
+                  toast({ title: "Escrow wallet copied" });
                 }}
               >
                 <Copy className="w-3 h-3" />
