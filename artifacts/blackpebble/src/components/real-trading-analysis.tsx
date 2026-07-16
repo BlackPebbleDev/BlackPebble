@@ -41,12 +41,15 @@ import {
   canonicalOpenPositions,
   holdingsAreVerified,
 } from "@/lib/real-analysis-select";
+import { selectPreviewSignals } from "@/lib/real-analysis-preview";
 import { useSolUsd } from "@/hooks/use-sol-usd";
 import {
   fmtPercent,
   fmtSol,
   fmtSignedSol,
-  fmtUsd,
+  fmtUsdSmart,
+  fmtSolMag,
+  fmtSignedSolMag,
   fmtNum,
   pnlColor,
 } from "@/lib/format";
@@ -59,7 +62,11 @@ import {
   type ChartRange,
 } from "@/lib/chart-theme";
 import { ChartRangeToggle } from "@/components/chart-range-toggle";
-import { MetricTile, type MetricTone } from "@/components/metric-tile";
+import {
+  MetricTile,
+  type MetricTone,
+  type DeltaInfo,
+} from "@/components/metric-tile";
 import { cn } from "@/lib/utils";
 
 ChartJS.register(
@@ -99,17 +106,142 @@ const SIGNAL_HINTS: Record<string, string> = {
   profitability: "Realized profit efficiency across closed trades.",
   conviction: "Tendency to take meaningful positions in fewer names.",
   position_sizing: "How well position sizes match your account and outcomes.",
-  diversification: "Spread of exposure across different tokens.",
+  diversification:
+    "How many different tokens you have traded over time. This is your historical trading breadth, not your current portfolio concentration.",
   drawdown_management: "How well losses are contained when trades go wrong.",
   activity: "How active this wallet has been recently.",
 };
 
+/**
+ * Static, honest explainability content per signal (Phase 2, Part 6). Direction
+ * is the single source of truth for how to colour a change; `basis` states which
+ * raw inputs the score reads (no fake formula, no AI claims). `meaning` maps a
+ * score band to plain language; `improve` is one practical, non-judgmental idea.
+ */
+type SignalDirectionFe = "higher_better" | "descriptive";
+
+interface SignalExplain {
+  direction: SignalDirectionFe;
+  basis: string;
+  meaning: string;
+  improve: string;
+}
+
+const SIGNAL_EXPLAIN: Record<string, SignalExplain> = {
+  consistency: {
+    direction: "higher_better",
+    basis: "Completed round trips and swap cadence",
+    meaning: "Higher means your results vary less from trade to trade.",
+    improve: "Keeping position sizes steadier tends to raise consistency.",
+  },
+  risk: {
+    direction: "descriptive",
+    basis: "Position sizing and token selection across buys",
+    meaning: "A style reading, not a grade: higher means more aggressive.",
+    improve: "There is no target here. Lower can mean safer, not better.",
+  },
+  discipline: {
+    direction: "higher_better",
+    basis: "Completed round trips",
+    meaning: "Higher means you follow repeatable sizing and exit rules.",
+    improve: "Pre-planning exits before entering supports discipline.",
+  },
+  timing: {
+    direction: "higher_better",
+    basis: "Completed round trips",
+    meaning: "Higher means entries and exits landed well relative to outcomes.",
+    improve: "Avoiding entries into extended moves tends to help timing.",
+  },
+  patience: {
+    direction: "descriptive",
+    basis: "Hold durations on completed round trips",
+    meaning: "A style reading: higher means you let positions develop longer.",
+    improve: "There is no target here. It reflects your natural hold style.",
+  },
+  recovery: {
+    direction: "higher_better",
+    basis: "Sequences of completed round trips",
+    meaning: "Higher means you bounce back well after losing streaks.",
+    improve: "Reducing size after a losing streak can support recovery.",
+  },
+  profitability: {
+    direction: "higher_better",
+    basis: "Realized P&L across completed round trips",
+    meaning: "Higher means better realized profit efficiency on closed trades.",
+    improve: "Letting winners run longer than losers tends to raise this.",
+  },
+  conviction: {
+    direction: "descriptive",
+    basis: "Buy sizing concentration across names",
+    meaning: "A style reading: higher means larger positions in fewer names.",
+    improve: "There is no target here. It reflects how you allocate.",
+  },
+  position_sizing: {
+    direction: "higher_better",
+    basis: "Buy sizes relative to outcomes",
+    meaning: "Higher means your position sizes match your results well.",
+    improve: "Sizing losers smaller than winners tends to raise this.",
+  },
+  diversification: {
+    direction: "higher_better",
+    basis: "Distinct tokens traded over time (historical breadth)",
+    meaning:
+      "Higher means you have traded a wider set of tokens historically. This is separate from current portfolio concentration.",
+    improve: "This reflects history and is not a current-portfolio target.",
+  },
+  drawdown_management: {
+    direction: "higher_better",
+    basis: "Loss size distribution across completed round trips",
+    meaning: "Higher means losses are contained when trades go wrong.",
+    improve: "Consistent stop discipline tends to contain drawdowns.",
+  },
+  activity: {
+    direction: "descriptive",
+    basis: "Recent swap frequency",
+    meaning: "A style reading: higher means a more active recent cadence.",
+    improve: "There is no target here. Activity is descriptive only.",
+  },
+};
+
+/** Confidence tier -> short human label for the detail view. */
+const TIER_LABEL: Record<string, string> = {
+  high: "High confidence",
+  medium: "Medium confidence",
+  low: "Low confidence",
+  insufficient: "Insufficient data",
+};
+
 function signalTone(key: string, value: number): MetricTone {
-  // Risk is direction-neutral: high = aggressive, not bad - render it amber.
-  if (key === "risk") return value >= 70 ? "warning" : "muted";
+  // Descriptive signals (risk, patience, conviction, activity) have no good/bad
+  // direction - render them neutral so a "style" reading never looks like a grade.
+  if (SIGNAL_EXPLAIN[key]?.direction === "descriptive") {
+    return key === "risk" && value >= 70 ? "warning" : "muted";
+  }
   if (value >= 70) return "positive";
   if (value >= 40) return "warning";
   return "muted";
+}
+
+/**
+ * Build a direction-aware change badge from the auditable comparison. A numeric
+ * change only shows when the comparison is trustworthy ("comparable"); a first
+ * reading shows "New"; a thin/absent prior shows no badge (never a fake delta).
+ */
+function signalDelta(s: RealTradingSignal): DeltaInfo | null {
+  const status = s.comparison?.status;
+  if (status === "new") return { value: 0, label: "New" };
+  if (status === "comparable" && s.delta30d != null && s.delta30d !== 0) {
+    const dir =
+      SIGNAL_EXPLAIN[s.key]?.direction === "descriptive"
+        ? "neutral"
+        : "up-good";
+    return { value: s.delta30d, direction: dir };
+  }
+  // Legacy snapshots without a comparison object: fall back to the old delta.
+  if (status == null && s.delta30d != null && s.delta30d !== 0) {
+    return { value: s.delta30d, direction: "up-good" };
+  }
+  return null;
 }
 
 // ── Small shared helpers ─────────────────────────────────────────────────────
@@ -422,22 +554,22 @@ function WalletSummaryHero({
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
         <MetricTile
-          label="Wallet Value"
+          label={walletValueUnverified ? "Native SOL Only" : "On-Chain Portfolio"}
           size="lg"
           value={
-            walletValueSol != null ? `${fmtSol(walletValueSol)} SOL` : "—"
+            walletValueSol != null ? `${fmtSolMag(walletValueSol)} SOL` : "—"
           }
           sub={
             walletValueUnverified
-              ? "Partial: native SOL only (tokens unverified)"
+              ? "Token valuation unavailable - reconnect/refresh to include held tokens"
               : walletValueSol != null && solUsd > 0
-                ? fmtUsd(walletValueSol * solUsd)
+                ? fmtUsdSmart(walletValueSol * solUsd)
                 : "Native SOL + priced holdings"
           }
           tone={verified ? "default" : "warning"}
           hint={
             walletValueUnverified
-              ? "Partial value. Your live on-chain token holdings could not be read right now, so this shows your native SOL balance only - not your complete wallet total. Hit Refresh to reconcile against live balances."
+              ? "Native SOL only. Your live on-chain token holdings could not be read right now, so this shows your native SOL balance - not your complete wallet total. Hit Refresh to reconcile against live balances."
               : "Total On-Chain Portfolio: your live native SOL plus the current value of every priced token you hold." +
                 (unpricedCount > 0
                   ? ` ${unpricedCount} holding${unpricedCount === 1 ? "" : "s"} could not be priced and are disclosed separately, excluded from this total (not counted as zero).`
@@ -446,17 +578,17 @@ function WalletSummaryHero({
           data-testid="tile-wallet-value"
         />
         <MetricTile
-          label={verified ? "Total P&L" : "Realized P&L"}
+          label="Historical Trading P&L"
           size="lg"
-          value={`${fmtSignedSol(
+          value={`${fmtSignedSolMag(
             verified ? m.totalPnlSol : m.realizedPnlSol,
           )} SOL`}
           sub={
             !verified
-              ? "Closed trades only — unrealized unverified"
+              ? "Reconstructed from closed trades"
               : solUsd > 0
-                ? fmtUsd(m.totalPnlSol * solUsd)
-                : undefined
+                ? fmtUsdSmart(m.totalPnlSol * solUsd)
+                : "Reconstructed from analyzed trades"
           }
           tone={
             (verified ? m.totalPnlSol : m.realizedPnlSol) > 0
@@ -467,8 +599,8 @@ function WalletSummaryHero({
           }
           hint={
             verified
-              ? "Realized P&L from closed trades plus estimated unrealized P&L on open positions."
-              : "Realized P&L from closed trades. Unrealized P&L is hidden because current holdings could not be verified against live balances."
+              ? "Reconstructed from your analyzed completed round trips plus estimated unrealized P&L on traced open positions. This is trading performance, not your current wallet balance."
+              : "Reconstructed realized P&L from your analyzed completed round trips. Unrealized P&L is excluded because current holdings could not be verified. This is trading performance, not your current wallet balance."
           }
           data-testid="tile-total-pnl"
         />
@@ -476,30 +608,39 @@ function WalletSummaryHero({
           label="Realized / Unrealized"
           size="lg"
           value={
-            <span className="flex items-baseline gap-1.5 text-base md:text-lg">
-              <span className={pnlColor(m.realizedPnlSol)}>
-                {fmtSignedSol(m.realizedPnlSol)}
-              </span>
-              <span className="text-muted-foreground text-xs">/</span>
-              {verified ? (
-                <span className={pnlColor(m.unrealizedPnlSol)}>
-                  {fmtSignedSol(m.unrealizedPnlSol)}
+            <span className="flex flex-col gap-0.5 text-base sm:text-lg">
+              <span className="flex items-baseline justify-between gap-2">
+                <span className="text-[10px] font-sans font-semibold uppercase tracking-wider text-muted-foreground">
+                  Realized
                 </span>
-              ) : (
-                <span className="text-warning text-xs">Unverified</span>
-              )}
+                <span className={pnlColor(m.realizedPnlSol)}>
+                  {fmtSignedSolMag(m.realizedPnlSol)}
+                </span>
+              </span>
+              <span className="flex items-baseline justify-between gap-2">
+                <span className="text-[10px] font-sans font-semibold uppercase tracking-wider text-muted-foreground">
+                  Unrealized
+                </span>
+                {verified ? (
+                  <span className={pnlColor(m.unrealizedPnlSol)}>
+                    {fmtSignedSolMag(m.unrealizedPnlSol)}
+                  </span>
+                ) : (
+                  <span className="text-warning text-xs">Unverified</span>
+                )}
+              </span>
             </span>
           }
-          sub="SOL, closed vs open"
-          hint="Left: locked-in profit from closed round trips. Right: estimated P&L on positions still open (hidden when holdings can't be verified)."
+          sub="SOL - closed trades vs open positions"
+          hint="Realized: locked-in profit from completed round trips (historical). Unrealized: current estimated P&L on verified open positions (hidden when holdings can't be verified)."
         />
         <MetricTile
           label="Portfolio Quality"
           size="lg"
           value={quality}
           tone={qualityTone}
-          sub="Structure & diversification"
-          hint="Measures how well-structured your current holdings are: concentration, diversification, dead and dust positions. Different from Wallet Cleanup's Wallet Health, which scores spam/hygiene."
+          sub="Structure, concentration & asset quality"
+          hint="Measures how well-structured your current holdings are: concentration, dead and dust positions, and cleanliness. Different from Wallet Cleanup's Wallet Health, which scores spam/hygiene."
           data-testid="tile-portfolio-quality"
         />
       </div>
@@ -532,14 +673,16 @@ function PerformanceSection({
     new Date(series[0]!.t * 1000).getFullYear() !==
       new Date(series[series.length - 1]!.t * 1000).getFullYear();
 
+  const pnlLabels = series.map((p) =>
+    new Date(p.t * 1000).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      ...(spansYears ? { year: "2-digit" as const } : {}),
+    }),
+  );
+
   const pnlData = {
-    labels: series.map((p) =>
-      new Date(p.t * 1000).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        ...(spansYears ? { year: "2-digit" as const } : {}),
-      }),
-    ),
+    labels: pnlLabels,
     datasets: [
       {
         ...accentLineDataset,
@@ -547,6 +690,24 @@ function PerformanceSection({
         data: series.map((p) => p.cumRealizedPnlSol),
       },
     ],
+  };
+
+  // Collapse repeated consecutive date ticks (e.g. many "Jul 13") to a single
+  // labelled tick so the axis stays readable at 360px instead of a wall of
+  // identical dates. Chart.js still plots every point; only labels are thinned.
+  const pnlXScale = {
+    ...baseScales.x,
+    ticks: {
+      ...baseScales.x.ticks,
+      autoSkip: true,
+      maxRotation: 0,
+      maxTicksLimit: 6,
+      callback(this: unknown, _val: unknown, index: number): string | null {
+        const label = pnlLabels[index];
+        if (label == null) return null;
+        return index > 0 && pnlLabels[index - 1] === label ? "" : label;
+      },
+    },
   };
 
   const totalClosed = performance.holdBuckets.reduce((s, b) => s + b.count, 0);
@@ -599,15 +760,15 @@ function PerformanceSection({
 
       {hasSeries && (
         <div>
-          <div className="flex items-start justify-between gap-3 mb-2">
-            <div>
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-3 mb-2">
+            <div className="min-w-0">
               <div className="stat-label mb-0.5">Cumulative Realized P&L</div>
               <p className="text-[11px] text-muted-foreground">
                 Your running total of locked-in profit and loss, trade by
-                trade. Hover anywhere on the line for the value at that point.
+                trade. Tap or hover the line for the value at that point.
               </p>
             </div>
-            <ChartRangeToggle value={range} onChange={setRange} className="shrink-0" />
+            <ChartRangeToggle value={range} onChange={setRange} className="shrink-0 self-start" />
           </div>
           {rangeIsSparse && (
             <p className="text-[11px] text-warning/80 mb-2">
@@ -636,7 +797,7 @@ function PerformanceSection({
                     },
                   },
                 },
-                scales: baseScales,
+                scales: { ...baseScales, x: pnlXScale },
               }}
             />
           </div>
@@ -756,13 +917,88 @@ function PerformanceSection({
 
 // ── 3. Trader Intelligence (signals) ─────────────────────────────────────────
 
+/** Plain-language meaning of a score band for the detail view. */
+function scoreBandLabel(value: number): string {
+  if (value >= 80) return "Very strong";
+  if (value >= 65) return "Strong";
+  if (value >= 45) return "Moderate";
+  if (value >= 25) return "Developing";
+  return "Weak";
+}
+
+/** Inline explainability panel for one signal (tap-to-open, no hover needed). */
+function SignalDetail({ s }: { s: RealTradingSignal }) {
+  const meta = SIGNAL_EXPLAIN[s.key];
+  const insufficient = s.tier === "insufficient";
+  const cmp = s.comparison;
+  const rows: Array<{ k: string; v: React.ReactNode }> = [
+    { k: "Score", v: insufficient ? "Not enough data" : `${s.value} / 100` },
+    {
+      k: "What it means",
+      v: insufficient
+        ? "There is not enough evidence to score this reliably yet."
+        : `${scoreBandLabel(s.value)}. ${meta?.meaning ?? SIGNAL_HINTS[s.key] ?? ""}`,
+    },
+    { k: "Confidence", v: TIER_LABEL[s.tier] ?? s.tier },
+    {
+      k: "Sample size",
+      v: `${s.sampleSize} observation${s.sampleSize === 1 ? "" : "s"}`,
+    },
+    { k: "Reads from", v: meta?.basis ?? "Analyzed trading history" },
+    {
+      k: "30-day change",
+      v:
+        cmp?.status === "comparable" && s.delta30d != null
+          ? `${s.delta30d > 0 ? "+" : ""}${s.delta30d} vs ${s.previousValue} (30 days ago)`
+          : cmp?.status === "new"
+            ? "First reading - no prior period to compare"
+            : "Not enough comparable prior data",
+    },
+  ];
+  if (s.evidence.length > 0) {
+    rows.push({ k: "Main evidence", v: s.evidence.join(" · ") });
+  }
+  if (!insufficient && meta?.direction === "higher_better") {
+    rows.push({ k: "To improve", v: meta.improve });
+  }
+  return (
+    <div className="rounded-xl bg-surface-2 border border-white/[0.06] px-3.5 py-3 space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-sm font-semibold">
+          {SIGNAL_LABELS[s.key] ?? s.key}
+        </span>
+        {meta?.direction === "descriptive" && (
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+            Style, not a grade
+          </span>
+        )}
+      </div>
+      <dl className="grid grid-cols-1 gap-1.5">
+        {rows.map((r) => (
+          <div
+            key={r.k}
+            className="flex items-start justify-between gap-3 text-xs"
+          >
+            <dt className="text-muted-foreground shrink-0">{r.k}</dt>
+            <dd className="text-right text-foreground/90 leading-snug">
+              {r.v}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
+}
+
 function IntelligenceSection({ analysis }: { analysis: RealAnalysisSummary }) {
+  const [openKey, setOpenKey] = useState<string | null>(null);
   if (analysis.signals.length === 0) return null;
+  const open = analysis.signals.find((s) => s.key === openKey) ?? null;
   return (
     <section className="rounded-2xl bg-card shadow-card p-5 sm:p-6 space-y-4">
       <SectionHeader
         title="Trader Intelligence"
-        description="Twelve signals scored 0–100 from your history, with 30-day change. These evolve as you trade."
+        description="Twelve signals scored 0-100 from your history. Tap any signal for what it means, its evidence, confidence and 30-day change."
       />
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
         {analysis.signals.map((s: RealTradingSignal) => {
@@ -774,21 +1010,18 @@ function IntelligenceSection({ analysis }: { analysis: RealAnalysisSummary }) {
               key={s.key}
               label={SIGNAL_LABELS[s.key] ?? s.key}
               value={insufficient ? "—" : s.value}
-              delta={insufficient ? null : s.delta30d}
+              delta={insufficient ? null : signalDelta(s)}
               tone={insufficient ? "default" : signalTone(s.key, s.value)}
-              hint={
-                insufficient
-                  ? `Insufficient data to score this reliably yet${
-                      s.sampleSize != null ? ` (${s.sampleSize} sample${s.sampleSize === 1 ? "" : "s"})` : ""
-                    }. ${SIGNAL_HINTS[s.key] ?? ""}`
-                  : (SIGNAL_HINTS[s.key] ?? "") +
-                    (s.evidence.length > 0 ? ` - ${s.evidence.join(" · ")}` : "")
+              active={openKey === s.key}
+              onClick={() =>
+                setOpenKey((prev) => (prev === s.key ? null : s.key))
               }
               data-testid={`signal-${s.key}`}
             />
           );
         })}
       </div>
+      {open && <SignalDetail s={open} />}
     </section>
   );
 }
@@ -901,73 +1134,129 @@ function RiskSection({ analysis }: { analysis: RealAnalysisSummary }) {
     analysis.portfolio != null
       ? analysis.portfolio.analyzedTradingPortfolioSol
       : null;
+  const positions = canonicalOpenPositions(analysis);
+  const unrealized = positions.reduce(
+    (s, p) => s + (p.unrealizedPnlSol ?? 0),
+    0,
+  );
+  const unpricedCount = analysis.portfolio?.counts.unpriced ?? 0;
   const concentrationTone: MetricTone =
-    h.concentrationRisk > 60 ? "negative" : h.concentrationRisk > 35 ? "warning" : "positive";
+    h.concentrationRisk > 60
+      ? "negative"
+      : h.concentrationRisk > 35
+        ? "warning"
+        : "positive";
 
   return (
-    <section className="rounded-2xl bg-card shadow-card p-5 sm:p-6 space-y-4">
+    <section className="rounded-2xl bg-card shadow-card p-5 sm:p-6 space-y-5">
       <SectionHeader
         title="Risk & Exposure"
-        description="How much is at risk right now, and how you size when you take a shot."
+        description="Your live current-portfolio risk, kept separate from how you have sized and performed historically."
       />
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
-        <MetricTile
-          label="Current Exposure"
-          value={
-            holdingsVerified && exposureSol != null
-              ? `${fmtSol(exposureSol)} SOL`
-              : "Unverified"
-          }
-          tone={holdingsVerified ? "default" : "warning"}
-          hint={
-            holdingsVerified
-              ? "Total current value of the priced holdings we reconciled against your live on-chain balances."
-              : "Live holdings could not be verified, so exposure from trade history is not shown (it can include tokens you've already sold or transferred). Hit Refresh to reconcile."
-          }
-        />
-        <MetricTile
-          label="Concentration"
-          value={holdingsVerified ? `${h.concentrationRisk}%` : "Unverified"}
-          tone={holdingsVerified ? concentrationTone : "warning"}
-          hint="How much of your holdings sit in a few tokens. Lower is safer."
-        />
-        <MetricTile
-          label="Avg Position"
-          value={`${fmtSol(m.avgPositionSizeSol)} SOL`}
-          hint="Average SOL committed per buy."
-        />
-        <MetricTile
-          label="Largest Loss"
-          value={`${fmtSol(m.largestLossSol)} SOL`}
-          tone={m.largestLossSol > 0 ? "negative" : "default"}
-          hint="Your single worst realized round trip."
-        />
-        <MetricTile
-          label="Largest Gain"
-          value={`${fmtSol(m.largestGainSol)} SOL`}
-          tone={m.largestGainSol > 0 ? "positive" : "default"}
-          hint="Your single best realized round trip."
-        />
-        <MetricTile
-          label="Dead / Dust"
-          value={`${h.deadPositions} / ${h.dustPositions}`}
-          tone={h.deadPositions > 0 ? "warning" : "default"}
-          hint="Positions that look inactive or worthless / positions too small to matter."
-        />
+
+      {/* Current Portfolio Risk - live, reconciled wallet only. */}
+      <div className="space-y-2.5">
+        <div className="stat-label">Current Portfolio Risk</div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
+          <MetricTile
+            label="Current Exposure"
+            value={
+              holdingsVerified && exposureSol != null
+                ? `${fmtSolMag(exposureSol)} SOL`
+                : "Unverified"
+            }
+            tone={holdingsVerified ? "default" : "warning"}
+            hint={
+              holdingsVerified
+                ? "Current value of the verified, traced open positions reconciled against your live on-chain balances."
+                : "Live holdings could not be verified, so exposure from trade history is not shown (it can include tokens you've already sold or transferred). Hit Refresh to reconcile."
+            }
+          />
+          <MetricTile
+            label="Concentration"
+            value={holdingsVerified ? `${h.concentrationRisk}%` : "Unverified"}
+            tone={holdingsVerified ? concentrationTone : "warning"}
+            hint="How much of your current holdings sit in a few tokens. Lower is safer."
+          />
+          <MetricTile
+            label="Open Positions"
+            value={holdingsVerified ? positions.length : "Unverified"}
+            tone={holdingsVerified ? "default" : "warning"}
+            hint="Count of live-reconciled current positions traceable to your swap history."
+          />
+          <MetricTile
+            label="Unrealized P&L"
+            value={
+              holdingsVerified ? `${fmtSignedSolMag(unrealized)} SOL` : "Unverified"
+            }
+            tone={
+              !holdingsVerified
+                ? "warning"
+                : unrealized > 0
+                  ? "positive"
+                  : unrealized < 0
+                    ? "negative"
+                    : "default"
+            }
+            hint="Current estimated P&L on your verified open positions. Depends on live prices; hidden when holdings can't be verified."
+          />
+          <MetricTile
+            label="Unpriced Holdings"
+            value={holdingsVerified ? unpricedCount : "Unverified"}
+            tone={holdingsVerified && unpricedCount > 0 ? "warning" : "default"}
+            hint="Current holdings we could not price. They are disclosed and excluded from exposure (never counted as zero)."
+          />
+          <MetricTile
+            label="Dead / Dust"
+            value={`${h.deadPositions} / ${h.dustPositions}`}
+            tone={h.deadPositions > 0 ? "warning" : "default"}
+            hint="Current positions that look inactive or worthless / positions too small to matter."
+          />
+        </div>
+        {h.notes.length > 0 && (
+          <ul className="space-y-1">
+            {h.notes.map((n) => (
+              <li
+                key={n}
+                className="text-xs text-muted-foreground leading-relaxed flex items-start gap-1.5"
+              >
+                <ShieldCheck className="w-3.5 h-3.5 shrink-0 mt-px text-muted-foreground/60" />
+                {n}
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
-      {h.notes.length > 0 && (
-        <ul className="space-y-1">
-          {h.notes.map((n) => (
-            <li
-              key={n}
-              className="text-xs text-muted-foreground leading-relaxed flex items-start gap-1.5"
-            >
-              <ShieldCheck className="w-3.5 h-3.5 shrink-0 mt-px text-muted-foreground/60" />
-              {n}
-            </li>
-          ))}
-        </ul>
-      )}
+
+      {/* Historical Trade Risk - reconstructed from completed round trips. */}
+      <div className="space-y-2.5">
+        <div className="stat-label">Historical Trade Risk</div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
+          <MetricTile
+            label="Avg Historical Entry"
+            value={`${fmtSolMag(m.avgPositionSizeSol)} SOL`}
+            hint="Average SOL committed per historical buy (mean initial position size across all analyzed buys). Historical, not a current position."
+          />
+          <MetricTile
+            label="Largest Gain"
+            value={`${fmtSolMag(m.largestGainSol)} SOL`}
+            tone={m.largestGainSol > 0 ? "positive" : "default"}
+            hint="Your single best realized completed round trip (historical)."
+          />
+          <MetricTile
+            label="Largest Loss"
+            value={`${fmtSolMag(m.largestLossSol)} SOL`}
+            tone={m.largestLossSol > 0 ? "negative" : "default"}
+            hint="Your single worst realized completed round trip (historical)."
+          />
+          <MetricTile
+            label="Avg Loss"
+            value={`${fmtSolMag(m.avgLossSol)} SOL`}
+            tone={m.avgLossSol > 0 ? "negative" : "default"}
+            hint="Average size of your losing completed round trips (historical)."
+          />
+        </div>
+      </div>
     </section>
   );
 }
@@ -987,10 +1276,10 @@ function TokenPerfRow({ t }: { t: RealTokenPerformance }) {
         </div>
       </div>
       <div className="text-right shrink-0">
-        <div className={cn("text-sm font-mono font-medium", pnlColor(t.realizedPnlSol))}>
-          {fmtSignedSol(t.realizedPnlSol)} SOL
+        <div className={cn("text-sm font-mono font-medium tabular-nums", pnlColor(t.realizedPnlSol))}>
+          {fmtSignedSolMag(t.realizedPnlSol)} SOL
         </div>
-        <div className={cn("text-[10px] font-mono", pnlColor(t.roiPercent))}>
+        <div className={cn("text-[10px] font-mono tabular-nums", pnlColor(t.roiPercent))}>
           {fmtPercent(t.roiPercent, 1)}
         </div>
       </div>
@@ -1007,23 +1296,23 @@ function PositionRow({ p }: { p: RealOpenPosition }) {
           {p.symbol ?? shortMint(p.tokenMint)}
         </div>
         <div className="text-[10px] text-muted-foreground truncate">
-          {fmtNum(p.tokenAmount)} tokens · cost {fmtSol(p.costBasisSol)} SOL
+          {fmtNum(p.tokenAmount)} tokens · cost {fmtSolMag(p.costBasisSol)} SOL
         </div>
       </div>
       <div className="text-right shrink-0">
-        <div className="text-sm font-mono">
-          {p.currentValueSol != null ? `${fmtSol(p.currentValueSol)} SOL` : "—"}
+        <div className="text-sm font-mono tabular-nums">
+          {p.currentValueSol != null ? `${fmtSolMag(p.currentValueSol)} SOL` : "—"}
         </div>
         <div
           className={cn(
-            "text-[10px] font-mono",
+            "text-[10px] font-mono tabular-nums",
             p.unrealizedPnlSol != null
               ? pnlColor(p.unrealizedPnlSol)
               : "text-muted-foreground",
           )}
         >
           {p.unrealizedPnlSol != null
-            ? `${fmtSignedSol(p.unrealizedPnlSol)} SOL`
+            ? `${fmtSignedSolMag(p.unrealizedPnlSol)} SOL`
             : "no market data"}
         </div>
       </div>
@@ -1056,20 +1345,12 @@ function HoldingsSection({
   const shown = showAll ? positions : positions.slice(0, 6);
   const winners = performance?.topWinners ?? [];
   const losers = performance?.topLosers ?? [];
-  if (
-    holdingsVerified &&
-    positions.length === 0 &&
-    winners.length === 0 &&
-    losers.length === 0
-  ) {
-    return null;
-  }
 
   return (
     <section className="rounded-2xl bg-card shadow-card p-5 sm:p-6 space-y-4">
       <SectionHeader
         title="Holdings & Trades"
-        description="Open positions from your traced swaps, and the tokens that made - or cost - you the most."
+        description="Your live current open positions, kept separate from your best and worst completed round trips (historical)."
       />
 
       {!holdingsVerified && (
@@ -1103,56 +1384,77 @@ function HoldingsSection({
         </div>
       )}
 
-      {holdingsVerified && positions.length > 0 && (
+      {holdingsVerified && (
         <div>
           <div className="stat-label mb-2">
-            Open Positions ({positions.length})
+            Current Open Positions
+            {positions.length > 0 ? ` (${positions.length})` : ""}
           </div>
-          <div className="rounded-xl bg-surface-2 border border-white/[0.05] overflow-hidden">
-            {shown.map((p) => (
-              <PositionRow key={p.tokenMint} p={p} />
-            ))}
-          </div>
-          {positions.length > 6 && (
-            <button
-              type="button"
-              onClick={() => setShowAll(!showAll)}
-              className="mt-2 flex items-center gap-1 text-xs text-accent hover:underline"
-            >
-              {showAll ? (
-                <>
-                  Show less <ChevronUp className="w-3 h-3" />
-                </>
-              ) : (
-                <>
-                  Show all {positions.length} <ChevronDown className="w-3 h-3" />
-                </>
+          {positions.length > 0 ? (
+            <>
+              <div className="rounded-xl bg-surface-2 border border-white/[0.05] overflow-hidden">
+                {shown.map((p) => (
+                  <PositionRow key={p.tokenMint} p={p} />
+                ))}
+              </div>
+              {positions.length > 6 && (
+                <button
+                  type="button"
+                  onClick={() => setShowAll(!showAll)}
+                  className="mt-2 flex items-center gap-1 text-xs text-accent hover:underline"
+                >
+                  {showAll ? (
+                    <>
+                      Show less <ChevronUp className="w-3 h-3" />
+                    </>
+                  ) : (
+                    <>
+                      Show all {positions.length}{" "}
+                      <ChevronDown className="w-3 h-3" />
+                    </>
+                  )}
+                </button>
               )}
-            </button>
+              <p className="text-[11px] text-muted-foreground/80 mt-2 leading-relaxed">
+                Live-reconciled tokens you currently hold, traceable to your swap
+                history. Quantities are capped to your on-chain balance.
+              </p>
+            </>
+          ) : (
+            <p className="rounded-xl bg-surface-2 border border-white/[0.05] px-4 py-3 text-xs text-muted-foreground">
+              No verified open positions. Your traced holdings have all been
+              closed or are below dust.
+            </p>
           )}
         </div>
       )}
 
-      {(winners.length > 0 || losers.length > 0) && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {winners.length > 0 && (
-            <div className="space-y-2">
-              <div className="stat-label">Top Winners</div>
-              {winners.map((t) => (
-                <TokenPerfRow key={t.tokenMint} t={t} />
-              ))}
-            </div>
-          )}
-          {losers.length > 0 && (
-            <div className="space-y-2">
-              <div className="stat-label">Top Losers</div>
-              {losers.map((t) => (
-                <TokenPerfRow key={t.tokenMint} t={t} />
-              ))}
-            </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <div className="stat-label">Historical Top Winners</div>
+          {winners.length > 0 ? (
+            winners.map((t) => <TokenPerfRow key={t.tokenMint} t={t} />)
+          ) : (
+            <p className="rounded-xl bg-surface-2 border border-white/[0.05] px-4 py-3 text-xs text-muted-foreground">
+              No completed winning trades yet.
+            </p>
           )}
         </div>
-      )}
+        <div className="space-y-2">
+          <div className="stat-label">Historical Top Losers</div>
+          {losers.length > 0 ? (
+            losers.map((t) => <TokenPerfRow key={t.tokenMint} t={t} />)
+          ) : (
+            <p className="rounded-xl bg-surface-2 border border-white/[0.05] px-4 py-3 text-xs text-muted-foreground">
+              No completed losing trades yet.
+            </p>
+          )}
+        </div>
+      </div>
+      <p className="text-[11px] text-muted-foreground/70 leading-relaxed">
+        Winners and losers are completed historical round trips, not current
+        holdings.
+      </p>
     </section>
   );
 }
@@ -1160,7 +1462,18 @@ function HoldingsSection({
 // ── 7. Historical Evolution ──────────────────────────────────────────────────
 
 function EvolutionSection({ events }: { events: RealTimelineEvent[] }) {
-  if (events.length === 0) return null;
+  // Defensive frontend dedup of any legacy duplicate rows the backend read-time
+  // dedup did not cover, keyed by canonical identity (type + title + body).
+  const seen = new Set<string>();
+  const deduped = events.filter((ev) => {
+    const id = `${ev.eventType}|${ev.title}|${ev.body ?? ""}`;
+    if (seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+  const [open, setOpen] = useState(false);
+  if (deduped.length === 0) return null;
+  const shown = open ? deduped : deduped.slice(0, 3);
   return (
     <section className="rounded-2xl bg-card shadow-card p-5 sm:p-6 space-y-4">
       <SectionHeader
@@ -1168,7 +1481,7 @@ function EvolutionSection({ events }: { events: RealTimelineEvent[] }) {
         description="Milestones BlackPebble has detected as your trading develops."
       />
       <div className="space-y-1.5">
-        {events.map((ev) => (
+        {shown.map((ev) => (
           <div
             key={ev.id}
             className="flex items-start gap-3 rounded-xl bg-surface-2 border border-white/[0.05] px-3.5 py-3"
@@ -1188,6 +1501,24 @@ function EvolutionSection({ events }: { events: RealTimelineEvent[] }) {
           </div>
         ))}
       </div>
+      {deduped.length > 3 && (
+        <button
+          type="button"
+          onClick={() => setOpen(!open)}
+          className="flex items-center gap-1 text-xs text-accent hover:underline"
+        >
+          {open ? (
+            <>
+              Show less <ChevronUp className="w-3 h-3" />
+            </>
+          ) : (
+            <>
+              Show full history ({deduped.length}){" "}
+              <ChevronDown className="w-3 h-3" />
+            </>
+          )}
+        </button>
+      )}
     </section>
   );
 }
@@ -1223,21 +1554,31 @@ function DetailedMetricsSection({ analysis }: { analysis: RealAnalysisSummary })
             label="Win Rate"
             value={m.closedRoundTrips > 0 ? fmtPercent(m.winRate * 100, 1) : "—"}
             tone={m.winRate >= 0.5 ? "positive" : "default"}
+            hint="Share of completed round trips that closed in profit. Breakeven trades count as non-wins."
           />
-          <MetricTile label="Closed Trades" value={m.closedRoundTrips} />
-          <MetricTile label="Total Swaps" value={m.totalTrades} />
+          <MetricTile
+            label="Completed Round Trips"
+            value={m.closedRoundTrips}
+            hint="FIFO-matched buy-to-sell results (not the same as swaps)."
+          />
+          <MetricTile
+            label="Swaps Analyzed"
+            value={m.totalTrades}
+            hint="Individual parsed on-chain executions (buys plus sells)."
+          />
           <MetricTile
             label="Buys / Sells"
             value={`${m.buyCount} / ${m.sellCount}`}
+            hint="Swap sides. Buys plus sells equals total swaps analyzed."
           />
           <MetricTile
             label="Avg Gain"
-            value={`${fmtSol(m.avgGainSol)} SOL`}
+            value={`${fmtSolMag(m.avgGainSol)} SOL`}
             tone={m.avgGainSol > 0 ? "positive" : "default"}
           />
           <MetricTile
             label="Avg Loss"
-            value={`${fmtSol(m.avgLossSol)} SOL`}
+            value={`${fmtSolMag(m.avgLossSol)} SOL`}
             tone={m.avgLossSol > 0 ? "negative" : "default"}
           />
           <MetricTile
@@ -1249,13 +1590,13 @@ function DetailedMetricsSection({ analysis }: { analysis: RealAnalysisSummary })
             value={formatHoldDuration(m.medianHoldDurationSec)}
           />
           <MetricTile
-            label="Trades / Week"
+            label="Swaps / Week"
             value={m.tradingFrequencyPerWeek.toFixed(1)}
           />
           <MetricTile label="Unique Tokens" value={m.uniqueTokensTraded} />
           <MetricTile
             label="Avg Mkt Cap Bought"
-            value={m.avgMarketCapPurchasedUsd != null ? fmtUsd(m.avgMarketCapPurchasedUsd) : "—"}
+            value={m.avgMarketCapPurchasedUsd != null ? fmtUsdSmart(m.avgMarketCapPurchasedUsd) : "—"}
           />
           <MetricTile label="Wallet Age" value={`${m.walletAgeDays}d`} />
         </div>
@@ -1450,10 +1791,7 @@ export function RealTradingAnalysisFull() {
 export function RealTradingAnalysisSection() {
   const { wallet, connected, analysis, isLoading } = useRealAnalysis();
 
-  const topSignals = (analysis?.signals ?? [])
-    .filter((s) => s.key !== "activity" && s.tier !== "insufficient")
-    .sort((a, b) => b.value - a.value)
-    .slice(0, 3);
+  const previewSignals = selectPreviewSignals(analysis?.signals ?? []);
 
   return (
     <div
@@ -1487,25 +1825,29 @@ export function RealTradingAnalysisSection() {
           Analyzing…
         </div>
       ) : analysis && !analysis.empty ? (
-        <div className="mt-3 flex flex-col sm:flex-row sm:items-center gap-3">
+        <div className="mt-3 space-y-3">
           <div className="flex items-center gap-2 min-w-0">
             <Dna className="w-4 h-4 text-accent shrink-0" />
             <span className="text-sm font-medium truncate">
               {analysis.personality.personality}
             </span>
           </div>
-          <div className="flex items-center gap-2 sm:ml-auto">
-            {topSignals.map((s) => (
-              <MetricTile
-                key={s.key}
-                size="sm"
-                label={SIGNAL_LABELS[s.key] ?? s.key}
-                value={s.value}
-                tone={signalTone(s.key, s.value)}
-                className="min-w-[88px] text-center"
-              />
-            ))}
-          </div>
+          {previewSignals.length > 0 && (
+            // 2 tiles on the first row, the third full-width beneath, so signal
+            // labels stay fully readable on mobile (no CONVIC.../DIVERSIFICA...).
+            <div className="grid grid-cols-2 gap-2">
+              {previewSignals.map((s, i) => (
+                <MetricTile
+                  key={s.key}
+                  size="sm"
+                  label={SIGNAL_LABELS[s.key] ?? s.key}
+                  value={s.value}
+                  tone={signalTone(s.key, s.value)}
+                  className={cn(i === 2 && "col-span-2")}
+                />
+              ))}
+            </div>
+          )}
         </div>
       ) : (
         <p className="text-sm text-muted-foreground mt-3">

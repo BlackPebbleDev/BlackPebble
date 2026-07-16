@@ -61,6 +61,23 @@ describe("buildPnlSeries", () => {
   it("returns empty for no closed trips", () => {
     expect(buildPnlSeries([])).toEqual([]);
   });
+
+  it("retains the peak and the largest drawdown when downsampling", () => {
+    // 1000 tiny gains with one huge spike and one deep trough buried mid-series.
+    const trips = Array.from({ length: 1000 }, (_, i) => {
+      if (i === 400) return trip({ sellTime: i + 1, realizedPnlSol: 500 });
+      if (i === 600) return trip({ sellTime: i + 1, realizedPnlSol: -900 });
+      return trip({ sellTime: i + 1, realizedPnlSol: 0.01 });
+    });
+    const series = buildPnlSeries(trips);
+    const values = series.map((p) => p.cumRealizedPnlSol);
+    const max = Math.max(...values);
+    const min = Math.min(...values);
+    // The spike (~504) and the post-trough low must survive even sampling.
+    expect(max).toBeGreaterThan(500);
+    expect(min).toBeLessThan(-390);
+    expect(series.length).toBeLessThanOrEqual(200);
+  });
 });
 
 describe("buildMonthlyActivity", () => {

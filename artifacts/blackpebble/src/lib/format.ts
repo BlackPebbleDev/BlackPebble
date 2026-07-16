@@ -177,6 +177,67 @@ export function pnlColorSafe(value: number | null | undefined): string {
 }
 
 /**
+ * Magnitude-aware SOL amount for Trader Intelligence tiles. Precision scales
+ * with size so a value never needs a destructive ellipsis at 360px, and large
+ * numbers stay compact:
+ *   >= 1000 SOL -> "1.24K"      (2 sig decimals on the K)
+ *   >= 100  SOL -> "123.4"      (1 decimal)
+ *   >= 10   SOL -> "39.73"      (2 decimals)
+ *   >= 1    SOL -> "1.234"      (3 decimals)
+ *   > 0     SOL -> up to 6 meaningful decimals (e.g. "0.0249")
+ *   == 0        -> "0"
+ * Returns the number body only (no "SOL" suffix, no sign) so callers control
+ * layout. Use `fmtSolMag`/`fmtSignedSolMag` for the common cases.
+ */
+export function solMagnitudeBody(value: number): string {
+  const abs = Math.abs(value);
+  if (abs === 0) return "0";
+  if (abs >= 1000) {
+    // 1.24K, 12.3K, 124K
+    const k = abs / 1000;
+    const dec = k >= 100 ? 0 : k >= 10 ? 1 : 2;
+    return `${k.toFixed(dec)}K`;
+  }
+  if (abs >= 100) return abs.toFixed(1);
+  if (abs >= 10) return abs.toFixed(2);
+  if (abs >= 1) return abs.toFixed(3);
+  // Sub-1: keep enough meaningful precision without trailing-zero noise.
+  const s = abs.toFixed(6).replace(/0+$/, "").replace(/\.$/, "");
+  return s.length > 0 ? s : "0";
+}
+
+/** Magnitude-aware unsigned SOL body (no suffix). "—" for null/non-finite. */
+export function fmtSolMag(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return "—";
+  return solMagnitudeBody(value);
+}
+
+/** Magnitude-aware signed SOL body (no suffix): "+1.24K", "-39.73", "0". */
+export function fmtSignedSolMag(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return "—";
+  if (value === 0) return "0";
+  const sign = value > 0 ? "+" : "-";
+  return `${sign}${solMagnitudeBody(value)}`;
+}
+
+/**
+ * USD for Trader Intelligence: compact for large, precise for small, and an
+ * explicit "<$0.01" for tiny nonzero values so a real balance is never shown
+ * as "$0.00". Signed variant keeps the sign before the $.
+ */
+export function fmtUsdSmart(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return "—";
+  const abs = Math.abs(value);
+  const sign = value < 0 ? "-" : "";
+  if (abs === 0) return "$0.00";
+  if (abs > 0 && abs < 0.01) return `${sign}<$0.01`;
+  if (abs >= 1_000_000_000) return `${sign}$${(abs / 1_000_000_000).toFixed(2)}B`;
+  if (abs >= 1_000_000) return `${sign}$${(abs / 1_000_000).toFixed(2)}M`;
+  if (abs >= 1_000) return `${sign}$${(abs / 1_000).toFixed(1)}K`;
+  return `${sign}$${abs.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+/**
  * Signed SOL amount for P&L, with an explicit +/- so direction reads at a
  * glance: "+0.2383", "-1.20". Mirrors fmtSol's decimal rules.
  */

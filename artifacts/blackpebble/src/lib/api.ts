@@ -1990,6 +1990,26 @@ export interface RealTradingSignal {
   evidence: string[];
   previousValue: number | null;
   delta30d: number | null;
+  /** How to read good/bad: higher_better or descriptive (a style). */
+  direction?: "higher_better" | "descriptive";
+  /** Which raw inputs the signal reads. */
+  basis?:
+    | "completed_round_trips"
+    | "swaps"
+    | "buys"
+    | "current_holdings"
+    | "combination";
+  /** Auditable 30-day comparison behind the change badge. */
+  comparison?: RealSignalComparison;
+}
+
+export interface RealSignalComparison {
+  status: "comparable" | "new" | "insufficient_prior";
+  previousValue: number | null;
+  comparisonStart: number | null;
+  comparisonEnd: number;
+  delta: number | null;
+  previousSampleSize: number | null;
 }
 
 export interface RealTraderDna {

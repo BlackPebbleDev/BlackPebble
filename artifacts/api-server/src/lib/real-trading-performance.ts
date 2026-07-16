@@ -63,14 +63,26 @@ export function buildPnlSeries(closed: ClosedRoundTrip[]): PnlPoint[] {
     return { t: c.sellTime, cumRealizedPnlSol: cum };
   });
   if (points.length <= MAX_SERIES_POINTS) return points;
-  // Downsample evenly, but always keep the final point (the current total).
-  const step = points.length / MAX_SERIES_POINTS;
-  const out: PnlPoint[] = [];
-  for (let i = 0; i < MAX_SERIES_POINTS - 1; i++) {
-    out.push(points[Math.floor(i * step)]!);
+  // Downsample evenly, but ALWAYS retain the peak, the trough (largest
+  // drawdown), the first point and the current total - so major extrema are
+  // never smoothed away by even sampling.
+  let minIdx = 0;
+  let maxIdx = 0;
+  for (let i = 1; i < points.length; i++) {
+    if (points[i]!.cumRealizedPnlSol < points[minIdx]!.cumRealizedPnlSol) minIdx = i;
+    if (points[i]!.cumRealizedPnlSol > points[maxIdx]!.cumRealizedPnlSol) maxIdx = i;
   }
-  out.push(points[points.length - 1]!);
-  return out;
+  // Reserve extrema first, then fill with even samples up to the hard cap so
+  // the returned series never exceeds MAX_SERIES_POINTS.
+  const keep = new Set<number>([0, points.length - 1, minIdx, maxIdx]);
+  const step = points.length / MAX_SERIES_POINTS;
+  for (let i = 0; i < MAX_SERIES_POINTS && keep.size < MAX_SERIES_POINTS; i++) {
+    keep.add(Math.floor(i * step));
+  }
+  return [...keep]
+    .filter((i) => i >= 0 && i < points.length)
+    .sort((a, b) => a - b)
+    .map((i) => points[i]!);
 }
 
 /** Buys/sells/volume per calendar month (UTC). */
