@@ -37,6 +37,10 @@ import {
   type RealTokenPerformance,
   type RealPerformanceReport,
 } from "@/lib/api";
+import {
+  canonicalOpenPositions,
+  holdingsAreVerified,
+} from "@/lib/real-analysis-select";
 import { useSolUsd } from "@/hooks/use-sol-usd";
 import {
   fmtPercent,
@@ -338,6 +342,7 @@ function WalletSummaryHero({
   syncError: string | null;
 }) {
   const m = analysis.metrics;
+  const verified = holdingsAreVerified(analysis);
   // Prefer the server's truthful "Total On-Chain Portfolio" (native SOL + every
   // priced live holding). When that reconciliation is unavailable we fall back
   // to the live NATIVE SOL balance ONLY - never native + reconstructed
@@ -350,6 +355,8 @@ function WalletSummaryHero({
       : solBalance != null
         ? solBalance
         : null;
+  // When we only have native SOL, this is an explicitly PARTIAL total - the
+  // wallet's token holdings could not be read - never presented as complete.
   const walletValueUnverified = portfolio == null;
   const unpricedCount = portfolio?.counts.unpriced ?? 0;
   const quality = analysis.walletHealth.score;
@@ -402,13 +409,13 @@ function WalletSummaryHero({
 
       {syncError && <p className="text-xs text-danger">{syncError}</p>}
 
-      {!analysis.holdingsVerified && (
+      {!verified && (
         <div className="flex items-start gap-2 rounded-xl border border-amber-500/25 bg-amber-500/5 px-3.5 py-2.5">
           <AlertTriangle className="w-3.5 h-3.5 text-warning shrink-0 mt-0.5" />
           <p className="text-xs text-amber-200/90 leading-relaxed">
-            Holdings shown are trade-history estimates that haven't been
-            verified against your live on-chain balances yet. Hit Refresh to
-            re-verify.
+            Your current token holdings could not be verified against live
+            on-chain balances yet, so current positions and exposure are marked
+            unverified. Hit Refresh to re-verify.
           </p>
         </div>
       )}
@@ -422,44 +429,44 @@ function WalletSummaryHero({
           }
           sub={
             walletValueUnverified
-              ? "Native SOL only — holdings unverified"
+              ? "Partial: native SOL only (tokens unverified)"
               : walletValueSol != null && solUsd > 0
                 ? fmtUsd(walletValueSol * solUsd)
                 : "Native SOL + priced holdings"
           }
-          tone={analysis.holdingsVerified ? "default" : "warning"}
+          tone={verified ? "default" : "warning"}
           hint={
             walletValueUnverified
-              ? "Live on-chain holdings could not be read right now, so this shows your native SOL balance only. Hit Refresh to reconcile against live balances."
+              ? "Partial value. Your live on-chain token holdings could not be read right now, so this shows your native SOL balance only - not your complete wallet total. Hit Refresh to reconcile against live balances."
               : "Total On-Chain Portfolio: your live native SOL plus the current value of every priced token you hold." +
                 (unpricedCount > 0
-                  ? ` ${unpricedCount} holding${unpricedCount === 1 ? "" : "s"} could not be priced and are excluded from this total (not counted as zero).`
+                  ? ` ${unpricedCount} holding${unpricedCount === 1 ? "" : "s"} could not be priced and are disclosed separately, excluded from this total (not counted as zero).`
                   : "")
           }
           data-testid="tile-wallet-value"
         />
         <MetricTile
-          label={analysis.holdingsVerified ? "Total P&L" : "Realized P&L"}
+          label={verified ? "Total P&L" : "Realized P&L"}
           size="lg"
           value={`${fmtSignedSol(
-            analysis.holdingsVerified ? m.totalPnlSol : m.realizedPnlSol,
+            verified ? m.totalPnlSol : m.realizedPnlSol,
           )} SOL`}
           sub={
-            !analysis.holdingsVerified
+            !verified
               ? "Closed trades only — unrealized unverified"
               : solUsd > 0
                 ? fmtUsd(m.totalPnlSol * solUsd)
                 : undefined
           }
           tone={
-            (analysis.holdingsVerified ? m.totalPnlSol : m.realizedPnlSol) > 0
+            (verified ? m.totalPnlSol : m.realizedPnlSol) > 0
               ? "positive"
-              : (analysis.holdingsVerified ? m.totalPnlSol : m.realizedPnlSol) < 0
+              : (verified ? m.totalPnlSol : m.realizedPnlSol) < 0
                 ? "negative"
                 : "default"
           }
           hint={
-            analysis.holdingsVerified
+            verified
               ? "Realized P&L from closed trades plus estimated unrealized P&L on open positions."
               : "Realized P&L from closed trades. Unrealized P&L is hidden because current holdings could not be verified against live balances."
           }
@@ -474,12 +481,12 @@ function WalletSummaryHero({
                 {fmtSignedSol(m.realizedPnlSol)}
               </span>
               <span className="text-muted-foreground text-xs">/</span>
-              {analysis.holdingsVerified ? (
+              {verified ? (
                 <span className={pnlColor(m.unrealizedPnlSol)}>
                   {fmtSignedSol(m.unrealizedPnlSol)}
                 </span>
               ) : (
-                <span className="text-warning text-xs">unverified</span>
+                <span className="text-warning text-xs">Unverified</span>
               )}
             </span>
           }
@@ -889,7 +896,7 @@ function RiskSection({ analysis }: { analysis: RealAnalysisSummary }) {
   // unverified trade-history estimates that can overstate reality - so we show
   // "Unverified" instead of a misleading number, and prompt a refresh.
   const holdingsVerified =
-    analysis.holdingsVerified && analysis.portfolio != null;
+    holdingsAreVerified(analysis) && analysis.portfolio != null;
   const exposureSol =
     analysis.portfolio != null
       ? analysis.portfolio.analyzedTradingPortfolioSol
@@ -1036,17 +1043,16 @@ function HoldingsSection({
   refreshBusy: boolean;
 }) {
   const [showAll, setShowAll] = useState(false);
-  // Canonical rule: current open positions are ONLY the reconciled set. When
-  // holdings could not be verified against live balances we show nothing here
-  // (never historical/ghost positions) and prompt a refresh.
-  const holdingsVerified = analysis.holdingsVerified;
-  const positions = holdingsVerified
-    ? [...analysis.openPositions].sort(
-        (a, b) =>
-          (b.currentValueSol ?? b.costBasisSol) -
-          (a.currentValueSol ?? a.costBasisSol),
-      )
-    : [];
+  // Canonical rule: current open positions are ONLY the reconciled set derived
+  // from the live-balance reconciliation audit. When holdings could not be
+  // verified we show nothing here (never historical/ghost positions) and prompt
+  // a refresh. canonicalOpenPositions enforces this at a single choke point.
+  const holdingsVerified = holdingsAreVerified(analysis);
+  const positions = [...canonicalOpenPositions(analysis)].sort(
+    (a, b) =>
+      (b.currentValueSol ?? b.costBasisSol) -
+      (a.currentValueSol ?? a.costBasisSol),
+  );
   const shown = showAll ? positions : positions.slice(0, 6);
   const winners = performance?.topWinners ?? [];
   const losers = performance?.topLosers ?? [];
@@ -1265,7 +1271,7 @@ function DataTransparency({ analysis }: { analysis: RealAnalysisSummary }) {
       <span>
         Read-only analysis of public blockchain data. {analysis.tradeCount}{" "}
         swaps analyzed · wallet age ~{analysis.metrics.walletAgeDays}d.
-        {analysis.holdingsVerified
+        {holdingsAreVerified(analysis)
           ? " Holdings verified against live on-chain balances."
           : " Holdings pending on-chain verification."}
         {analysis.droppedGhostMints > 0 &&
