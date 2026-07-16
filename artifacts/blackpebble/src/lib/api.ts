@@ -2168,8 +2168,22 @@ export interface RealAnalysisSummary {
   historyTruncated?: boolean;
   /** Token↔token swaps that could not be reconstructed in SOL terms. */
   skippedTokenToToken?: number;
+  /** Per-mint reconciliation audit trail for current positions. */
+  reconciliation?: RealPositionReconciliation[];
   empty?: boolean;
   message?: string;
+}
+
+/** Per-mint audit of how a FIFO holding was reconciled against live balances. */
+export interface RealPositionReconciliation {
+  mint: string;
+  historyQuantity: number;
+  liveQuantity: number | null;
+  reconciledQuantity: number;
+  reason: string;
+  droppedAsGhost: boolean;
+  includedInOpenPositions: boolean;
+  includedInAnalyzed: boolean;
 }
 
 // ---- API ----

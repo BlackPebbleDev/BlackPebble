@@ -439,12 +439,30 @@ function WalletSummaryHero({
           data-testid="tile-wallet-value"
         />
         <MetricTile
-          label="Total P&L"
+          label={analysis.holdingsVerified ? "Total P&L" : "Realized P&L"}
           size="lg"
-          value={`${fmtSignedSol(m.totalPnlSol)} SOL`}
-          sub={solUsd > 0 ? fmtUsd(m.totalPnlSol * solUsd) : undefined}
-          tone={m.totalPnlSol > 0 ? "positive" : m.totalPnlSol < 0 ? "negative" : "default"}
-          hint="Realized P&L from closed trades plus estimated unrealized P&L on open positions."
+          value={`${fmtSignedSol(
+            analysis.holdingsVerified ? m.totalPnlSol : m.realizedPnlSol,
+          )} SOL`}
+          sub={
+            !analysis.holdingsVerified
+              ? "Closed trades only — unrealized unverified"
+              : solUsd > 0
+                ? fmtUsd(m.totalPnlSol * solUsd)
+                : undefined
+          }
+          tone={
+            (analysis.holdingsVerified ? m.totalPnlSol : m.realizedPnlSol) > 0
+              ? "positive"
+              : (analysis.holdingsVerified ? m.totalPnlSol : m.realizedPnlSol) < 0
+                ? "negative"
+                : "default"
+          }
+          hint={
+            analysis.holdingsVerified
+              ? "Realized P&L from closed trades plus estimated unrealized P&L on open positions."
+              : "Realized P&L from closed trades. Unrealized P&L is hidden because current holdings could not be verified against live balances."
+          }
           data-testid="tile-total-pnl"
         />
         <MetricTile
@@ -456,13 +474,17 @@ function WalletSummaryHero({
                 {fmtSignedSol(m.realizedPnlSol)}
               </span>
               <span className="text-muted-foreground text-xs">/</span>
-              <span className={pnlColor(m.unrealizedPnlSol)}>
-                {fmtSignedSol(m.unrealizedPnlSol)}
-              </span>
+              {analysis.holdingsVerified ? (
+                <span className={pnlColor(m.unrealizedPnlSol)}>
+                  {fmtSignedSol(m.unrealizedPnlSol)}
+                </span>
+              ) : (
+                <span className="text-warning text-xs">unverified</span>
+              )}
             </span>
           }
           sub="SOL, closed vs open"
-          hint="Left: locked-in profit from closed round trips. Right: estimated P&L on positions still open."
+          hint="Left: locked-in profit from closed round trips. Right: estimated P&L on positions still open (hidden when holdings can't be verified)."
         />
         <MetricTile
           label="Portfolio Quality"
@@ -1005,19 +1027,35 @@ function PositionRow({ p }: { p: RealOpenPosition }) {
 function HoldingsSection({
   analysis,
   performance,
+  onRefresh,
+  refreshBusy,
 }: {
   analysis: RealAnalysisSummary;
   performance: RealPerformanceReport | null;
+  onRefresh: () => void;
+  refreshBusy: boolean;
 }) {
   const [showAll, setShowAll] = useState(false);
-  const positions = [...analysis.openPositions].sort(
-    (a, b) =>
-      (b.currentValueSol ?? b.costBasisSol) - (a.currentValueSol ?? a.costBasisSol),
-  );
+  // Canonical rule: current open positions are ONLY the reconciled set. When
+  // holdings could not be verified against live balances we show nothing here
+  // (never historical/ghost positions) and prompt a refresh.
+  const holdingsVerified = analysis.holdingsVerified;
+  const positions = holdingsVerified
+    ? [...analysis.openPositions].sort(
+        (a, b) =>
+          (b.currentValueSol ?? b.costBasisSol) -
+          (a.currentValueSol ?? a.costBasisSol),
+      )
+    : [];
   const shown = showAll ? positions : positions.slice(0, 6);
   const winners = performance?.topWinners ?? [];
   const losers = performance?.topLosers ?? [];
-  if (positions.length === 0 && winners.length === 0 && losers.length === 0) {
+  if (
+    holdingsVerified &&
+    positions.length === 0 &&
+    winners.length === 0 &&
+    losers.length === 0
+  ) {
     return null;
   }
 
@@ -1028,7 +1066,38 @@ function HoldingsSection({
         description="Open positions from your traced swaps, and the tokens that made - or cost - you the most."
       />
 
-      {positions.length > 0 && (
+      {!holdingsVerified && (
+        <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-4 space-y-2.5">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="w-4 h-4 text-warning shrink-0 mt-0.5" />
+            <div>
+              <div className="text-sm font-medium text-amber-100">
+                Open positions unverified
+              </div>
+              <p className="text-xs text-amber-200/90 leading-relaxed mt-0.5">
+                BlackPebble could not confirm your current on-chain token
+                balances. Refresh to try again. Your completed trades and
+                realized P&amp;L below remain accurate.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onRefresh}
+            disabled={refreshBusy}
+            className="inline-flex items-center gap-1.5 text-xs text-accent hover:underline disabled:opacity-50"
+          >
+            {refreshBusy ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <RefreshCw className="w-3.5 h-3.5" />
+            )}
+            Refresh
+          </button>
+        </div>
+      )}
+
+      {holdingsVerified && positions.length > 0 && (
         <div>
           <div className="stat-label mb-2">
             Open Positions ({positions.length})
@@ -1353,7 +1422,12 @@ export function RealTradingAnalysisFull() {
       <IntelligenceSection analysis={analysis} />
       <BehaviorSection analysis={analysis} />
       <RiskSection analysis={analysis} />
-      <HoldingsSection analysis={analysis} performance={performance} />
+      <HoldingsSection
+        analysis={analysis}
+        performance={performance}
+        onRefresh={() => syncMutation.mutate()}
+        refreshBusy={syncMutation.isPending || isFetching}
+      />
       <DetailedMetricsSection analysis={analysis} />
       <EvolutionSection events={timeline} />
       <DataTransparency analysis={analysis} />
