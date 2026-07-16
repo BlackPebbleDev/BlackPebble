@@ -296,6 +296,46 @@ router.get(
     // reconciliation run, so they all share one computedAt (the reconciliation
     // id). This block lets the owner prove no stale positions are mixed with a
     // fresh balance.
+    // ── Canonical current positions + per-position audit ───────────────────
+    // Join reconciliation (authority on what is actually held) with the priced
+    // open positions. This is the SAME rule the frontend applies, computed on
+    // the server so an owner can verify the two agree.
+    const DUST = 1e-9;
+    const posByMint = new Map(analysis.openPositions.map((p) => [p.tokenMint, p]));
+    const positionsAudit = analysis.reconciliation.map((r) => {
+      const pos = posByMint.get(r.mint);
+      return {
+        mint: r.mint,
+        symbol: pos?.symbol ?? null,
+        fifoQuantity: r.historyQuantity,
+        liveBalance: r.liveQuantity,
+        reconciledQuantity: r.reconciledQuantity,
+        includedInOpenPositions: r.includedInOpenPositions,
+        includedInAnalyzed: r.includedInAnalyzed,
+        droppedAsGhost: r.droppedAsGhost,
+        exclusionReason: r.reason,
+        currentValueSol: pos?.currentValueSol ?? null,
+        currentValueUsd: toUsd(pos?.currentValueSol ?? null),
+      };
+    });
+    const canonicalCurrentPositions = analysis.holdingsVerified
+      ? positionsAudit
+          .filter(
+            (a) =>
+              a.includedInOpenPositions &&
+              !a.droppedAsGhost &&
+              a.includedInAnalyzed &&
+              a.reconciledQuantity > DUST,
+          )
+          .map((a) => ({
+            mint: a.mint,
+            symbol: a.symbol,
+            tokenAmount: a.reconciledQuantity,
+            currentValueSol: a.currentValueSol,
+            currentValueUsd: a.currentValueUsd,
+          }))
+      : [];
+
     const connectedWallet = String(req.query.connectedWallet ?? "").trim() || null;
     const consistency = {
       reconciliationId: analysis.computedAt,
@@ -323,6 +363,7 @@ router.get(
       // ── Data provenance (cache vs fresh, snapshot age) ───────────────────
       source,
       computedAt: analysis.computedAt,
+      reconciliationId: analysis.reconciliationId,
       consistency,
       snapshotAgeSeconds: Math.max(
         0,
@@ -345,13 +386,18 @@ router.get(
         totalPnlSol: m.totalPnlSol,
         largestGainSol: m.largestGainSol,
         largestLossSol: m.largestLossSol,
-        openPositions: analysis.openPositions.length,
+        openPositions: canonicalCurrentPositions.length,
         closedRoundTrips: m.closedRoundTrips,
       },
-      // ── Reconstructed open positions (what "Current Exposure" is built on).
-      // When holdingsVerified is false these are UNVERIFIED trade-history
-      // estimates and must not be treated as live holdings.
-      openPositions: analysis.openPositions.map((pos) => ({
+      // ── CANONICAL current open positions (single source of truth) ────────
+      // The exact rows the UI is allowed to render: verified holdings, present
+      // in reconciliation, not a ghost, priced/analyzed, above dust. If this is
+      // empty while legacyOpenPositions is not, a ghost was correctly removed.
+      canonicalCurrentPositions,
+      // ── LEGACY reconstructed positions (DEBUG ONLY - never rendered) ──────
+      // Raw trade-history (FIFO) reconstruction before the live-balance gate.
+      // Kept temporarily so we can prove which rows were ghosts (e.g. ANSEM).
+      legacyOpenPositions: analysis.openPositions.map((pos) => ({
         mint: pos.tokenMint,
         symbol: pos.symbol,
         tokenAmount: pos.tokenAmount,
@@ -359,9 +405,12 @@ router.get(
         currentValueUsd: toUsd(pos.currentValueSol),
         costBasisSol: pos.costBasisSol,
       })),
-      // Per-mint audit: history vs live vs reconciled, and why each was
-      // kept / capped / dropped as a ghost.
+      // ── Per-position audit: FIFO vs live vs reconciled, and disposition ───
+      positionsAudit,
+      // Per-mint reconciliation audit (raw).
       reconciliation: analysis.reconciliation,
+      // Token classifications for EVERY live holding (priced / unpriced / spam
+      // / unsupported / excluded, each with a reason). RYS shows up here.
       assets,
     });
   }),

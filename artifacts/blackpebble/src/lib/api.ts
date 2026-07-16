@@ -2170,6 +2170,12 @@ export interface RealAnalysisSummary {
   skippedTokenToToken?: number;
   /** Per-mint reconciliation audit trail for current positions. */
   reconciliation?: RealPositionReconciliation[];
+  /**
+   * Identifier shared by every current-wallet metric from the same
+   * reconciliation run. All current surfaces (wallet value, exposure,
+   * open positions, preview) must agree on this before rendering holdings.
+   */
+  reconciliationId?: number;
   empty?: boolean;
   message?: string;
 }
