@@ -338,20 +338,19 @@ function WalletSummaryHero({
   syncError: string | null;
 }) {
   const m = analysis.metrics;
-  const holdingsSol = analysis.openPositions.reduce(
-    (s, p) => s + (p.currentValueSol ?? 0),
-    0,
-  );
   // Prefer the server's truthful "Total On-Chain Portfolio" (native SOL + every
-  // priced live holding). Fall back to the live SOL balance + traced holdings
-  // only when the reconciliation is unavailable, so totals never conflict.
+  // priced live holding). When that reconciliation is unavailable we fall back
+  // to the live NATIVE SOL balance ONLY - never native + reconstructed
+  // trade-history holdings, which can be "ghost" positions the wallet already
+  // sold/transferred and would massively overstate the wallet's real value.
   const portfolio = analysis.portfolio ?? null;
   const walletValueSol =
     portfolio != null
       ? portfolio.totalOnChainPortfolioSol
       : solBalance != null
-        ? solBalance + holdingsSol
+        ? solBalance
         : null;
+  const walletValueUnverified = portfolio == null;
   const unpricedCount = portfolio?.counts.unpriced ?? 0;
   const quality = analysis.walletHealth.score;
   const qualityTone: MetricTone =
@@ -422,16 +421,20 @@ function WalletSummaryHero({
             walletValueSol != null ? `${fmtSol(walletValueSol)} SOL` : "—"
           }
           sub={
-            walletValueSol != null && solUsd > 0
-              ? fmtUsd(walletValueSol * solUsd)
-              : "Native SOL + priced holdings"
+            walletValueUnverified
+              ? "Native SOL only — holdings unverified"
+              : walletValueSol != null && solUsd > 0
+                ? fmtUsd(walletValueSol * solUsd)
+                : "Native SOL + priced holdings"
           }
           tone={analysis.holdingsVerified ? "default" : "warning"}
           hint={
-            "Total On-Chain Portfolio: your live native SOL plus the current value of every priced token you hold." +
-            (unpricedCount > 0
-              ? ` ${unpricedCount} holding${unpricedCount === 1 ? "" : "s"} could not be priced and are excluded from this total (not counted as zero).`
-              : "")
+            walletValueUnverified
+              ? "Live on-chain holdings could not be read right now, so this shows your native SOL balance only. Hit Refresh to reconcile against live balances."
+              : "Total On-Chain Portfolio: your live native SOL plus the current value of every priced token you hold." +
+                (unpricedCount > 0
+                  ? ` ${unpricedCount} holding${unpricedCount === 1 ? "" : "s"} could not be priced and are excluded from this total (not counted as zero).`
+                  : "")
           }
           data-testid="tile-wallet-value"
         />
@@ -858,16 +861,17 @@ function BehaviorSection({ analysis }: { analysis: RealAnalysisSummary }) {
 function RiskSection({ analysis }: { analysis: RealAnalysisSummary }) {
   const m = analysis.metrics;
   const h = analysis.walletHealth;
-  // Use the same valuation source as Wallet Value: the Analyzed Trading
-  // Portfolio (priced holdings reconstructed from swap history). Fall back to
-  // the position sum only when the reconciliation is unavailable.
+  // Current Exposure and Concentration are only meaningful when open positions
+  // were reconciled against LIVE on-chain balances. If that reconciliation is
+  // unavailable (holdingsVerified false / no portfolio), the position values are
+  // unverified trade-history estimates that can overstate reality - so we show
+  // "Unverified" instead of a misleading number, and prompt a refresh.
+  const holdingsVerified =
+    analysis.holdingsVerified && analysis.portfolio != null;
   const exposureSol =
     analysis.portfolio != null
       ? analysis.portfolio.analyzedTradingPortfolioSol
-      : analysis.openPositions.reduce(
-          (s, p) => s + (p.currentValueSol ?? p.costBasisSol),
-          0,
-        );
+      : null;
   const concentrationTone: MetricTone =
     h.concentrationRisk > 60 ? "negative" : h.concentrationRisk > 35 ? "warning" : "positive";
 
@@ -880,13 +884,22 @@ function RiskSection({ analysis }: { analysis: RealAnalysisSummary }) {
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
         <MetricTile
           label="Current Exposure"
-          value={`${fmtSol(exposureSol)} SOL`}
-          hint="Total current value of open positions from your traced history."
+          value={
+            holdingsVerified && exposureSol != null
+              ? `${fmtSol(exposureSol)} SOL`
+              : "Unverified"
+          }
+          tone={holdingsVerified ? "default" : "warning"}
+          hint={
+            holdingsVerified
+              ? "Total current value of the priced holdings we reconciled against your live on-chain balances."
+              : "Live holdings could not be verified, so exposure from trade history is not shown (it can include tokens you've already sold or transferred). Hit Refresh to reconcile."
+          }
         />
         <MetricTile
           label="Concentration"
-          value={`${h.concentrationRisk}%`}
-          tone={concentrationTone}
+          value={holdingsVerified ? `${h.concentrationRisk}%` : "Unverified"}
+          tone={holdingsVerified ? concentrationTone : "warning"}
           hint="How much of your holdings sit in a few tokens. Lower is safer."
         />
         <MetricTile
