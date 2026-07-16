@@ -46,7 +46,9 @@ import {
 } from "./campaign-lifecycle.js";
 import { CampaignError, fail, type CampaignResult } from "./campaign-errors.js";
 import { validateCampaignToken } from "./campaign-token.js";
-import { getSolPriceUsd } from "./prices.js";
+import { getSolPriceUsd, getTokenStatsBatch } from "./prices.js";
+import { getTokenMetadataBatch } from "./helius.js";
+import { applyTokenEnrichment } from "./campaign-token-enrichment.js";
 import { isCacheFresh } from "./database.js";
 import {
   creditContribution,
@@ -142,6 +144,8 @@ export interface CampaignSummary {
   tokenMint: string | null;
   tokenName: string | null;
   tokenSymbol: string | null;
+  tokenMarketCapUsd: number | null;
+  tokenMarketCapFetchedAt: number | null;
   imageUrl: string | null;
   bannerUrl: string | null;
   linkUrl: string | null;
@@ -741,6 +745,8 @@ async function toSummary(row: CampaignRow): Promise<CampaignSummary> {
     tokenMint: row.token_mint,
     tokenName: row.token_name,
     tokenSymbol: row.token_symbol,
+    tokenMarketCapUsd: null,
+    tokenMarketCapFetchedAt: null,
     imageUrl: row.image_url,
     bannerUrl: row.banner_url,
     linkUrl: row.link_url,
@@ -792,6 +798,71 @@ async function toSummary(row: CampaignRow): Promise<CampaignSummary> {
   };
 }
 
+// In-memory market-cap cache so the campaign list/detail don't hammer the
+// price provider on every load. Keyed by mint → { mc, fetchedAt }.
+const MC_CACHE_TTL_MS = 60_000;
+const mcCache = new Map<string, { mc: number | null; fetchedAt: number }>();
+
+/**
+ * Enrich a batch of summaries in place with token identity + market cap using
+ * batched provider calls (no per-card / N+1 requests). Provider failures are
+ * swallowed so campaign browsing never breaks. Also backfills legacy rows whose
+ * token_name/token_symbol were never persisted (one-time UPDATE per row).
+ */
+async function enrichSummaries(summaries: CampaignSummary[]): Promise<void> {
+  const mints = [
+    ...new Set(
+      summaries.map((s) => s.tokenMint).filter((m): m is string => !!m),
+    ),
+  ];
+  if (mints.length === 0) return;
+
+  // Only mints missing name/symbol need a metadata lookup for backfill.
+  const needMeta = [
+    ...new Set(
+      summaries
+        .filter((s) => s.tokenMint && (!s.tokenName || !s.tokenSymbol))
+        .map((s) => s.tokenMint as string),
+    ),
+  ];
+
+  // Market cap: reuse fresh cache, only fetch stale/missing mints.
+  const now = Date.now();
+  const staleMints = mints.filter((m) => {
+    const c = mcCache.get(m);
+    return !c || now - c.fetchedAt > MC_CACHE_TTL_MS;
+  });
+
+  const [meta, stats] = await Promise.all([
+    needMeta.length
+      ? getTokenMetadataBatch(needMeta).catch(() => ({}) as Record<string, { symbol: string | null; name: string | null; logo: string | null }>)
+      : Promise.resolve({} as Record<string, { symbol: string | null; name: string | null; logo: string | null }>),
+    staleMints.length
+      ? getTokenStatsBatch(staleMints).catch(() => new Map())
+      : Promise.resolve(new Map()),
+  ]);
+
+  for (const m of staleMints) {
+    const st = stats.get(m);
+    mcCache.set(m, { mc: st?.marketCapUsd ?? null, fetchedAt: now });
+  }
+
+  const backfill = applyTokenEnrichment(summaries, meta, mcCache);
+
+  // Persist backfilled identity so future reads are instant (best-effort).
+  for (const b of backfill) {
+    if (!b.name && !b.symbol) continue;
+    dbRun(
+      `UPDATE campaigns
+          SET token_name = COALESCE(token_name, $2),
+              token_symbol = COALESCE(token_symbol, $3)
+        WHERE public_id = $1
+          AND (token_name IS NULL OR token_symbol IS NULL)`,
+      [b.publicId, b.name, b.symbol],
+    ).catch((e) => logger.warn({ err: e, publicId: b.publicId }, "Token identity backfill failed"));
+  }
+}
+
 export async function listCampaigns(
   stateFilter?: string,
 ): Promise<CampaignSummary[]> {
@@ -806,7 +877,11 @@ export async function listCampaigns(
     `SELECT * FROM campaigns ${where} ORDER BY created_at DESC LIMIT 100`,
     params,
   );
-  return Promise.all(rows.map(toSummary));
+  const summaries = await Promise.all(rows.map(toSummary));
+  await enrichSummaries(summaries).catch((e) =>
+    logger.warn({ err: e }, "Campaign summary enrichment failed"),
+  );
+  return summaries;
 }
 
 /**
@@ -829,7 +904,10 @@ export async function findActiveCampaignForToken(
        LIMIT 1`,
     [tokenMint, typeKey],
   );
-  return row ? toSummary(row) : null;
+  if (!row) return null;
+  const summary = await toSummary(row);
+  await enrichSummaries([summary]).catch(() => {});
+  return summary;
 }
 
 export async function getCampaign(
@@ -840,7 +918,12 @@ export async function getCampaign(
     `SELECT * FROM campaigns WHERE public_id = $1`,
     [publicId],
   );
-  return row ? toSummary(row) : null;
+  if (!row) return null;
+  const summary = await toSummary(row);
+  await enrichSummaries([summary]).catch((e) =>
+    logger.warn({ err: e, publicId }, "Campaign detail enrichment failed"),
+  );
+  return summary;
 }
 
 export async function getCampaignLedger(

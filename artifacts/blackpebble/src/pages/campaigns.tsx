@@ -53,6 +53,11 @@ import {
   type CampaignField,
 } from "@/lib/campaign-form";
 import {
+  fmtCompactUsd,
+  deriveTokenIdentity,
+  checkOpeningBalance,
+} from "@/lib/campaign-identity";
+import {
   api,
   type CampaignLedgerEntry,
   type CampaignState,
@@ -186,13 +191,6 @@ function fmtUsd(usd: number): string {
 }
 
 /** Compact market-cap style, e.g. $2.3M / $48.2K / $1.2B. */
-function fmtCompactUsd(usd: number): string {
-  if (usd >= 1e9) return `$${(usd / 1e9).toFixed(usd >= 1e10 ? 0 : 1)}B`;
-  if (usd >= 1e6) return `$${(usd / 1e6).toFixed(usd >= 1e7 ? 0 : 1)}M`;
-  if (usd >= 1e3) return `$${(usd / 1e3).toFixed(usd >= 1e4 ? 0 : 1)}K`;
-  return `$${Math.round(usd)}`;
-}
-
 function timeLeft(deadlineAt: number): string {
   const s = deadlineAt - Math.floor(Date.now() / 1000);
   if (s <= 0) return "Ended";
@@ -245,7 +243,11 @@ type ActivateStage =
   | "timeout";
 
 const ACTIVATE_STEPS: { key: ActivateStage; label: string; hint?: string }[] = [
-  { key: "preparing", label: "Preparing transaction" },
+  {
+    key: "preparing",
+    label: "Checking balance & preparing transaction",
+    hint: "Verifying you have enough SOL and simulating before your wallet opens.",
+  },
   { key: "signing", label: "Waiting for your wallet signature" },
   {
     key: "confirming",
@@ -254,6 +256,33 @@ const ACTIVATE_STEPS: { key: ActivateStage; label: string; hint?: string }[] = [
   },
   { key: "activating", label: "Finalizing your campaign" },
 ];
+
+// The opening signature is persisted per-campaign so a page refresh, relogin,
+// or a confirmation timeout can never lead a creator to re-send funds. The
+// backend activation is idempotent by signature, so re-verifying the same
+// signature is always safe (no double-funding path).
+const OPENING_SIG_PREFIX = "bp:campaign-opening-sig:";
+function loadOpeningSig(publicId: string): string {
+  try {
+    return localStorage.getItem(OPENING_SIG_PREFIX + publicId) ?? "";
+  } catch {
+    return "";
+  }
+}
+function saveOpeningSig(publicId: string, sig: string): void {
+  try {
+    localStorage.setItem(OPENING_SIG_PREFIX + publicId, sig);
+  } catch {
+    /* storage unavailable — in-memory state still guards against resend */
+  }
+}
+function clearOpeningSig(publicId: string): void {
+  try {
+    localStorage.removeItem(OPENING_SIG_PREFIX + publicId);
+  } catch {
+    /* ignore */
+  }
+}
 
 /**
  * Token-first identity block used on both the browse card and the detail
@@ -270,26 +299,15 @@ function TokenIdentity({
   size?: number;
   large?: boolean;
 }) {
-  const hasToken = !!c.tokenMint;
-  const name = c.tokenName
-    ? c.tokenName
-    : c.tokenSymbol
-      ? `$${c.tokenSymbol}`
-      : hasToken
-        ? "Token campaign"
-        : c.title;
-  const ticker = c.tokenSymbol ? `$${c.tokenSymbol}` : null;
-  const mc = c.tokenMarketCapUsd;
+  const { name, ticker, hasToken, hasMeta, isMintFallback, mcLabel } =
+    deriveTokenIdentity(c);
   return (
     <div className="flex items-center gap-3 min-w-0">
       {c.imageUrl ? (
         <img
           src={c.imageUrl}
           alt=""
-          className={cn(
-            "rounded-full object-cover shrink-0 ring-1 ring-white/10",
-            large ? "w-14 h-14" : "w-12 h-12",
-          )}
+          className="rounded-full object-cover shrink-0 ring-1 ring-white/10"
           style={{ width: size, height: size }}
         />
       ) : (
@@ -300,6 +318,7 @@ function TokenIdentity({
           className={cn(
             "font-bold truncate leading-tight",
             large ? "text-2xl md:text-3xl tracking-tight" : "text-base",
+            isMintFallback && "font-mono text-sm",
           )}
         >
           {name}
@@ -311,20 +330,26 @@ function TokenIdentity({
               large ? "text-xs" : "text-[11px]",
             )}
           >
-            {ticker && (
-              <span className="font-semibold text-foreground/70 truncate">
-                {ticker}
-              </span>
-            )}
-            {ticker && <span className="text-muted-foreground/40">·</span>}
+            {ticker ? (
+              <>
+                <span className="font-semibold text-foreground/70 truncate">
+                  {ticker}
+                </span>
+                <span className="text-muted-foreground/40">·</span>
+              </>
+            ) : !hasMeta ? (
+              <>
+                <span className="truncate">Metadata unavailable</span>
+                <span className="text-muted-foreground/40">·</span>
+              </>
+            ) : null}
             <span
               className={cn(
                 "truncate tabular-nums",
-                mc == null && "text-muted-foreground/60",
+                c.tokenMarketCapUsd == null && "text-muted-foreground/60",
               )}
-              title={mc == null ? "Live market cap coming soon" : undefined}
             >
-              {mc != null ? `${fmtCompactUsd(mc)} MC` : "Market cap —"}
+              {mcLabel}
             </span>
           </div>
         ) : (
@@ -353,14 +378,15 @@ function AddressRow({
   address,
   variant,
   tooltip,
-  sublabel,
+  subtitle,
   stopClicks,
 }: {
   label: string;
   address: string;
   variant: "token" | "escrow";
   tooltip?: string;
-  sublabel?: string;
+  /** Plain-language explanation shown under the address (safety guidance). */
+  subtitle?: string;
   stopClicks?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
@@ -377,9 +403,9 @@ function AddressRow({
   return (
     <div
       className={cn(
-        "rounded-xl px-3 py-2 flex items-center justify-between gap-2 border",
+        "rounded-xl px-3 py-2.5 flex items-start justify-between gap-2 border",
         isEscrow
-          ? "bg-emerald-500/[0.07] border-emerald-400/25"
+          ? "bg-emerald-500/[0.10] border-emerald-400/40 ring-1 ring-emerald-400/20 shadow-[0_0_0_1px_rgba(16,185,129,0.06)]"
           : "bg-surface-2 border-white/[0.05]",
       )}
       title={tooltip}
@@ -387,32 +413,41 @@ function AddressRow({
       <div className="min-w-0">
         <div
           className={cn(
-            "text-[10px] font-semibold uppercase tracking-wide flex items-center gap-1",
+            "text-[10px] font-semibold uppercase tracking-wide flex items-center gap-1.5 flex-wrap",
             isEscrow ? "text-emerald-300" : "text-muted-foreground",
           )}
         >
-          {isEscrow && <Shield className="w-3 h-3" />}
+          {isEscrow && <Shield className="w-3.5 h-3.5 shrink-0" />}
           {label}
+          {isEscrow && (
+            <span className="inline-flex items-center rounded-full bg-emerald-400/15 border border-emerald-400/30 px-1.5 py-[1px] text-[9px] font-bold tracking-wide text-emerald-200 normal-case">
+              Funding Wallet
+            </span>
+          )}
         </div>
-        <div className="font-mono text-[11px] truncate mt-0.5">
+        <div
+          className={cn(
+            "font-mono text-[11px] truncate mt-1",
+            isEscrow ? "text-emerald-50" : "text-foreground",
+          )}
+        >
           {address.slice(0, 10)}…{address.slice(-8)}
         </div>
-        {sublabel && (
+        {subtitle && (
           <div
             className={cn(
-              "text-[10px] font-medium mt-0.5 flex items-center gap-1",
-              isEscrow ? "text-emerald-300/80" : "text-muted-foreground/70",
+              "text-[10px] font-medium mt-1 leading-snug",
+              isEscrow ? "text-emerald-300/90" : "text-muted-foreground/80",
             )}
           >
-            {isEscrow && <Shield className="w-2.5 h-2.5" />}
-            {sublabel}
+            {subtitle}
           </div>
         )}
       </div>
       <button
         type="button"
         className={cn(
-          "shrink-0 transition-colors",
+          "shrink-0 transition-colors mt-0.5",
           isEscrow
             ? "text-emerald-300 hover:text-emerald-200"
             : "text-muted-foreground hover:text-accent",
@@ -496,10 +531,19 @@ function CampaignCard({ c }: { c: CampaignSummary }) {
           )}
         </div>
 
-        {/* Campaign title + creator — tertiary supporting line */}
-        <div className="text-[13px] text-muted-foreground/90 truncate">
-          {c.title}
-          {c.creator.username ? ` · @${c.creator.username}` : ""}
+        {/* Campaign title (secondary but clearly visible) + creator byline */}
+        <div className="min-w-0">
+          <div
+            className="text-sm font-semibold text-foreground/90 leading-snug line-clamp-2 break-words"
+            title={c.title}
+          >
+            {c.title}
+          </div>
+          {c.creator.username && (
+            <div className="text-[11px] text-muted-foreground mt-0.5 truncate">
+              Created by <span className="text-foreground/70">@{c.creator.username}</span>
+            </div>
+          )}
         </div>
 
         <div className="space-y-2">
@@ -563,16 +607,17 @@ function CampaignCard({ c }: { c: CampaignSummary }) {
               label="Token Contract"
               address={c.tokenMint}
               variant="token"
-              tooltip="The token's contract address — do not send funds here."
+              subtitle="Never send SOL to this address."
+              tooltip="The token's contract address — never send funds here."
               stopClicks
             />
           )}
           <AddressRow
-            label="Escrow Wallet"
+            label="Campaign Funding Wallet"
             address={c.escrowAddress}
             variant="escrow"
-            sublabel="Funding Wallet"
-            tooltip="This is the only wallet used for campaign funding."
+            subtitle="This is the ONLY wallet that accepts campaign contributions."
+            tooltip="Destination for all campaign funding. Every contribution goes to this dedicated escrow wallet — nowhere else."
             stopClicks
           />
         </div>
@@ -783,6 +828,10 @@ function CreateCampaignDialog() {
       setCreated(res.campaign);
       const minSol = res.campaign.openingMinLamports / LAMPORTS_PER_SOL;
       setOpeningSol(String(Number(minSol.toFixed(4))));
+      // Resume any opening signature already sent for this campaign (survives
+      // refresh/relogin) so verification never triggers a second transfer.
+      const prior = loadOpeningSig(res.campaign.publicId);
+      if (prior) setOpeningSig(prior);
       setStep("activate");
       toast({
         title: "Campaign created",
@@ -815,13 +864,16 @@ function CreateCampaignDialog() {
       if (created.openingMaxLamports > 0 && amount > maxSol) {
         throw new Error(`Maximum opening contribution is ${maxSol} SOL`);
       }
-      let signature = openingSig.trim();
+      // Recover any signature already sent for THIS campaign (React state or a
+      // prior session persisted to localStorage) so we verify instead of resend.
+      let signature = openingSig.trim() || loadOpeningSig(created.publicId);
       // Reuse an already-sent signature on retry; only sign a new transfer once.
       if (!signature) {
         // Build with an explicit fee payer + recent blockhash so Phantom can
-        // simulate a clean, previewable SOL transfer (Part 7) and so we can
-        // confirm against the blockhash window rather than a bare signature.
+        // simulate a clean, previewable SOL transfer and so we can confirm
+        // against the blockhash window rather than a bare signature.
         setActivateStage("preparing");
+        const lamports = Math.round(amount * LAMPORTS_PER_SOL);
         const { blockhash, lastValidBlockHeight } =
           await connection.getLatestBlockhash("finalized");
         const tx = new Transaction({
@@ -832,13 +884,67 @@ function CreateCampaignDialog() {
           SystemProgram.transfer({
             fromPubkey: publicKey,
             toPubkey: new PublicKey(created.escrowAddress),
-            lamports: Math.round(amount * LAMPORTS_PER_SOL),
+            lamports,
           }),
         );
+
+        const correlationId =
+          (globalThis.crypto?.randomUUID?.() ?? String(Date.now())).slice(0, 8);
+
+        // Pre-flight #1: block on insufficient SOL BEFORE opening the wallet so
+        // Phantom never has to reject an underfunded transfer (a common trigger
+        // for scary "failed to simulate" warnings). Show Required/Available.
+        const [balance, estFee] = await Promise.all([
+          connection.getBalance(publicKey, "confirmed"),
+          connection
+            .getFeeForMessage(tx.compileMessage(), "confirmed")
+            .then((r) => r.value ?? 5000)
+            .catch(() => 5000),
+        ]);
+        const bal = checkOpeningBalance(balance, lamports, estFee);
+        if (!bal.sufficient) {
+          const fmt = (l: number) => (l / LAMPORTS_PER_SOL).toFixed(4);
+          setActivateStage("idle");
+          throw new Error(
+            `Not enough SOL to send the opening contribution. ` +
+              `Required ~${fmt(bal.requiredLamports)} SOL (amount + network fee), ` +
+              `Available ${fmt(bal.availableLamports)} SOL, ` +
+              `Shortfall ~${fmt(bal.shortfallLamports)} SOL. ` +
+              `Add SOL and try again — no funds were sent.`,
+          );
+        }
+
+        // Pre-flight #2: simulate the exact transaction. If it fails we do NOT
+        // open the wallet; we show the safe reason and keep activation state so
+        // the user can retry after fixing the cause (never sends funds).
+        try {
+          const sim = await connection.simulateTransaction(tx);
+          if (sim.value.err) {
+            setActivateStage("idle");
+            const reason =
+              sim.value.logs?.slice(-1)[0] ?? JSON.stringify(sim.value.err);
+            throw new Error(
+              `Transaction simulation failed (ref ${correlationId}): ${reason}. ` +
+                `Your wallet was not opened and no funds were sent.`,
+            );
+          }
+        } catch (e) {
+          setActivateStage("idle");
+          if (e instanceof Error && e.message.startsWith("Transaction simulation failed")) {
+            throw e;
+          }
+          throw new Error(
+            `Could not pre-simulate the transaction (ref ${correlationId}). ` +
+              `Your wallet was not opened and no funds were sent. Please retry.`,
+          );
+        }
+
         setActivateStage("signing");
         signature = await sendTransaction(tx, connection);
-        // Persist immediately so a timeout never asks the user to re-send.
+        // Persist immediately (state + localStorage) so a timeout, refresh, or
+        // relogin never asks the user to re-send.
         setOpeningSig(signature);
+        saveOpeningSig(created.publicId, signature);
         setActivateStage("confirming");
         try {
           await connection.confirmTransaction(
@@ -863,6 +969,8 @@ function CreateCampaignDialog() {
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ["campaigns"] });
       const id = res.campaign.publicId;
+      // Activation verified on-chain — the pending signature is no longer needed.
+      clearOpeningSig(id);
       setActivateStage("idle");
       setOpen(false);
       reset();
@@ -2134,7 +2242,8 @@ export function CampaignDetailPage() {
     setContributing(true);
     try {
       // Explicit fee payer + recent blockhash → clean Phantom preview and a
-      // deterministic confirmation window (Part 7).
+      // deterministic confirmation window.
+      const lamports = Math.round(amount * SOL);
       const { blockhash, lastValidBlockHeight } =
         await connection.getLatestBlockhash("finalized");
       const tx = new Transaction({
@@ -2145,9 +2254,42 @@ export function CampaignDetailPage() {
         SystemProgram.transfer({
           fromPubkey: publicKey,
           toPubkey: new PublicKey(c.escrowAddress),
-          lamports: Math.round(amount * SOL),
+          lamports,
         }),
       );
+
+      // Pre-flight: block on insufficient SOL and simulate before opening the
+      // wallet, so Phantom never has to reject an underfunded/failing transfer.
+      const [balance, estFee] = await Promise.all([
+        connection.getBalance(publicKey, "confirmed"),
+        connection
+          .getFeeForMessage(tx.compileMessage(), "confirmed")
+          .then((r) => r.value ?? 5000)
+          .catch(() => 5000),
+      ]);
+      const bal = checkOpeningBalance(balance, lamports, estFee);
+      if (!bal.sufficient) {
+        const fmt = (l: number) => (l / SOL).toFixed(4);
+        toast({
+          title: "Not enough SOL",
+          description: `Required ~${fmt(bal.requiredLamports)} SOL (amount + fee), available ${fmt(bal.availableLamports)} SOL, shortfall ~${fmt(bal.shortfallLamports)} SOL. No funds were sent.`,
+          variant: "destructive",
+        });
+        setContributing(false);
+        return;
+      }
+      const sim = await connection.simulateTransaction(tx).catch(() => null);
+      if (sim && sim.value.err) {
+        toast({
+          title: "Transaction could not be simulated",
+          description:
+            "Your wallet was not opened and no funds were sent. Please try again in a moment.",
+          variant: "destructive",
+        });
+        setContributing(false);
+        return;
+      }
+
       const signature = await sendTransaction(tx, connection);
       await connection.confirmTransaction(
         { signature, blockhash, lastValidBlockHeight },
@@ -2247,18 +2389,23 @@ export function CampaignDetailPage() {
             </span>
           )}
         </div>
-        <div className="text-sm text-foreground/90 font-medium pt-0.5">
-          {c.title}
+        <div className="pt-1">
+          <h1
+            className="text-lg font-bold text-foreground leading-snug break-words"
+            title={c.title}
+          >
+            {c.title}
+          </h1>
           {c.creator.username ? (
-            <>
-              {" · by "}
+            <div className="text-xs text-muted-foreground mt-0.5">
+              Created by{" "}
               <Link
                 href={`/u/${c.creator.username}`}
-                className="text-accent hover:underline font-normal"
+                className="text-accent hover:underline"
               >
                 @{c.creator.username}
               </Link>
-            </>
+            </div>
           ) : null}
         </div>
       </div>
@@ -2270,15 +2417,16 @@ export function CampaignDetailPage() {
             label="Token Contract"
             address={c.tokenMint}
             variant="token"
-            tooltip="The token's contract address — do not send funds here."
+            subtitle="Never send SOL to this address."
+            tooltip="The token's contract address — never send funds here."
           />
         )}
         <AddressRow
-          label="Escrow Wallet"
+          label="Campaign Funding Wallet"
           address={c.escrowAddress}
           variant="escrow"
-          sublabel="Funding Wallet"
-          tooltip="This is the only wallet used for campaign funding."
+          subtitle="This is the ONLY wallet that accepts campaign contributions."
+          tooltip="Destination for all campaign funding. Every contribution goes to this dedicated escrow wallet — nowhere else."
         />
       </div>
 

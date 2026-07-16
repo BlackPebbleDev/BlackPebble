@@ -118,11 +118,12 @@ export interface CampaignSummary {
   tokenName: string | null;
   tokenSymbol: string | null;
   /**
-   * Live token market cap in USD. Enrichment is intentionally deferred (a
-   * batched price endpoint is planned), so this is optional/undefined today.
-   * Cards reserve layout space for it now so it can drop in without a redesign.
+   * Live token market cap in USD, batched-enriched server-side (no frontend
+   * N+1). Null when the price provider has no data or is temporarily down.
    */
-  tokenMarketCapUsd?: number | null;
+  tokenMarketCapUsd: number | null;
+  /** Epoch ms the market cap was fetched, or null when unavailable. */
+  tokenMarketCapFetchedAt: number | null;
   imageUrl: string | null;
   bannerUrl: string | null;
   linkUrl: string | null;

@@ -230,7 +230,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* Main content */}
       <main className="flex-1 flex flex-col pt-20 md:pt-28 md:pl-[60px] pb-16 md:pb-0 min-w-0 overflow-x-hidden">
-        <div className="sm:hidden h-14" aria-hidden />
+        {/* Clears the fixed mobile search row: top-20 (80px) header + py-2 (16px)
+            + h-12 input (48px) = 64px. Spacer must match to avoid clipping the
+            first card under the sticky search bar. */}
+        <div className="sm:hidden h-16" aria-hidden />
         <div>{children}</div>
         <SiteFooter />
       </main>
