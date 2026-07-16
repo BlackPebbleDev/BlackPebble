@@ -32,6 +32,7 @@ import { useAccount } from "@/hooks/use-account";
 import { accountStatusFromGuest } from "@/lib/account-status";
 import { useXAuth } from "@/hooks/use-x-auth";
 import { UserIdentity } from "@/components/user-identity";
+import { PageHeader } from "@/components/page-header";
 import { api, type PortfolioStats, type FeatureFlags } from "@/lib/api";
 import { OpenPositions } from "@/components/open-positions";
 import { LeveragePortfolioSection } from "@/components/leverage-portfolio";
@@ -302,19 +303,21 @@ export default function Portfolio() {
   );
 
   return (
-    <div className="w-full max-w-6xl mx-auto px-4 md:px-6 py-6">
-      <div className="flex items-center gap-3 mb-6">
-        <Wallet className="w-7 h-7 text-accent" />
-        <h1 className="text-3xl md:text-4xl font-bold tracking-tight">Portfolio</h1>
-        {isGuest && (
-          <span
-            data-testid="badge-portfolio-guest"
-            className="text-[11px] font-semibold uppercase tracking-wider text-accent border border-accent/30 bg-accent/10 px-3 py-1.5 rounded-full"
-          >
-            Connect X to rank
-          </span>
-        )}
-      </div>
+    <div className="w-full max-w-6xl mx-auto px-4 md:px-6 py-5">
+      <PageHeader
+        icon={Wallet}
+        title="Portfolio"
+        actions={
+          isGuest ? (
+            <span
+              data-testid="badge-portfolio-guest"
+              className="text-[11px] font-semibold uppercase tracking-wider text-accent border border-accent/30 bg-accent/10 px-2.5 py-1 rounded-full"
+            >
+              Connect X to rank
+            </span>
+          ) : undefined
+        }
+      />
 
       {!isGuest && selfHandle && (
         <div

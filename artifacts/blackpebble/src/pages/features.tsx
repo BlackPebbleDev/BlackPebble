@@ -10,6 +10,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { PageHeader } from "@/components/page-header";
 
 const FEATURES: { icon: LucideIcon; title: string; desc: string }[] = [
   {
@@ -46,17 +47,12 @@ const FEATURES: { icon: LucideIcon; title: string; desc: string }[] = [
 
 export default function Features() {
   return (
-    <div className="flex flex-col gap-8 px-4 py-6 sm:py-10 max-w-4xl mx-auto">
-      <div className="space-y-3">
-        <div className="flex items-center gap-3">
-          <ShieldCheck className="w-6 h-6 text-accent" />
-          <h1 className="text-2xl font-semibold">Features</h1>
-        </div>
-        <p className="text-sm text-muted-foreground">
-          Everything you need to practice Solana trading and build a track
-          record - without risking real money.
-        </p>
-      </div>
+    <div className="flex flex-col gap-8 px-4 py-5 sm:py-6 max-w-4xl mx-auto">
+      <PageHeader
+        icon={ShieldCheck}
+        title="Features"
+        subtitle="Everything you need to practice Solana trading and build a track record - without risking real money."
+      />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {FEATURES.map((f) => {

@@ -1932,7 +1932,7 @@ export default function ProfilePage() {
   const profileUrl = xProfileUrl(profile.x_username);
 
   return (
-    <div className="w-full max-w-5xl mx-auto px-4 md:px-6 py-6">
+    <div className="w-full max-w-5xl mx-auto px-4 md:px-6 py-5">
       {/* X banner hero - same treatment as the Token Page banner: rounded card,
           click-to-expand fullscreen, subtle premium fallback when unset. */}
       <ProfileBanner profile={profile} />

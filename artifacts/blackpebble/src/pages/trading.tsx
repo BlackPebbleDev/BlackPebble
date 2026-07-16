@@ -48,6 +48,7 @@ import {
   THESIS_CONTENT_MAX,
 } from "@/lib/api";
 import { MoreMenu } from "@/components/more-menu";
+import { PageHeader } from "@/components/page-header";
 import { ShareToken } from "@/components/share-token";
 import { TradeList } from "@/components/trade-list";
 import { OpenPositions } from "@/components/open-positions";
@@ -2914,16 +2915,12 @@ export default function TradingDesk() {
 
   if (!mint) {
     return (
-      <div className="w-full max-w-6xl mx-auto px-4 md:px-6 py-6">
-        <div className="mb-6">
-          <div className="flex items-center gap-3">
-            <LineChart className="w-7 h-7 text-accent" />
-            <h1 className="text-3xl md:text-4xl font-bold tracking-tight">Trading Desk</h1>
-          </div>
-          <p className="mt-1.5 text-xs text-muted-foreground">
-            Paper trading only. Simulated funds. No real swaps.
-          </p>
-        </div>
+      <div className="w-full max-w-6xl mx-auto px-4 md:px-6 py-5">
+        <PageHeader
+          icon={LineChart}
+          title="Trading Desk"
+          subtitle="Paper trading only. Simulated funds. No real swaps."
+        />
         {/* Relative anchor so the onboarding overlay can float over the top of
             the content area without pushing anything down. */}
         <div className="relative">
@@ -2949,7 +2946,7 @@ export default function TradingDesk() {
 
   if (isLoading) {
     return (
-      <div className="flex-1 w-full max-w-6xl mx-auto px-4 md:px-6 py-6">
+      <div className="flex-1 w-full max-w-6xl mx-auto px-4 md:px-6 py-5">
         <div className="flex items-center gap-3 mb-6">
           <Skeleton className="w-10 h-10 rounded-full" />
           <div className="space-y-2">
@@ -3011,7 +3008,7 @@ export default function TradingDesk() {
 
   return (
     <TooltipProvider delayDuration={0}>
-    <div className="w-full max-w-7xl mx-auto px-4 md:px-6 py-6 space-y-4">
+    <div className="w-full max-w-7xl mx-auto px-4 md:px-6 py-5 space-y-4">
       <div className="flex items-center gap-3">
         <div className="flex-1">
           <TokenHeader info={info} dataUpdatedAt={tokenUpdatedAt} />

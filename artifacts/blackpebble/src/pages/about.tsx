@@ -1,19 +1,15 @@
 import { Link } from "wouter";
 import { Info, ArrowRight } from "lucide-react";
+import { PageHeader } from "@/components/page-header";
 
 export default function About() {
   return (
-    <div className="flex flex-col gap-8 px-4 py-6 sm:py-10 max-w-3xl mx-auto">
-      <div className="space-y-3">
-        <div className="flex items-center gap-3">
-          <Info className="w-6 h-6 text-accent" />
-          <h1 className="text-2xl font-semibold">About BlackPebble</h1>
-        </div>
-        <p className="text-sm text-muted-foreground">
-          Practice trading live Solana tokens with paper money - no real funds,
-          no risk.
-        </p>
-      </div>
+    <div className="flex flex-col gap-8 px-4 py-5 sm:py-6 max-w-3xl mx-auto">
+      <PageHeader
+        icon={Info}
+        title="About BlackPebble"
+        subtitle="Practice trading live Solana tokens with paper money - no real funds, no risk."
+      />
 
       <div className="space-y-4 text-sm leading-relaxed text-muted-foreground">
         <p>

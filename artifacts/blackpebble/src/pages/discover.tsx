@@ -4,6 +4,7 @@ import { Loader2, Search, Users } from "lucide-react";
 import { api, type TraderSort } from "@/lib/api";
 import { ReputationCard } from "@/components/reputation-card";
 import { FilterPills } from "@/components/filter-pills";
+import { PageHeader } from "@/components/page-header";
 import { trackLeaderboardView } from "@/lib/analytics";
 
 const sortTabs: { id: TraderSort; label: string }[] = [
@@ -68,17 +69,8 @@ export default function DiscoverPage() {
   const entries = data?.entries ?? [];
 
   return (
-    <div className="w-full max-w-3xl mx-auto px-4 md:px-6 py-6">
-      <div className="flex items-center gap-3 mb-1">
-        <Search className="w-7 h-7 text-accent" />
-        <h1 className="text-3xl md:text-4xl font-bold tracking-tight">
-          Discover Traders
-        </h1>
-      </div>
-      <p className="text-sm text-muted-foreground mb-6">
-        Find traders by name or handle, then filter by tier, Trust Score and
-        momentum.
-      </p>
+    <div className="w-full max-w-3xl mx-auto px-4 md:px-6 py-5">
+      <PageHeader icon={Search} title="Discover Traders" />
 
       {/* Search input */}
       <div className="relative mb-4">

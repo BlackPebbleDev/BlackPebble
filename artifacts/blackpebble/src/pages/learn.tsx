@@ -119,7 +119,7 @@ export default function LearnPage() {
   }
 
   return (
-    <div className="flex w-full max-w-5xl flex-col gap-5 px-4 py-6 sm:gap-6 md:px-6 sm:py-10 mx-auto pb-24 md:pb-10 min-w-0">
+    <div className="flex w-full max-w-5xl flex-col gap-5 px-4 py-5 sm:gap-6 md:px-6 sm:py-6 mx-auto pb-24 md:pb-10 min-w-0">
       <PageHeader
         icon={GraduationCap}
         title="BlackPebble Academy"

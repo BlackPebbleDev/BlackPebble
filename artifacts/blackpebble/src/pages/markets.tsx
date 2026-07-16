@@ -477,7 +477,7 @@ export default function Markets() {
   };
 
   return (
-    <div className="w-full max-w-6xl mx-auto px-4 md:px-6 py-6">
+    <div className="w-full max-w-6xl mx-auto px-4 md:px-6 py-5">
       <PageHeader
         icon={TrendingUp}
         title="Markets"
@@ -517,17 +517,11 @@ export default function Markets() {
           </div>
         }
         subtitle={
-          <>
-            <p>Discover opportunities - tap any token to open it on the Trading desk.</p>
-            <p
-              className="mt-1 text-xs text-muted-foreground/70"
-              data-testid="text-last-updated"
-            >
-              {lastUpdated
-                ? `Last updated ${timeAgo(lastUpdated)}`
-                : "Awaiting first update…"}
-            </p>
-          </>
+          <span className="text-xs text-muted-foreground/70" data-testid="text-last-updated">
+            {lastUpdated
+              ? `Last updated ${timeAgo(lastUpdated)}`
+              : "Awaiting first update…"}
+          </span>
         }
       />
 
@@ -537,7 +531,8 @@ export default function Markets() {
         onChange={(id) => setTab(id)}
         ariaLabel="Market category"
         testIdPrefix="tab-market"
-        className="mb-5"
+        scroll
+        className="mb-4"
       />
 
       {tab === "migrated" ? (

@@ -269,22 +269,19 @@ export default function FeedPage() {
   }
 
   return (
-    <div className="w-full max-w-6xl mx-auto px-4 md:px-6 py-6">
-      <PageHeader
-        icon={Rss}
-        title="Feed"
-        subtitle="What's happening across BlackPebble — trades, calls, milestones, and campaigns."
-      />
+    <div className="w-full max-w-6xl mx-auto px-4 md:px-6 py-5">
+      <PageHeader icon={Rss} title="Feed" />
 
       <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-6 lg:items-start">
         <div className="min-w-0">
-          {/* Content-type filter - shared pills, wraps cleanly, no h-scroll */}
+          {/* Content-type filter - shared pills, single scrolling row */}
           <FilterPills
             options={filterTabs}
             value={filter}
             onChange={selectFilter}
             ariaLabel="Feed content type"
             testIdPrefix="filter"
+            scroll
             className="mb-3"
           />
 
