@@ -191,7 +191,7 @@ export default function PositionDetail() {
     p.currentPriceSol != null ? p.currentPriceSol * solUsd : null;
 
   return (
-    <div className="w-full max-w-3xl mx-auto px-4 md:px-6 py-6">
+    <div className="w-full max-w-3xl mx-auto px-4 md:px-6 py-5">
       <button
         type="button"
         onClick={() => navigate("/portfolio")}

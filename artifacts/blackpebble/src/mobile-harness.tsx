@@ -7,8 +7,11 @@
  */
 import React from "react";
 import { createRoot } from "react-dom/client";
+import { Search, Bell, TrendingUp } from "lucide-react";
 import "./index.css";
 import { MetricTile } from "./components/metric-tile";
+import { PageHeader } from "./components/page-header";
+import { FilterPills } from "./components/filter-pills";
 import { fmtSolMag, fmtSignedSolMag, fmtUsdSmart } from "./lib/format";
 
 function Section({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
@@ -24,9 +27,87 @@ function Grid({ children }: { children: React.ReactNode }) {
   return <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">{children}</div>;
 }
 
+/** Mirror of the compacted AppShell chrome (Design System v2) for visual QA. */
+function ChromeMock() {
+  return (
+    <div>
+      {/* Compact header: h-16 mobile / h-20 desktop */}
+      <div className="h-16 sm:h-20 flex items-center gap-3 sm:gap-4 px-4 border-b border-border bg-background/95">
+        <div className="w-[132px] sm:w-[184px] h-7 rounded bg-accent/20 flex-shrink-0" />
+        <div className="flex-1 max-w-xl mx-auto hidden sm:block">
+          <div className="relative">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-muted-foreground" />
+            <div className="w-full h-11 rounded-xl bg-surface-2 border border-border pl-10 flex items-center text-sm text-muted-foreground">
+              Search tokens, wallets, pages…
+            </div>
+          </div>
+        </div>
+        <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
+          <div className="h-9 w-9 rounded-full bg-surface-2 border border-border flex items-center justify-center">
+            <Bell className="w-4 h-4 text-muted-foreground" />
+          </div>
+          <div className="h-9 px-3 rounded-full bg-surface-2 border border-border flex items-center gap-2 text-sm">
+            <span className="w-5 h-5 rounded-full bg-accent/30" />
+            <span className="truncate max-w-[90px]">@blackpebble</span>
+          </div>
+        </div>
+      </div>
+      {/* Mobile search row */}
+      <div className="sm:hidden px-4 py-1.5 border-b border-border">
+        <div className="relative">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-muted-foreground" />
+          <div className="w-full h-11 rounded-xl bg-surface-2 border border-border pl-10 flex items-center text-sm text-muted-foreground">
+            Search…
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const WRAP_TABS = [
+  { id: "all", label: "All" },
+  { id: "calls", label: "Calls" },
+  { id: "thesis", label: "Thesis" },
+] as const;
+
+const SCROLL_TABS = [
+  { id: "trending", label: "Trending" },
+  { id: "gainers", label: "Top Gainers" },
+  { id: "losers", label: "Top Losers" },
+  { id: "new", label: "New Pairs" },
+  { id: "volume", label: "Volume" },
+  { id: "marketcap", label: "Market Cap" },
+  { id: "watchlist", label: "Watchlist" },
+] as const;
+
 function App() {
+  const [wrap, setWrap] = React.useState<(typeof WRAP_TABS)[number]["id"]>("all");
+  const [scroll, setScroll] = React.useState<(typeof SCROLL_TABS)[number]["id"]>("trending");
   return (
     <div style={{ maxWidth: "100%", overflowX: "hidden", color: "white" }}>
+      <ChromeMock />
+
+      <Section id="pageheader" title="Shared PageHeader">
+        <PageHeader
+          icon={TrendingUp}
+          title="Markets"
+          subtitle="Last updated 2m ago"
+        />
+        <PageHeader
+          icon={TrendingUp}
+          title="Community Campaigns"
+          subtitle="Escrow-backed community funding with a fully public money trail."
+        />
+      </Section>
+
+      <Section id="filters" title="Shared FilterPills (scroll + wrap)">
+        <div className="mb-3">
+          <FilterPills options={SCROLL_TABS} value={scroll} onChange={setScroll} scroll ariaLabel="Scroll filter" />
+        </div>
+        <FilterPills options={WRAP_TABS} value={wrap} onChange={setWrap} ariaLabel="Wrap filter" />
+      </Section>
+
       <Section id="summary" title="Trading Analysis summary">
         <Grid>
           <MetricTile label="On-Chain Portfolio" value={`${fmtSolMag(39.7312)} SOL`} sub={fmtUsdSmart(7731.4)} tone="default" />

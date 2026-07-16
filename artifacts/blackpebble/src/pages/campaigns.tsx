@@ -1810,7 +1810,7 @@ export default function CampaignsPage() {
   );
 
   return (
-    <div className="flex flex-col gap-6 px-4 md:px-6 py-6 sm:py-10 w-full max-w-6xl mx-auto">
+    <div className="flex flex-col gap-5 px-4 md:px-6 py-5 sm:py-6 w-full max-w-6xl mx-auto">
       <UtilityPageHeader
         utility={CAMPAIGNS}
         subtitle={CAMPAIGNS_SUBTITLE}
@@ -2080,7 +2080,7 @@ export function CampaignDetailPage() {
   const DetailServiceIcon = detailService.icon;
 
   return (
-    <div className="flex flex-col gap-6 px-4 md:px-6 py-6 sm:py-10 w-full max-w-4xl mx-auto">
+    <div className="flex flex-col gap-5 px-4 md:px-6 py-5 sm:py-6 w-full max-w-4xl mx-auto">
       <div className="space-y-2">
         <Link
           href="/campaigns"

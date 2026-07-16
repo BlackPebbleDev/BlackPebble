@@ -34,9 +34,6 @@ import { UtilityPageHeader } from "@/components/utility-page-header";
 import { getUtility } from "@/lib/utilities-meta";
 
 const WALLET_CLEANUP = getUtility("wallet_cleanup");
-const WALLET_CLEANUP_SUBTITLE =
-  "See every token you hold, spot scams and inflated value, reclaim trapped SOL, and burn junk - safely and on your terms.";
-
 type CleanupTab =
   | "overview"
   | "assets"
@@ -123,11 +120,8 @@ export default function WalletCleaner() {
   ];
 
   return (
-    <div className="flex flex-col gap-6 px-4 md:px-6 py-6 sm:py-10 max-w-5xl mx-auto pb-32 sm:pb-10">
-      <UtilityPageHeader
-        utility={WALLET_CLEANUP}
-        subtitle={WALLET_CLEANUP_SUBTITLE}
-      />
+    <div className="flex flex-col gap-5 px-4 md:px-6 py-5 sm:py-6 max-w-5xl mx-auto pb-32 sm:pb-10">
+      <UtilityPageHeader utility={WALLET_CLEANUP} />
 
       <SafetyBanner />
 

@@ -1,4 +1,5 @@
 import { CheckCircle2, Dot } from "lucide-react";
+import { PageHeader } from "@/components/page-header";
 
 const FOCUS_AREAS = [
   "Trader Development",
@@ -23,11 +24,9 @@ const DIRECTION_ITEMS = [
 
 export default function Roadmap() {
   return (
-    <div className="flex flex-col gap-10 px-4 py-6 sm:py-12 max-w-3xl mx-auto">
+    <div className="flex flex-col gap-10 px-4 py-5 sm:py-7 max-w-3xl mx-auto">
       <div className="space-y-3">
-        <h1 className="text-2xl font-semibold tracking-tight">
-          BlackPebble Vision
-        </h1>
+        <PageHeader title="BlackPebble Vision" className="mb-0" />
         <p className="text-sm text-muted-foreground leading-relaxed max-w-xl">
           BlackPebble is building tools to help traders learn, improve, compete,
           and participate in the Solana ecosystem.

@@ -82,6 +82,7 @@ import {
   type StatusLevel,
 } from "@/lib/admin-ops";
 import { UserIdentity } from "@/components/user-identity";
+import { PageHeader } from "@/components/page-header";
 import { ROLE_META, ROLE_ORDER } from "@/components/official-badge";
 import { tierMeta } from "@/lib/tiers";
 import { Button } from "@/components/ui/button";
@@ -3509,16 +3510,8 @@ export default function AdminPage() {
   ];
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-6 md:px-6">
-      <div className="mb-3 flex items-center gap-3">
-        <Shield className="h-6 w-6 text-accent" />
-        <div>
-          <h1 className="text-2xl font-semibold">Admin Dashboard</h1>
-          <p className="text-sm text-muted-foreground">
-            BlackPebble operations center.
-          </p>
-        </div>
-      </div>
+    <div className="mx-auto max-w-6xl px-4 py-5 md:px-6">
+      <PageHeader icon={Shield} title="Admin" />
 
       <AdminNav items={navItems} />
 

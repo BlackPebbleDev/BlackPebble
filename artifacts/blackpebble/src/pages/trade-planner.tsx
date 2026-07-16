@@ -78,7 +78,7 @@ export default function TradePlanner() {
   }
 
   return (
-    <div className="flex flex-col gap-5 px-4 md:px-6 py-6 sm:py-10 max-w-5xl mx-auto pb-20">
+    <div className="flex flex-col gap-5 px-4 md:px-6 py-5 sm:py-6 max-w-5xl mx-auto pb-20">
       <UtilityPageHeader utility={TRADE_PLANNER} />
 
       {/* 1. Trade Setup - always in valuation (MC or price) units */}

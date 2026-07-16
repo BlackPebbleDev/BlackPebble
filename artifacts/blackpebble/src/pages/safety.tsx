@@ -104,7 +104,7 @@ const SECTIONS: SafetySection[] = [
 
 export default function Safety() {
   return (
-    <div className="flex flex-col gap-6 px-4 md:px-6 py-6 sm:py-10 max-w-3xl mx-auto">
+    <div className="flex flex-col gap-5 px-4 md:px-6 py-5 sm:py-6 max-w-3xl mx-auto">
       <PageHeader
         icon={Shield}
         title="Wallet Safety"

@@ -14,11 +14,11 @@ export default function Utilities() {
   });
 
   return (
-    <div className="flex flex-col gap-6 px-4 py-6 sm:py-10 max-w-5xl mx-auto">
+    <div className="flex flex-col gap-5 px-4 py-5 sm:py-6 max-w-5xl mx-auto">
       <PageHeader
         icon={Wrench}
         title="Utilities"
-        subtitle="Standalone tools to help you manage your Solana wallet. These run directly on-chain and never touch your paper trading."
+        subtitle="On-chain tools. These never touch your paper trading."
         className="mb-0"
       />
 

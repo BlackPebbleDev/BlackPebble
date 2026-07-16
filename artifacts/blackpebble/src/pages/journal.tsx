@@ -32,8 +32,6 @@ import { UtilityPageHeader } from "@/components/utility-page-header";
 import { getUtility } from "@/lib/utilities-meta";
 
 const JOURNAL = getUtility("journal");
-const JOURNAL_SUBTITLE =
-  "Review trades, track lessons, and improve performance over time.";
 import { useToast } from "@/hooks/use-toast";
 import { XLoginButton } from "@/components/x-login-button";
 import {
@@ -101,8 +99,8 @@ export default function TradingJournal() {
 
 function JournalGate() {
   return (
-    <div className="flex flex-col gap-6 px-4 py-6 sm:py-10 max-w-5xl mx-auto">
-      <UtilityPageHeader utility={JOURNAL} subtitle={JOURNAL_SUBTITLE} />
+    <div className="flex flex-col gap-5 px-4 py-5 sm:py-6 max-w-5xl mx-auto">
+      <UtilityPageHeader utility={JOURNAL} />
       <div className="rounded-2xl bg-gradient-to-br from-accent/10 via-card to-card border border-accent/20 shadow-card p-8 sm:p-10 max-w-xl mx-auto w-full text-center">
         <div className="w-14 h-14 rounded-full bg-accent/15 flex items-center justify-center mx-auto mb-5">
           <Lock className="w-7 h-7 text-accent" />
@@ -206,10 +204,9 @@ function JournalDashboard() {
   });
 
   return (
-    <div className="flex flex-col gap-6 px-4 py-6 sm:py-10 max-w-5xl mx-auto">
+    <div className="flex flex-col gap-5 px-4 py-5 sm:py-6 max-w-5xl mx-auto">
       <UtilityPageHeader
         utility={JOURNAL}
-        subtitle={JOURNAL_SUBTITLE}
         actions={
           <>
             <button

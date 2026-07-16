@@ -21,6 +21,7 @@ import {
 import { UserIdentity, type IdentitySize } from "@/components/user-identity";
 import { ReputationCard } from "@/components/reputation-card";
 import { FilterPills } from "@/components/filter-pills";
+import { PageHeader } from "@/components/page-header";
 import { fmtPercent, fmtMultiple, shortAddr } from "@/lib/format";
 import { PnlAmount } from "@/components/pnl-amount";
 import { trackLeaderboardView } from "@/lib/analytics";
@@ -558,34 +559,32 @@ export default function Leaderboard() {
   const solUsd = data?.solUsd ?? 0;
 
   return (
-    <div className="w-full max-w-5xl mx-auto px-4 md:px-6 py-6">
-      <div className="flex items-center gap-3 mb-1">
-        <Trophy className="w-7 h-7 text-accent" />
-        <h1 className="text-3xl md:text-4xl font-bold tracking-tight">Leaderboard</h1>
-      </div>
-      <div className="flex items-start justify-between gap-3 mb-6">
-        <p className="text-sm text-muted-foreground">
-          How the BlackPebble community stacks up across trading and reputation.
-        </p>
-        <button
-          type="button"
-          onClick={() => navigate("/discover")}
-          data-testid="link-discover-traders"
-          className="inline-flex items-center gap-1.5 shrink-0 rounded-full bg-card px-3 py-1.5 text-xs font-medium text-foreground shadow-card hover:bg-surface-3 transition-colors"
-        >
-          <Search className="w-3.5 h-3.5 text-accent" />
-          Discover
-        </button>
-      </div>
+    <div className="w-full max-w-5xl mx-auto px-4 md:px-6 py-5">
+      <PageHeader
+        icon={Trophy}
+        title="Leaderboard"
+        actions={
+          <button
+            type="button"
+            onClick={() => navigate("/discover")}
+            data-testid="link-discover-traders"
+            className="inline-flex items-center gap-1.5 shrink-0 rounded-full bg-card px-3 py-1.5 text-xs font-medium text-foreground shadow-card hover:bg-surface-3 transition-colors"
+          >
+            <Search className="w-3.5 h-3.5 text-accent" />
+            Discover
+          </button>
+        }
+      />
 
-      {/* Category nav - shared filter pills (no horizontal scroll). */}
+      {/* Category nav - shared filter pills, single scrolling row. */}
       <FilterPills
         options={categoryTabs}
         value={category}
         onChange={(id) => setCategory(id)}
         ariaLabel="Leaderboard category"
         testIdPrefix="category"
-        className="mb-5"
+        scroll
+        className="mb-4"
       />
 
       {category === "top_callers" ? (

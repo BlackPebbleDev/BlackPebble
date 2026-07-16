@@ -142,14 +142,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-[100dvh] flex flex-col w-full bg-background text-foreground dark">
-      {/* Top bar */}
-      <header className="fixed top-0 left-0 right-0 z-40 h-20 md:h-28 bg-background/95 backdrop-blur-md border-b border-border">
+      {/* Top bar — compact trading-terminal chrome (Design System v2). */}
+      <header className="fixed top-0 left-0 right-0 z-40 h-16 md:h-20 bg-background/95 backdrop-blur-md border-b border-border">
         <div className="h-full flex items-center gap-3 sm:gap-4 px-4 md:pl-[76px]">
           <Link href="/" className="flex-shrink-0" data-testid="link-logo">
             <img
               src={logoFlat}
               alt="Blackpebble"
-              className="w-[150px] md:w-[220px] lg:w-[240px] h-auto object-contain mix-blend-screen"
+              className="w-[132px] md:w-[184px] lg:w-[196px] h-auto object-contain mix-blend-screen"
             />
           </Link>
 
@@ -161,7 +161,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             {isGuest && (
               <span
                 data-testid="badge-guest-mode"
-                className="hidden sm:inline-flex items-center text-[11px] font-semibold uppercase tracking-wider text-accent border border-accent/30 bg-accent/10 px-3 py-1.5 rounded-full"
+                className="hidden sm:inline-flex items-center text-[11px] font-semibold uppercase tracking-wider text-accent border border-accent/30 bg-accent/10 px-2.5 py-1 rounded-full"
               >
                 Connect X to rank
               </span>
@@ -176,7 +176,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </header>
 
       {/* Mobile search row */}
-      <div className="fixed top-20 left-0 right-0 z-30 sm:hidden bg-background/95 backdrop-blur-md border-b border-border px-4 py-2">
+      <div className="fixed top-16 left-0 right-0 z-30 sm:hidden bg-background/95 backdrop-blur-md border-b border-border px-4 py-1.5">
         <TokenSearch onSelect={handleSearchSelect} wallet={wallet} />
       </div>
 
@@ -185,7 +185,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         onMouseEnter={() => setExpanded(true)}
         onMouseLeave={() => setExpanded(false)}
         className={cn(
-          "hidden md:flex fixed left-0 top-28 bottom-0 z-50 flex-col bg-background/60 backdrop-blur-sm transition-all duration-200",
+          "hidden md:flex fixed left-0 top-20 bottom-0 z-50 flex-col bg-background/60 backdrop-blur-sm transition-all duration-200",
           expanded ? "w-[208px]" : "w-[64px]",
         )}
       >
@@ -229,11 +229,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 flex flex-col pt-20 md:pt-28 md:pl-[60px] pb-16 md:pb-0 min-w-0 overflow-x-hidden">
-        {/* Clears the fixed mobile search row: top-20 (80px) header + py-2 (16px)
-            + h-12 input (48px) = 64px. Spacer must match to avoid clipping the
+      <main className="flex-1 flex flex-col pt-16 md:pt-20 md:pl-[60px] pb-16 md:pb-0 min-w-0 overflow-x-hidden">
+        {/* Clears the fixed mobile search row: top-16 (64px) header + py-1.5 (12px)
+            + h-11 input (44px) = 56px. Spacer must match to avoid clipping the
             first card under the sticky search bar. */}
-        <div className="sm:hidden h-16" aria-hidden />
+        <div className="sm:hidden h-14" aria-hidden />
         <div>{children}</div>
         <SiteFooter />
       </main>

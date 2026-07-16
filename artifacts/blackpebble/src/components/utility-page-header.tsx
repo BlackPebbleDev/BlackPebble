@@ -21,14 +21,18 @@ export function UtilityPageHeader({
   className,
 }: {
   utility: UtilityMeta;
-  /** Override the default landing-card description when the page needs a longer blurb. */
+  /**
+   * Optional supporting line. Design System v2: the utility's generic landing
+   * description is NOT shown here anymore (the page content speaks for itself).
+   * Only pass a subtitle when it adds real value (e.g. a safety/read-only note).
+   */
   subtitle?: React.ReactNode;
   actions?: React.ReactNode;
   className?: string;
 }) {
   const Icon: LucideIcon = utility.icon;
   return (
-    <div className={cn("space-y-3", className)}>
+    <div className={cn("space-y-2", className)}>
       <Link
         href="/utilities"
         className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-accent"
@@ -38,21 +42,20 @@ export function UtilityPageHeader({
         Utilities
       </Link>
 
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0 flex-1 space-y-1.5">
-          <div className="flex min-w-0 items-start gap-3">
-            <Icon
-              className="mt-1 h-7 w-7 flex-shrink-0 text-accent"
-              aria-hidden
-            />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0 flex-1 space-y-1">
+          <div className="flex min-w-0 items-center gap-2.5">
             {/* No truncate / nowrap — long titles wrap cleanly on mobile. */}
-            <h1 className="min-w-0 text-3xl font-bold tracking-tight md:text-4xl">
+            <Icon className="h-7 w-7 flex-shrink-0 text-accent" aria-hidden />
+            <h1 className="min-w-0 text-3xl font-bold tracking-tight leading-tight md:text-[2.25rem]">
               {utility.title}
             </h1>
           </div>
-          <div className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
-            {subtitle ?? utility.description}
-          </div>
+          {subtitle && (
+            <div className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
+              {subtitle}
+            </div>
+          )}
         </div>
         {actions && (
           <div className="flex flex-shrink-0 flex-wrap items-center gap-2">
