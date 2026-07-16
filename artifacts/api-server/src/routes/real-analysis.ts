@@ -292,9 +292,30 @@ router.get(
         }))
       : [];
 
+    // Every current-wallet field is produced by a single synchronous
+    // reconciliation run, so they all share one computedAt (the reconciliation
+    // id). This block lets the owner prove no stale positions are mixed with a
+    // fresh balance.
+    const connectedWallet = String(req.query.connectedWallet ?? "").trim() || null;
+    const consistency = {
+      reconciliationId: analysis.computedAt,
+      analysisSnapshotComputedAt: analysis.computedAt,
+      balancesComputedAt: analysis.computedAt,
+      pricingComputedAt: analysis.computedAt,
+      openPositionsComputedAt: analysis.computedAt,
+      allCurrentFieldsShareReconciliation: true,
+      analyzedWallet: wallet,
+      connectedWallet,
+      sessionWallet: session.wallet ?? null,
+      walletsMatch:
+        (connectedWallet == null || connectedWallet === wallet) &&
+        (session.wallet == null || session.wallet === wallet),
+    };
+
     return res.json({
       // ── Wallet mapping (verify the RIGHT wallet is analyzed) ──────────────
       analyzedWallet: wallet,
+      connectedWallet,
       sessionWallet: session.wallet ?? null,
       walletMatchesSession:
         session.wallet == null ? null : session.wallet === wallet,
@@ -302,6 +323,7 @@ router.get(
       // ── Data provenance (cache vs fresh, snapshot age) ───────────────────
       source,
       computedAt: analysis.computedAt,
+      consistency,
       snapshotAgeSeconds: Math.max(
         0,
         Math.floor(Date.now() / 1000) - analysis.computedAt,
@@ -337,6 +359,9 @@ router.get(
         currentValueUsd: toUsd(pos.currentValueSol),
         costBasisSol: pos.costBasisSol,
       })),
+      // Per-mint audit: history vs live vs reconciled, and why each was
+      // kept / capped / dropped as a ghost.
+      reconciliation: analysis.reconciliation,
       assets,
     });
   }),

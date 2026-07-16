@@ -369,12 +369,33 @@ export function aggregateLotsByMint(openLots: TradeLot[]): MintHolding[] {
 
 const HOLDING_EPSILON = 1e-9;
 
+/** Per-mint audit of how a FIFO holding was reconciled against live balances. */
+export interface PositionReconciliation {
+  mint: string;
+  /** Quantity the swap history (FIFO) believes is still held. */
+  historyQuantity: number;
+  /** Live on-chain balance (UI amount). Null when balances were unavailable. */
+  liveQuantity: number | null;
+  /** Final quantity used for the current position (capped to live, 0 if gone). */
+  reconciledQuantity: number;
+  /** Human-readable adjustment reason. */
+  reason: string;
+  /** True when the wallet no longer holds this mint (sold / transferred out). */
+  droppedAsGhost: boolean;
+  /** True when this becomes a current open position. */
+  includedInOpenPositions: boolean;
+  /** True when it also counts toward the analyzed trading portfolio (priced). */
+  includedInAnalyzed: boolean;
+}
+
 export interface ReconciledHoldings {
   holdings: MintHolding[];
   /** True when live balances were available and applied. */
   verified: boolean;
   /** Mints the trade history thought were held but the chain says are gone. */
   droppedMints: number;
+  /** Per-mint reconciliation audit trail. */
+  diagnostics: PositionReconciliation[];
 }
 
 /**
@@ -385,24 +406,50 @@ export interface ReconciledHoldings {
  * positions"). Each holding is capped at the live balance, with cost basis
  * scaled proportionally; mints the wallet no longer holds are dropped.
  *
- * `balances === null` means verification was unavailable (RPC failure) - the
- * FIFO view is passed through but flagged unverified so display layers never
- * present it as fact.
+ * `balances === null` means verification was unavailable (RPC failure). In that
+ * case we return NO current positions (the FIFO view is never presented as a
+ * live holding) and flag the result unverified - the UI shows an "unverified"
+ * state and prompts a refresh instead of rendering positions the wallet may not
+ * actually own.
  */
 export function reconcileHoldings(
   fifoHoldings: MintHolding[],
   balances: Map<string, number> | null,
 ): ReconciledHoldings {
   if (balances == null) {
-    return { holdings: fifoHoldings, verified: false, droppedMints: 0 };
+    const diagnostics: PositionReconciliation[] = fifoHoldings.map((h) => ({
+      mint: h.tokenMint,
+      historyQuantity: h.tokenAmount,
+      liveQuantity: null,
+      reconciledQuantity: 0,
+      reason: "Live balance unavailable - not shown as a current position",
+      droppedAsGhost: false,
+      includedInOpenPositions: false,
+      includedInAnalyzed: false,
+    }));
+    return { holdings: [], verified: false, droppedMints: 0, diagnostics };
   }
   const holdings: MintHolding[] = [];
+  const diagnostics: PositionReconciliation[] = [];
   let droppedMints = 0;
   for (const h of fifoHoldings) {
     const live = balances.get(h.tokenMint) ?? 0;
     const held = Math.min(h.tokenAmount, live);
     if (held <= HOLDING_EPSILON) {
       droppedMints++;
+      diagnostics.push({
+        mint: h.tokenMint,
+        historyQuantity: h.tokenAmount,
+        liveQuantity: live,
+        reconciledQuantity: 0,
+        reason:
+          live <= HOLDING_EPSILON
+            ? "Live balance is zero - fully sold or transferred out"
+            : "Negligible live balance - excluded as dust",
+        droppedAsGhost: true,
+        includedInOpenPositions: false,
+        includedInAnalyzed: false,
+      });
       continue;
     }
     const scale = held / h.tokenAmount;
@@ -412,8 +459,22 @@ export function reconcileHoldings(
       costBasisSol: h.costBasisSol * scale,
       firstAcquiredAt: h.firstAcquiredAt,
     });
+    diagnostics.push({
+      mint: h.tokenMint,
+      historyQuantity: h.tokenAmount,
+      liveQuantity: live,
+      reconciledQuantity: held,
+      reason:
+        held < h.tokenAmount
+          ? "Capped to live on-chain balance"
+          : "Fully held on-chain",
+      droppedAsGhost: false,
+      includedInOpenPositions: true,
+      // Refined in markOpenPositions once pricing is known (priced => analyzed).
+      includedInAnalyzed: true,
+    });
   }
-  return { holdings, verified: true, droppedMints };
+  return { holdings, verified: true, droppedMints, diagnostics };
 }
 
 export function computeMetrics(
