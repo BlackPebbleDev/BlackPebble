@@ -2012,6 +2012,25 @@ export interface RealTradingSignal {
     | "combination";
   /** Auditable 30-day comparison behind the change badge. */
   comparison?: RealSignalComparison;
+  /** Structured drill-down evidence (classification + honest metadata). */
+  detail?: RealSignalDetail;
+}
+
+export type RealSignalClassification =
+  | "elite"
+  | "strong"
+  | "developing"
+  | "weak"
+  | "insufficient"
+  | "descriptive";
+
+/** Drill-down evidence metadata for a signal (Phase 2B). */
+export interface RealSignalDetail {
+  classification: RealSignalClassification;
+  measures: string;
+  expectedImpact: string;
+  improvement: string[];
+  limitations: string[];
 }
 
 export interface RealSignalComparison {
@@ -2072,6 +2091,14 @@ export interface RealTradingInsight {
   sampleSize?: number;
   /** Observations that matched the pattern. */
   evidenceCount?: number;
+  /** How to read it: strength / observation / area to watch (Phase 2B). */
+  classification?: "strength" | "observation" | "area_to_watch";
+  /** One practical, non-judgmental next step. */
+  guidance?: string;
+  /** Honest caveats about what this detection can and cannot prove. */
+  limitations?: string;
+  /** Change over time; "insufficient_history" until a time series exists. */
+  trend?: "improving" | "worsening" | "stable" | "insufficient_history";
 }
 
 export type RealAssetInclusion =
@@ -2173,6 +2200,139 @@ export interface RealPerformanceReport {
   totalRealizedPnlSol: number;
 }
 
+// ── Phase 2B intelligence layers ─────────────────────────────────────────────
+
+export type RealRiskProfileTier =
+  | "controlled"
+  | "moderate"
+  | "aggressive"
+  | "highly_volatile"
+  | "insufficient";
+
+/** Historical Risk Intelligence — how the trader has historically taken risk. */
+export interface RealHistoricalRisk {
+  sampleSize: number;
+  confidence: number;
+  confidenceTier: RealConfidenceTier;
+  maxDrawdownSol: number;
+  maxDrawdownPercent: number | null;
+  avgDrawdownSol: number;
+  currentDrawdownSol: number;
+  longestDrawdownSec: number;
+  medianRecoverySec: number | null;
+  medianTradesToRecover: number | null;
+  drawdownCount: number;
+  maxConsecutiveLosses: number;
+  maxConsecutiveWins: number;
+  currentStreak: number;
+  profitFactor: number | null;
+  expectancySol: number;
+  payoffRatio: number | null;
+  resultVolatilitySol: number;
+  downsideVolatilitySol: number;
+  positionSizeVolatility: number;
+  tailLossConcentration: number;
+  tailGainConcentration: number;
+  profileTier: RealRiskProfileTier;
+  profileBreakdown: {
+    resultDispersion: number;
+    drawdownSeverity: number;
+    tailLossConcentration: number;
+  };
+  limitations: string[];
+}
+
+export type RealCoverageTier = "high" | "moderate" | "limited" | "insufficient";
+
+/** Report coverage & confidence metadata (what was analyzed vs. limited). */
+export interface RealReportCoverage {
+  parsedSwaps: number;
+  unsupportedSwaps: number;
+  completedTrades: number;
+  verifiedHoldings: number;
+  unpricedHoldings: number;
+  holdingsVerified: boolean;
+  historyTruncated: boolean;
+  droppedGhostMints: number;
+  firstTradeAt: number | null;
+  lastTradeAt: number | null;
+  parseCoverage: number;
+  pricingCoverage: number;
+  tier: RealCoverageTier;
+  summary: string;
+  limitations: string[];
+}
+
+export type RealPositionClass =
+  | "core"
+  | "high_conviction"
+  | "oversized"
+  | "small_speculative"
+  | "dust"
+  | "unpriced"
+  | "recently_opened"
+  | "long_held";
+
+export interface RealHoldingQuality {
+  tokenMint: string;
+  symbol: string | null;
+  logo: string | null;
+  currentValueSol: number | null;
+  costBasisSol: number;
+  unrealizedPnlSol: number | null;
+  sharePercent: number | null;
+  ageSec: number;
+  sizeVsMedian: number | null;
+  classification: RealPositionClass;
+  tags: RealPositionClass[];
+}
+
+export interface RealQualityDimension {
+  key: string;
+  label: string;
+  value: number | null;
+  available: boolean;
+  note: string;
+}
+
+export interface RealHoldingsQuality {
+  holdingsVerified: boolean;
+  positions: RealHoldingQuality[];
+  concentrationPercent: number | null;
+  dimensions: RealQualityDimension[];
+  limitations: string[];
+}
+
+export interface RealCoachingScoreRef {
+  key: string;
+  value: number;
+  classification: string;
+}
+
+export interface RealCoachingInsight {
+  key: string;
+  title: string;
+  body: string;
+  basis: string;
+  priority: "high" | "medium" | "low";
+}
+
+/** Deterministic, rule-based coaching context (no AI). */
+export interface RealCoachingContext {
+  reportConfidence: RealConfidenceTier;
+  strengths: RealCoachingScoreRef[];
+  developmentAreas: RealCoachingScoreRef[];
+  highConfidenceBehaviors: Array<{
+    key: string;
+    title: string;
+    classification: string;
+  }>;
+  riskProfile: RealRiskProfileTier;
+  meaningfulChanges: Array<{ key: string; delta: number }>;
+  insights: RealCoachingInsight[];
+  limitations: string[];
+}
+
 export interface RealAnalysisSummary {
   wallet: string;
   computedAt: number;
@@ -2207,6 +2367,14 @@ export interface RealAnalysisSummary {
    * open positions, preview) must agree on this before rendering holdings.
    */
   reconciliationId?: number;
+  /** Historical risk intelligence (drawdowns, streaks, volatility). Phase 2B. */
+  historicalRisk?: RealHistoricalRisk | null;
+  /** Report coverage & confidence metadata. Phase 2B. */
+  coverage?: RealReportCoverage | null;
+  /** Current holdings quality & conviction (verified holdings only). Phase 2B. */
+  holdingsQuality?: RealHoldingsQuality | null;
+  /** Deterministic, rule-based coaching context (no AI). Phase 2B. */
+  coaching?: RealCoachingContext | null;
   empty?: boolean;
   message?: string;
 }

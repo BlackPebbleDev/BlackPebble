@@ -67,6 +67,11 @@ import {
   type MetricTone,
   type DeltaInfo,
 } from "@/components/metric-tile";
+import {
+  HistoricalRiskSection,
+  CoverageBanner,
+  HoldingsQualitySection,
+} from "@/components/real-trading-intelligence";
 import { cn } from "@/lib/utils";
 
 ChartJS.register(
@@ -1141,17 +1146,44 @@ function scoreBandLabel(value: number): string {
 }
 
 /** Inline explainability panel for one signal (tap-to-open, no hover needed). */
+const SIGNAL_CLASS_LABEL: Record<string, string> = {
+  elite: "Elite",
+  strong: "Strong",
+  developing: "Developing",
+  weak: "Weak",
+  insufficient: "Insufficient data",
+  descriptive: "Descriptive only",
+};
+
 function SignalDetail({ s }: { s: RealTradingSignal }) {
   const meta = SIGNAL_EXPLAIN[s.key];
+  const detail = s.detail;
   const insufficient = s.tier === "insufficient";
   const cmp = s.comparison;
+  // Prefer the backend's structured evidence metadata; fall back to the static
+  // frontend dictionary for older cached snapshots without `detail`.
+  const measures = detail?.measures ?? meta?.meaning ?? SIGNAL_HINTS[s.key] ?? "";
+  const improvementList =
+    detail?.improvement && detail.improvement.length > 0
+      ? detail.improvement
+      : meta?.improve
+        ? [meta.improve]
+        : [];
   const rows: Array<{ k: string; v: React.ReactNode }> = [
     { k: "Score", v: insufficient ? "Not enough data" : `${s.value} / 100` },
     {
-      k: "What it means",
+      k: "Classification",
+      v: detail?.classification
+        ? (SIGNAL_CLASS_LABEL[detail.classification] ?? detail.classification)
+        : insufficient
+          ? "Insufficient data"
+          : scoreBandLabel(s.value),
+    },
+    {
+      k: "What it measures",
       v: insufficient
         ? "There is not enough evidence to score this reliably yet."
-        : `${scoreBandLabel(s.value)}. ${meta?.meaning ?? SIGNAL_HINTS[s.key] ?? ""}`,
+        : measures,
     },
     { k: "Confidence", v: TIER_LABEL[s.tier] ?? s.tier },
     {
@@ -1172,8 +1204,8 @@ function SignalDetail({ s }: { s: RealTradingSignal }) {
   if (s.evidence.length > 0) {
     rows.push({ k: "Main evidence", v: s.evidence.join(" · ") });
   }
-  if (!insufficient && meta?.direction === "higher_better") {
-    rows.push({ k: "To improve", v: meta.improve });
+  if (!insufficient && detail?.expectedImpact) {
+    rows.push({ k: "Expected impact", v: detail.expectedImpact });
   }
   return (
     <div className="rounded-xl bg-surface-2 border border-white/[0.06] px-3.5 py-3 space-y-2">
@@ -1194,12 +1226,33 @@ function SignalDetail({ s }: { s: RealTradingSignal }) {
             className="flex items-start justify-between gap-3 text-xs"
           >
             <dt className="text-muted-foreground shrink-0">{r.k}</dt>
-            <dd className="text-right text-foreground/90 leading-snug">
+            <dd className="text-right text-foreground/90 leading-snug break-words min-w-0">
               {r.v}
             </dd>
           </div>
         ))}
       </dl>
+      {!insufficient && improvementList.length > 0 && (
+        <div className="pt-1 border-t border-white/[0.05]">
+          <div className="stat-label mb-1">How to improve</div>
+          <ul className="space-y-0.5">
+            {improvementList.map((a) => (
+              <li
+                key={a}
+                className="text-[11px] text-muted-foreground leading-relaxed flex items-start gap-1.5"
+              >
+                <ChevronRight className="w-3 h-3 shrink-0 mt-0.5 text-accent/70" />
+                {a}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {detail?.limitations && detail.limitations.length > 0 && (
+        <p className="text-[10px] text-muted-foreground/70 leading-relaxed pt-1">
+          Limitations: {detail.limitations.join(" ")}
+        </p>
+      )}
     </div>
   );
 }
@@ -1266,10 +1319,23 @@ function BehaviorSection({ analysis }: { analysis: RealAnalysisSummary }) {
             : "border-white/[0.05] bg-surface-2",
       )}
     >
-      <div className="font-medium">{insight.title}</div>
+      <div className="flex items-start justify-between gap-2">
+        <div className="font-medium break-words min-w-0">{insight.title}</div>
+        {insight.evidenceCount != null && insight.evidenceCount > 0 && (
+          <span className="text-[9px] uppercase tracking-wider text-muted-foreground tabular-nums shrink-0 mt-0.5">
+            {insight.evidenceCount}× evidence
+          </span>
+        )}
+      </div>
       <div className="text-muted-foreground text-xs mt-0.5 leading-relaxed">
         {insight.description}
       </div>
+      {insight.guidance && (
+        <div className="text-[11px] text-foreground/70 mt-1 leading-relaxed flex items-start gap-1.5">
+          <ChevronRight className="w-3 h-3 shrink-0 mt-0.5 text-accent/70" />
+          {insight.guidance}
+        </div>
+      )}
     </div>
   );
 
@@ -1713,26 +1779,75 @@ function EvolutionSection({ events }: { events: RealTimelineEvent[] }) {
  * and their static `improve` guidance, and states plainly that personalised AI
  * coaching is coming. It establishes the surface future coaching will populate.
  */
+const COACHING_PRIORITY_TONE: Record<string, string> = {
+  high: "bg-danger/10 text-danger",
+  medium: "bg-amber-500/10 text-warning",
+  low: "bg-surface-3 text-muted-foreground",
+};
+
 function CoachingSection({ analysis }: { analysis: RealAnalysisSummary }) {
-  const { weaknesses } = deriveStrengthsWeaknesses(analysis.signals);
-  const focus = weaknesses
-    .map((s) => ({
-      key: s.key,
-      label: SIGNAL_LABELS[s.key] ?? s.key,
-      value: s.value,
-      improve: SIGNAL_EXPLAIN[s.key]?.improve ?? null,
-    }))
-    .filter((f) => f.improve != null);
+  const coaching = analysis.coaching;
+
+  // Prefer the backend's deterministic coaching context (rule-based, evidence
+  // -backed). Older cached snapshots without it fall back to a signal-derived
+  // focus list so the section is never empty on legacy data.
+  const insights = coaching?.insights ?? [];
+  const fallback = !coaching
+    ? deriveStrengthsWeaknesses(analysis.signals)
+        .weaknesses.map((s) => ({
+          key: s.key,
+          label: SIGNAL_LABELS[s.key] ?? s.key,
+          value: s.value,
+          improve: SIGNAL_EXPLAIN[s.key]?.improve ?? null,
+        }))
+        .filter((f) => f.improve != null)
+    : [];
 
   return (
     <section className="rounded-2xl bg-card shadow-card p-5 sm:p-6 space-y-4">
-      <SectionHeader
-        title="Growth & Coaching"
-        description="Where to focus next — and a preview of the personalised AI coaching BlackPebble is building on top of this analysis."
-      />
-      {focus.length > 0 ? (
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <SectionHeader
+          title="Growth & Coaching"
+          description="Evidence-backed focus areas, generated from your on-chain history."
+        />
+        <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-accent/10 text-accent shrink-0">
+          BlackPebble Coaching Insights
+        </span>
+      </div>
+
+      {insights.length > 0 ? (
         <div className="space-y-2">
-          {focus.map((f) => (
+          {insights.map((f) => (
+            <div
+              key={f.key}
+              className="rounded-xl bg-surface-2 border border-white/[0.05] px-3.5 py-3"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-medium break-words min-w-0">
+                  {f.title}
+                </span>
+                <span
+                  className={cn(
+                    "text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded-full shrink-0",
+                    COACHING_PRIORITY_TONE[f.priority] ??
+                      "bg-surface-3 text-muted-foreground",
+                  )}
+                >
+                  {f.priority}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                {f.body}
+              </p>
+              <p className="text-[10px] text-muted-foreground/70 mt-1 leading-relaxed">
+                {f.basis}
+              </p>
+            </div>
+          ))}
+        </div>
+      ) : fallback.length > 0 ? (
+        <div className="space-y-2">
+          {fallback.map((f) => (
             <div
               key={f.key}
               className="rounded-xl bg-surface-2 border border-white/[0.05] px-3.5 py-3"
@@ -1755,12 +1870,13 @@ function CoachingSection({ analysis }: { analysis: RealAnalysisSummary }) {
           more, focus areas will appear here.
         </p>
       )}
+
       <div className="flex items-start gap-2 rounded-xl border border-accent/15 bg-accent/[0.04] px-3.5 py-2.5">
         <Sparkles className="w-3.5 h-3.5 text-accent shrink-0 mt-0.5" />
         <p className="text-[11px] text-muted-foreground leading-relaxed">
-          Personalised AI coaching is on the way. It will read your full trading
-          history — behavior patterns, how you've changed, and what to improve
-          next — and turn it into specific, actionable guidance.
+          These are rule-based insights, not AI. A future AI coach will consume
+          this same structured analysis — behavior patterns, how you've changed,
+          and what to improve next — and turn it into personalised guidance.
         </p>
       </div>
     </section>
@@ -2010,8 +2126,13 @@ export function RealTradingAnalysisFull() {
     );
   }
 
+  // Report story flow (Phase 2B, Part 10):
+  // Trader Profile → Executive Summary (+coverage) → Performance → Trader
+  // Intelligence (strengths/dev) → Behavioral → Current Risk → Historical Risk
+  // → Current Holdings (+quality) → Detailed Metrics → Evolution → Coaching.
   return (
     <div className="space-y-5">
+      <TraderProfileSection analysis={analysis} />
       <WalletSummaryHero
         analysis={analysis}
         solBalance={solBalance}
@@ -2020,6 +2141,7 @@ export function RealTradingAnalysisFull() {
         syncBusy={syncMutation.isPending || isFetching}
         syncError={syncError}
       />
+      <CoverageBanner analysis={analysis} />
       {analysis.historyTruncated && (
         <div className="flex items-start gap-2 rounded-xl border border-amber-500/25 bg-amber-500/5 px-3.5 py-2.5">
           <AlertTriangle className="w-3.5 h-3.5 text-warning shrink-0 mt-0.5" />
@@ -2030,7 +2152,6 @@ export function RealTradingAnalysisFull() {
           </p>
         </div>
       )}
-      <TraderProfileSection analysis={analysis} />
       {performance ? (
         <PerformanceSection performance={performance} />
       ) : (
@@ -2042,15 +2163,17 @@ export function RealTradingAnalysisFull() {
           </div>
         )
       )}
-      <BehaviorSection analysis={analysis} />
       <IntelligenceSection analysis={analysis} />
+      <BehaviorSection analysis={analysis} />
       <RiskSection analysis={analysis} />
+      <HistoricalRiskSection analysis={analysis} />
       <HoldingsSection
         analysis={analysis}
         performance={performance}
         onRefresh={() => syncMutation.mutate()}
         refreshBusy={syncMutation.isPending || isFetching}
       />
+      <HoldingsQualitySection analysis={analysis} />
       <DetailedMetricsSection analysis={analysis} />
       <EvolutionSection events={timeline} />
       <CoachingSection analysis={analysis} />
