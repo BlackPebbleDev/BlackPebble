@@ -72,6 +72,12 @@ import {
   CoverageBanner,
   HoldingsQualitySection,
 } from "@/components/real-trading-intelligence";
+import {
+  EntryIntelligenceSection,
+  ExitIntelligenceSection,
+  CurrentLiquiditySection,
+} from "@/components/trader-intelligence/entry-exit-intelligence";
+import { TradeReplaySection } from "@/components/trader-intelligence/trade-replay";
 import { cn } from "@/lib/utils";
 
 ChartJS.register(
@@ -2040,6 +2046,16 @@ export function RealTradingAnalysisFull() {
   } = useRealAnalysis();
   const solBalance = useWalletSolBalance();
   const solUsd = useSolUsd();
+  const enrichMutation = useMutation({
+    mutationFn: async () => {
+      await api.realAnalysis.enrich(wallet!);
+    },
+    onSuccess: () => {
+      // Recompute analysis so entry/exit quality picks up newly cached candles.
+      syncMutation.mutate();
+    },
+  });
+  const enriching = enrichMutation.isPending || syncMutation.isPending;
 
   if (!connected || !wallet) {
     return (
@@ -2164,6 +2180,17 @@ export function RealTradingAnalysisFull() {
         )
       )}
       <IntelligenceSection analysis={analysis} />
+      <EntryIntelligenceSection
+        analysis={analysis}
+        onEnrich={() => enrichMutation.mutate()}
+        enriching={enriching}
+      />
+      <ExitIntelligenceSection
+        analysis={analysis}
+        onEnrich={() => enrichMutation.mutate()}
+        enriching={enriching}
+      />
+      <TradeReplaySection wallet={wallet} />
       <BehaviorSection analysis={analysis} />
       <RiskSection analysis={analysis} />
       <HistoricalRiskSection analysis={analysis} />
@@ -2174,6 +2201,7 @@ export function RealTradingAnalysisFull() {
         refreshBusy={syncMutation.isPending || isFetching}
       />
       <HoldingsQualitySection analysis={analysis} />
+      <CurrentLiquiditySection analysis={analysis} />
       <DetailedMetricsSection analysis={analysis} />
       <EvolutionSection events={timeline} />
       <CoachingSection analysis={analysis} />

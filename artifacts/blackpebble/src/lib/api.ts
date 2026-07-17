@@ -2261,6 +2261,15 @@ export interface RealReportCoverage {
   tier: RealCoverageTier;
   summary: string;
   limitations: string[];
+  // Phase 2C additive coverage surfaces (may be null on older snapshots).
+  entryQualityCoverage?: number | null;
+  exitQualityCoverage?: number | null;
+  liquidityCoverage?: number | null;
+  candleInterval?: string | null;
+  missingCandleCount?: number;
+  staleCandleCount?: number;
+  providerFailureCount?: number;
+  sources?: string[];
 }
 
 export type RealPositionClass =
@@ -2333,6 +2342,206 @@ export interface RealCoachingContext {
   limitations: string[];
 }
 
+// ── Phase 2C: entry / exit quality, liquidity, trade replay ─────────────────
+
+export type RealEntryPattern =
+  | "rapid_rise"
+  | "pullback"
+  | "consolidation"
+  | "breakdown"
+  | "insufficient_data";
+
+export type RealExitPattern =
+  | "near_local_high"
+  | "before_further_upside"
+  | "before_further_downside"
+  | "sharp_reversal"
+  | "panic"
+  | "insufficient_data";
+
+export type RealEnrichmentStatus =
+  | "ready"
+  | "partial"
+  | "processing"
+  | "unavailable"
+  | "insufficient_data";
+
+export interface RealEntryQualitySummary {
+  eligibleEntries: number;
+  analyzedEntries: number;
+  coveragePercent: number;
+  avgEntryScore: number | null;
+  medianEntryScore: number | null;
+  buyingAfterRunUpRate: number | null;
+  pullbackEntryRate: number | null;
+  immediateAdverseMoveRate: number | null;
+  positiveFollowThroughRate: number | null;
+  bestSupportedPattern: RealEntryPattern | null;
+  weakestSupportedPattern: RealEntryPattern | null;
+  confidence: RealConfidenceTier;
+  limitations: string[];
+}
+
+export interface RealExitQualitySummary {
+  eligibleExits: number;
+  analyzedExits: number;
+  coveragePercent: number;
+  avgExitScore: number | null;
+  medianExitScore: number | null;
+  earlyExitRate: number | null;
+  panicExitRate: number | null;
+  strongProfitCaptureRate: number | null;
+  downsideAvoidanceRate: number | null;
+  avgCapturedFavorableExcursion: number | null;
+  confidence: RealConfidenceTier;
+  limitations: string[];
+}
+
+export type RealLiquidityBand =
+  | "deep"
+  | "adequate"
+  | "thin"
+  | "fragile"
+  | "unavailable";
+
+export type RealExitability =
+  | "easy"
+  | "moderate"
+  | "difficult"
+  | "severe"
+  | "unknown";
+
+export interface RealHoldingLiquidity {
+  mint: string;
+  symbol: string | null;
+  liquidityUsd: number | null;
+  holdingValueUsd: number | null;
+  holdingToLiquidityPct: number | null;
+  band: RealLiquidityBand;
+  exitability: RealExitability;
+  unpriced: boolean;
+  missingLiquidity: boolean;
+  limitations: string[];
+}
+
+export interface RealLiquidityRiskSummary {
+  scope: "current";
+  positions: RealHoldingLiquidity[];
+  pricedHoldingsCoverage: number;
+  liquidityCoverage: number;
+  weightedLiquidityQuality: number | null;
+  largestHoldingToLiquidityPct: number | null;
+  fragilePositionsCount: number;
+  unavailablePositionsCount: number;
+  confidence: RealConfidenceTier;
+  limitations: string[];
+}
+
+export interface RealTradeExecution {
+  executionId: string;
+  signature: string;
+  blockTime: number;
+  tokenAmount: number;
+  solAmount: number;
+  priceSol: number;
+}
+
+export interface RealReplayToken {
+  mint: string;
+  chain: string;
+  symbol: string | null;
+  name: string | null;
+  logo: string | null;
+  pairAddress: string | null;
+}
+
+export interface RealTradeSummary {
+  roundTripId: string;
+  token: RealReplayToken;
+  buyTime: number;
+  sellTime: number | null;
+  holdDurationSec: number;
+  costBasisSol: number;
+  proceedsSol: number;
+  realizedPnlSol: number;
+  roiPercent: number;
+  outcome: "win" | "loss" | "breakeven" | null;
+  entryCount: number;
+  exitCount: number;
+  isComplex: boolean;
+  closed: boolean;
+  entryClassification: string | null;
+  exitClassification: string | null;
+  behaviorFlags: string[];
+}
+
+export interface RealHistoricalCandle {
+  timestamp: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volumeUsd: number | null;
+  marketCapUsd?: number | null;
+  source: string;
+  interval: string;
+}
+
+export interface RealTradeReplay {
+  roundTripId: string;
+  token: RealReplayToken;
+  entryExecutions: RealTradeExecution[];
+  exitExecutions: RealTradeExecution[];
+  buyTime: number;
+  sellTime: number | null;
+  holdDurationSec: number;
+  costBasisSol: number;
+  proceedsSol: number;
+  realizedPnlSol: number;
+  roiPercent: number;
+  outcome: "win" | "loss" | "breakeven" | null;
+  avgEntryPriceSol: number;
+  entryMarketCapUsd: number | null;
+  exitMarketCapUsd: number | null;
+  entryLiquidityUsd: number | null;
+  exitLiquidityUsd: number | null;
+  entryQuality: {
+    entryPattern: RealEntryPattern;
+    score: number | null;
+    mfePercent: number | null;
+    maePercent: number | null;
+    preEntryReturn1h: number | null;
+    postEntryReturn1h: number | null;
+    limitations: string[];
+  } | null;
+  exitQuality: {
+    exitPattern: RealExitPattern;
+    score: number | null;
+    capturedMfePercent: number | null;
+    missedUpsidePercent: number | null;
+    avoidedDownsidePercent: number | null;
+    hindsight: boolean;
+    limitations: string[];
+  } | null;
+  currentLiquidity: RealHoldingLiquidity | null;
+  behaviorFlags: string[];
+  pricePaths: {
+    beforeEntry: RealHistoricalCandle[];
+    duringTrade: RealHistoricalCandle[];
+    afterExit: RealHistoricalCandle[];
+    source: string | null;
+    interval: string | null;
+  } | null;
+  coverage: {
+    hasEntryQuality: boolean;
+    hasExitQuality: boolean;
+    hasPricePaths: boolean;
+    hasLiquidity: boolean;
+  };
+  source: string | null;
+  limitations: string[];
+}
+
 export interface RealAnalysisSummary {
   wallet: string;
   computedAt: number;
@@ -2375,6 +2584,14 @@ export interface RealAnalysisSummary {
   holdingsQuality?: RealHoldingsQuality | null;
   /** Deterministic, rule-based coaching context (no AI). Phase 2B. */
   coaching?: RealCoachingContext | null;
+  /** Entry quality summary (evidence stripped). Phase 2C. */
+  entryQuality?: RealEntryQualitySummary | null;
+  /** Exit quality summary (evidence stripped). Phase 2C. */
+  exitQuality?: RealExitQualitySummary | null;
+  /** Current-holdings liquidity risk (never mixed with historical). Phase 2C. */
+  liquidityRisk?: RealLiquidityRiskSummary | null;
+  /** Readiness of entry/exit intelligence enrichment. Phase 2C. */
+  enrichmentStatus?: RealEnrichmentStatus | null;
   empty?: boolean;
   message?: string;
 }
@@ -2626,6 +2843,44 @@ export const api = {
       request<{ performance: RealPerformanceReport }>(
         `/real-analysis/${wallet}/performance`,
       ),
+    trades: (
+      wallet: string,
+      params?: {
+        outcome?: "winner" | "loser" | "breakeven";
+        token?: string;
+        sort?: "recent" | "pnl" | "loss" | "hold";
+        limit?: number;
+        offset?: number;
+      },
+    ) => {
+      const q = new URLSearchParams();
+      if (params?.outcome) q.set("outcome", params.outcome);
+      if (params?.token) q.set("token", params.token);
+      if (params?.sort) q.set("sort", params.sort);
+      if (params?.limit != null) q.set("limit", String(params.limit));
+      if (params?.offset != null) q.set("offset", String(params.offset));
+      const qs = q.toString();
+      return request<{
+        trades: RealTradeSummary[];
+        pagination: { total: number; limit: number; offset: number; returned: number };
+      }>(`/real-analysis/${wallet}/trades${qs ? `?${qs}` : ""}`);
+    },
+    tradeReplay: (wallet: string, tradeId: string) =>
+      request<{ replay: RealTradeReplay }>(
+        `/real-analysis/${wallet}/trades/${tradeId}/replay`,
+      ),
+    enrich: (wallet: string, max?: number) =>
+      request<{
+        enrichment: {
+          fetched: number;
+          cached: number;
+          failures: number;
+          circuitOpen: boolean;
+          tradesConsidered: number;
+        };
+      }>(`/real-analysis/${wallet}/enrich${max ? `?max=${max}` : ""}`, {
+        method: "POST",
+      }),
   },
 
   // Paper leverage trading (gated behind the `leverage` feature flag).
