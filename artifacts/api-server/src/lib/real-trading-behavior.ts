@@ -4,7 +4,26 @@
  */
 
 import type { ClosedRoundTrip, ParsedSwapEvent, TradingMetrics } from "./real-trading-math.js";
-import { classifyOutcome, stdDev } from "./real-trading-math.js";
+import { classifyOutcome, median, stdDev } from "./real-trading-math.js";
+import { computeDrawdownEpisodes } from "./real-trading-risk.js";
+
+/**
+ * How a behavior should be read (Phase 2B, Part 3). Distinct from `severity`
+ * (which drives colour): a `strength` is good, an `area_to_watch` is worth
+ * attention, an `observation` is a neutral style reading.
+ */
+export type BehaviorClassification = "strength" | "observation" | "area_to_watch";
+
+/**
+ * Direction of change over time. We only track the latest behavior snapshot, so
+ * new sequence-based behaviors honestly report "insufficient_history" until a
+ * per-behavior time series exists.
+ */
+export type BehaviorTrend =
+  | "improving"
+  | "worsening"
+  | "stable"
+  | "insufficient_history";
 
 export interface BehaviorInsight {
   key: string;
@@ -18,6 +37,14 @@ export interface BehaviorInsight {
   sampleSize: number;
   /** Number of observations that actually matched the pattern. */
   evidenceCount: number;
+  /** How to read it (strength / observation / area to watch). Optional. */
+  classification?: BehaviorClassification;
+  /** One practical, non-judgmental next step. Optional. */
+  guidance?: string;
+  /** Honest caveats about what this detection can and cannot prove. Optional. */
+  limitations?: string;
+  /** Change over time; "insufficient_history" until a time series exists. */
+  trend?: BehaviorTrend;
 }
 
 export interface BehaviorAnalysis {
@@ -319,6 +346,173 @@ const RULES: BehaviorRule[] = [
         confidence: 0.65,
         sampleSize: rebuyPairs,
         evidenceCount: fomoCount,
+        classification: "area_to_watch",
+        guidance: "Waiting for a pullback instead of chasing the candle tends to improve entries.",
+        limitations: "Based on swap-implied price; short-window moves can be noisy.",
+        trend: "insufficient_history",
+      };
+    }
+    return null;
+  },
+
+  // ── Phase 2B: sequence-based behaviors (evidence-gated) ──────────────────
+
+  // Position-size escalation: later buys materially larger than the early
+  // baseline (a repeated trend, not a single conviction spike).
+  (ctx) => {
+    const buys = ctx.events
+      .filter((e) => e.side === "buy" && e.solAmount >= MIN_MEANINGFUL_BUY_SOL)
+      .sort((a, b) => a.blockTime - b.blockTime);
+    if (buys.length < 6) return null;
+    const half = Math.floor(buys.length / 2);
+    const earlyMedian = median(buys.slice(0, half).map((e) => e.solAmount));
+    const late = buys.slice(half).map((e) => e.solAmount);
+    if (earlyMedian <= 0) return null;
+    const escalated = late.filter((s) => s > earlyMedian * 2);
+    if (escalated.length >= 3 && median(late) > earlyMedian * 1.5) {
+      return {
+        key: "size_escalation",
+        category: "pattern",
+        title: "Position sizes are escalating",
+        description: `Your recent buys are materially larger than your earlier baseline (${escalated.length} recent buys over 2x your early median size). Escalating size amplifies both gains and losses.`,
+        severity: "warning",
+        confidence: 0.65,
+        sampleSize: buys.length,
+        evidenceCount: escalated.length,
+        classification: "area_to_watch",
+        guidance: "Tie position sizing to a fixed plan rather than recent outcomes.",
+        limitations: "Based on swap-implied SOL size; does not account for account-balance growth.",
+        trend: "insufficient_history",
+      };
+    }
+    return null;
+  },
+
+  // Overtrading: a few days carry far more trades than a typical active day.
+  (ctx) => {
+    const byDay = new Map<number, number>();
+    for (const e of ctx.events) {
+      const day = Math.floor(e.blockTime / 86400);
+      byDay.set(day, (byDay.get(day) ?? 0) + 1);
+    }
+    const counts = [...byDay.values()];
+    if (counts.length < 5) return null;
+    const med = median(counts);
+    if (med <= 0) return null;
+    const bursts = counts.filter((c) => c >= Math.max(5, med * 3));
+    if (bursts.length >= 2) {
+      return {
+        key: "overtrading_bursts",
+        category: "pattern",
+        title: "Trading comes in bursts",
+        description: `${bursts.length} days carried far more trades than your typical active day (median ${med.toFixed(0)}/day). High-frequency bursts can lower decision quality.`,
+        severity: "warning",
+        confidence: 0.6,
+        sampleSize: counts.length,
+        evidenceCount: bursts.length,
+        classification: "area_to_watch",
+        guidance: "Notice what triggers your busiest days and whether those trades actually outperform.",
+        limitations: "Counts swaps per UTC day; does not judge individual trade quality.",
+        trend: "insufficient_history",
+      };
+    }
+    return null;
+  },
+
+  // Re-entry persistence: repeatedly round-tripping the same asset.
+  (ctx) => {
+    const byMint = new Map<string, ClosedRoundTrip[]>();
+    for (const c of ctx.closed) {
+      const list = byMint.get(c.tokenMint) ?? [];
+      list.push(c);
+      byMint.set(c.tokenMint, list);
+    }
+    const persistent = [...byMint.values()].filter((l) => l.length >= 3);
+    if (persistent.length === 0) return null;
+    let improved = 0;
+    for (const list of persistent) {
+      const sorted = [...list].sort((a, b) => a.sellTime - b.sellTime);
+      const half = Math.floor(sorted.length / 2);
+      const earlyPnl = sorted
+        .slice(0, half)
+        .reduce((s, c) => s + c.realizedPnlSol, 0);
+      const latePnl = sorted
+        .slice(half)
+        .reduce((s, c) => s + c.realizedPnlSol, 0);
+      if (latePnl > earlyPnl) improved++;
+    }
+    return {
+      key: "reentry_persistence",
+      category: "pattern",
+      title: "Repeatedly re-trades the same tokens",
+      description: `You round-tripped ${persistent.length} token${persistent.length === 1 ? "" : "s"} three or more times. Later attempts improved on earlier ones in ${improved} of ${persistent.length}.`,
+      severity: "info",
+      confidence: 0.7,
+      sampleSize: byMint.size,
+      evidenceCount: persistent.length,
+      classification: "observation",
+      guidance: "Re-trading a familiar token can be an edge — track whether it truly pays off.",
+      trend: "insufficient_history",
+    };
+  },
+
+  // Revenge trading: an outsized buy shortly after realizing a loss (repeated).
+  (ctx) => {
+    const buys = ctx.events.filter(
+      (e) => e.side === "buy" && e.solAmount >= MIN_MEANINGFUL_BUY_SOL,
+    );
+    if (buys.length < 5) return null;
+    const medianBuy = median(buys.map((e) => e.solAmount));
+    if (medianBuy <= 0) return null;
+    const losingSells = ctx.closed
+      .filter((c) => classifyOutcome(c.realizedPnlSol) === "loss")
+      .map((c) => c.sellTime)
+      .sort((a, b) => a - b);
+    if (losingSells.length < 3) return null;
+    let revenge = 0;
+    for (const sellTime of losingSells) {
+      const next = buys.find(
+        (b) => b.blockTime > sellTime && b.blockTime - sellTime <= 2 * 3600,
+      );
+      if (next && next.solAmount > medianBuy * 1.5) revenge++;
+    }
+    if (revenge >= 3) {
+      return {
+        key: "revenge_trading",
+        category: "weakness",
+        title: "Larger buys after losses",
+        description: `On ${revenge} occasions you opened an outsized position within two hours of realizing a loss. Sizing up right after a loss can compound drawdowns.`,
+        severity: "warning",
+        confidence: 0.6,
+        sampleSize: losingSells.length,
+        evidenceCount: revenge,
+        classification: "area_to_watch",
+        guidance: "A short cool-down and normal sizing after a loss can protect capital.",
+        limitations: "Timing is inferred from swap order; unrelated buys can occasionally coincide.",
+        trend: "insufficient_history",
+      };
+    }
+    return null;
+  },
+
+  // Strong recovery: consistently climbs back out of realized drawdowns.
+  (ctx) => {
+    const { episodes } = computeDrawdownEpisodes(ctx.closed);
+    if (episodes.length < 3) return null;
+    const recovered = episodes.filter((e) => e.recovered).length;
+    if (recovered / episodes.length >= 0.7) {
+      return {
+        key: "strong_recovery",
+        category: "strength",
+        title: "Recovers well from drawdowns",
+        description: `You climbed back to new highs after ${recovered} of ${episodes.length} realized drawdowns — a sign of resilience.`,
+        severity: "positive",
+        confidence: 0.75,
+        sampleSize: episodes.length,
+        evidenceCount: recovered,
+        classification: "strength",
+        guidance: "Keep protecting capital during drawdowns so recoveries stay achievable.",
+        trend: "insufficient_history",
       };
     }
     return null;

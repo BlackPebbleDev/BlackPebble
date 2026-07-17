@@ -67,6 +67,22 @@ import {
   overallAnalysisConfidence,
   type AnalysisConfidence,
 } from "./real-trading-confidence.js";
+import {
+  computeHistoricalRisk,
+  type HistoricalRisk,
+} from "./real-trading-risk.js";
+import {
+  computeCoverage,
+  type ReportCoverage,
+} from "./real-trading-coverage.js";
+import {
+  computeHoldingsQuality,
+  type HoldingsQuality,
+} from "./real-trading-holdings.js";
+import {
+  buildCoachingContext,
+  type CoachingContext,
+} from "./real-trading-coaching.js";
 
 export interface PersonalityView {
   personality: string;
@@ -124,6 +140,14 @@ export interface RealAnalysisSummary {
    * snapshots. Equal to `computedAt`.
    */
   reconciliationId: number;
+  /** Historical risk intelligence (drawdowns, streaks, volatility). Phase 2B. */
+  historicalRisk?: HistoricalRisk | null;
+  /** Report coverage & confidence metadata. Phase 2B. */
+  coverage?: ReportCoverage | null;
+  /** Current holdings quality & conviction (verified holdings only). Phase 2B. */
+  holdingsQuality?: HoldingsQuality | null;
+  /** Deterministic, rule-based coaching context (no AI). Phase 2B. */
+  coaching?: CoachingContext | null;
   empty?: boolean;
   message?: string;
 }
@@ -378,6 +402,10 @@ function emptySummary(
     skippedTokenToToken: 0,
     reconciliation: [],
     reconciliationId: computedAt,
+    historicalRisk: null,
+    coverage: null,
+    holdingsQuality: null,
+    coaching: null,
     empty: true,
     message:
       "No swap history found yet. Connect your wallet and sync to begin analysis.",
@@ -522,6 +550,40 @@ export async function runAnalysis(
   const dna = await updateTraderDna(wallet, userId, observed, metrics.totalTrades, computedAt);
   const personality = personalityFromDna(dna);
 
+  // ── Phase 2B intelligence (all pure, computed once from in-memory data) ────
+  const historicalRisk = computeHistoricalRisk(closed, events);
+  const medianEntrySol = median(
+    events.filter((e) => e.side === "buy" && e.solAmount > 0).map((e) => e.solAmount),
+  );
+  const holdingsQuality = computeHoldingsQuality(
+    openPositions,
+    holdingsVerified,
+    medianEntrySol,
+    computedAt,
+  );
+  const coverage = computeCoverage({
+    parsedSwaps: events.length,
+    unsupportedSwaps: skippedTokenToToken,
+    completedTrades: closed.length,
+    verifiedHoldings:
+      portfolio?.counts.priced ??
+      openPositions.filter((p) => p.currentValueSol != null).length,
+    unpricedHoldings:
+      portfolio?.counts.unpriced ??
+      openPositions.filter((p) => p.currentValueSol == null).length,
+    holdingsVerified,
+    historyTruncated,
+    droppedGhostMints,
+    firstTradeAt: metrics.firstTradeAt,
+    lastTradeAt: metrics.lastTradeAt,
+  });
+  const coaching = buildCoachingContext({
+    signals,
+    insights: behavior.insights,
+    historicalRisk,
+    reportConfidence: analysisConfidence.tier,
+  });
+
   // ── Persist snapshot (full fidelity) ──────────────────────────────────────
   await dbRun(
     `INSERT INTO real_analysis_snapshots
@@ -529,8 +591,9 @@ export async function runAnalysis(
         wallet_health_score, open_positions_json, insights_json, sync_trade_count,
         wallet_age_days, data_sources, personality_json, wallet_health_json,
         signals_json, dna_json, holdings_verified, dropped_ghost_mints,
-        portfolio_json, reconciliation_json)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+        portfolio_json, reconciliation_json,
+        historical_risk_json, coverage_json, holdings_quality_json, coaching_json)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
      ON CONFLICT (wallet) DO UPDATE SET
        user_id = EXCLUDED.user_id,
        computed_at = EXCLUDED.computed_at,
@@ -550,7 +613,11 @@ export async function runAnalysis(
        holdings_verified = EXCLUDED.holdings_verified,
        dropped_ghost_mints = EXCLUDED.dropped_ghost_mints,
        portfolio_json = EXCLUDED.portfolio_json,
-       reconciliation_json = EXCLUDED.reconciliation_json`,
+       reconciliation_json = EXCLUDED.reconciliation_json,
+       historical_risk_json = EXCLUDED.historical_risk_json,
+       coverage_json = EXCLUDED.coverage_json,
+       holdings_quality_json = EXCLUDED.holdings_quality_json,
+       coaching_json = EXCLUDED.coaching_json`,
     [
       wallet,
       userId,
@@ -574,6 +641,10 @@ export async function runAnalysis(
       droppedGhostMints,
       portfolio ? JSON.stringify(portfolio) : null,
       JSON.stringify(reconciliation),
+      JSON.stringify(historicalRisk),
+      JSON.stringify(coverage),
+      JSON.stringify(holdingsQuality),
+      JSON.stringify(coaching),
     ],
   );
 
@@ -652,6 +723,10 @@ export async function runAnalysis(
     skippedTokenToToken,
     reconciliation,
     reconciliationId: computedAt,
+    historicalRisk,
+    coverage,
+    holdingsQuality,
+    coaching,
   };
 }
 
@@ -676,12 +751,17 @@ export async function getCachedAnalysis(
     dropped_ghost_mints: number | null;
     portfolio_json: string | null;
     reconciliation_json: string | null;
+    historical_risk_json: string | null;
+    coverage_json: string | null;
+    holdings_quality_json: string | null;
+    coaching_json: string | null;
   }>(
     `SELECT computed_at, metrics_json, personality, wallet_health_score,
             open_positions_json, insights_json, sync_trade_count, data_sources,
             personality_json, wallet_health_json, signals_json, dna_json,
             holdings_verified, dropped_ghost_mints, portfolio_json,
-            reconciliation_json
+            reconciliation_json, historical_risk_json, coverage_json,
+            holdings_quality_json, coaching_json
      FROM real_analysis_snapshots WHERE wallet = $1`,
     [wallet],
   );
@@ -779,6 +859,10 @@ export async function getCachedAnalysis(
     skippedTokenToToken: job?.skipped_token_to_token ?? 0,
     reconciliation,
     reconciliationId: row.computed_at,
+    historicalRisk: parse<HistoricalRisk | null>(row.historical_risk_json, null),
+    coverage: parse<ReportCoverage | null>(row.coverage_json, null),
+    holdingsQuality: parse<HoldingsQuality | null>(row.holdings_quality_json, null),
+    coaching: parse<CoachingContext | null>(row.coaching_json, null),
   };
 }
 
