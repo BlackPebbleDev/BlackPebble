@@ -88,7 +88,7 @@ export function HistoricalRiskSection({
       <div className="flex flex-wrap items-start justify-between gap-2">
         <SectionHeader
           title="Historical Risk Intelligence"
-          description="How you've historically taken and recovered from risk. Reconstructed from completed trades — historical, not your live wallet."
+          description="How you've historically taken and recovered from risk. Reconstructed from completed trades, historical rather than your live wallet."
         />
         <span
           className={cn(
@@ -416,7 +416,7 @@ export function HoldingsQualitySection({
     <section className="rounded-2xl bg-card shadow-card p-5 sm:p-6 space-y-4">
       <SectionHeader
         title="Current Holdings Quality"
-        description="Conviction and sizing of your live, verified positions — reconciled against on-chain balances."
+        description="Conviction and sizing of your live, verified positions, reconciled against on-chain balances."
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">

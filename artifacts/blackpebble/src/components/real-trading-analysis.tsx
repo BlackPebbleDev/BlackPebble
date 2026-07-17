@@ -729,7 +729,7 @@ function deriveTraderStyles(
     styles.push({
       label: "Trading Pace",
       value: ro >= 0.55 && ro >= mo ? "Rotational" : mo >= 0.55 ? "Momentum" : "Selective",
-      hint: "How you move between opportunities — chasing momentum, rotating across themes, or waiting for select setups.",
+      hint: "How you move between opportunities: chasing momentum, rotating across themes, or waiting for select setups.",
     });
   }
 
@@ -769,7 +769,7 @@ function TraderProfileSection({ analysis }: { analysis: RealAnalysisSummary }) {
     <section className="rounded-2xl bg-card shadow-card p-5 sm:p-6 space-y-4">
       <SectionHeader
         title="Trader Profile"
-        description="Who you are as a trader — your archetype, natural style, and where you're strong or still developing."
+        description="Who you are as a trader: your archetype, natural style, and where you're strong or still developing."
       />
 
       <div className="rounded-xl bg-surface-2 border border-white/[0.05] p-4 space-y-2">
@@ -863,7 +863,7 @@ function TraderProfileSection({ analysis }: { analysis: RealAnalysisSummary }) {
               </div>
             ) : (
               <p className="text-xs text-muted-foreground">
-                Nothing scoring low with confidence — keep it up.
+                Nothing scoring low with confidence. Keep it up.
               </p>
             )}
           </div>
@@ -1436,7 +1436,7 @@ function RiskSection({ analysis }: { analysis: RealAnalysisSummary }) {
     <section className="rounded-2xl bg-card shadow-card p-5 sm:p-6 space-y-5">
       <SectionHeader
         title="Risk & Exposure"
-        description="What you are risking right now — your live, reconciled current portfolio only. Historical sizing and loss stats live in Detailed Metrics."
+        description="What you are risking right now: your live, reconciled current portfolio only. Historical sizing and loss stats live in Detailed Metrics."
       />
 
       {/* Current Portfolio Risk - live, reconciled wallet only. */}
@@ -1881,8 +1881,8 @@ function CoachingSection({ analysis }: { analysis: RealAnalysisSummary }) {
         <Sparkles className="w-3.5 h-3.5 text-accent shrink-0 mt-0.5" />
         <p className="text-[11px] text-muted-foreground leading-relaxed">
           These are rule-based insights, not AI. A future AI coach will consume
-          this same structured analysis — behavior patterns, how you've changed,
-          and what to improve next — and turn it into personalised guidance.
+          this same structured analysis (behavior patterns, how you've changed,
+          and what to improve next) and turn it into personalised guidance.
         </p>
       </div>
     </section>
