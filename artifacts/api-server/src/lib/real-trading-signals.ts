@@ -79,6 +79,121 @@ export const SIGNAL_META: Record<SignalKey, SignalMeta> = {
   activity: { direction: "descriptive", basis: "swaps" },
 };
 
+/**
+ * Discrete classification of a signal reading for the drill-down panel
+ * (Phase 2B, Part 1). Descriptive signals are never graded good/bad, and a
+ * reading without enough evidence is always "insufficient".
+ */
+export type SignalClassification =
+  | "elite"
+  | "strong"
+  | "developing"
+  | "weak"
+  | "insufficient"
+  | "descriptive";
+
+export function classifySignal(
+  value: number,
+  tier: ConfidenceTier,
+  direction: SignalDirection,
+): SignalClassification {
+  if (tier === "insufficient") return "insufficient";
+  if (direction === "descriptive") return "descriptive";
+  if (value >= 80) return "elite";
+  if (value >= 60) return "strong";
+  if (value >= 40) return "developing";
+  return "weak";
+}
+
+/**
+ * Static, honest explainability metadata per signal (Phase 2B, Part 1/2). This
+ * is a central config, NOT a re-derivation of the score formula: `measures`
+ * states what the signal reads, `expectedImpact` the plausible effect on
+ * results (never claiming causation), `improvement` practical ideas, and
+ * `limitations` honest caveats.
+ */
+export interface SignalDetailMeta {
+  measures: string;
+  expectedImpact: string;
+  improvement: string[];
+  limitations: string[];
+}
+
+export const SIGNAL_DETAIL_META: Record<SignalKey, SignalDetailMeta> = {
+  consistency: {
+    measures: "How steady your trade cadence and position sizing are over time.",
+    expectedImpact: "Steadier sizing is associated with more predictable outcomes, though it does not guarantee profit.",
+    improvement: ["Keep position sizes within a set band", "Trade on a repeatable schedule rather than in bursts"],
+    limitations: ["Regularity is a style; a consistent trader can still be unprofitable."],
+  },
+  risk: {
+    measures: "How aggressive your sizing and token selection are across buys.",
+    expectedImpact: "Higher risk widens the range of outcomes in both directions — it is a style, not a grade.",
+    improvement: ["There is no target here; lower is not automatically better"],
+    limitations: ["Descriptive only. It does not judge whether your risk paid off."],
+  },
+  discipline: {
+    measures: "Whether you follow repeatable sizing and exit rules across closed trades.",
+    expectedImpact: "Rule-following tends to reduce avoidable losses over many trades.",
+    improvement: ["Pre-plan an exit before entering", "Avoid changing size based on the last result"],
+    limitations: ["Inferred from outcomes and behavior tags, not from your stated rules."],
+  },
+  timing: {
+    measures: "Quality of entries and exits relative to the outcome of each closed trade.",
+    expectedImpact: "Better timing captures more of a move and cuts losers sooner.",
+    improvement: ["Avoid entering extended moves", "Define an invalidation level before entry"],
+    limitations: ["Proxy from realized ROI distribution, not intraday price paths."],
+  },
+  patience: {
+    measures: "How long you let positions develop before exiting.",
+    expectedImpact: "Longer holds suit trend styles; short holds suit scalping — neither is better by default.",
+    improvement: ["There is no target here; it reflects your natural hold style"],
+    limitations: ["Descriptive only. Hold time is a style, not a skill grade."],
+  },
+  recovery: {
+    measures: "How well you climb back to new highs after realized drawdowns.",
+    expectedImpact: "Strong recovery preserves long-run compounding after setbacks.",
+    improvement: ["Reduce size after a losing streak", "Return to your highest-conviction setups first"],
+    limitations: ["Needs several drawdown episodes before it is reliable."],
+  },
+  profitability: {
+    measures: "Realized profit efficiency across your completed round trips.",
+    expectedImpact: "This is the clearest read on whether your closed trading has made money.",
+    improvement: ["Let winners run longer than losers", "Cut losers before they compound"],
+    limitations: ["Realized only; open positions and unpriced tokens are excluded."],
+  },
+  conviction: {
+    measures: "How much larger your biggest positions are versus your average.",
+    expectedImpact: "Concentrated conviction amplifies both good and bad outcomes — a style reading.",
+    improvement: ["There is no target here; it reflects how you allocate"],
+    limitations: ["Descriptive only. High conviction can be skilled or unskilled."],
+  },
+  position_sizing: {
+    measures: "How well your buy sizes match your account and outcomes.",
+    expectedImpact: "Consistent sizing limits the damage of any single bad trade.",
+    improvement: ["Size losers no larger than winners", "Use a fixed fraction per trade"],
+    limitations: ["Uses swap-implied SOL size, not your total account balance."],
+  },
+  diversification: {
+    measures: "How many distinct tokens you have traded over time (historical breadth).",
+    expectedImpact: "Breadth is a style reading of variety, separate from current concentration.",
+    improvement: ["There is no target here; it reflects your historical variety"],
+    limitations: ["Descriptive only. Not the same as current portfolio diversification."],
+  },
+  drawdown_management: {
+    measures: "How well individual losses are contained when trades go wrong.",
+    expectedImpact: "Containing losses is one of the strongest drivers of long-run survival.",
+    improvement: ["Set a maximum acceptable loss per trade", "Exit on invalidation, not on hope"],
+    limitations: ["Based on realized loss sizes; unrealized paper losses are excluded."],
+  },
+  activity: {
+    measures: "How active this wallet has been recently.",
+    expectedImpact: "Activity is descriptive; more trading is not inherently better or worse.",
+    improvement: ["There is no target here; activity is descriptive only"],
+    limitations: ["Descriptive only. It does not judge trade quality."],
+  },
+};
+
 export interface SignalResult {
   key: SignalKey;
   /** 0–100. For `risk`, higher = MORE risk taken (not better/worse). */
@@ -454,6 +569,15 @@ export interface SignalComparison {
   previousSampleSize: number | null;
 }
 
+/** Full drill-down evidence for one signal (Phase 2B, Part 1). */
+export interface SignalDetail {
+  classification: SignalClassification;
+  measures: string;
+  expectedImpact: string;
+  improvement: string[];
+  limitations: string[];
+}
+
 export interface SignalWithDelta extends SignalResult {
   /** Value ~30 days ago (closest trustworthy snapshot), null when none. */
   previousValue: number | null;
@@ -465,6 +589,8 @@ export interface SignalWithDelta extends SignalResult {
   basis: SignalBasis;
   /** Full auditable comparison for change-badge integrity. */
   comparison: SignalComparison;
+  /** Structured drill-down evidence (classification + honest metadata). */
+  detail: SignalDetail;
 }
 
 /**
@@ -520,6 +646,7 @@ export async function persistSignalsWithDeltas(
   return signals.map((s) => {
     const meta = SIGNAL_META[s.key];
     const comparison = buildComparison(s, prevByKey.get(s.key), computedAt);
+    const detailMeta = SIGNAL_DETAIL_META[s.key];
     return {
       ...s,
       previousValue: comparison.previousValue,
@@ -527,6 +654,13 @@ export async function persistSignalsWithDeltas(
       direction: meta.direction,
       basis: meta.basis,
       comparison,
+      detail: {
+        classification: classifySignal(s.value, s.tier, meta.direction),
+        measures: detailMeta.measures,
+        expectedImpact: detailMeta.expectedImpact,
+        improvement: detailMeta.improvement,
+        limitations: detailMeta.limitations,
+      },
     };
   });
 }

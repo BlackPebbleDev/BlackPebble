@@ -138,6 +138,44 @@ export function ensureRealTradingSchema(): Promise<void> {
         `ALTER TABLE real_analysis_snapshots
            ADD COLUMN IF NOT EXISTS reconciliation_json TEXT`,
       );
+      // Phase 2B intelligence layers, persisted so cached reads keep full
+      // fidelity. All additive/idempotent; legacy snapshots read them as NULL
+      // and the summary falls back to null (frontend shows "unavailable").
+      await dbRun(
+        `ALTER TABLE real_analysis_snapshots
+           ADD COLUMN IF NOT EXISTS historical_risk_json TEXT`,
+      );
+      await dbRun(
+        `ALTER TABLE real_analysis_snapshots
+           ADD COLUMN IF NOT EXISTS coverage_json TEXT`,
+      );
+      await dbRun(
+        `ALTER TABLE real_analysis_snapshots
+           ADD COLUMN IF NOT EXISTS holdings_quality_json TEXT`,
+      );
+      await dbRun(
+        `ALTER TABLE real_analysis_snapshots
+           ADD COLUMN IF NOT EXISTS coaching_json TEXT`,
+      );
+      // Phase 2C intelligence layers (entry/exit quality summaries with
+      // per-trade evidence stripped, current-holdings liquidity, enrichment
+      // readiness). All additive/idempotent; legacy snapshots read as NULL.
+      await dbRun(
+        `ALTER TABLE real_analysis_snapshots
+           ADD COLUMN IF NOT EXISTS entry_quality_json TEXT`,
+      );
+      await dbRun(
+        `ALTER TABLE real_analysis_snapshots
+           ADD COLUMN IF NOT EXISTS exit_quality_json TEXT`,
+      );
+      await dbRun(
+        `ALTER TABLE real_analysis_snapshots
+           ADD COLUMN IF NOT EXISTS liquidity_json TEXT`,
+      );
+      await dbRun(
+        `ALTER TABLE real_analysis_snapshots
+           ADD COLUMN IF NOT EXISTS enrichment_status TEXT`,
+      );
 
       // ── Signal registry time series (reputation engine foundation) ────────
       // One row per (wallet, signal, computation). History powers profile
@@ -215,6 +253,92 @@ export function ensureRealTradingSchema(): Promise<void> {
         CREATE UNIQUE INDEX IF NOT EXISTS real_timeline_dedup
           ON real_timeline_events (wallet, dedup_key)
           WHERE dedup_key IS NOT NULL
+      `);
+
+      // ── Durable historical market-candle cache (Phase 2C, Part 3) ─────────
+      // Provider-neutral, multichain-ready OHLCV cache so entry/exit quality and
+      // Trade Replay never refetch the same candles. Additive + idempotent.
+      // Concurrency-safe upserts via the unique key below. Prices are USD.
+      await dbRun(`
+        CREATE TABLE IF NOT EXISTS real_market_candles (
+          id BIGSERIAL PRIMARY KEY,
+          chain TEXT NOT NULL DEFAULT 'solana',
+          mint TEXT NOT NULL,
+          pair_address TEXT,
+          interval TEXT NOT NULL,
+          candle_timestamp BIGINT NOT NULL,
+          open DOUBLE PRECISION NOT NULL,
+          high DOUBLE PRECISION NOT NULL,
+          low DOUBLE PRECISION NOT NULL,
+          close DOUBLE PRECISION NOT NULL,
+          volume_usd DOUBLE PRECISION,
+          liquidity_usd DOUBLE PRECISION,
+          market_cap_usd DOUBLE PRECISION,
+          fdv_usd DOUBLE PRECISION,
+          source TEXT NOT NULL,
+          confidence TEXT,
+          fetched_at BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW())::bigint
+        )
+      `);
+      // A given (chain, mint, pair, interval, timestamp, source) candle is
+      // unique - upserts refresh in place so history never grows unbounded.
+      await dbRun(`
+        CREATE UNIQUE INDEX IF NOT EXISTS real_market_candles_key
+          ON real_market_candles
+          (chain, mint, pair_address, interval, candle_timestamp, source)
+      `);
+      // NULL pair_address rows still need a unique constraint; a partial index
+      // covers the mint-resolved-pool case where pair_address is unknown.
+      await dbRun(`
+        CREATE UNIQUE INDEX IF NOT EXISTS real_market_candles_key_nopair
+          ON real_market_candles
+          (chain, mint, interval, candle_timestamp, source)
+          WHERE pair_address IS NULL
+      `);
+      await dbRun(`
+        CREATE INDEX IF NOT EXISTS idx_real_market_candles_mint_ts
+          ON real_market_candles (chain, mint, interval, candle_timestamp)
+      `);
+      await dbRun(`
+        CREATE INDEX IF NOT EXISTS idx_real_market_candles_pair_ts
+          ON real_market_candles (pair_address, interval, candle_timestamp)
+          WHERE pair_address IS NOT NULL
+      `);
+      await dbRun(`
+        CREATE INDEX IF NOT EXISTS idx_real_market_candles_fetched
+          ON real_market_candles (fetched_at)
+      `);
+
+      // ── Generic append-only metric/behavior history (Phase 2C, Part 15/16) ─
+      // ONE normalized table for every trend series (signals, risk, entry/exit
+      // quality, coverage, holdings, behavior evidence). Scope separates current
+      // -wallet metrics from historical metrics. Dedup handled in app logic.
+      await dbRun(`
+        CREATE TABLE IF NOT EXISTS real_analysis_metric_history (
+          id BIGSERIAL PRIMARY KEY,
+          wallet TEXT NOT NULL,
+          user_id INTEGER,
+          metric_key TEXT NOT NULL,
+          metric_scope TEXT NOT NULL DEFAULT 'historical',
+          value_numeric DOUBLE PRECISION,
+          value_json TEXT,
+          sample_size INTEGER NOT NULL DEFAULT 0,
+          confidence_tier TEXT,
+          reconciliation_id BIGINT,
+          source_version INTEGER NOT NULL DEFAULT 1,
+          computed_at BIGINT NOT NULL
+        )
+      `);
+      await dbRun(`
+        CREATE INDEX IF NOT EXISTS idx_real_metric_history_lookup
+          ON real_analysis_metric_history
+          (wallet, metric_key, metric_scope, computed_at DESC)
+      `);
+      // Guard against duplicate writes for the same wallet+metric+scope+instant.
+      await dbRun(`
+        CREATE UNIQUE INDEX IF NOT EXISTS real_metric_history_dedup
+          ON real_analysis_metric_history
+          (wallet, metric_key, metric_scope, computed_at)
       `);
 
       await dbRun(`

@@ -67,6 +67,41 @@ import {
   overallAnalysisConfidence,
   type AnalysisConfidence,
 } from "./real-trading-confidence.js";
+import {
+  computeHistoricalRisk,
+  type HistoricalRisk,
+} from "./real-trading-risk.js";
+import {
+  computeCoverage,
+  type ReportCoverage,
+} from "./real-trading-coverage.js";
+import {
+  computeHoldingsQuality,
+  type HoldingsQuality,
+} from "./real-trading-holdings.js";
+import {
+  buildCoachingContext,
+  type CoachingContext,
+  type CoachingEvidenceTrade,
+} from "./real-trading-coaching.js";
+import { reconstructRoundTrips } from "./real-trading-roundtrips.js";
+import {
+  computeQualityFromCandles,
+  loadCachedCandlesForTrips,
+  type EnrichmentStatus,
+} from "./real-trading-enrichment.js";
+import {
+  computeCurrentLiquidityRisk,
+  type LiquidityRiskSummary,
+} from "./real-trading-liquidity.js";
+import type {
+  EntryQualitySummary,
+} from "./real-trading-entry-quality.js";
+import type {
+  ExitQualitySummary,
+} from "./real-trading-exit-quality.js";
+import { PerfTimer } from "./real-trading-perf.js";
+import { recordMetricHistory } from "./real-trading-trend-store.js";
 
 export interface PersonalityView {
   personality: string;
@@ -124,8 +159,36 @@ export interface RealAnalysisSummary {
    * snapshots. Equal to `computedAt`.
    */
   reconciliationId: number;
+  /** Historical risk intelligence (drawdowns, streaks, volatility). Phase 2B. */
+  historicalRisk?: HistoricalRisk | null;
+  /** Report coverage & confidence metadata. Phase 2B. */
+  coverage?: ReportCoverage | null;
+  /** Current holdings quality & conviction (verified holdings only). Phase 2B. */
+  holdingsQuality?: HoldingsQuality | null;
+  /** Deterministic, rule-based coaching context (no AI). Phase 2B. */
+  coaching?: CoachingContext | null;
+  /** Entry quality summary (evidence stripped for size). Phase 2C. */
+  entryQuality?: EntryQualitySummary | null;
+  /** Exit quality summary (evidence stripped for size). Phase 2C. */
+  exitQuality?: ExitQualitySummary | null;
+  /** Current-holdings liquidity risk (never mixed with historical). Phase 2C. */
+  liquidityRisk?: LiquidityRiskSummary | null;
+  /** Readiness of entry/exit intelligence enrichment. Phase 2C. */
+  enrichmentStatus?: EnrichmentStatus | null;
   empty?: boolean;
   message?: string;
+}
+
+/** Drop heavy per-trade evidence arrays before persisting a summary. */
+function trimEntrySummary(
+  s: EntryQualitySummary | null,
+): EntryQualitySummary | null {
+  return s ? { ...s, evidence: [] } : null;
+}
+function trimExitSummary(
+  s: ExitQualitySummary | null,
+): ExitQualitySummary | null {
+  return s ? { ...s, evidence: [] } : null;
 }
 
 const TRAIT_LABELS: Record<string, string> = {
@@ -173,6 +236,10 @@ interface MarkedPositions {
   balances: Map<string, number> | null;
   /** Per-mint reconciliation audit trail (kept/dropped/capped). */
   reconciliation: PositionReconciliation[];
+  /** Live pool liquidity (USD) per current-position mint. Phase 2C. */
+  liquidityByMint: Map<string, number | null>;
+  /** SOL→USD rate used for the current valuation. Phase 2C. */
+  solUsd: number;
 }
 
 /**
@@ -200,6 +267,8 @@ async function markOpenPositions(
       droppedGhostMints: 0,
       balances,
       reconciliation: [],
+      liquidityByMint: new Map(),
+      solUsd: 0,
     };
   }
 
@@ -214,6 +283,8 @@ async function markOpenPositions(
       droppedGhostMints: droppedMints,
       balances,
       reconciliation: diagnostics,
+      liquidityByMint: new Map(),
+      solUsd: 0,
     };
   }
 
@@ -226,9 +297,11 @@ async function markOpenPositions(
     ),
   ]);
 
+  const liquidityByMint = new Map<string, number | null>();
   const positions = holdings.map((h: MintHolding) => {
     const stat = stats.get(h.tokenMint);
     const m = meta[h.tokenMint];
+    liquidityByMint.set(h.tokenMint, stat?.liquidityUsd ?? null);
     const priceSol =
       stat?.priceSol ??
       (stat?.priceUsd != null && solUsd > 0 ? stat.priceUsd / solUsd : null);
@@ -260,6 +333,8 @@ async function markOpenPositions(
     droppedGhostMints: droppedMints,
     balances,
     reconciliation: diagnostics,
+    liquidityByMint,
+    solUsd,
   };
 }
 
@@ -378,6 +453,14 @@ function emptySummary(
     skippedTokenToToken: 0,
     reconciliation: [],
     reconciliationId: computedAt,
+    historicalRisk: null,
+    coverage: null,
+    holdingsQuality: null,
+    coaching: null,
+    entryQuality: null,
+    exitQuality: null,
+    liquidityRisk: null,
+    enrichmentStatus: "insufficient_data",
     empty: true,
     message:
       "No swap history found yet. Connect your wallet and sync to begin analysis.",
@@ -441,6 +524,8 @@ export async function runAnalysis(
     droppedGhostMints,
     balances,
     reconciliation,
+    liquidityByMint,
+    solUsd: currentSolUsd,
   } = await markOpenPositions(wallet, openLots);
 
   logger.info(
@@ -522,6 +607,96 @@ export async function runAnalysis(
   const dna = await updateTraderDna(wallet, userId, observed, metrics.totalTrades, computedAt);
   const personality = personalityFromDna(dna);
 
+  // ── Phase 2B intelligence (all pure, computed once from in-memory data) ────
+  const historicalRisk = computeHistoricalRisk(closed, events);
+  const medianEntrySol = median(
+    events.filter((e) => e.side === "buy" && e.solAmount > 0).map((e) => e.solAmount),
+  );
+  const holdingsQuality = computeHoldingsQuality(
+    openPositions,
+    holdingsVerified,
+    medianEntrySol,
+    computedAt,
+  );
+  // ── Phase 2C: entry/exit quality (from cached candles only - no blocking
+  // external calls), current-holdings liquidity, trade-replay round trips ────
+  const { closed: roundTrips } = reconstructRoundTrips(events, "solana");
+  const cachedCandles = await loadCachedCandlesForTrips(
+    "solana",
+    roundTrips,
+  ).catch(() => new Map());
+  const quality = computeQualityFromCandles(
+    roundTrips,
+    cachedCandles,
+    analysisConfidence.tier,
+    "geckoterminal_cache",
+  );
+  const entryQuality = quality.entrySummary;
+  const exitQuality = quality.exitSummary;
+  const enrichmentStatus = quality.status;
+
+  // Current-holdings liquidity risk (NEVER mixed with historical trades).
+  const liquidityRisk = computeCurrentLiquidityRisk(
+    openPositions.map((p) => ({
+      mint: p.tokenMint,
+      symbol: p.symbol,
+      holdingValueUsd:
+        p.currentValueSol != null && currentSolUsd > 0
+          ? p.currentValueSol * currentSolUsd
+          : null,
+      liquidityUsd: liquidityByMint.get(p.tokenMint) ?? null,
+    })),
+  );
+
+  const coverage = computeCoverage({
+    parsedSwaps: events.length,
+    unsupportedSwaps: skippedTokenToToken,
+    completedTrades: closed.length,
+    verifiedHoldings:
+      portfolio?.counts.priced ??
+      openPositions.filter((p) => p.currentValueSol != null).length,
+    unpricedHoldings:
+      portfolio?.counts.unpriced ??
+      openPositions.filter((p) => p.currentValueSol == null).length,
+    holdingsVerified,
+    historyTruncated,
+    droppedGhostMints,
+    firstTradeAt: metrics.firstTradeAt,
+    lastTradeAt: metrics.lastTradeAt,
+    entryQualityCoverage: entryQuality.coveragePercent / 100,
+    exitQualityCoverage: exitQuality.coveragePercent / 100,
+    liquidityCoverage: liquidityRisk.liquidityCoverage,
+    sources: ["helius_swap_history", "dexscreener_prices", "geckoterminal_ohlcv"],
+  });
+
+  // Selected evidence trades: the biggest realized losses (most instructive).
+  const evidenceTrades: CoachingEvidenceTrade[] = [...roundTrips]
+    .filter((t) => t.realizedPnlSol < 0)
+    .sort((a, b) => a.realizedPnlSol - b.realizedPnlSol)
+    .slice(0, 6)
+    .map((t) => ({
+      roundTripId: t.roundTripId,
+      mint: t.tokenMint,
+      realizedPnlSol: t.realizedPnlSol,
+      reason: "Among the largest realized losses in the analyzed history.",
+    }));
+
+  const coaching = buildCoachingContext({
+    signals,
+    insights: behavior.insights,
+    historicalRisk,
+    reportConfidence: analysisConfidence.tier,
+    entrySummary: entryQuality,
+    exitSummary: exitQuality,
+    liquiditySummary: liquidityRisk,
+    coverageTier: coverage.tier,
+    analyzedRange: {
+      start: metrics.firstTradeAt,
+      end: metrics.lastTradeAt,
+    },
+    evidenceTrades,
+  });
+
   // ── Persist snapshot (full fidelity) ──────────────────────────────────────
   await dbRun(
     `INSERT INTO real_analysis_snapshots
@@ -529,8 +704,10 @@ export async function runAnalysis(
         wallet_health_score, open_positions_json, insights_json, sync_trade_count,
         wallet_age_days, data_sources, personality_json, wallet_health_json,
         signals_json, dna_json, holdings_verified, dropped_ghost_mints,
-        portfolio_json, reconciliation_json)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+        portfolio_json, reconciliation_json,
+        historical_risk_json, coverage_json, holdings_quality_json, coaching_json,
+        entry_quality_json, exit_quality_json, liquidity_json, enrichment_status)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28)
      ON CONFLICT (wallet) DO UPDATE SET
        user_id = EXCLUDED.user_id,
        computed_at = EXCLUDED.computed_at,
@@ -550,7 +727,15 @@ export async function runAnalysis(
        holdings_verified = EXCLUDED.holdings_verified,
        dropped_ghost_mints = EXCLUDED.dropped_ghost_mints,
        portfolio_json = EXCLUDED.portfolio_json,
-       reconciliation_json = EXCLUDED.reconciliation_json`,
+       reconciliation_json = EXCLUDED.reconciliation_json,
+       historical_risk_json = EXCLUDED.historical_risk_json,
+       coverage_json = EXCLUDED.coverage_json,
+       holdings_quality_json = EXCLUDED.holdings_quality_json,
+       coaching_json = EXCLUDED.coaching_json,
+       entry_quality_json = EXCLUDED.entry_quality_json,
+       exit_quality_json = EXCLUDED.exit_quality_json,
+       liquidity_json = EXCLUDED.liquidity_json,
+       enrichment_status = EXCLUDED.enrichment_status`,
     [
       wallet,
       userId,
@@ -574,6 +759,14 @@ export async function runAnalysis(
       droppedGhostMints,
       portfolio ? JSON.stringify(portfolio) : null,
       JSON.stringify(reconciliation),
+      JSON.stringify(historicalRisk),
+      JSON.stringify(coverage),
+      JSON.stringify(holdingsQuality),
+      JSON.stringify(coaching),
+      JSON.stringify(trimEntrySummary(entryQuality)),
+      JSON.stringify(trimExitSummary(exitQuality)),
+      JSON.stringify(liquidityRisk),
+      enrichmentStatus,
     ],
   );
 
@@ -625,6 +818,28 @@ export async function runAnalysis(
     mintBadgesAsync(userId);
   }
 
+  // Append-only trend history (best-effort, dedup-gated). Historical scope for
+  // trade-quality metrics; current scope for live-holdings metrics.
+  try {
+    await recordMetricHistory(
+      wallet,
+      userId,
+      [
+        { metricKey: "risk.profit_factor", scope: "historical", value: historicalRisk.profitFactor ?? null, sampleSize: closed.length },
+        { metricKey: "risk.max_drawdown_pct", scope: "historical", value: historicalRisk.maxDrawdownPercent ?? null, sampleSize: closed.length },
+        { metricKey: "entry.avg_score", scope: "historical", value: entryQuality.avgEntryScore, sampleSize: entryQuality.analyzedEntries, confidenceTier: entryQuality.confidence },
+        { metricKey: "exit.avg_score", scope: "historical", value: exitQuality.avgExitScore, sampleSize: exitQuality.analyzedExits, confidenceTier: exitQuality.confidence },
+        { metricKey: "coverage.pricing", scope: "historical", value: coverage.pricingCoverage, sampleSize: closed.length, confidenceTier: coverage.tier },
+        { metricKey: "holdings.weighted_liquidity_quality", scope: "current", value: liquidityRisk.weightedLiquidityQuality, sampleSize: liquidityRisk.positions.length, confidenceTier: liquidityRisk.confidence },
+        { metricKey: "activity.trades_per_week", scope: "historical", value: metrics.tradingFrequencyPerWeek, sampleSize: events.length },
+      ],
+      computedAt,
+      computedAt,
+    );
+  } catch (e) {
+    logger.warn({ err: e, wallet }, "Metric history recording failed");
+  }
+
   logger.info(
     { wallet, trades: events.length, archetype: dna.primaryArchetype },
     "Real trading analysis computed",
@@ -652,6 +867,14 @@ export async function runAnalysis(
     skippedTokenToToken,
     reconciliation,
     reconciliationId: computedAt,
+    historicalRisk,
+    coverage,
+    holdingsQuality,
+    coaching,
+    entryQuality,
+    exitQuality,
+    liquidityRisk,
+    enrichmentStatus,
   };
 }
 
@@ -676,12 +899,22 @@ export async function getCachedAnalysis(
     dropped_ghost_mints: number | null;
     portfolio_json: string | null;
     reconciliation_json: string | null;
+    historical_risk_json: string | null;
+    coverage_json: string | null;
+    holdings_quality_json: string | null;
+    coaching_json: string | null;
+    entry_quality_json: string | null;
+    exit_quality_json: string | null;
+    liquidity_json: string | null;
+    enrichment_status: string | null;
   }>(
     `SELECT computed_at, metrics_json, personality, wallet_health_score,
             open_positions_json, insights_json, sync_trade_count, data_sources,
             personality_json, wallet_health_json, signals_json, dna_json,
             holdings_verified, dropped_ghost_mints, portfolio_json,
-            reconciliation_json
+            reconciliation_json, historical_risk_json, coverage_json,
+            holdings_quality_json, coaching_json, entry_quality_json,
+            exit_quality_json, liquidity_json, enrichment_status
      FROM real_analysis_snapshots WHERE wallet = $1`,
     [wallet],
   );
@@ -779,6 +1012,14 @@ export async function getCachedAnalysis(
     skippedTokenToToken: job?.skipped_token_to_token ?? 0,
     reconciliation,
     reconciliationId: row.computed_at,
+    historicalRisk: parse<HistoricalRisk | null>(row.historical_risk_json, null),
+    coverage: parse<ReportCoverage | null>(row.coverage_json, null),
+    holdingsQuality: parse<HoldingsQuality | null>(row.holdings_quality_json, null),
+    coaching: parse<CoachingContext | null>(row.coaching_json, null),
+    entryQuality: parse<EntryQualitySummary | null>(row.entry_quality_json, null),
+    exitQuality: parse<ExitQualitySummary | null>(row.exit_quality_json, null),
+    liquidityRisk: parse<LiquidityRiskSummary | null>(row.liquidity_json, null),
+    enrichmentStatus: (row.enrichment_status as EnrichmentStatus | null) ?? null,
   };
 }
 

@@ -67,6 +67,17 @@ import {
   type MetricTone,
   type DeltaInfo,
 } from "@/components/metric-tile";
+import {
+  HistoricalRiskSection,
+  CoverageBanner,
+  HoldingsQualitySection,
+} from "@/components/real-trading-intelligence";
+import {
+  EntryIntelligenceSection,
+  ExitIntelligenceSection,
+  CurrentLiquiditySection,
+} from "@/components/trader-intelligence/entry-exit-intelligence";
+import { TradeReplaySection } from "@/components/trader-intelligence/trade-replay";
 import { cn } from "@/lib/utils";
 
 ChartJS.register(
@@ -608,30 +619,43 @@ function WalletSummaryHero({
           label="Realized / Unrealized"
           size="lg"
           value={
-            <span className="flex flex-col gap-0.5 text-base sm:text-lg">
-              <span className="flex items-baseline justify-between gap-2">
+            // Stacked label-over-value blocks (never a side-by-side row): a large
+            // SOL value, negative sign, or 360px width can't push the number
+            // outside the card. break-words + min-w-0 guarantee no clipping.
+            <span className="flex w-full flex-col gap-2 text-lg sm:text-xl">
+              <span className="flex min-w-0 flex-col">
                 <span className="text-[10px] font-sans font-semibold uppercase tracking-wider text-muted-foreground">
                   Realized
                 </span>
-                <span className={pnlColor(m.realizedPnlSol)}>
-                  {fmtSignedSolMag(m.realizedPnlSol)}
+                <span
+                  className={cn(
+                    "tabular-nums break-words leading-tight",
+                    pnlColor(m.realizedPnlSol),
+                  )}
+                >
+                  {fmtSignedSolMag(m.realizedPnlSol)} SOL
                 </span>
               </span>
-              <span className="flex items-baseline justify-between gap-2">
+              <span className="flex min-w-0 flex-col">
                 <span className="text-[10px] font-sans font-semibold uppercase tracking-wider text-muted-foreground">
                   Unrealized
                 </span>
                 {verified ? (
-                  <span className={pnlColor(m.unrealizedPnlSol)}>
-                    {fmtSignedSolMag(m.unrealizedPnlSol)}
+                  <span
+                    className={cn(
+                      "tabular-nums break-words leading-tight",
+                      pnlColor(m.unrealizedPnlSol),
+                    )}
+                  >
+                    {fmtSignedSolMag(m.unrealizedPnlSol)} SOL
                   </span>
                 ) : (
-                  <span className="text-warning text-xs">Unverified</span>
+                  <span className="text-warning text-sm">Unverified</span>
                 )}
               </span>
             </span>
           }
-          sub="SOL - closed trades vs open positions"
+          sub="Closed trades vs open positions"
           hint="Realized: locked-in profit from completed round trips (historical). Unrealized: current estimated P&L on verified open positions (hidden when holdings can't be verified)."
         />
         <MetricTile
@@ -645,6 +669,207 @@ function WalletSummaryHero({
         />
       </div>
     </div>
+  );
+}
+
+// ── 1b. Trader Profile (expanded identity from existing DNA + signals) ────────
+
+/**
+ * Frontend interpretation of the already-computed DNA trait vector into
+ * plain-language style descriptors. These are LABELS over existing numeric
+ * traits (0-1) — no new calculation, no backend change. When a trait is absent
+ * (older snapshots) the style is simply omitted.
+ */
+function deriveTraderStyles(
+  vector: Record<string, number>,
+): Array<{ label: string; value: string; hint: string }> {
+  const v = (k: string): number | null =>
+    typeof vector[k] === "number" ? vector[k]! : null;
+  const styles: Array<{ label: string; value: string; hint: string }> = [];
+
+  const risk = v("risk_tolerance");
+  if (risk != null) {
+    styles.push({
+      label: "Risk Style",
+      value: risk >= 0.66 ? "Aggressive" : risk >= 0.4 ? "Balanced" : "Conservative",
+      hint: "How much risk you take on sizing and token selection (from your risk-tolerance trait). A style, not a grade.",
+    });
+  }
+
+  const discipline = v("discipline");
+  const fomo = v("fomo");
+  if (discipline != null || fomo != null) {
+    const d = discipline ?? 0;
+    const f = fomo ?? 0;
+    styles.push({
+      label: "Decision Style",
+      value: d >= 0.55 ? "Rule-based" : f >= 0.5 ? "Reactive" : "Adaptive",
+      hint: "Whether you tend to follow repeatable rules or react to price action (from your discipline and FOMO traits).",
+    });
+  }
+
+  const patience = v("patience");
+  const scalping = v("scalping");
+  const swing = v("swing");
+  if (patience != null || scalping != null || swing != null) {
+    const sc = scalping ?? 0;
+    const pt = Math.max(patience ?? 0, swing ?? 0);
+    styles.push({
+      label: "Exit Style",
+      value: sc >= 0.55 && sc >= pt ? "Fast exits" : pt >= 0.55 ? "Patient" : "Mixed",
+      hint: "How long you let positions develop before exiting (from your patience, swing and scalping traits).",
+    });
+  }
+
+  const momentum = v("momentum");
+  const rotation = v("rotation");
+  if (momentum != null || rotation != null) {
+    const mo = momentum ?? 0;
+    const ro = rotation ?? 0;
+    styles.push({
+      label: "Trading Pace",
+      value: ro >= 0.55 && ro >= mo ? "Rotational" : mo >= 0.55 ? "Momentum" : "Selective",
+      hint: "How you move between opportunities: chasing momentum, rotating across themes, or waiting for select setups.",
+    });
+  }
+
+  return styles;
+}
+
+/** Top strengths / weaknesses derived from the scored, gradeable signals. */
+function deriveStrengthsWeaknesses(signals: RealTradingSignal[]): {
+  strengths: RealTradingSignal[];
+  weaknesses: RealTradingSignal[];
+} {
+  const gradeable = signals.filter(
+    (s) =>
+      s.tier !== "insufficient" &&
+      SIGNAL_EXPLAIN[s.key]?.direction === "higher_better",
+  );
+  const byValueDesc = [...gradeable].sort((a, b) => b.value - a.value);
+  const strengths = byValueDesc.filter((s) => s.value >= 60).slice(0, 3);
+  const weaknesses = [...gradeable]
+    .sort((a, b) => a.value - b.value)
+    .filter((s) => s.value <= 50)
+    .slice(0, 3);
+  return { strengths, weaknesses };
+}
+
+function TraderProfileSection({ analysis }: { analysis: RealAnalysisSummary }) {
+  const dna = analysis.dna;
+  if (!dna) return null;
+  const styles = deriveTraderStyles(dna.vector ?? {});
+  const { strengths, weaknesses } = deriveStrengthsWeaknesses(analysis.signals);
+  const confidencePct = Math.round((dna.confidence ?? 0) * 100);
+  const hasBody =
+    styles.length > 0 || strengths.length > 0 || weaknesses.length > 0;
+  if (!hasBody && !dna.primaryDescription) return null;
+
+  return (
+    <section className="rounded-2xl bg-card shadow-card p-5 sm:p-6 space-y-4">
+      <SectionHeader
+        title="Trader Profile"
+        description="Who you are as a trader: your archetype, natural style, and where you're strong or still developing."
+      />
+
+      <div className="rounded-xl bg-surface-2 border border-white/[0.05] p-4 space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Dna className="w-4 h-4 text-accent shrink-0" />
+          <span className="text-base font-semibold tracking-tight">
+            {dna.primaryLabel}
+          </span>
+          {confidencePct > 0 && (
+            <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-accent/10 text-accent">
+              {confidencePct}% confidence
+            </span>
+          )}
+          {dna.secondaryLabel && (
+            <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-surface-3 text-muted-foreground">
+              + {dna.secondaryLabel}
+            </span>
+          )}
+        </div>
+        {dna.primaryDescription && (
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            {dna.primaryDescription}
+          </p>
+        )}
+        {dna.evolvedTraits.length > 0 && (
+          <p className="text-[11px] text-accent/80">
+            Recently evolving: {dna.evolvedTraits.join(", ")}
+          </p>
+        )}
+      </div>
+
+      {styles.length > 0 && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
+          {styles.map((s) => (
+            <MetricTile
+              key={s.label}
+              label={s.label}
+              value={<span className="text-base sm:text-lg">{s.value}</span>}
+              tone="muted"
+              hint={s.hint}
+            />
+          ))}
+        </div>
+      )}
+
+      {(strengths.length > 0 || weaknesses.length > 0) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <div className="flex items-center gap-1.5 stat-label">
+              <ThumbsUp className="w-3.5 h-3.5 text-success" />
+              Strongest Traits
+            </div>
+            {strengths.length > 0 ? (
+              <div className="flex flex-wrap gap-1.5">
+                {strengths.map((s) => (
+                  <span
+                    key={s.key}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-success/20 bg-success/5 px-2.5 py-1 text-xs"
+                  >
+                    <span className="font-medium">
+                      {SIGNAL_LABELS[s.key] ?? s.key}
+                    </span>
+                    <span className="tabular-nums text-success">{s.value}</span>
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                No standout strengths scored with confidence yet.
+              </p>
+            )}
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center gap-1.5 stat-label">
+              <AlertTriangle className="w-3.5 h-3.5 text-warning" />
+              Areas to Develop
+            </div>
+            {weaknesses.length > 0 ? (
+              <div className="flex flex-wrap gap-1.5">
+                {weaknesses.map((s) => (
+                  <span
+                    key={s.key}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-warning/20 bg-amber-500/5 px-2.5 py-1 text-xs"
+                  >
+                    <span className="font-medium">
+                      {SIGNAL_LABELS[s.key] ?? s.key}
+                    </span>
+                    <span className="tabular-nums text-warning">{s.value}</span>
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Nothing scoring low with confidence. Keep it up.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -927,17 +1152,44 @@ function scoreBandLabel(value: number): string {
 }
 
 /** Inline explainability panel for one signal (tap-to-open, no hover needed). */
+const SIGNAL_CLASS_LABEL: Record<string, string> = {
+  elite: "Elite",
+  strong: "Strong",
+  developing: "Developing",
+  weak: "Weak",
+  insufficient: "Insufficient data",
+  descriptive: "Descriptive only",
+};
+
 function SignalDetail({ s }: { s: RealTradingSignal }) {
   const meta = SIGNAL_EXPLAIN[s.key];
+  const detail = s.detail;
   const insufficient = s.tier === "insufficient";
   const cmp = s.comparison;
+  // Prefer the backend's structured evidence metadata; fall back to the static
+  // frontend dictionary for older cached snapshots without `detail`.
+  const measures = detail?.measures ?? meta?.meaning ?? SIGNAL_HINTS[s.key] ?? "";
+  const improvementList =
+    detail?.improvement && detail.improvement.length > 0
+      ? detail.improvement
+      : meta?.improve
+        ? [meta.improve]
+        : [];
   const rows: Array<{ k: string; v: React.ReactNode }> = [
     { k: "Score", v: insufficient ? "Not enough data" : `${s.value} / 100` },
     {
-      k: "What it means",
+      k: "Classification",
+      v: detail?.classification
+        ? (SIGNAL_CLASS_LABEL[detail.classification] ?? detail.classification)
+        : insufficient
+          ? "Insufficient data"
+          : scoreBandLabel(s.value),
+    },
+    {
+      k: "What it measures",
       v: insufficient
         ? "There is not enough evidence to score this reliably yet."
-        : `${scoreBandLabel(s.value)}. ${meta?.meaning ?? SIGNAL_HINTS[s.key] ?? ""}`,
+        : measures,
     },
     { k: "Confidence", v: TIER_LABEL[s.tier] ?? s.tier },
     {
@@ -958,8 +1210,8 @@ function SignalDetail({ s }: { s: RealTradingSignal }) {
   if (s.evidence.length > 0) {
     rows.push({ k: "Main evidence", v: s.evidence.join(" · ") });
   }
-  if (!insufficient && meta?.direction === "higher_better") {
-    rows.push({ k: "To improve", v: meta.improve });
+  if (!insufficient && detail?.expectedImpact) {
+    rows.push({ k: "Expected impact", v: detail.expectedImpact });
   }
   return (
     <div className="rounded-xl bg-surface-2 border border-white/[0.06] px-3.5 py-3 space-y-2">
@@ -980,12 +1232,33 @@ function SignalDetail({ s }: { s: RealTradingSignal }) {
             className="flex items-start justify-between gap-3 text-xs"
           >
             <dt className="text-muted-foreground shrink-0">{r.k}</dt>
-            <dd className="text-right text-foreground/90 leading-snug">
+            <dd className="text-right text-foreground/90 leading-snug break-words min-w-0">
               {r.v}
             </dd>
           </div>
         ))}
       </dl>
+      {!insufficient && improvementList.length > 0 && (
+        <div className="pt-1 border-t border-white/[0.05]">
+          <div className="stat-label mb-1">How to improve</div>
+          <ul className="space-y-0.5">
+            {improvementList.map((a) => (
+              <li
+                key={a}
+                className="text-[11px] text-muted-foreground leading-relaxed flex items-start gap-1.5"
+              >
+                <ChevronRight className="w-3 h-3 shrink-0 mt-0.5 text-accent/70" />
+                {a}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {detail?.limitations && detail.limitations.length > 0 && (
+        <p className="text-[10px] text-muted-foreground/70 leading-relaxed pt-1">
+          Limitations: {detail.limitations.join(" ")}
+        </p>
+      )}
     </div>
   );
 }
@@ -1052,10 +1325,23 @@ function BehaviorSection({ analysis }: { analysis: RealAnalysisSummary }) {
             : "border-white/[0.05] bg-surface-2",
       )}
     >
-      <div className="font-medium">{insight.title}</div>
+      <div className="flex items-start justify-between gap-2">
+        <div className="font-medium break-words min-w-0">{insight.title}</div>
+        {insight.evidenceCount != null && insight.evidenceCount > 0 && (
+          <span className="text-[9px] uppercase tracking-wider text-muted-foreground tabular-nums shrink-0 mt-0.5">
+            {insight.evidenceCount}× evidence
+          </span>
+        )}
+      </div>
       <div className="text-muted-foreground text-xs mt-0.5 leading-relaxed">
         {insight.description}
       </div>
+      {insight.guidance && (
+        <div className="text-[11px] text-foreground/70 mt-1 leading-relaxed flex items-start gap-1.5">
+          <ChevronRight className="w-3 h-3 shrink-0 mt-0.5 text-accent/70" />
+          {insight.guidance}
+        </div>
+      )}
     </div>
   );
 
@@ -1121,7 +1407,6 @@ function BehaviorSection({ analysis }: { analysis: RealAnalysisSummary }) {
 // ── 5. Risk & Exposure ───────────────────────────────────────────────────────
 
 function RiskSection({ analysis }: { analysis: RealAnalysisSummary }) {
-  const m = analysis.metrics;
   const h = analysis.walletHealth;
   // Current Exposure and Concentration are only meaningful when open positions
   // were reconciled against LIVE on-chain balances. If that reconciliation is
@@ -1151,12 +1436,11 @@ function RiskSection({ analysis }: { analysis: RealAnalysisSummary }) {
     <section className="rounded-2xl bg-card shadow-card p-5 sm:p-6 space-y-5">
       <SectionHeader
         title="Risk & Exposure"
-        description="Your live current-portfolio risk, kept separate from how you have sized and performed historically."
+        description="What you are risking right now: your live, reconciled current portfolio only. Historical sizing and loss stats live in Detailed Metrics."
       />
 
       {/* Current Portfolio Risk - live, reconciled wallet only. */}
       <div className="space-y-2.5">
-        <div className="stat-label">Current Portfolio Risk</div>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
           <MetricTile
             label="Current Exposure"
@@ -1226,41 +1510,6 @@ function RiskSection({ analysis }: { analysis: RealAnalysisSummary }) {
             ))}
           </ul>
         )}
-      </div>
-
-      {/* Historical Trade Risk - reconstructed from completed round trips. */}
-      <div className="space-y-2.5">
-        <div className="stat-label">Historical Trade Risk</div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
-          <MetricTile
-            label="Avg Historical Entry"
-            value={`${fmtSolMag(m.avgPositionSizeSol)} SOL`}
-            hint="Average SOL committed per historical buy (mean initial position size across all analyzed buys). Historical, not a current position."
-          />
-          <MetricTile
-            label="Largest Gain"
-            value={`${fmtSolMag(m.largestGainSol)} SOL`}
-            tone={m.largestGainSol > 0 ? "positive" : "default"}
-            hint="Your single best realized completed round trip (historical)."
-          />
-          <MetricTile
-            label="Largest Loss"
-            value={`${fmtSolMag(m.largestLossSol)} SOL`}
-            tone={m.largestLossSol > 0 ? "negative" : "default"}
-            hint="Your single worst realized completed round trip (historical)."
-          />
-          <MetricTile
-            label="Avg Loss"
-            value={`${fmtSolMag(m.avgLossSol)} SOL`}
-            tone={m.avgLossSol > 0 ? "negative" : "default"}
-            hint="Average size of your losing completed round trips (historical)."
-          />
-          <MetricTile
-            label="Historical Breadth"
-            value={m.uniqueTokensTraded}
-            hint="Distinct tokens traded over time (historical variety). This is descriptive turnover, not your current diversification."
-          />
-        </div>
       </div>
     </section>
   );
@@ -1528,6 +1777,118 @@ function EvolutionSection({ events }: { events: RealTimelineEvent[] }) {
   );
 }
 
+// ── 8. Growth & Coaching (AI architecture preview) ───────────────────────────
+
+/**
+ * Forward-looking coaching preview. This is intentionally NOT AI yet — it
+ * derives a small set of practical focus areas from the same gradeable signals
+ * and their static `improve` guidance, and states plainly that personalised AI
+ * coaching is coming. It establishes the surface future coaching will populate.
+ */
+const COACHING_PRIORITY_TONE: Record<string, string> = {
+  high: "bg-danger/10 text-danger",
+  medium: "bg-amber-500/10 text-warning",
+  low: "bg-surface-3 text-muted-foreground",
+};
+
+function CoachingSection({ analysis }: { analysis: RealAnalysisSummary }) {
+  const coaching = analysis.coaching;
+
+  // Prefer the backend's deterministic coaching context (rule-based, evidence
+  // -backed). Older cached snapshots without it fall back to a signal-derived
+  // focus list so the section is never empty on legacy data.
+  const insights = coaching?.insights ?? [];
+  const fallback = !coaching
+    ? deriveStrengthsWeaknesses(analysis.signals)
+        .weaknesses.map((s) => ({
+          key: s.key,
+          label: SIGNAL_LABELS[s.key] ?? s.key,
+          value: s.value,
+          improve: SIGNAL_EXPLAIN[s.key]?.improve ?? null,
+        }))
+        .filter((f) => f.improve != null)
+    : [];
+
+  return (
+    <section className="rounded-2xl bg-card shadow-card p-5 sm:p-6 space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <SectionHeader
+          title="Growth & Coaching"
+          description="Evidence-backed focus areas, generated from your on-chain history."
+        />
+        <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-accent/10 text-accent shrink-0">
+          BlackPebble Coaching Insights
+        </span>
+      </div>
+
+      {insights.length > 0 ? (
+        <div className="space-y-2">
+          {insights.map((f) => (
+            <div
+              key={f.key}
+              className="rounded-xl bg-surface-2 border border-white/[0.05] px-3.5 py-3"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-medium break-words min-w-0">
+                  {f.title}
+                </span>
+                <span
+                  className={cn(
+                    "text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded-full shrink-0",
+                    COACHING_PRIORITY_TONE[f.priority] ??
+                      "bg-surface-3 text-muted-foreground",
+                  )}
+                >
+                  {f.priority}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                {f.body}
+              </p>
+              <p className="text-[10px] text-muted-foreground/70 mt-1 leading-relaxed">
+                {f.basis}
+              </p>
+            </div>
+          ))}
+        </div>
+      ) : fallback.length > 0 ? (
+        <div className="space-y-2">
+          {fallback.map((f) => (
+            <div
+              key={f.key}
+              className="rounded-xl bg-surface-2 border border-white/[0.05] px-3.5 py-3"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-medium">{f.label}</span>
+                <span className="text-[10px] uppercase tracking-wider text-muted-foreground tabular-nums">
+                  {f.value} / 100
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                {f.improve}
+              </p>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="rounded-xl bg-surface-2 border border-white/[0.05] px-4 py-3 text-xs text-muted-foreground leading-relaxed">
+          No clear weak spots scored with confidence right now. As you trade
+          more, focus areas will appear here.
+        </p>
+      )}
+
+      <div className="flex items-start gap-2 rounded-xl border border-accent/15 bg-accent/[0.04] px-3.5 py-2.5">
+        <Sparkles className="w-3.5 h-3.5 text-accent shrink-0 mt-0.5" />
+        <p className="text-[11px] text-muted-foreground leading-relaxed">
+          These are rule-based insights, not AI. A future AI coach will consume
+          this same structured analysis (behavior patterns, how you've changed,
+          and what to improve next) and turn it into personalised guidance.
+        </p>
+      </div>
+    </section>
+  );
+}
+
 // ── Detailed metrics (expandable advanced analysis) ──────────────────────────
 
 function DetailedMetricsSection({ analysis }: { analysis: RealAnalysisSummary }) {
@@ -1580,11 +1941,30 @@ function DetailedMetricsSection({ analysis }: { analysis: RealAnalysisSummary })
             label="Avg Gain"
             value={`${fmtSolMag(m.avgGainSol)} SOL`}
             tone={m.avgGainSol > 0 ? "positive" : "default"}
+            hint="Average size of your winning completed round trips (historical)."
           />
           <MetricTile
             label="Avg Loss"
             value={`${fmtSolMag(m.avgLossSol)} SOL`}
             tone={m.avgLossSol > 0 ? "negative" : "default"}
+            hint="Average size of your losing completed round trips (historical)."
+          />
+          <MetricTile
+            label="Largest Gain"
+            value={`${fmtSolMag(m.largestGainSol)} SOL`}
+            tone={m.largestGainSol > 0 ? "positive" : "default"}
+            hint="Your single best realized completed round trip (historical)."
+          />
+          <MetricTile
+            label="Largest Loss"
+            value={`${fmtSolMag(m.largestLossSol)} SOL`}
+            tone={m.largestLossSol > 0 ? "negative" : "default"}
+            hint="Your single worst realized completed round trip (historical)."
+          />
+          <MetricTile
+            label="Avg Entry Size"
+            value={`${fmtSolMag(m.avgPositionSizeSol)} SOL`}
+            hint="Average SOL committed per historical buy (mean initial position size across all analyzed buys)."
           />
           <MetricTile
             label="Avg Hold"
@@ -1643,8 +2023,10 @@ function DataTransparency({ analysis }: { analysis: RealAnalysisSummary }) {
 
 /**
  * Full analysis experience - used by the /utilities/trading-analysis page.
- * Structured as an intelligence report: summary → performance → intelligence
- * → behavior → risk → holdings → detailed metrics → evolution.
+ * Structured as a trader story where each section answers a different question:
+ * identity (wallet summary → trader profile) → performance → behavior →
+ * intelligence scores → risk → holdings & trades → detailed metrics →
+ * evolution → growth & coaching.
  */
 export function RealTradingAnalysisFull() {
   const {
@@ -1664,6 +2046,16 @@ export function RealTradingAnalysisFull() {
   } = useRealAnalysis();
   const solBalance = useWalletSolBalance();
   const solUsd = useSolUsd();
+  const enrichMutation = useMutation({
+    mutationFn: async () => {
+      await api.realAnalysis.enrich(wallet!);
+    },
+    onSuccess: () => {
+      // Recompute analysis so entry/exit quality picks up newly cached candles.
+      syncMutation.mutate();
+    },
+  });
+  const enriching = enrichMutation.isPending || syncMutation.isPending;
 
   if (!connected || !wallet) {
     return (
@@ -1750,8 +2142,13 @@ export function RealTradingAnalysisFull() {
     );
   }
 
+  // Report story flow (Phase 2B, Part 10):
+  // Trader Profile → Executive Summary (+coverage) → Performance → Trader
+  // Intelligence (strengths/dev) → Behavioral → Current Risk → Historical Risk
+  // → Current Holdings (+quality) → Detailed Metrics → Evolution → Coaching.
   return (
     <div className="space-y-5">
+      <TraderProfileSection analysis={analysis} />
       <WalletSummaryHero
         analysis={analysis}
         solBalance={solBalance}
@@ -1760,6 +2157,7 @@ export function RealTradingAnalysisFull() {
         syncBusy={syncMutation.isPending || isFetching}
         syncError={syncError}
       />
+      <CoverageBanner analysis={analysis} />
       {analysis.historyTruncated && (
         <div className="flex items-start gap-2 rounded-xl border border-amber-500/25 bg-amber-500/5 px-3.5 py-2.5">
           <AlertTriangle className="w-3.5 h-3.5 text-warning shrink-0 mt-0.5" />
@@ -1782,16 +2180,31 @@ export function RealTradingAnalysisFull() {
         )
       )}
       <IntelligenceSection analysis={analysis} />
+      <EntryIntelligenceSection
+        analysis={analysis}
+        onEnrich={() => enrichMutation.mutate()}
+        enriching={enriching}
+      />
+      <ExitIntelligenceSection
+        analysis={analysis}
+        onEnrich={() => enrichMutation.mutate()}
+        enriching={enriching}
+      />
+      <TradeReplaySection wallet={wallet} />
       <BehaviorSection analysis={analysis} />
       <RiskSection analysis={analysis} />
+      <HistoricalRiskSection analysis={analysis} />
       <HoldingsSection
         analysis={analysis}
         performance={performance}
         onRefresh={() => syncMutation.mutate()}
         refreshBusy={syncMutation.isPending || isFetching}
       />
+      <HoldingsQualitySection analysis={analysis} />
+      <CurrentLiquiditySection analysis={analysis} />
       <DetailedMetricsSection analysis={analysis} />
       <EvolutionSection events={timeline} />
+      <CoachingSection analysis={analysis} />
       <DataTransparency analysis={analysis} />
     </div>
   );
