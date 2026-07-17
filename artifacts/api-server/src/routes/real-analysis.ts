@@ -16,6 +16,32 @@ import { matchFifo } from "../lib/real-trading-math.js";
 import { buildPerformanceReport } from "../lib/real-trading-performance.js";
 import { ensureRealTradingSchema } from "../lib/real-trading-schema.js";
 import { getTimeline } from "../lib/real-trading-timeline.js";
+import {
+  reconstructRoundTrips,
+  type ReconstructedRoundTrip,
+} from "../lib/real-trading-roundtrips.js";
+import {
+  buildTradeReplay,
+  buildTradeSummary,
+  type TradeSummary,
+} from "../lib/real-trading-replay.js";
+import {
+  analyzeEntry,
+  type EntryPattern,
+} from "../lib/real-trading-entry-quality.js";
+import {
+  analyzeExit,
+  type ExitPattern,
+} from "../lib/real-trading-exit-quality.js";
+import {
+  enrichWalletTrades,
+  intervalForHold,
+  windowForTrip,
+} from "../lib/real-trading-enrichment.js";
+import { readCachedCandles } from "../lib/market-data/cache.js";
+import { candlesInRange, type HistoricalCandle } from "../lib/market-data/types.js";
+import { getTokenStatsBatch } from "../lib/prices.js";
+import { classifyHoldingLiquidity } from "../lib/real-trading-liquidity.js";
 
 const router: IRouter = Router();
 
@@ -413,6 +439,269 @@ router.get(
       // / unsupported / excluded, each with a reason). RYS shows up here.
       assets,
     });
+  }),
+);
+
+// ── Trade Replay (Phase 2C) ──────────────────────────────────────────────────
+// Owner-or-admin only: this is a per-trade evidence drill-down, not public data.
+// Current holdings protections are untouched; these routes only expose COMPLETED
+// historical round trips (FIFO), never current positions.
+
+async function ownerOrAdminGate(
+  req: Parameters<typeof sessionFromRequest>[0],
+  res: import("express").Response,
+  wallet: string,
+): Promise<boolean> {
+  const session = await sessionFromRequest(req);
+  if (!session) {
+    res.status(401).json({ error: "Sign in required" });
+    return false;
+  }
+  const allowed = isAdmin(session) || (await ownsWallet(session, wallet));
+  if (!allowed) {
+    res
+      .status(403)
+      .json({ error: "Trade Replay is limited to the wallet owner or an admin" });
+    return false;
+  }
+  return true;
+}
+
+async function loadClosedRoundTrips(
+  wallet: string,
+): Promise<ReconstructedRoundTrip[]> {
+  const events = await loadWalletEvents(wallet);
+  return reconstructRoundTrips(events, "solana").closed;
+}
+
+/** Cheap per-trip cached-candle read + entry/exit classification. */
+async function classifyTrip(
+  trip: ReconstructedRoundTrip,
+): Promise<{ entry: EntryPattern; exit: ExitPattern; candles: HistoricalCandle[] }> {
+  const { start, end } = windowForTrip(trip);
+  const interval = intervalForHold(trip.holdDurationSec);
+  const candles = await readCachedCandles({
+    chain: "solana",
+    mint: trip.tokenMint,
+    interval,
+    start,
+    end,
+  }).catch(() => [] as HistoricalCandle[]);
+  const entry = analyzeEntry(trip, candles, "geckoterminal_cache");
+  const exit = analyzeExit(trip, candles, "geckoterminal_cache");
+  return { entry: entry.entryPattern, exit: exit.exitPattern, candles };
+}
+
+/**
+ * GET /real-analysis/:wallet/trades - paginated, filtered Trade Replay list.
+ * Owner/admin only. Filters: outcome, token, from/to (unix sec), minHold,
+ * maxHold. Bounded page size. No N+1: classification is computed only for the
+ * returned page from the durable candle cache.
+ */
+router.get(
+  "/real-analysis/:wallet/trades",
+  asyncHandler(async (req, res) => {
+    if (!(await assertFeatureEnabled())) {
+      return res.status(404).json({ error: "Feature not enabled" });
+    }
+    const wallet = String(req.params.wallet ?? "").trim();
+    if (!isValidWallet(wallet)) {
+      return res.status(400).json({ error: "Invalid wallet address" });
+    }
+    if (!(await ownerOrAdminGate(req, res, wallet))) return;
+
+    await ensureRealTradingSchema();
+    let trips = await loadClosedRoundTrips(wallet);
+
+    const outcome = String(req.query.outcome ?? "").trim();
+    if (outcome === "winner" || outcome === "loser" || outcome === "breakeven") {
+      const want = outcome === "winner" ? "win" : outcome === "loser" ? "loss" : "breakeven";
+      trips = trips.filter((t) => t.outcome === want);
+    }
+    const token = String(req.query.token ?? "").trim();
+    if (token) trips = trips.filter((t) => t.tokenMint === token);
+    const from = Number(req.query.from);
+    if (Number.isFinite(from)) trips = trips.filter((t) => t.buyTime >= from);
+    const to = Number(req.query.to);
+    if (Number.isFinite(to)) trips = trips.filter((t) => (t.sellTime ?? t.buyTime) <= to);
+    const minHold = Number(req.query.minHold);
+    if (Number.isFinite(minHold)) trips = trips.filter((t) => t.holdDurationSec >= minHold);
+    const maxHold = Number(req.query.maxHold);
+    if (Number.isFinite(maxHold)) trips = trips.filter((t) => t.holdDurationSec <= maxHold);
+
+    const sort = String(req.query.sort ?? "recent");
+    trips.sort((a, b) => {
+      if (sort === "pnl") return b.realizedPnlSol - a.realizedPnlSol;
+      if (sort === "loss") return a.realizedPnlSol - b.realizedPnlSol;
+      if (sort === "hold") return b.holdDurationSec - a.holdDurationSec;
+      return (b.sellTime ?? 0) - (a.sellTime ?? 0);
+    });
+
+    const total = trips.length;
+    const limit = Math.min(50, Math.max(1, Number(req.query.limit) || 20));
+    const offset = Math.max(0, Number(req.query.offset) || 0);
+    const page = trips.slice(offset, offset + limit);
+
+    // Enrich the page's tokens with metadata in ONE batched call (no N+1).
+    const mints = [...new Set(page.map((t) => t.tokenMint))];
+    const stats = mints.length > 0 ? await getTokenStatsBatch(mints).catch(() => new Map()) : new Map();
+
+    const trades: TradeSummary[] = [];
+    for (const trip of page) {
+      const cls = await classifyTrip(trip);
+      const stat = stats.get(trip.tokenMint);
+      trades.push(
+        buildTradeSummary(trip, {
+          token: { symbol: stat?.symbol ?? null, name: stat?.name ?? null, logo: stat?.logo ?? null },
+          entryClassification: cls.entry === "insufficient_data" ? null : cls.entry,
+          exitClassification: cls.exit === "insufficient_data" ? null : cls.exit,
+        }),
+      );
+    }
+
+    // Apply entry/exit classification filters AFTER computing the page's classes.
+    const entryClass = String(req.query.entryClass ?? "").trim();
+    const exitClass = String(req.query.exitClass ?? "").trim();
+    const filtered = trades.filter(
+      (t) =>
+        (!entryClass || t.entryClassification === entryClass) &&
+        (!exitClass || t.exitClassification === exitClass),
+    );
+
+    return res.json({
+      trades: filtered,
+      pagination: { total, limit, offset, returned: filtered.length },
+    });
+  }),
+);
+
+/** GET /real-analysis/:wallet/trades/:tradeId - one trade summary. */
+router.get(
+  "/real-analysis/:wallet/trades/:tradeId",
+  asyncHandler(async (req, res) => {
+    if (!(await assertFeatureEnabled())) {
+      return res.status(404).json({ error: "Feature not enabled" });
+    }
+    const wallet = String(req.params.wallet ?? "").trim();
+    const tradeId = String(req.params.tradeId ?? "").trim();
+    if (!isValidWallet(wallet)) {
+      return res.status(400).json({ error: "Invalid wallet address" });
+    }
+    if (!(await ownerOrAdminGate(req, res, wallet))) return;
+
+    await ensureRealTradingSchema();
+    const trips = await loadClosedRoundTrips(wallet);
+    const trip = trips.find((t) => t.roundTripId === tradeId);
+    if (!trip) return res.status(404).json({ error: "Trade not found" });
+
+    const stats = await getTokenStatsBatch([trip.tokenMint]).catch(() => new Map());
+    const stat = stats.get(trip.tokenMint);
+    const cls = await classifyTrip(trip);
+    return res.json({
+      trade: buildTradeSummary(trip, {
+        token: { symbol: stat?.symbol ?? null, name: stat?.name ?? null, logo: stat?.logo ?? null },
+        entryClassification: cls.entry === "insufficient_data" ? null : cls.entry,
+        exitClassification: cls.exit === "insufficient_data" ? null : cls.exit,
+      }),
+    });
+  }),
+);
+
+/**
+ * GET /real-analysis/:wallet/trades/:tradeId/replay - full lifecycle replay
+ * with entry/exit evidence, price paths, and current liquidity. Owner/admin.
+ */
+router.get(
+  "/real-analysis/:wallet/trades/:tradeId/replay",
+  asyncHandler(async (req, res) => {
+    if (!(await assertFeatureEnabled())) {
+      return res.status(404).json({ error: "Feature not enabled" });
+    }
+    const wallet = String(req.params.wallet ?? "").trim();
+    const tradeId = String(req.params.tradeId ?? "").trim();
+    if (!isValidWallet(wallet)) {
+      return res.status(400).json({ error: "Invalid wallet address" });
+    }
+    if (!(await ownerOrAdminGate(req, res, wallet))) return;
+
+    await ensureRealTradingSchema();
+    const trips = await loadClosedRoundTrips(wallet);
+    const trip = trips.find((t) => t.roundTripId === tradeId);
+    if (!trip) return res.status(404).json({ error: "Trade not found" });
+
+    const { start, end } = windowForTrip(trip);
+    const interval = intervalForHold(trip.holdDurationSec);
+    const candles = await readCachedCandles({
+      chain: "solana",
+      mint: trip.tokenMint,
+      interval,
+      start,
+      end,
+    }).catch(() => [] as HistoricalCandle[]);
+
+    const entryQuality = analyzeEntry(trip, candles, "geckoterminal_cache");
+    const exitQuality = analyzeExit(trip, candles, "geckoterminal_cache");
+    const exitAt = trip.sellTime ?? trip.buyTime;
+
+    const stats = await getTokenStatsBatch([trip.tokenMint]).catch(() => new Map());
+    const stat = stats.get(trip.tokenMint);
+    const currentLiquidity = classifyHoldingLiquidity({
+      mint: trip.tokenMint,
+      symbol: stat?.symbol ?? null,
+      holdingValueUsd: null,
+      liquidityUsd: stat?.liquidityUsd ?? null,
+    });
+
+    const pricePaths = candles.length > 0
+      ? {
+          beforeEntry: candlesInRange(candles, start, trip.buyTime),
+          duringTrade: candlesInRange(candles, trip.buyTime, exitAt),
+          afterExit: candlesInRange(candles, exitAt, end),
+          source: "geckoterminal_cache",
+          interval,
+        }
+      : null;
+
+    const replay = buildTradeReplay(trip, {
+      token: { symbol: stat?.symbol ?? null, name: stat?.name ?? null, logo: stat?.logo ?? null },
+      entryQuality,
+      exitQuality,
+      currentLiquidity,
+      entryMarketCapUsd: entryQuality.entryMarketCapUsd,
+      exitMarketCapUsd: exitQuality.exitPrice != null && stat?.marketCapUsd != null ? null : null,
+      entryLiquidityUsd: entryQuality.entryLiquidityUsd,
+      pricePaths,
+      source: "geckoterminal_cache",
+    });
+
+    return res.json({ replay });
+  }),
+);
+
+/**
+ * POST /real-analysis/:wallet/enrich - bounded historical enrichment trigger.
+ * Owner/admin only. Populates the durable candle cache for the wallet's recent
+ * closed trips with all Part-4 safety controls (bounded, deduped, circuit
+ * broken). Never blocks the main analysis; returns run stats.
+ */
+router.post(
+  "/real-analysis/:wallet/enrich",
+  syncLimiter,
+  asyncHandler(async (req, res) => {
+    if (!(await assertFeatureEnabled())) {
+      return res.status(404).json({ error: "Feature not enabled" });
+    }
+    const wallet = String(req.params.wallet ?? "").trim();
+    if (!isValidWallet(wallet)) {
+      return res.status(400).json({ error: "Invalid wallet address" });
+    }
+    if (!(await ownerOrAdminGate(req, res, wallet))) return;
+
+    await ensureRealTradingSchema();
+    const trips = await loadClosedRoundTrips(wallet);
+    const maxTrades = Math.min(40, Math.max(1, Number(req.query.max) || 20));
+    const run = await enrichWalletTrades(wallet, trips, { maxTrades });
+    return res.json({ enrichment: run });
   }),
 );
 

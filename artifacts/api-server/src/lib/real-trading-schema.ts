@@ -157,6 +157,25 @@ export function ensureRealTradingSchema(): Promise<void> {
         `ALTER TABLE real_analysis_snapshots
            ADD COLUMN IF NOT EXISTS coaching_json TEXT`,
       );
+      // Phase 2C intelligence layers (entry/exit quality summaries with
+      // per-trade evidence stripped, current-holdings liquidity, enrichment
+      // readiness). All additive/idempotent; legacy snapshots read as NULL.
+      await dbRun(
+        `ALTER TABLE real_analysis_snapshots
+           ADD COLUMN IF NOT EXISTS entry_quality_json TEXT`,
+      );
+      await dbRun(
+        `ALTER TABLE real_analysis_snapshots
+           ADD COLUMN IF NOT EXISTS exit_quality_json TEXT`,
+      );
+      await dbRun(
+        `ALTER TABLE real_analysis_snapshots
+           ADD COLUMN IF NOT EXISTS liquidity_json TEXT`,
+      );
+      await dbRun(
+        `ALTER TABLE real_analysis_snapshots
+           ADD COLUMN IF NOT EXISTS enrichment_status TEXT`,
+      );
 
       // ── Signal registry time series (reputation engine foundation) ────────
       // One row per (wallet, signal, computation). History powers profile
