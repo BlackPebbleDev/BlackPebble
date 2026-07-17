@@ -37,9 +37,15 @@ const labelCls: Record<FeedColor, string> = {
 interface Props {
   /** TanStack Query's dataUpdatedAt (milliseconds). 0 means no data yet. */
   dataUpdatedAt: number;
+  /**
+   * Hide the inline "· Updated Xs ago" text (the click-through popover still
+   * shows Last Update). Used on page-title rows where a bare "● LIVE" reads
+   * cleaner and avoids duplicated freshness text.
+   */
+  compact?: boolean;
 }
 
-export function LiveIndicator({ dataUpdatedAt }: Props) {
+export function LiveIndicator({ dataUpdatedAt, compact = false }: Props) {
   const [secondsAgo, setSecondsAgo] = useState(0);
   const [open, setOpen] = useState(false);
 
@@ -87,9 +93,11 @@ export function LiveIndicator({ dataUpdatedAt }: Props) {
         >
           Live
         </span>
-        <span className="text-muted-foreground text-[10px] font-mono">
-          · Updated {fmtAgo(secondsAgo)}
-        </span>
+        {!compact && (
+          <span className="text-muted-foreground text-[10px] font-mono">
+            · Updated {fmtAgo(secondsAgo)}
+          </span>
+        )}
       </button>
 
       {open && (
