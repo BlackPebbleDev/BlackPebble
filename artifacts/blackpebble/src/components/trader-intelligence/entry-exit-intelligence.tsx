@@ -275,7 +275,7 @@ export function ExitIntelligenceSection({
     <SectionShell
       icon={<LogOut className="h-4 w-4" />}
       title="Exit Intelligence"
-      description="Price action after your exits — historical hindsight, not prediction."
+      description="Price action after your exits, shown as historical hindsight rather than prediction."
       coverage={x.coveragePercent}
       confidence={x.confidence}
     >
@@ -393,7 +393,7 @@ export function CurrentLiquiditySection({
         items={[
           "Liquidity bands: Deep ≥ $250k, Adequate ≥ $50k, Thin ≥ $10k, Fragile below that. Exitability compares holding value to pool liquidity.",
           "These are calm classifications, not exact slippage estimates.",
-          "Current holdings only — never mixed with historical trade liquidity.",
+          "Current holdings only, never mixed with historical trade liquidity.",
           ...l.limitations,
         ]}
       />
