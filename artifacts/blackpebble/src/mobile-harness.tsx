@@ -12,8 +12,86 @@ import "./index.css";
 import { MetricTile } from "./components/metric-tile";
 import { PageHeader } from "./components/page-header";
 import { FilterPills } from "./components/filter-pills";
+import {
+  HistoricalRiskSection,
+  CoverageBanner,
+  HoldingsQualitySection,
+} from "./components/real-trading-intelligence";
+import type { RealAnalysisSummary } from "./lib/api";
+import { TooltipProvider } from "./components/ui/tooltip";
 import { fmtSolMag, fmtSignedSolMag, fmtUsdSmart, pnlColor } from "./lib/format";
 import { cn } from "./lib/utils";
+
+// Extreme mock values (large/negative/decimal SOL) to prove nothing clips.
+const MOCK_ANALYSIS = {
+  historicalRisk: {
+    sampleSize: 128,
+    confidence: 1,
+    confidenceTier: "high",
+    maxDrawdownSol: 1284.5321,
+    maxDrawdownPercent: 63.2,
+    avgDrawdownSol: 42.19,
+    currentDrawdownSol: 1200.2911,
+    longestDrawdownSec: 5 * 86400 + 3600,
+    medianRecoverySec: 2 * 86400,
+    medianTradesToRecover: 6,
+    drawdownCount: 9,
+    maxConsecutiveLosses: 7,
+    maxConsecutiveWins: 5,
+    currentStreak: -3,
+    profitFactor: 1.42,
+    expectancySol: -12.3319,
+    payoffRatio: 0.87,
+    resultVolatilitySol: 214.7733,
+    downsideVolatilitySol: 98.21,
+    positionSizeVolatility: 1.34,
+    tailLossConcentration: 0.82,
+    tailGainConcentration: 0.71,
+    profileTier: "highly_volatile",
+    profileBreakdown: { resultDispersion: 2.1, drawdownSeverity: 6.2, tailLossConcentration: 0.82 },
+    limitations: [
+      "Reconstructed from on-chain swap history, not a brokerage account equity curve.",
+      "Only completed round trips are included; open positions and transfers are excluded.",
+    ],
+  },
+  coverage: {
+    parsedSwaps: 1284,
+    unsupportedSwaps: 42,
+    completedTrades: 128,
+    verifiedHoldings: 6,
+    unpricedHoldings: 4,
+    holdingsVerified: true,
+    historyTruncated: true,
+    droppedGhostMints: 3,
+    firstTradeAt: 1_690_000_000,
+    lastTradeAt: 1_705_000_000,
+    parseCoverage: 0.968,
+    pricingCoverage: 0.6,
+    tier: "limited",
+    summary: "Limited coverage — some data was unavailable; read the limitations below.",
+    limitations: [
+      "42 token-to-token swaps could not be reconstructed in SOL terms and are excluded.",
+      "Swap history exceeded the per-sync limit, so the oldest trades are not yet included.",
+      "4 current holdings could not be priced and are excluded from valuation (never counted as zero).",
+    ],
+  },
+  holdingsQuality: {
+    holdingsVerified: true,
+    concentrationPercent: 71.4,
+    positions: [
+      { tokenMint: "BIGWHALEPOSITIONMINT1111111111", symbol: "WHALECOIN", logo: null, currentValueSol: 1284.5321, costBasisSol: 900.12, unrealizedPnlSol: 384.4121, sharePercent: 71.4, ageSec: 60 * 86400, sizeVsMedian: 6.2, classification: "oversized", tags: ["long_held"] },
+      { tokenMint: "MID2222222222222222222222222222", symbol: "MID", logo: null, currentValueSol: 42.19, costBasisSol: 50.0, unrealizedPnlSol: -7.81, sharePercent: 18.0, ageSec: 2 * 86400, sizeVsMedian: 1.4, classification: "core", tags: ["recently_opened"] },
+      { tokenMint: "NOPRICE333333333333333333333333", symbol: "GHOSTPRICE", logo: null, currentValueSol: null, costBasisSol: 3.2, unrealizedPnlSol: null, sharePercent: null, ageSec: 10 * 86400, sizeVsMedian: 0.4, classification: "unpriced", tags: [] },
+    ],
+    dimensions: [
+      { key: "concentration", label: "Concentration", value: 29, available: true, note: "Higher is healthier." },
+      { key: "pricing_coverage", label: "Pricing Coverage", value: 67, available: true, note: "Share priced." },
+      { key: "position_sizing", label: "Position Sizing", value: 41, available: true, note: "Spread of value." },
+      { key: "liquidity_coverage", label: "Liquidity Coverage", value: null, available: false, note: "Not available yet." },
+    ],
+    limitations: ["Reflects only live-verified, traced current holdings; untraced tokens are excluded."],
+  },
+} as unknown as RealAnalysisSummary;
 
 /** Mirror of the hero Realized / Unrealized stacked value node (overflow-proof). */
 function RealizedUnrealizedValue({
@@ -120,6 +198,7 @@ function App() {
   const [wrap, setWrap] = React.useState<(typeof WRAP_TABS)[number]["id"]>("all");
   const [scroll, setScroll] = React.useState<(typeof SCROLL_TABS)[number]["id"]>("trending");
   return (
+    <TooltipProvider delayDuration={0}>
     <div style={{ maxWidth: "100%", overflowX: "hidden", color: "white" }}>
       <ChromeMock />
 
@@ -231,6 +310,18 @@ function App() {
         </Grid>
       </Section>
 
+      <Section id="coverage" title="Report Coverage banner (Phase 2B)">
+        <CoverageBanner analysis={MOCK_ANALYSIS} />
+      </Section>
+
+      <Section id="historicalrisk" title="Historical Risk Intelligence (Phase 2B)">
+        <HistoricalRiskSection analysis={MOCK_ANALYSIS} />
+      </Section>
+
+      <Section id="holdingsquality" title="Current Holdings Quality (Phase 2B)">
+        <HoldingsQualitySection analysis={MOCK_ANALYSIS} />
+      </Section>
+
       <Section id="detailed" title="Detailed Metrics (single reference)">
         <Grid>
           <MetricTile label="Win Rate" value="52.4%" tone="positive" />
@@ -249,6 +340,7 @@ function App() {
         </Grid>
       </Section>
     </div>
+    </TooltipProvider>
   );
 }
 
