@@ -12,7 +12,42 @@ import "./index.css";
 import { MetricTile } from "./components/metric-tile";
 import { PageHeader } from "./components/page-header";
 import { FilterPills } from "./components/filter-pills";
-import { fmtSolMag, fmtSignedSolMag, fmtUsdSmart } from "./lib/format";
+import { fmtSolMag, fmtSignedSolMag, fmtUsdSmart, pnlColor } from "./lib/format";
+import { cn } from "./lib/utils";
+
+/** Mirror of the hero Realized / Unrealized stacked value node (overflow-proof). */
+function RealizedUnrealizedValue({
+  realized,
+  unrealized,
+}: {
+  realized: number;
+  unrealized: number | null;
+}) {
+  return (
+    <span className="flex w-full flex-col gap-2 text-lg sm:text-xl">
+      <span className="flex min-w-0 flex-col">
+        <span className="text-[10px] font-sans font-semibold uppercase tracking-wider text-muted-foreground">
+          Realized
+        </span>
+        <span className={cn("tabular-nums break-words leading-tight", pnlColor(realized))}>
+          {fmtSignedSolMag(realized)} SOL
+        </span>
+      </span>
+      <span className="flex min-w-0 flex-col">
+        <span className="text-[10px] font-sans font-semibold uppercase tracking-wider text-muted-foreground">
+          Unrealized
+        </span>
+        {unrealized != null ? (
+          <span className={cn("tabular-nums break-words leading-tight", pnlColor(unrealized))}>
+            {fmtSignedSolMag(unrealized)} SOL
+          </span>
+        ) : (
+          <span className="text-warning text-sm">Unverified</span>
+        )}
+      </span>
+    </span>
+  );
+}
 
 function Section({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
   return (
@@ -148,12 +183,30 @@ function App() {
       </Section>
 
       <Section id="summary" title="Trading Analysis summary">
-        <Grid>
-          <MetricTile label="On-Chain Portfolio" value={`${fmtSolMag(39.7312)} SOL`} sub={fmtUsdSmart(7731.4)} tone="default" />
-          <MetricTile label="Historical Trading P&L" value={`${fmtSignedSolMag(-1243.51)} SOL`} tone="negative" />
-          <MetricTile label="Portfolio Quality" value="72 / 100" tone="positive" />
-          <MetricTile label="Realized / Unrealized" value={`${fmtSignedSolMag(-1200.2)} SOL`} sub={`${fmtSignedSolMag(-43.3)} SOL unrealized`} />
-        </Grid>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
+          <MetricTile label="On-Chain Portfolio" size="lg" value={`${fmtSolMag(39.7312)} SOL`} sub={fmtUsdSmart(7731.4)} tone="default" />
+          <MetricTile label="Historical Trading P&L" size="lg" value={`${fmtSignedSolMag(-1243.51)} SOL`} tone="negative" />
+          <MetricTile
+            label="Realized / Unrealized"
+            size="lg"
+            value={<RealizedUnrealizedValue realized={-1200.29} unrealized={-43.31} />}
+            sub="Closed trades vs open positions"
+          />
+          <MetricTile label="Portfolio Quality" size="lg" value={72} tone="positive" sub="Structure, concentration & asset quality" />
+        </div>
+      </Section>
+
+      <Section id="profile" title="Trader Profile (style + strengths/weaknesses)">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 mb-3">
+          <MetricTile label="Risk Style" value={<span className="text-base sm:text-lg">Aggressive</span>} tone="muted" />
+          <MetricTile label="Decision Style" value={<span className="text-base sm:text-lg">Rule-based</span>} tone="muted" />
+          <MetricTile label="Exit Style" value={<span className="text-base sm:text-lg">Fast exits</span>} tone="muted" />
+          <MetricTile label="Trading Pace" value={<span className="text-base sm:text-lg">Rotational</span>} tone="muted" />
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-success/20 bg-success/5 px-2.5 py-1 text-xs"><span className="font-medium">Conviction</span><span className="tabular-nums text-success">77</span></span>
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-warning/20 bg-amber-500/5 px-2.5 py-1 text-xs"><span className="font-medium">Profitability</span><span className="tabular-nums text-warning">41</span></span>
+        </div>
       </Section>
 
       <Section id="signals" title="Trader Intelligence signals">
@@ -167,26 +220,31 @@ function App() {
         </Grid>
       </Section>
 
-      <Section id="risk" title="Risk & Exposure">
+      <Section id="risk" title="Risk & Exposure (current only)">
         <Grid>
           <MetricTile label="Current Exposure" value={`${fmtSolMag(0.0249)} SOL`} />
           <MetricTile label="Concentration" value="100%" tone="negative" />
           <MetricTile label="Open Positions" value={1} />
           <MetricTile label="Unrealized P&L" value="Unverified" tone="warning" />
-          <MetricTile label="Avg Historical Entry" value={`${fmtSolMag(12.4)} SOL`} />
-          <MetricTile label="Historical Breadth" value={137} />
+          <MetricTile label="Unpriced Holdings" value={2} tone="warning" />
+          <MetricTile label="Dead / Dust" value="3 / 5" tone="warning" />
         </Grid>
       </Section>
 
-      <Section id="detailed" title="Detailed Metrics">
+      <Section id="detailed" title="Detailed Metrics (single reference)">
         <Grid>
           <MetricTile label="Win Rate" value="52.4%" tone="positive" />
           <MetricTile label="Completed Round Trips" value={128} />
+          <MetricTile label="Avg Gain" value={`${fmtSignedSolMag(4.2)} SOL`} tone="positive" />
+          <MetricTile label="Avg Loss" value={`${fmtSolMag(2.1)} SOL`} tone="negative" />
+          <MetricTile label="Largest Gain" value={`${fmtSolMag(842.5)} SOL`} tone="positive" />
+          <MetricTile label="Largest Loss" value={`${fmtSolMag(1250.9)} SOL`} tone="negative" />
+          <MetricTile label="Avg Entry Size" value={`${fmtSolMag(12.4)} SOL`} />
           <MetricTile label="Breakeven Trades" value={4} />
           <MetricTile label="Avg FDV Bought" value={fmtUsdSmart(19_800_000)} />
-          <MetricTile label="Avg Mkt Cap Bought" value={fmtUsdSmart(3_000)} />
           <MetricTile label="Median Hold" value="7.6h" />
           <MetricTile label="Swaps / Week" value="16.0" />
+          <MetricTile label="Unique Tokens" value={137} />
           <MetricTile label="Wallet Age" value="212d" />
         </Grid>
       </Section>
