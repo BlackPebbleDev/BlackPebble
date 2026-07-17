@@ -33,7 +33,7 @@ export function PageHeader({
   className?: string;
 }) {
   return (
-    <div className={cn("mb-4 sm:mb-5", className)}>
+    <div className={cn("mb-3 sm:mb-4", className)}>
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2.5">
