@@ -17,6 +17,11 @@ import {
   CoverageBanner,
   HoldingsQualitySection,
 } from "./components/real-trading-intelligence";
+import {
+  EntryIntelligenceSection,
+  ExitIntelligenceSection,
+  CurrentLiquiditySection,
+} from "./components/trader-intelligence/entry-exit-intelligence";
 import type { RealAnalysisSummary } from "./lib/api";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { fmtSolMag, fmtSignedSolMag, fmtUsdSmart, pnlColor } from "./lib/format";
@@ -90,6 +95,80 @@ const MOCK_ANALYSIS = {
       { key: "liquidity_coverage", label: "Liquidity Coverage", value: null, available: false, note: "Not available yet." },
     ],
     limitations: ["Reflects only live-verified, traced current holdings; untraced tokens are excluded."],
+  },
+  enrichmentStatus: "ready",
+  entryQuality: {
+    eligibleEntries: 128,
+    analyzedEntries: 96,
+    coveragePercent: 75,
+    avgEntryScore: 58,
+    medianEntryScore: 61,
+    buyingAfterRunUpRate: 0.42,
+    pullbackEntryRate: 0.31,
+    immediateAdverseMoveRate: 0.28,
+    positiveFollowThroughRate: 0.54,
+    bestSupportedPattern: "pullback",
+    weakestSupportedPattern: "rapid_rise",
+    confidence: "medium",
+    limitations: [
+      "Historical candles were unavailable for 32 entries, which are excluded from scoring.",
+      "Pre-entry windows use the most relevant pool near the trade time.",
+    ],
+  },
+  exitQuality: {
+    eligibleExits: 128,
+    analyzedExits: 88,
+    coveragePercent: 69,
+    avgExitScore: 47,
+    medianExitScore: 44,
+    earlyExitRate: 0.38,
+    panicExitRate: 0.12,
+    strongProfitCaptureRate: 0.29,
+    downsideAvoidanceRate: 0.41,
+    avgCapturedFavorableExcursion: 52,
+    confidence: "medium",
+    limitations: [
+      "Post-exit figures are historical hindsight and do not imply the move was predictable.",
+      "4-hour post-exit windows were unavailable for some recent exits.",
+    ],
+  },
+  liquidityRisk: {
+    scope: "current",
+    positions: [
+      { mint: "BIGWHALEPOSITIONMINT1111111111", symbol: "WHALECOIN", liquidityUsd: 1_284_000, holdingValueUsd: 254_000, holdingToLiquidityPct: 19.8, band: "deep", exitability: "moderate", unpriced: false, missingLiquidity: false, limitations: [] },
+      { mint: "MID2222222222222222222222222222", symbol: "MID", liquidityUsd: 42_000, holdingValueUsd: 8_400, holdingToLiquidityPct: 20.0, band: "thin", exitability: "difficult", unpriced: false, missingLiquidity: false, limitations: [] },
+      { mint: "FRAGILE4444444444444444444444444", symbol: "FRAGILETOKENNAME", liquidityUsd: 6_200, holdingValueUsd: 5_900, holdingToLiquidityPct: 95.2, band: "fragile", exitability: "severe", unpriced: false, missingLiquidity: false, limitations: ["Trade size is a large share of pool liquidity."] },
+      { mint: "NOPRICE333333333333333333333333", symbol: "GHOSTPRICE", liquidityUsd: null, holdingValueUsd: null, holdingToLiquidityPct: null, band: "unavailable", exitability: "unknown", unpriced: true, missingLiquidity: true, limitations: ["No live pool liquidity available."] },
+    ],
+    pricedHoldingsCoverage: 0.75,
+    liquidityCoverage: 0.75,
+    weightedLiquidityQuality: 62,
+    largestHoldingToLiquidityPct: 95.2,
+    fragilePositionsCount: 1,
+    unavailablePositionsCount: 1,
+    confidence: "medium",
+    limitations: ["Current holdings only; never mixed with historical trade liquidity."],
+  },
+} as unknown as RealAnalysisSummary;
+
+const MOCK_UNAVAILABLE = {
+  ...MOCK_ANALYSIS,
+  enrichmentStatus: "processing",
+  entryQuality: {
+    ...(MOCK_ANALYSIS as unknown as { entryQuality: unknown }).entryQuality as Record<string, unknown>,
+    analyzedEntries: 0,
+    coveragePercent: 0,
+    avgEntryScore: null,
+    medianEntryScore: null,
+    confidence: "insufficient",
+  },
+  exitQuality: {
+    ...(MOCK_ANALYSIS as unknown as { exitQuality: unknown }).exitQuality as Record<string, unknown>,
+    analyzedExits: 0,
+    coveragePercent: 0,
+    avgExitScore: null,
+    medianExitScore: null,
+    confidence: "insufficient",
   },
 } as unknown as RealAnalysisSummary;
 
@@ -320,6 +399,26 @@ function App() {
 
       <Section id="holdingsquality" title="Current Holdings Quality (Phase 2B)">
         <HoldingsQualitySection analysis={MOCK_ANALYSIS} />
+      </Section>
+
+      <Section id="entryintelligence" title="Entry Intelligence (Phase 2C)">
+        <EntryIntelligenceSection analysis={MOCK_ANALYSIS} onOpenTrades={() => {}} />
+      </Section>
+
+      <Section id="exitintelligence" title="Exit Intelligence (Phase 2C)">
+        <ExitIntelligenceSection analysis={MOCK_ANALYSIS} onOpenTrades={() => {}} />
+      </Section>
+
+      <Section id="currentliquidity" title="Current Holdings Liquidity (Phase 2C)">
+        <CurrentLiquiditySection analysis={MOCK_ANALYSIS} />
+      </Section>
+
+      <Section id="entryintelligence-processing" title="Entry Intelligence — processing state (Phase 2C)">
+        <EntryIntelligenceSection analysis={MOCK_UNAVAILABLE} onEnrich={() => {}} />
+      </Section>
+
+      <Section id="exitintelligence-processing" title="Exit Intelligence — processing state (Phase 2C)">
+        <ExitIntelligenceSection analysis={MOCK_UNAVAILABLE} onEnrich={() => {}} />
       </Section>
 
       <Section id="detailed" title="Detailed Metrics (single reference)">
