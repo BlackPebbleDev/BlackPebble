@@ -35,16 +35,11 @@ export interface UtilityMeta {
   testId: string;
 }
 
+// Ordered by user importance / expected usage frequency (not development order):
+// manage your wallet → understand your trading → participate in the community →
+// improve your process → plan future trades. Insert future utilities by the same
+// principle rather than appending.
 export const UTILITIES: UtilityMeta[] = [
-  {
-    key: "journal",
-    title: "Trading Journal",
-    description:
-      "Record trade reviews, track your emotions and lessons, and improve your decisions over time.",
-    href: "/utilities/journal",
-    icon: BookOpen,
-    testId: "link-trading-journal",
-  },
   {
     key: "wallet_cleanup",
     title: "Wallet Cleanup",
@@ -74,6 +69,15 @@ export const UTILITIES: UtilityMeta[] = [
     icon: HandCoins,
     flag: "community_campaigns",
     testId: "link-campaigns",
+  },
+  {
+    key: "journal",
+    title: "Trading Journal",
+    description:
+      "Record trade reviews, track your emotions and lessons, and improve your decisions over time.",
+    href: "/utilities/journal",
+    icon: BookOpen,
+    testId: "link-trading-journal",
   },
   {
     key: "trade_planner",
