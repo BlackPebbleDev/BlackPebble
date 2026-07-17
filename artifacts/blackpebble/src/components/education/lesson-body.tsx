@@ -58,20 +58,26 @@ export function LessonBody({
   related?: { label: string; path: string };
   callout?: LessonCallout;
 }) {
+  const hasWhat = !!what.trim();
+  const hasWhy = !!why.trim();
   return (
     <div className="space-y-3 text-sm leading-relaxed text-muted-foreground">
-      <div>
-        <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-foreground/80">
-          What it means
+      {hasWhat ? (
+        <div>
+          <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-foreground/80">
+            What it means
+          </div>
+          <p>{what}</p>
         </div>
-        <p>{what}</p>
-      </div>
-      <div>
-        <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-foreground/80">
-          Why it matters
+      ) : null}
+      {hasWhy ? (
+        <div>
+          <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-foreground/80">
+            Why it matters
+          </div>
+          <p>{why}</p>
         </div>
-        <p>{why}</p>
-      </div>
+      ) : null}
       {example ? (
         <div>
           <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-foreground/80">

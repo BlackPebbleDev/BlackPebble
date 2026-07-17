@@ -123,7 +123,7 @@ export const blackpebbleFeaturesCategory: AcademyCategory = {
       "Community Campaigns",
       "Community Campaigns let organizers collect contributions toward shared goals with transparent ledgers and escrow. Contributors can track progress and outcomes.",
       "Campaigns enable coordinated community funding with accountability.",
-      { aliases: ["campaigns", "funding"], related: { label: "Community Campaigns", path: "/utilities/campaigns" }, callout: { type: "advanced", text: "Campaign features are evolving. Check current documentation for exact behavior." } },
+      { aliases: ["campaigns", "funding"], related: { label: "Community Campaigns", path: "/campaigns" }, callout: { type: "advanced", text: "Campaign features are evolving. Check current documentation for exact behavior." } },
     ),
     L(
       "notifications",

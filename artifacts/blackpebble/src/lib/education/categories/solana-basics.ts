@@ -88,7 +88,7 @@ export const solanaBasicsCategory: AcademyCategory = {
       "Escrow",
       "Escrow holds funds in a secure on-chain program until conditions are met. Neither party can withdraw early. Community Campaigns use escrow-like patterns for funding rounds.",
       "Escrow adds safety by preventing unilateral fund movement until goals are met.",
-      { aliases: ["escrow account", "locked funds"], related: { label: "Community Campaigns", path: "/utilities/campaigns" } },
+      { aliases: ["escrow account", "locked funds"], related: { label: "Community Campaigns", path: "/campaigns" } },
     ),
   ],
 };
