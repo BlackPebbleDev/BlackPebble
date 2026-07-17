@@ -15,6 +15,29 @@ import {
 import type { BehaviorInsight } from "./real-trading-behavior.js";
 import type { HistoricalRisk, RiskProfileTier } from "./real-trading-risk.js";
 import type { ConfidenceTier } from "./real-trading-confidence.js";
+import type { EntryQualitySummary } from "./real-trading-entry-quality.js";
+import type { ExitQualitySummary } from "./real-trading-exit-quality.js";
+import type { LiquidityRiskSummary } from "./real-trading-liquidity.js";
+
+/**
+ * Versioned coaching contract. A future AI layer pins to this version; bumping
+ * it signals a structural change so the model prompt can be updated in lockstep.
+ */
+export const COACHING_CONTEXT_VERSION = 2;
+
+/**
+ * Claims a future AI layer is explicitly forbidden from making. Carried in the
+ * context so the model prompt can hard-enforce them.
+ */
+export const COACHING_PROHIBITED_CLAIMS: string[] = [
+  "Do not guarantee profit or any financial outcome.",
+  "Do not recommend specific token purchases or exact entries.",
+  "Do not encourage leverage.",
+  "Do not encourage chasing or averaging into losses.",
+  "Do not claim certainty; describe patterns and confidence only.",
+  "Do not ignore missing data or low coverage.",
+  "Do not provide financial advice.",
+];
 
 export interface CoachingScoreRef {
   key: string;
@@ -31,7 +54,21 @@ export interface CoachingInsight {
   priority: "high" | "medium" | "low";
 }
 
+/** A concrete trade referenced as evidence for coaching. */
+export interface CoachingEvidenceTrade {
+  roundTripId: string;
+  mint: string;
+  realizedPnlSol: number;
+  reason: string;
+}
+
 export interface CoachingContext {
+  /** Contract version (see COACHING_CONTEXT_VERSION). */
+  version: number;
+  /** Analyzed date range [firstTradeAt, lastTradeAt] in unix seconds. */
+  analyzedRange: { start: number | null; end: number | null };
+  /** Coverage tier of the underlying report, when available. */
+  coverageTier: string | null;
   reportConfidence: ConfidenceTier;
   strengths: CoachingScoreRef[];
   developmentAreas: CoachingScoreRef[];
@@ -41,9 +78,28 @@ export interface CoachingContext {
     classification: string;
   }>;
   riskProfile: RiskProfileTier;
+  /** Compact summaries so a future AI layer never re-derives them. */
+  entryQuality: {
+    avgScore: number | null;
+    coveragePercent: number;
+    confidence: ConfidenceTier;
+  } | null;
+  exitQuality: {
+    avgScore: number | null;
+    coveragePercent: number;
+    confidence: ConfidenceTier;
+  } | null;
+  liquidity: {
+    weightedQuality: number | null;
+    fragileCount: number;
+    confidence: ConfidenceTier;
+  } | null;
   meaningfulChanges: Array<{ key: string; delta: number }>;
+  evidenceTrades: CoachingEvidenceTrade[];
   insights: CoachingInsight[];
   limitations: string[];
+  /** Hard guardrails a future AI layer must respect. */
+  prohibitedClaims: string[];
 }
 
 export interface CoachingInput {
@@ -51,6 +107,13 @@ export interface CoachingInput {
   insights: BehaviorInsight[];
   historicalRisk: HistoricalRisk;
   reportConfidence: ConfidenceTier;
+  // ── Phase 2C additive inputs (all optional; older callers still work) ──────
+  entrySummary?: EntryQualitySummary | null;
+  exitSummary?: ExitQualitySummary | null;
+  liquiditySummary?: LiquidityRiskSummary | null;
+  coverageTier?: string | null;
+  analyzedRange?: { start: number | null; end: number | null };
+  evidenceTrades?: CoachingEvidenceTrade[];
 }
 
 const BEHAVIOR_CONFIDENCE_FLOOR = 0.6;
@@ -59,6 +122,31 @@ const MAX_INSIGHTS = 4;
 /** Build the coaching context + rule-based insights. Pure. */
 export function buildCoachingContext(input: CoachingInput): CoachingContext {
   const { signals, insights, historicalRisk, reportConfidence } = input;
+  const analyzedRange = input.analyzedRange ?? { start: null, end: null };
+  const entryQuality = input.entrySummary
+    ? {
+        avgScore: input.entrySummary.avgEntryScore,
+        coveragePercent: input.entrySummary.coveragePercent,
+        confidence: input.entrySummary.confidence,
+      }
+    : null;
+  const exitQuality = input.exitSummary
+    ? {
+        avgScore: input.exitSummary.avgExitScore,
+        coveragePercent: input.exitSummary.coveragePercent,
+        confidence: input.exitSummary.confidence,
+      }
+    : null;
+  const liquidity = input.liquiditySummary
+    ? {
+        weightedQuality: input.liquiditySummary.weightedLiquidityQuality,
+        fragileCount: input.liquiditySummary.fragilePositionsCount,
+        confidence: input.liquiditySummary.confidence,
+      }
+    : null;
+  // Evidence trades come pre-selected by the engine; keep a stable, bounded copy.
+  const evidenceTrades = (input.evidenceTrades ?? []).slice(0, 6);
+  const coverageTier = input.coverageTier ?? null;
 
   const gradeable = signals.filter(
     (s) =>
@@ -113,17 +201,25 @@ export function buildCoachingContext(input: CoachingInput): CoachingContext {
       priority: "high",
     });
     return {
+      version: COACHING_CONTEXT_VERSION,
+      analyzedRange,
+      coverageTier,
       reportConfidence,
       strengths,
       developmentAreas,
       highConfidenceBehaviors,
       riskProfile: historicalRisk.profileTier,
+      entryQuality,
+      exitQuality,
+      liquidity,
       meaningfulChanges,
+      evidenceTrades,
       insights: insightsOut,
       limitations: [
         "These are rule-based insights, not AI. They read only your on-chain history.",
         "More completed trades will sharpen every recommendation.",
       ],
+      prohibitedClaims: COACHING_PROHIBITED_CLAIMS,
     };
   }
 
@@ -188,17 +284,25 @@ export function buildCoachingContext(input: CoachingInput): CoachingContext {
   insightsOut.sort((a, b) => priorityRank[a.priority] - priorityRank[b.priority]);
 
   return {
+    version: COACHING_CONTEXT_VERSION,
+    analyzedRange,
+    coverageTier,
     reportConfidence,
     strengths,
     developmentAreas,
     highConfidenceBehaviors,
     riskProfile: historicalRisk.profileTier,
+    entryQuality,
+    exitQuality,
+    liquidity,
     meaningfulChanges,
+    evidenceTrades,
     insights: insightsOut.slice(0, MAX_INSIGHTS),
     limitations: [
       "These are rule-based insights, not AI. They read only your on-chain history.",
       "Guidance describes patterns and associations, not guaranteed cause and effect.",
     ],
+    prohibitedClaims: COACHING_PROHIBITED_CLAIMS,
   };
 }
 

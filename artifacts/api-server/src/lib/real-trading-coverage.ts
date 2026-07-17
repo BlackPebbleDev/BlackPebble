@@ -29,6 +29,23 @@ export interface CoverageInput {
   /** Unix seconds of the first and last analyzed swap. */
   firstTradeAt: number | null;
   lastTradeAt: number | null;
+  // ── Phase 2C additive fields (all optional; default to unavailable) ────────
+  /** Fraction (0-1) of eligible entries with historical price coverage. */
+  entryQualityCoverage?: number | null;
+  /** Fraction (0-1) of eligible exits with historical price coverage. */
+  exitQualityCoverage?: number | null;
+  /** Fraction (0-1) of current holdings with pool-liquidity data. */
+  liquidityCoverage?: number | null;
+  /** Candle interval most used for enrichment (e.g. "15m"). */
+  candleInterval?: string | null;
+  /** Historical candles that were expected but unavailable. */
+  missingCandleCount?: number;
+  /** Candles served past their freshness window. */
+  staleCandleCount?: number;
+  /** Provider fetch failures during enrichment. */
+  providerFailureCount?: number;
+  /** Data sources contributing to the report. */
+  sources?: string[];
 }
 
 export interface ReportCoverage {
@@ -50,6 +67,15 @@ export interface ReportCoverage {
   /** Short human summary of the tier. */
   summary: string;
   limitations: string[];
+  // ── Phase 2C additive coverage surfaces (always present; may be null) ──────
+  entryQualityCoverage: number | null;
+  exitQualityCoverage: number | null;
+  liquidityCoverage: number | null;
+  candleInterval: string | null;
+  missingCandleCount: number;
+  staleCandleCount: number;
+  providerFailureCount: number;
+  sources: string[];
 }
 
 /** Minimum completed trades before the report's behavioral claims are trusted. */
@@ -135,5 +161,13 @@ export function computeCoverage(input: CoverageInput): ReportCoverage {
     tier,
     summary,
     limitations,
+    entryQualityCoverage: input.entryQualityCoverage ?? null,
+    exitQualityCoverage: input.exitQualityCoverage ?? null,
+    liquidityCoverage: input.liquidityCoverage ?? null,
+    candleInterval: input.candleInterval ?? null,
+    missingCandleCount: input.missingCandleCount ?? 0,
+    staleCandleCount: input.staleCandleCount ?? 0,
+    providerFailureCount: input.providerFailureCount ?? 0,
+    sources: input.sources ?? ["helius_swap_history", "dexscreener_prices"],
   };
 }
