@@ -7,7 +7,7 @@
  */
 import React from "react";
 import { createRoot } from "react-dom/client";
-import { Search, Bell, TrendingUp } from "lucide-react";
+import { Search, Bell, TrendingUp, Star, Megaphone, ScrollText, MoreHorizontal, Share2, Copy } from "lucide-react";
 import "./index.css";
 import { MetricTile } from "./components/metric-tile";
 import { PageHeader } from "./components/page-header";
@@ -92,7 +92,14 @@ function App() {
         <PageHeader
           icon={TrendingUp}
           title="Markets"
-          subtitle="Last updated 2m ago"
+          actions={
+            <span className="inline-flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="font-mono font-semibold tracking-widest uppercase text-[10px] text-emerald-400">
+                Live
+              </span>
+            </span>
+          }
         />
         <PageHeader
           icon={TrendingUp}
@@ -101,11 +108,43 @@ function App() {
         />
       </Section>
 
+      <Section id="tokenactions" title="Token page action buttons (pill-sized)">
+        <div className="flex flex-wrap items-center gap-2">
+          {[
+            { icon: Star, label: "Watch" },
+            { icon: Megaphone, label: "Call" },
+            { icon: ScrollText, label: "Thesis" },
+            { icon: MoreHorizontal, label: "More" },
+            { icon: Share2, label: "Share" },
+            { icon: Copy, label: "7Yg…k3pN" },
+          ].map(({ icon: Icon, label }) => (
+            <button
+              key={label}
+              className="flex items-center gap-2 px-3 h-8 rounded-full text-xs font-medium bg-secondary/60 text-muted-foreground transition-all"
+            >
+              <Icon className="w-4 h-4" />
+              {label}
+            </button>
+          ))}
+        </div>
+      </Section>
+
       <Section id="filters" title="Shared FilterPills (scroll + wrap)">
         <div className="mb-3">
-          <FilterPills options={SCROLL_TABS} value={scroll} onChange={setScroll} scroll ariaLabel="Scroll filter" />
+          <FilterPills
+            options={SCROLL_TABS}
+            value={scroll}
+            onChange={(id) => setScroll(id as typeof scroll)}
+            scroll
+            ariaLabel="Scroll filter"
+          />
         </div>
-        <FilterPills options={WRAP_TABS} value={wrap} onChange={setWrap} ariaLabel="Wrap filter" />
+        <FilterPills
+          options={WRAP_TABS}
+          value={wrap}
+          onChange={(id) => setWrap(id as typeof wrap)}
+          ariaLabel="Wrap filter"
+        />
       </Section>
 
       <Section id="summary" title="Trading Analysis summary">
