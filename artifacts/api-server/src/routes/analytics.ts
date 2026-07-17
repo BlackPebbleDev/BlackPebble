@@ -42,6 +42,18 @@ const ALLOWED_EVENTS = new Set([
   "full_reset_executed",
   "social_reset_executed",
   "journal_reset_executed",
+  // Academy (education) funnel - type-only beacons, no PII.
+  "academy_viewed",
+  "academy_search_performed",
+  "academy_search_zero_results",
+  "academy_category_viewed",
+  "academy_lesson_viewed",
+  "academy_related_lesson_clicked",
+  "academy_related_feature_clicked",
+  "academy_interactive_started",
+  "academy_interactive_completed",
+  "academy_practice_started",
+  "academy_share_clicked",
 ]);
 
 let ensured = false;

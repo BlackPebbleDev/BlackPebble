@@ -26,6 +26,11 @@ import { getGuestState } from "@/lib/guest-store";
 import { useAccount } from "@/hooks/use-account";
 import { UserIdentity } from "@/components/user-identity";
 import { cn } from "@/lib/utils";
+import {
+  searchLessons,
+  classifyIntent,
+  type LessonSearchResult,
+} from "@/lib/education/search";
 
 interface TokenSearchProps {
   onSelect: (mint: string) => void;
@@ -91,7 +96,7 @@ export function TokenSearch({
   onSelect,
   wallet,
   className,
-  placeholder = "Search tokens, traders, tools...",
+  placeholder = "Search BlackPebble",
 }: TokenSearchProps) {
   const { isGuest } = useAccount();
   const [, navigate] = useLocation();
@@ -114,6 +119,19 @@ export function TokenSearch({
     () => (trimmed.length >= 2 ? matchRoutes(UTILITIES, trimmed) : []),
     [trimmed],
   );
+
+  // Deterministic search intent drives token-vs-concept disambiguation: a
+  // contract/mint or @handle favors tokens/traders (no lessons), a $ticker
+  // shows a couple of lessons below tokens, a natural-language question favors
+  // lessons above tokens, and an ambiguous term shows both.
+  const intent = useMemo(() => classifyIntent(trimmed), [trimmed]);
+  const learnFirst = intent === "question";
+  const lessons = useMemo<LessonSearchResult[]>(() => {
+    if (trimmed.length < 2) return [];
+    if (intent === "address" || intent === "handle") return [];
+    const limit = intent === "ticker" ? 2 : intent === "question" ? 6 : 4;
+    return searchLessons(trimmed, limit);
+  }, [trimmed, intent]);
 
   useEffect(() => {
     if (trimmed.length < 2) {
@@ -175,13 +193,17 @@ export function TokenSearch({
   // Flattened list of selectable actions (in render order) for keyboard nav.
   const flat = useMemo(() => {
     const actions: Array<() => void> = [];
+    const pushLessons = () =>
+      lessons.forEach((l) => actions.push(() => selectRoute(l.path)));
+    if (learnFirst) pushLessons();
     tokens.forEach((r) => actions.push(() => selectToken(r.mint)));
     if (user) actions.push(() => selectRoute(`/u/${user.handle}`));
+    if (!learnFirst) pushLessons();
     utilities.forEach((u) => actions.push(() => selectRoute(u.path)));
     pages.forEach((p) => actions.push(() => selectRoute(p.path)));
     return actions;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tokens, user, utilities, pages]);
+  }, [tokens, user, utilities, pages, lessons, learnFirst]);
 
   useEffect(() => {
     setActiveIdx(-1);
@@ -224,10 +246,52 @@ export function TokenSearch({
   }
 
   const hasResults =
-    tokens.length > 0 || user != null || utilities.length > 0 || pages.length > 0;
+    tokens.length > 0 ||
+    user != null ||
+    utilities.length > 0 ||
+    pages.length > 0 ||
+    lessons.length > 0;
+
+  // A useful empty state when the query is long enough but nothing matched.
+  const showEmptyState =
+    open && !loading && trimmed.length >= 2 && !hasResults;
 
   // Running offset so each group's items map to the right flat index.
   let idx = 0;
+
+  const renderLearnGroup = () =>
+    lessons.length > 0 ? (
+      <SearchGroup label="Learn">
+        {lessons.map((l) => {
+          const i = idx++;
+          return (
+            <button
+              key={l.slug}
+              onMouseEnter={() => setActiveIdx(i)}
+              onClick={() => selectRoute(l.path)}
+              data-testid={`search-lesson-${l.slug}`}
+              className={rowCls(i === activeIdx)}
+            >
+              <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-accent flex-shrink-0">
+                <GraduationCap className="w-4 h-4" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-sm text-foreground truncate">{l.title}</div>
+                <div className="text-xs text-muted-foreground truncate">
+                  {l.categoryTitle}
+                  {l.matchedAlias ? ` · ${l.matchedAlias}` : ""}
+                </div>
+              </div>
+              {l.estimatedMinutes != null && (
+                <div className="text-xs text-muted-foreground font-mono flex-shrink-0">
+                  {l.estimatedMinutes}m
+                </div>
+              )}
+            </button>
+          );
+        })}
+      </SearchGroup>
+    ) : null;
 
   return (
     <div ref={containerRef} className={cn("relative w-full", className)}>
@@ -253,8 +317,27 @@ export function TokenSearch({
         )}
       </div>
 
-      {open && hasResults && (
+      {open && (hasResults || showEmptyState) && (
         <div className="absolute z-50 mt-2 w-full max-h-[70vh] sm:max-h-96 overflow-y-auto rounded-2xl bg-popover border border-popover-border p-1.5 shadow-elevated">
+          {showEmptyState && (
+            <div className="px-3 py-6 text-center">
+              <div className="text-sm font-medium text-foreground">
+                No results for "{trimmed}"
+              </div>
+              <div className="mt-1 text-xs text-muted-foreground">
+                Try another spelling, paste a token address, or{" "}
+                <button
+                  type="button"
+                  onClick={() => selectRoute("/learn")}
+                  className="text-accent hover:text-accent/80"
+                >
+                  browse the Academy
+                </button>
+                .
+              </div>
+            </div>
+          )}
+          {learnFirst && renderLearnGroup()}
           {tokens.length > 0 && (
             <SearchGroup label="Tokens">
               {tokens.map((r) => {
@@ -329,6 +412,8 @@ export function TokenSearch({
               })()}
             </SearchGroup>
           )}
+
+          {!learnFirst && renderLearnGroup()}
 
           {utilities.length > 0 && (
             <SearchGroup label="Utilities">

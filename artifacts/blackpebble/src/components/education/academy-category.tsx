@@ -1,37 +1,8 @@
-import {
-  AlertTriangle,
-  BarChart3,
-  Compass,
-  HandCoins,
-  Link2,
-  MessageCircle,
-  Rocket,
-  Shield,
-  Sparkles,
-  TrendingUp,
-  Users,
-  Wallet,
-  type LucideIcon,
-} from "lucide-react";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { AcademyCategory, CategoryIcon } from "@/lib/education/types";
+import type { AcademyCategory } from "@/lib/education/types";
+import { CATEGORY_ICONS } from "./category-icon";
 import { LessonAccordionRow } from "./lesson-accordion";
-
-const CATEGORY_ICONS: Record<CategoryIcon, LucideIcon> = {
-  compass: Compass,
-  trending: TrendingUp,
-  "bar-chart": BarChart3,
-  shield: Shield,
-  link: Link2,
-  wallet: Wallet,
-  rocket: Rocket,
-  alert: AlertTriangle,
-  sparkles: Sparkles,
-  users: Users,
-  "hand-coins": HandCoins,
-  message: MessageCircle,
-};
 
 export function AcademyCategorySection({
   category,

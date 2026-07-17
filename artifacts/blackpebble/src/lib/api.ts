@@ -378,7 +378,19 @@ export type AnalyticsEventType =
   | "follow_created"
   | "follow_removed"
   | "feed_tab_changed"
-  | "x_profile_link_clicked";
+  | "x_profile_link_clicked"
+  // Academy (education) funnel - type-only beacons, no PII.
+  | "academy_viewed"
+  | "academy_search_performed"
+  | "academy_search_zero_results"
+  | "academy_category_viewed"
+  | "academy_lesson_viewed"
+  | "academy_related_lesson_clicked"
+  | "academy_related_feature_clicked"
+  | "academy_interactive_started"
+  | "academy_interactive_completed"
+  | "academy_practice_started"
+  | "academy_share_clicked";
 
 export interface AdminHealth {
   api: { ok: boolean; uptimeSeconds: number; node: string };

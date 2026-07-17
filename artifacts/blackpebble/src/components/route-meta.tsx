@@ -42,9 +42,18 @@ export function RouteMeta() {
   const [location] = useLocation();
 
   useEffect(() => {
-    const seo = seoForPath(location);
     const url = canonicalForLocation(location);
 
+    // Academy category/lesson pages set their own per-page title, description,
+    // and structured data (see use-academy-meta). Only keep the canonical URL
+    // authoritative here so this effect does not overwrite the richer metadata.
+    const clean = location.split(/[?#]/)[0] || "/";
+    if (clean.startsWith("/learn/")) {
+      setCanonical(url);
+      return;
+    }
+
+    const seo = seoForPath(location);
     const socialTitle = seo.ogTitle ?? seo.title;
     document.title = seo.title;
     setMetaByName("description", seo.description);

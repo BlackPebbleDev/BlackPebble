@@ -115,3 +115,71 @@ export function trackFeedTabChanged(): void {
 export function trackXProfileLinkClicked(): void {
   fire("x_profile_link_clicked");
 }
+
+// ── Academy (education) ─────────────────────────────────────────────────────
+// Type-only beacons consistent with the existing analytics provider. Richer
+// payloads (lesson slug, category, chain scope) are a documented future
+// extension that would require an additive column on analytics_events.
+
+/** Academy homepage viewed (once per session). */
+export function trackAcademyViewed(): void {
+  if (oncePerSession("academy_viewed")) fire("academy_viewed");
+}
+
+/** An Academy search was performed (first per session). */
+export function trackAcademySearchPerformed(): void {
+  if (oncePerSession("academy_search_performed")) fire("academy_search_performed");
+}
+
+/** An Academy search returned no results (first per session). */
+export function trackAcademySearchZeroResults(): void {
+  if (oncePerSession("academy_search_zero_results")) {
+    fire("academy_search_zero_results");
+  }
+}
+
+/** A category page was viewed. */
+export function trackAcademyCategoryViewed(): void {
+  fire("academy_category_viewed");
+}
+
+/** A lesson page was viewed. */
+export function trackAcademyLessonViewed(): void {
+  fire("academy_lesson_viewed");
+}
+
+/** A related lesson link was clicked. */
+export function trackAcademyRelatedLessonClicked(): void {
+  fire("academy_related_lesson_clicked");
+}
+
+/** A related BlackPebble feature link was clicked from a lesson. */
+export function trackAcademyRelatedFeatureClicked(): void {
+  fire("academy_related_feature_clicked");
+}
+
+/** An interactive module was opened (first per session). */
+export function trackAcademyInteractiveStarted(): void {
+  if (oncePerSession("academy_interactive_started")) {
+    fire("academy_interactive_started");
+  }
+}
+
+/** The user interacted with an interactive module (first per session). */
+export function trackAcademyInteractiveCompleted(): void {
+  if (oncePerSession("academy_interactive_completed")) {
+    fire("academy_interactive_completed");
+  }
+}
+
+/** A practice challenge / practice CTA was started (first per session). */
+export function trackAcademyPracticeStarted(): void {
+  if (oncePerSession("academy_practice_started")) {
+    fire("academy_practice_started");
+  }
+}
+
+/** A lesson share action was used. */
+export function trackAcademyShareClicked(): void {
+  fire("academy_share_clicked");
+}

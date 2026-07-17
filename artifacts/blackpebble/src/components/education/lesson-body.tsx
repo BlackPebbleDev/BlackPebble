@@ -26,6 +26,18 @@ const CALLOUT_STYLES: Record<
     label: "Advanced note",
     className: "border-border bg-surface-2/80 text-muted-foreground",
   },
+  important: {
+    label: "Important",
+    className: "border-accent/25 bg-accent/10 text-foreground",
+  },
+  mistake: {
+    label: "Common mistake",
+    className: "border-destructive-border/40 bg-destructive/10 text-foreground",
+  },
+  methodology: {
+    label: "Methodology note",
+    className: "border-border bg-surface-2/80 text-muted-foreground",
+  },
 };
 
 export function LessonCalloutBox({ callout }: { callout: LessonCallout }) {

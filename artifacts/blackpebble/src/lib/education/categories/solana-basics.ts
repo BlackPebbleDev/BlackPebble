@@ -51,9 +51,33 @@ export const solanaBasicsCategory: AcademyCategory = {
     L(
       "network-fees",
       "Network Fees",
-      "Network fees pay validators to process transactions. Priority fees can jump the queue during congestion. Fees are typically fractions of a cent, but network load affects them.",
+      "Network fees pay the network to process your transaction. The core idea is universal across chains: every action costs a small fee, and paying more can get you processed faster when the network is busy.",
       "Understanding fees helps you estimate transaction costs, especially during high-activity periods.",
-      { aliases: ["gas", "transaction fee", "priority fee"] },
+      {
+        aliases: ["gas", "transaction fee", "priority fee", "network fee"],
+        shortAnswer:
+          "Network fees are what you pay a blockchain to process a transaction. The mechanics differ by chain but the idea is the same everywhere.",
+        difficulty: "beginner",
+        estimatedMinutes: 4,
+        chainScope: "multichain",
+        chainModules: [
+          {
+            chain: "solana",
+            title: "Solana fees and priority fees",
+            body: "Base fees are tiny fractions of a cent. During congestion you can add a priority fee to jump the queue. You pay fees in SOL, so always keep a small SOL reserve.",
+          },
+          {
+            chain: "ethereum",
+            title: "Ethereum gas",
+            body: "Fees are called gas and are paid in ETH. Gas can be far higher than on Solana and rises sharply with network demand, so timing and gas limits matter.",
+          },
+          {
+            chain: "base",
+            title: "Base and L2 fees",
+            body: "Base is an Ethereum layer-2, so fees are much lower than Ethereum mainnet but still settle to Ethereum. You pay in ETH on Base.",
+          },
+        ],
+      },
     ),
     L(
       "rent-and-closing",
