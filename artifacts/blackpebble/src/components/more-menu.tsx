@@ -325,7 +325,7 @@ export function MoreMenu({
         data-testid="button-token-more"
         title="More"
         className={cn(
-          "flex items-center gap-2 px-4 h-10 rounded-full text-xs font-medium transition-all",
+          "flex items-center gap-2 px-3 h-8 rounded-full text-xs font-medium transition-all",
           open
             ? "bg-secondary text-foreground"
             : "bg-secondary/60 text-muted-foreground hover:text-foreground hover:bg-secondary",

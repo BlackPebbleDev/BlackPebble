@@ -458,7 +458,6 @@ export default function Markets() {
     | { tokens: TokenInfo[]; lastUpdated?: number | null }
     | null;
   const tokens: TokenInfo[] = feed?.tokens ?? [];
-  const lastUpdated = feed?.lastUpdated ?? null;
 
   // Manual refresh: force the server to bypass its feed caches, then refetch
   // every Markets query so the active tab (and the others) pull fresh data.
@@ -481,15 +480,14 @@ export default function Markets() {
       <PageHeader
         icon={TrendingUp}
         title="Markets"
-        // Title row stays clean (icon + Markets). LIVE + Refresh live on a
-        // secondary meta row so mobile never crowds the title or clips Refresh
-        // off the right edge. Desktop keeps a labeled Refresh pill; mobile
-        // collapses to a compact icon button.
-        meta={
-          <div className="flex w-full min-w-0 items-center gap-2">
+        // LIVE + Refresh sit on the title row (right-aligned). No "Last updated"
+        // line — the LIVE indicator already conveys freshness — so the token
+        // list starts higher.
+        actions={
+          <div className="flex items-center gap-2">
             {isListFeed && dataUpdatedAt > 0 && (
               <div className="min-w-0 overflow-hidden">
-                <LiveIndicator dataUpdatedAt={dataUpdatedAt} />
+                <LiveIndicator dataUpdatedAt={dataUpdatedAt} compact />
               </div>
             )}
             <button
@@ -500,11 +498,11 @@ export default function Markets() {
               title="Refresh market data"
               aria-label={isRefreshing ? "Refreshing market data" : "Refresh market data"}
               className={cn(
-                "ml-auto inline-flex flex-shrink-0 items-center justify-center gap-1.5 rounded-full border border-border text-muted-foreground transition-colors",
+                "inline-flex flex-shrink-0 items-center justify-center gap-1.5 rounded-full border border-border text-muted-foreground transition-colors",
                 "hover:text-foreground hover:border-accent/50",
                 "disabled:opacity-60 disabled:cursor-not-allowed",
                 // Mobile: compact icon button. Desktop: labeled pill.
-                "h-8 w-8 sm:h-auto sm:w-auto sm:px-3.5 sm:py-1.5",
+                "h-8 w-8 sm:h-auto sm:w-auto sm:px-3 sm:py-1.5",
               )}
             >
               <RefreshCw
@@ -516,13 +514,6 @@ export default function Markets() {
             </button>
           </div>
         }
-        subtitle={
-          <span className="text-xs text-muted-foreground/70" data-testid="text-last-updated">
-            {lastUpdated
-              ? `Last updated ${timeAgo(lastUpdated)}`
-              : "Awaiting first update…"}
-          </span>
-        }
       />
 
       <FilterPills
@@ -532,7 +523,7 @@ export default function Markets() {
         ariaLabel="Market category"
         testIdPrefix="tab-market"
         scroll
-        className="mb-4"
+        className="mb-3"
       />
 
       {tab === "migrated" ? (

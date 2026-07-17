@@ -2273,7 +2273,7 @@ function WatchButton({ info }: { info: TokenInfo }) {
       onClick={toggle}
       data-testid="button-watchlist-toggle"
       className={cn(
-        "flex items-center gap-2 px-4 h-10 rounded-full text-xs font-medium transition-all",
+        "flex items-center gap-2 px-3 h-8 rounded-full text-xs font-medium transition-all",
         watched
           ? "bg-accent/15 text-accent"
           : "bg-secondary/60 text-muted-foreground hover:text-foreground hover:bg-secondary",
@@ -2352,7 +2352,7 @@ function CallTokenButton({ info }: { info: TokenInfo }) {
         onClick={handleClick}
         data-testid="button-call-token"
         className={cn(
-          "flex items-center gap-2 px-4 h-10 rounded-full text-xs font-medium transition-all",
+          "flex items-center gap-2 px-3 h-8 rounded-full text-xs font-medium transition-all",
           hasCalled
             ? "bg-accent/15 text-accent hover:bg-accent/25"
             : "bg-secondary/60 text-muted-foreground hover:text-foreground hover:bg-secondary",
@@ -2542,7 +2542,7 @@ function ThesisButton({ info }: { info: TokenInfo }) {
       <button
         onClick={handleClick}
         data-testid="button-thesis"
-        className="flex items-center gap-2 px-4 h-10 rounded-full text-xs font-medium bg-secondary/60 text-muted-foreground hover:text-foreground hover:bg-secondary transition-all"
+        className="flex items-center gap-2 px-3 h-8 rounded-full text-xs font-medium bg-secondary/60 text-muted-foreground hover:text-foreground hover:bg-secondary transition-all"
       >
         <ScrollText className="w-4 h-4" />
         Thesis
@@ -2691,7 +2691,7 @@ function CopyContract({ mint }: { mint: string }) {
       onClick={copy}
       data-testid="button-copy-contract"
       title="Copy contract address"
-      className="flex items-center gap-2 px-4 h-10 rounded-full bg-secondary/60 text-xs font-mono text-muted-foreground hover:text-foreground hover:bg-secondary transition-all"
+      className="flex items-center gap-2 px-3 h-8 rounded-full bg-secondary/60 text-xs font-mono text-muted-foreground hover:text-foreground hover:bg-secondary transition-all"
     >
       {copied ? (
         <Check className="w-4 h-4 text-accent" />

@@ -584,7 +584,7 @@ export default function Leaderboard() {
         ariaLabel="Leaderboard category"
         testIdPrefix="category"
         scroll
-        className="mb-4"
+        className="mb-3"
       />
 
       {category === "top_callers" ? (
