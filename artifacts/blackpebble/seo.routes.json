@@ -81,6 +81,11 @@
       "path": "/learn",
       "title": "BlackPebble Academy | Crypto & Memecoin Trading Education",
       "description": "Learn crypto and memecoin trading, wallet safety, PnL and risk management, market data, and BlackPebble tools. Currently focused on Solana, built for multichain."
+    },
+    {
+      "path": "/learn/interactive",
+      "title": "Interactive Crypto Lessons: Simulators & Scenarios | BlackPebble Academy",
+      "description": "Browse BlackPebble Academy's hands-on interactive lessons — simulators, calculators, scenarios, and predictions. Filter by type and difficulty and learn crypto by doing."
     }
   ]
 }
