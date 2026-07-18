@@ -438,6 +438,10 @@ export const tradingBasicsCategory: AcademyCategory = {
         estimatedMinutes: 6,
         chainScope: "universal",
         interactiveModule: "pnl-simulator",
+        diagrams: [
+          { id: "realized-unrealized", placement: "top" },
+          { id: "trader-intelligence", placement: "inline", caption: "BlackPebble's Trading Intelligence reads your real, realized trade history to surface patterns — never predictions." },
+        ],
         version: 1,
         updatedAt: "July 2026",
         learningObjectives: [
@@ -519,6 +523,46 @@ export const tradingBasicsCategory: AcademyCategory = {
             text: "The interactive calculator uses simulated values, excludes taxes, and describes only the scenario you enter. It does not predict future prices.",
           },
         ],
+        quiz: {
+          id: "profit-and-loss-quiz",
+          questions: [
+            {
+              id: "q1",
+              prompt: "You are up 200% on a token you still hold. This gain is:",
+              options: [
+                "Realized — it's money you've kept",
+                "Unrealized — it can still change until you sell",
+                "Guaranteed to grow",
+                "Already in your wallet as cash",
+              ],
+              correctIndex: 1,
+              explanation:
+                "While you still hold the position, the gain is unrealized. It only becomes realized (and truly yours) when you sell.",
+            },
+            {
+              id: "q2",
+              prompt: "You buy $1,000 of a token and sell it all for $1,300, paying $30 in total fees. What is your realized PnL?",
+              options: ["$300", "$270", "$1,300", "$30"],
+              correctIndex: 1,
+              explanation:
+                "Realized PnL is proceeds minus cost minus fees: $1,300 − $1,000 − $30 = $270.",
+            },
+            {
+              id: "q3",
+              prompt: "Which statements about judging performance are sound? (Select all that apply.)",
+              kind: "multiple",
+              options: [
+                "Unrealized gains can disappear if price reverses",
+                "Fees and slippage make real PnL lower than a simple price difference",
+                "One lucky trade proves you have an edge",
+                "Realized results across many trades are more honest than a single open position",
+              ],
+              correctIndices: [0, 1, 3],
+              explanation:
+                "Unrealized gains are fragile, costs reduce real PnL, and skill shows across many realized trades — not one lucky outcome.",
+            },
+          ],
+        },
       },
     ),
     L(
@@ -695,6 +739,7 @@ export const tradingBasicsCategory: AcademyCategory = {
         estimatedMinutes: 6,
         chainScope: "universal",
         interactiveModules: [{ id: "trading-psychology-scenarios" }],
+        diagrams: [{ id: "emotion-cycle", placement: "top" }],
         version: 1,
         updatedAt: "July 2026",
         learningObjectives: [

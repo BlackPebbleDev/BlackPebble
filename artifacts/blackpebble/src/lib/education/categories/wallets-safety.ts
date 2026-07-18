@@ -167,7 +167,80 @@ export const walletsSafetyCategory: AcademyCategory = {
       "SOL Recovery and Wallet Cleanup",
       "SOL recovery retrieves rent deposits from closed accounts. Wallet Cleanup finds empty token accounts, dust, and spam NFTs that can be closed or burned. Both involve real on-chain transactions after your review and signature.",
       "Recovering rent SOL consolidates scattered funds into usable balance.",
-      { aliases: ["SOL recovery", "cleanup", "dust"], related: { label: "Wallet Cleanup", path: "/utilities/wallet-cleaner" } },
+      {
+        aliases: ["SOL recovery", "cleanup", "dust", "rent", "wallet cleanup", "close accounts"],
+        keywords: ["rent", "empty token account", "dust", "spam NFT", "reclaim SOL"],
+        shortAnswer:
+          "Empty token accounts lock small amounts of SOL as rent. Wallet Cleanup finds them and closes them so that SOL comes back to you — after you review and sign.",
+        difficulty: "beginner",
+        estimatedMinutes: 4,
+        chainScope: "solana",
+        diagrams: [{ id: "wallet-cleanup", placement: "top" }],
+        version: 1,
+        updatedAt: "July 2026",
+        learningObjectives: [
+          "Explain why empty accounts lock up SOL as rent",
+          "Understand what Wallet Cleanup recovers and how",
+          "Know that cleanup is real, signed, and reviewable",
+        ],
+        sections: [
+          {
+            kind: "quick-answer",
+            body: "Every token account on Solana holds a small amount of SOL as 'rent'. When an account is empty, that rent is just sitting there. Wallet Cleanup finds those accounts and closes them so the rent returns to your balance.",
+          },
+          {
+            kind: "what",
+            body: "Over time you accumulate empty token accounts, dust (tiny leftover balances), and spam NFTs. Each empty account has recoverable rent. SOL recovery and Wallet Cleanup batch these into transactions you review and sign.",
+          },
+          {
+            kind: "why",
+            body: "It is your SOL — it's just locked in accounts you no longer use. Recovering it consolidates scattered funds back into a usable balance, and clearing spam makes your wallet easier to read.",
+          },
+          {
+            kind: "stakes",
+            body: "Cleanup involves real, irreversible on-chain transactions. Closing an account you still need, or burning a token you meant to keep, cannot be undone — so review the list before you sign, and never approve a cleanup you don't understand.",
+          },
+          {
+            kind: "try-in-blackpebble",
+            body: "Open Wallet Cleanup, connect a wallet (a burner is fine to start), and it scans read-only for recoverable rent and junk. Nothing happens on-chain until you review the list and sign.",
+          },
+        ],
+        tips: [
+          "Empty token accounts are your SOL locked as rent — cleanup gives it back.",
+          "Review every account before signing; closing and burning are permanent.",
+          "Try it with a burner wallet first to see how the flow works.",
+        ],
+        relatedLessonSlugs: ["burning-and-closing", "connecting-vs-signing", "verify-before-signing"],
+        relatedFeatures: [{ label: "Wallet Cleanup", path: "/utilities/wallet-cleaner" }],
+        related: { label: "Wallet Cleanup", path: "/utilities/wallet-cleaner" },
+        quiz: {
+          id: "recovery-and-cleanup-quiz",
+          questions: [
+            {
+              id: "q1",
+              prompt: "Why does closing an empty token account return some SOL?",
+              options: [
+                "It's a reward for cleaning up",
+                "The account held SOL as rent, which is refunded on close",
+                "The network pays interest",
+                "It sells the token for you",
+              ],
+              correctIndex: 1,
+              explanation:
+                "Token accounts hold a small rent deposit in SOL. Closing an empty account refunds that rent to you.",
+            },
+            {
+              id: "q2",
+              prompt: "Wallet Cleanup can move funds without your signature.",
+              kind: "boolean",
+              options: ["True", "False"],
+              correctIndex: 1,
+              explanation:
+                "Cleanup only creates real on-chain transactions after you review the list and sign. Nothing happens without your approval.",
+            },
+          ],
+        },
+      },
     ),
     L(
       "burning-and-closing",

@@ -215,7 +215,10 @@ export const startHereCategory: AcademyCategory = {
         difficulty: "beginner",
         estimatedMinutes: 4,
         chainScope: "universal",
-        diagrams: [{ id: "connect-vs-sign", placement: "top" }],
+        diagrams: [
+          { id: "connect-vs-sign", placement: "top" },
+          { id: "transaction-flow", placement: "inline", caption: "Real actions become on-chain transactions once you sign — and confirmed transactions cannot be reversed." },
+        ],
         version: 1,
         updatedAt: "July 2026",
         learningObjectives: [

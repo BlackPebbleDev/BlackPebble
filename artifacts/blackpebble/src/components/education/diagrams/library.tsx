@@ -507,6 +507,54 @@ function WalletCleanup() {
   );
 }
 
+/* ── Realized vs unrealized PnL ───────────────────────────────────────────── */
+function RealizedUnrealized() {
+  return (
+    <>
+      <DiagramLabel x={160} y={24} className="text-foreground" size={12}>Realized vs unrealized PnL</DiagramLabel>
+      <g className="text-success">
+        <rect x="26" y="46" width="126" height="96" rx="12" fill="currentColor" fillOpacity="0.08" stroke="currentColor" strokeWidth="1.4" />
+        <path d="M52 92l12 12 24-28" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      </g>
+      <DiagramLabel x={89} y={78} className="text-foreground" size={11}>Realized</DiagramLabel>
+      <DiagramLabel x={89} y={122} className="text-muted-foreground" size={9}>you sold</DiagramLabel>
+      <DiagramLabel x={89} y={134} className="text-success" size={9} weight={600}>locked in ✓</DiagramLabel>
+      <g className="text-warning">
+        <rect x="168" y="46" width="126" height="96" rx="12" fill="currentColor" fillOpacity="0.08" stroke="currentColor" strokeWidth="1.4" />
+        <path d="M214 74v22M231 82v14M197 84v12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      </g>
+      <DiagramLabel x={231} y={78} className="text-foreground" size={11}>Unrealized</DiagramLabel>
+      <DiagramLabel x={231} y={122} className="text-muted-foreground" size={9}>still holding</DiagramLabel>
+      <DiagramLabel x={231} y={134} className="text-warning" size={9} weight={600}>can still vanish</DiagramLabel>
+      <DiagramLabel x={160} y={162} className="text-muted-foreground" size={9} weight={500}>A gain is only really yours once you sell</DiagramLabel>
+    </>
+  );
+}
+
+/* ── Emotion cycle: feelings peak at the worst time ───────────────────────── */
+function EmotionCycle({ animated }: DiagramProps) {
+  return (
+    <>
+      <DiagramLabel x={160} y={20} className="text-foreground" size={12}>Emotions peak at the worst time</DiagramLabel>
+      <path d="M28 120 Q70 118 96 80 Q118 48 150 46 Q188 44 214 96 Q236 138 292 128" className={cn("text-muted-foreground", animated && "bp-anim-flow")} fill="none" stroke="currentColor" strokeWidth="1.8" />
+      <g className="text-destructive">
+        <circle cx="150" cy="46" r="5" fill="currentColor" className={animated ? "bp-anim-pulse" : undefined} />
+      </g>
+      <DiagramLabel x={150} y={38} className="text-destructive" size={9} weight={600}>Euphoria · FOMO</DiagramLabel>
+      <DiagramLabel x={150} y={62} className="text-muted-foreground" size={8}>buying here = bad</DiagramLabel>
+      <g className="text-destructive">
+        <circle cx="220" cy="112" r="5" fill="currentColor" className={animated ? "bp-anim-pulse" : undefined} />
+      </g>
+      <DiagramLabel x={252} y={116} className="text-destructive" size={9} weight={600}>Panic</DiagramLabel>
+      <DiagramLabel x={252} y={128} className="text-muted-foreground" size={8}>selling here = bad</DiagramLabel>
+      <g className="text-success">
+        <circle cx="70" cy="112" r="4" fill="currentColor" />
+      </g>
+      <DiagramLabel x={64} y={132} anchor="start" className="text-success" size={9}>calm plan wins</DiagramLabel>
+    </>
+  );
+}
+
 export interface DiagramEntry {
   title: string;
   caption: string;
@@ -622,5 +670,16 @@ export const DIAGRAM_LIBRARY: Record<LessonDiagramId, DiagramEntry> = {
     title: "Wallet Cleanup",
     caption: "Empty token accounts lock small amounts of SOL as rent. Wallet Cleanup closes them so that SOL returns to you, after you review and sign.",
     Component: WalletCleanup,
+  },
+  "realized-unrealized": {
+    title: "Realized vs unrealized PnL",
+    caption: "Realized PnL is locked in once you sell. Unrealized PnL is only a paper gain or loss on what you still hold — it can still change or vanish before you sell.",
+    Component: RealizedUnrealized,
+  },
+  "emotion-cycle": {
+    title: "The emotional cycle of a trade",
+    caption: "Fear and greed peak at exactly the wrong moments: FOMO tempts you to buy the top and panic tempts you to sell the bottom. A calm, pre-set plan beats reacting to either.",
+    Component: EmotionCycle,
+    animated: true,
   },
 };

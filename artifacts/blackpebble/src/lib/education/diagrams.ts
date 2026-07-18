@@ -33,7 +33,9 @@ export type LessonDiagramId =
   | "rug-pull"
   | "risk-reward"
   | "trader-intelligence"
-  | "wallet-cleanup";
+  | "wallet-cleanup"
+  | "realized-unrealized"
+  | "emotion-cycle";
 
 /**
  * A reference from lesson content to a diagram. `caption` overrides the
@@ -68,6 +70,8 @@ export const LESSON_DIAGRAM_IDS = [
   "risk-reward",
   "trader-intelligence",
   "wallet-cleanup",
+  "realized-unrealized",
+  "emotion-cycle",
 ] as const satisfies readonly LessonDiagramId[];
 
 const DIAGRAM_ID_SET = new Set<string>(LESSON_DIAGRAM_IDS);
