@@ -131,7 +131,10 @@ export type InteractiveModuleId =
   | "memecoin-launch-lifecycle"
   | "bonding-curve-simulator"
   | "rug-pull-scenario"
-  | "trading-psychology-scenarios";
+  | "trading-psychology-scenarios"
+  | "concept-reveal"
+  | "sequence-builder"
+  | "spot-the-scam";
 
 /** Where a module renders relative to the lesson body. */
 export type InteractivePlacement = "inline" | "after-sections" | "standalone";
