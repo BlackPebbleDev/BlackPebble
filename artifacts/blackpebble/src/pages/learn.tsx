@@ -18,7 +18,12 @@ import {
   getLessonBySlug,
   getNormalizedLesson,
 } from "@/lib/education/registry";
-import { searchLessons, classifyIntent } from "@/lib/education/search";
+import {
+  searchLessons,
+  classifyIntent,
+  suggestQuery,
+  popularLessonSlugs,
+} from "@/lib/education/search";
 import {
   computePathCompletion,
   getPublishedLearningPaths,
@@ -137,6 +142,17 @@ export default function LearnPage() {
   const results = useMemo(
     () => (trimmed ? searchLessons(trimmed, 40) : []),
     [trimmed],
+  );
+  const suggestion = useMemo(
+    () => (trimmed ? suggestQuery(trimmed) : undefined),
+    [trimmed],
+  );
+  const popularCards = useMemo(
+    () =>
+      popularLessonSlugs()
+        .map((slug) => toCardData(slug))
+        .filter((c): c is LessonCardData => !!c),
+    [],
   );
 
   useEffect(() => {
@@ -261,10 +277,74 @@ export default function LearnPage() {
         /* Search results mode */
         <div className="space-y-3">
           <SectionHeading title={`Results for "${trimmed}"`} />
+          {suggestion ? (
+            <p className="text-sm text-muted-foreground">
+              Did you mean{" "}
+              <button
+                type="button"
+                onClick={() => setQuery(suggestion)}
+                className="font-semibold text-accent hover:text-accent/80"
+                data-testid="search-did-you-mean"
+              >
+                {suggestion}
+              </button>
+              ?
+            </p>
+          ) : null}
           {results.length === 0 ? (
-            <div className="rounded-2xl bg-card shadow-card px-5 py-10 text-center text-sm text-muted-foreground">
-              No lessons matched your search. Try CA, MC, TP, SL, PnL, ATH, or a
-              feature name.
+            <div className="space-y-5 rounded-2xl bg-card p-5 shadow-card sm:p-6">
+              <div className="text-center">
+                <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-accent/10">
+                  <Search className="h-5 w-5 text-accent" aria-hidden />
+                </div>
+                <p className="mt-3 text-sm font-medium text-foreground">
+                  No exact match for "{trimmed}"
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {suggestion ? (
+                    <>
+                      Try{" "}
+                      <button
+                        type="button"
+                        onClick={() => setQuery(suggestion)}
+                        className="font-semibold text-accent hover:text-accent/80"
+                      >
+                        {suggestion}
+                      </button>
+                      , browse a topic below, or start with these beginner
+                      lessons.
+                    </>
+                  ) : (
+                    <>
+                      Try plain English (like "how do I stay safe?"), a shorthand
+                      (CA, MC, SL, PnL), or start with these beginner lessons.
+                    </>
+                  )}
+                </p>
+              </div>
+              {popularCards.length > 0 ? (
+                <div>
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-foreground/80">
+                    Popular with beginners
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {popularCards.map((c) => (
+                      <LessonCard key={c.slug} lesson={c} showCategory />
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+              <div className="flex flex-wrap gap-2">
+                {ACADEMY_CATEGORIES.map((category) => (
+                  <Link
+                    key={category.id}
+                    href={categoryPath(category.id)}
+                    className="rounded-full border border-border bg-surface-2 px-3 py-1 text-xs font-medium text-muted-foreground transition-colors hover:border-accent/30 hover:text-foreground"
+                  >
+                    {category.title}
+                  </Link>
+                ))}
+              </div>
             </div>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2">

@@ -4,6 +4,9 @@ import {
   classifyIntent,
   expandQuery,
   lessonDocCount,
+  editDistance,
+  suggestQuery,
+  popularLessonSlugs,
 } from "./search";
 
 const SOL_MINT = "So11111111111111111111111111111111111111112";
@@ -70,5 +73,48 @@ describe("academy search", () => {
     expect(searchLessons("$PNL", 2).map((r) => r.slug)).toContain(
       "profit-and-loss",
     );
+  });
+
+  describe("typo tolerance", () => {
+    it("computes bounded edit distance", () => {
+      expect(editDistance("slipage", "slippage")).toBe(1);
+      expect(editDistance("walet", "wallet")).toBe(1);
+      expect(editDistance("abc", "xyz", 2)).toBe(3);
+    });
+
+    it("finds slippage content despite a typo", () => {
+      expect(slugs("slipage")).toContain("price-impact-and-slippage");
+    });
+
+    it("finds wallet content despite a typo", () => {
+      const results = slugs("walet");
+      expect(results.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe("synonyms", () => {
+    it("maps plain-English words to canonical concepts", () => {
+      expect(expandQuery("coin")).toContain("token");
+      expect(expandQuery("rugged")).toContain("rug pull");
+      expect(expandQuery("gas")).toContain("fees");
+    });
+  });
+
+  describe("did-you-mean", () => {
+    it("suggests a correction for a near-miss", () => {
+      expect(suggestQuery("slipage")).toBe("slippage");
+    });
+    it("returns nothing for an exact concept", () => {
+      expect(suggestQuery("slippage")).toBeUndefined();
+    });
+    it("returns nothing for very short input", () => {
+      expect(suggestQuery("a")).toBeUndefined();
+    });
+  });
+
+  it("offers popular beginner lessons for zero-result fallbacks", () => {
+    const popular = popularLessonSlugs();
+    expect(popular.length).toBeGreaterThan(0);
+    expect(popular).toContain("what-is-blackpebble");
   });
 });
