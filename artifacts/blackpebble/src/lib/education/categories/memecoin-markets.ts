@@ -11,7 +11,131 @@ export const memecoinMarketsCategory: AcademyCategory = {
       "Launch Lifecycle",
       "Memecoins often start on a bonding curve (price rises with each buy), then migrate to a DEX after graduation when a funding threshold is met. Pre-migration tokens have different liquidity rules than post-migration tokens.",
       "Understanding phases helps you know whether a token is early, migrating, or established.",
-      { aliases: ["bonding curve", "migration", "graduation", "new pair"], related: { label: "Markets", path: "/markets" } },
+      {
+        aliases: ["bonding curve", "migration", "graduation", "new pair", "launch lifecycle", "memecoin launch"],
+        keywords: ["pump.fun", "launchpad", "graduation", "liquidity migration", "early buyers"],
+        shortAnswer:
+          "A memecoin usually moves through creation, early buying on a curve, graduation/migration to a DEX, then open-market trading — each phase carries different liquidity and risk.",
+        difficulty: "beginner",
+        estimatedMinutes: 6,
+        chainScope: "multichain",
+        interactiveModules: [{ id: "memecoin-launch-lifecycle" }],
+        version: 1,
+        updatedAt: "July 2026",
+        learningObjectives: [
+          "Name the phases of a typical memecoin launch",
+          "Explain why pre- and post-migration liquidity differ",
+          "Spot which phase carries which risks",
+        ],
+        sections: [
+          {
+            kind: "quick-answer",
+            body: "A launch typically runs: token creation, early buyers on a bonding curve or initial pool, a graduation/migration threshold, liquidity migration to a DEX, then open-market trading. Each phase changes how price and liquidity behave.",
+          },
+          {
+            kind: "what",
+            body: "Creation mints the token. Early buyers push price along a curve or seed an initial pool. Graduation is a funding threshold that triggers migration. Migration moves liquidity to a DEX pair. After that, the token trades on the open market like any other pair.",
+          },
+          {
+            kind: "why",
+            body: "Pre-migration tokens can have thin, mechanically-priced liquidity that moves sharply. Post-migration tokens depend on the seeded pool depth. Knowing the phase tells you whether you are early, at a volatile handoff, or in an established market.",
+          },
+          {
+            kind: "common-mistakes",
+            body: "Assuming every chain and launchpad works exactly like one platform. The core lifecycle is universal, but thresholds, curves, and fees vary by launchpad and chain.",
+          },
+        ],
+        commonMistakes: [
+          "Treating a pre-migration price like a deep, liquid market.",
+          "Ignoring the volatility around the migration handoff.",
+        ],
+        relatedLessonSlugs: ["bonding-curves", "liquidity-seeding", "top-holders", "rug-pulls"],
+        related: { label: "Markets", path: "/markets" },
+        quiz: {
+          id: "launch-lifecycle-quiz",
+          questions: [
+            {
+              id: "q1",
+              prompt: "What is graduation in a memecoin launch?",
+              options: [
+                "The token is delisted",
+                "A funding threshold that triggers migration to a DEX",
+                "The developer sells everything",
+                "A guaranteed price increase",
+              ],
+              correctIndex: 1,
+              explanation:
+                "Graduation is a funding threshold that moves the token from its launch curve to a DEX pool.",
+            },
+          ],
+        },
+      },
+    ),
+    L(
+      "bonding-curves",
+      "Bonding Curves",
+      "A bonding curve is a formula that sets a token's price based on how much supply has been bought. Price rises as more tokens are purchased and falls as they are sold, so earlier buyers pay less than later buyers along the same curve.",
+      "Bonding curves explain why the first buyers of a launch get a very different price than people who buy after a wave of demand.",
+      {
+        aliases: ["bonding curve", "curve", "price curve", "launch curve"],
+        keywords: ["early buyers", "migration threshold", "constant product", "launchpad curve"],
+        shortAnswer:
+          "A bonding curve prices a token by how much supply has been bought: buying pushes price up along the curve, selling pushes it down.",
+        difficulty: "beginner",
+        estimatedMinutes: 6,
+        chainScope: "multichain",
+        interactiveModules: [{ id: "bonding-curve-simulator" }],
+        version: 1,
+        updatedAt: "July 2026",
+        learningObjectives: [
+          "Explain how a bonding curve sets price from supply sold",
+          "See why early buyers pay less than later buyers",
+          "Understand the migration threshold concept",
+        ],
+        sections: [
+          {
+            kind: "quick-answer",
+            body: "A bonding curve is a pricing formula: the more supply that has been bought, the higher the price, and selling moves back down the curve. It lets a token trade before it has a traditional liquidity pool.",
+          },
+          {
+            kind: "what",
+            body: "Instead of matching buyers and sellers, a bonding curve prices each buy and sell directly from a formula tied to supply sold. Early purchases sit low on the curve; as demand climbs the curve, each new buy costs more.",
+          },
+          {
+            kind: "why",
+            body: "This is why the earliest buyers of a launch have a much lower cost basis than people who arrive after a pump. It also concentrates risk: if demand reverses, price slides back down the same curve.",
+          },
+          {
+            kind: "advanced",
+            advanced: true,
+            body: "Different launchpads use different curve shapes (linear, exponential, or constant-product style). The simulator here uses a clearly simplified educational curve to build intuition, not to reproduce any specific launchpad's exact formula. Once a funding threshold is met, the token typically migrates to a standard DEX pool and stops pricing from the curve.",
+          },
+        ],
+        commonMistakes: [
+          "Assuming the curve guarantees the price keeps rising — selling moves back down it.",
+          "Treating one launchpad's curve as if every curve is identical.",
+        ],
+        relatedLessonSlugs: ["launch-lifecycle", "liquidity-seeding", "price-impact-and-slippage"],
+        related: { label: "Markets", path: "/markets" },
+        quiz: {
+          id: "bonding-curves-quiz",
+          questions: [
+            {
+              id: "q1",
+              prompt: "On a bonding curve, later buyers usually pay:",
+              options: [
+                "Less than earlier buyers",
+                "The same as earlier buyers",
+                "More than earlier buyers",
+                "Nothing",
+              ],
+              correctIndex: 2,
+              explanation:
+                "Buying pushes price up the curve, so later buyers pay more than earlier ones.",
+            },
+          ],
+        },
+      },
     ),
     L(
       "liquidity-seeding",
@@ -32,7 +156,68 @@ export const memecoinMarketsCategory: AcademyCategory = {
       "Top Holders and Distribution",
       "Top holder percentage shows how much supply sits in the largest wallets. Concentrated ownership means fewer players can move the market.",
       "Diversified holder bases are generally safer from coordinated sells.",
-      { aliases: ["holder distribution", "whale concentration", "top 10 holders"] },
+      {
+        aliases: ["holder distribution", "whale concentration", "top 10 holders", "holder concentration", "developer wallet", "dev supply"],
+        keywords: ["top holders", "whale", "distribution risk", "clusters", "developer supply"],
+        shortAnswer:
+          "Holder concentration measures how much supply the largest wallets control. The more concentrated it is, the more a few holders can move the market.",
+        difficulty: "beginner",
+        estimatedMinutes: 5,
+        chainScope: "universal",
+        interactiveModules: [{ id: "holder-concentration-explorer" }],
+        version: 1,
+        updatedAt: "July 2026",
+        learningObjectives: [
+          "Read top-holder and top-10 percentages",
+          "Explain why concentration raises dump risk",
+          "Avoid treating any single threshold as universally safe",
+        ],
+        sections: [
+          {
+            kind: "quick-answer",
+            body: "Holder concentration is how much of the supply the biggest wallets hold. High concentration means a small number of holders (whales, insiders, or the developer) can move price on their own.",
+          },
+          {
+            kind: "what",
+            body: "Top-holder percentage looks at the single largest wallets. Top-10 percentage sums the ten largest. Developer supply and clustered wallets (multiple addresses controlled together) can hide true concentration.",
+          },
+          {
+            kind: "why",
+            body: "If a few wallets hold most of the supply, coordinated selling can crash the price while everyone else is stuck. A wider distribution is generally more resilient, though it is never a guarantee.",
+          },
+          {
+            kind: "common-mistakes",
+            body: "Trusting a single 'safe' concentration number. Real distributions vary, wallets can be split to look decentralized, and locked/burned supply changes the picture.",
+          },
+        ],
+        commonMistakes: [
+          "Assuming one fixed concentration percentage is always safe.",
+          "Ignoring clustered wallets that are controlled by the same party.",
+        ],
+        relatedLessonSlugs: ["wallet-distribution", "rug-pulls", "burned-vs-locked"],
+        callout: {
+          type: "safety",
+          text: "Very high top-holder or developer concentration is a warning sign, not proof of a scam. Weigh it alongside liquidity, authorities, and lock status.",
+        },
+        quiz: {
+          id: "top-holders-quiz",
+          questions: [
+            {
+              id: "q1",
+              prompt: "Higher holder concentration generally means:",
+              options: [
+                "Lower dump risk",
+                "A few wallets can move the market more easily",
+                "The token is guaranteed safe",
+                "There is no developer wallet",
+              ],
+              correctIndex: 1,
+              explanation:
+                "Concentrated ownership lets a small number of holders move price, raising coordinated-sell risk.",
+            },
+          ],
+        },
+      },
     ),
     L(
       "burned-vs-locked",
@@ -67,7 +252,66 @@ export const memecoinMarketsCategory: AcademyCategory = {
       "Rug Pulls",
       "A rug pull is when creators abandon or drain liquidity, crashing the price. A slow rug is a gradual sell-off by insiders. Both leave later buyers holding worthless tokens.",
       "Watch for sudden liquidity removal or coordinated insider sells.",
-      { aliases: ["rug", "slow rug", "soft rug"], callout: { type: "safety", text: "Rugs can happen fast. Watch liquidity, holder changes, and dev activity." } },
+      {
+        aliases: ["rug", "slow rug", "soft rug", "rug pull", "rugpull", "scam token"],
+        keywords: ["unlocked liquidity", "mint authority", "warning signs", "insider selling", "fake social proof"],
+        shortAnswer:
+          "A rug pull is when a token's creators drain or abandon liquidity so the price collapses. Warning signs cluster: concentrated supply, unlocked liquidity, risky authorities, and fake hype.",
+        difficulty: "beginner",
+        estimatedMinutes: 6,
+        chainScope: "universal",
+        interactiveModules: [{ id: "rug-pull-scenario" }],
+        version: 1,
+        updatedAt: "July 2026",
+        learningObjectives: [
+          "List common rug-pull warning signs",
+          "Understand why no single signal is proof",
+          "Combine signals to judge risk",
+        ],
+        sections: [
+          {
+            kind: "quick-answer",
+            body: "A rug pull crashes a token when insiders remove liquidity or dump supply. It is rarely one signal: concentrated holders, unlocked liquidity, dangerous token authorities, unverifiable claims, and coordinated hype tend to appear together.",
+          },
+          {
+            kind: "what",
+            body: "A hard rug removes or drains liquidity suddenly. A slow rug is a gradual insider sell-off. Both leave later buyers holding tokens they cannot sell at a fair price.",
+          },
+          {
+            kind: "why",
+            body: "Learning to weigh several warning signs together protects you better than reacting to any one metric. The exercise below asks you to review a fictional token and identify the risks.",
+          },
+          {
+            kind: "common-mistakes",
+            body: "Relying on a single 'green flag' (like a nice website) while ignoring unlocked liquidity or a wallet that controls most of the supply.",
+          },
+        ],
+        commonMistakes: [
+          "Trusting hype and social proof over on-chain facts.",
+          "Assuming a single safe signal outweighs several risky ones.",
+        ],
+        relatedLessonSlugs: ["top-holders", "burned-vs-locked", "token-authorities", "wallet-distribution"],
+        callout: { type: "safety", text: "Rugs can happen fast. Watch liquidity, holder changes, and dev activity. This lesson uses fictional tokens only and never labels a real project a scam." },
+        quiz: {
+          id: "rug-pulls-quiz",
+          questions: [
+            {
+              id: "q1",
+              prompt: "Which combination is the strongest rug-pull warning?",
+              kind: "multiple",
+              options: [
+                "Unlocked liquidity",
+                "Supply concentrated in a few wallets",
+                "Active mint authority",
+                "A published roadmap",
+              ],
+              correctIndices: [0, 1, 2],
+              explanation:
+                "Unlocked liquidity, concentrated supply, and an active mint authority are all on-chain risk signals; a roadmap alone proves nothing.",
+            },
+          ],
+        },
+      },
     ),
     L(
       "cto",

@@ -7,7 +7,7 @@
  * never affect the user's session. No PII is sent; `anonId` is the random
  * per-device id from the guest store.
  */
-import { api, type AnalyticsEventType } from "./api";
+import { api, type AnalyticsEventType, type AnalyticsEventProps } from "./api";
 
 const FLAG_PREFIX = "bp:analytics:";
 
@@ -35,8 +35,20 @@ function oncePerSession(key: string): boolean {
   }
 }
 
-function fire(type: AnalyticsEventType, anonId?: string | null): void {
-  void api.analytics.track(type, anonId).catch(() => {});
+function fire(
+  type: AnalyticsEventType,
+  anonId?: string | null,
+  props?: AnalyticsEventProps,
+): void {
+  void api.analytics.track(type, anonId, props).catch(() => {});
+}
+
+/** Academy events never carry an anonId; they carry a typed props payload. */
+function fireAcademy(
+  type: AnalyticsEventType,
+  props?: AcademyEventProps,
+): void {
+  fire(type, null, props);
 }
 
 /** A device became a guest (first time the guest store is initialized). */
@@ -114,4 +126,107 @@ export function trackFeedTabChanged(): void {
 /** An outbound link to an X profile was clicked. */
 export function trackXProfileLinkClicked(): void {
   fire("x_profile_link_clicked");
+}
+
+// ── Academy (education) ─────────────────────────────────────────────────────
+// Beacons carry a small, typed, non-sensitive props payload (lesson slug,
+// category, module id, chain scope, source surface, etc). The backend
+// re-validates every field against an allowlist. Session dedup keys include the
+// relevant identity so per-lesson / per-module events are not over-suppressed.
+
+/** Where an Academy event originated (feeds `sourceSurface`). */
+export type AcademySourceSurface =
+  | "academy-home"
+  | "category-page"
+  | "lesson-page"
+  | "global-search"
+  | "learning-path"
+  | "product-portfolio"
+  | "product-trading-desk"
+  | "product-wallet"
+  | "product-trader-intelligence";
+
+export type AcademyEventProps = AnalyticsEventProps;
+
+/** Academy homepage viewed (once per session). */
+export function trackAcademyViewed(props?: AcademyEventProps): void {
+  if (oncePerSession("academy_viewed")) fireAcademy("academy_viewed", props);
+}
+
+/** An Academy search was performed (first per session). */
+export function trackAcademySearchPerformed(props?: AcademyEventProps): void {
+  if (oncePerSession("academy_search_performed")) {
+    fireAcademy("academy_search_performed", props);
+  }
+}
+
+/** An Academy search returned no results (first per session). */
+export function trackAcademySearchZeroResults(props?: AcademyEventProps): void {
+  if (oncePerSession("academy_search_zero_results")) {
+    fireAcademy("academy_search_zero_results", props);
+  }
+}
+
+/** A category page was viewed. */
+export function trackAcademyCategoryViewed(props?: AcademyEventProps): void {
+  fireAcademy("academy_category_viewed", props);
+}
+
+/** A lesson page was viewed. */
+export function trackAcademyLessonViewed(props?: AcademyEventProps): void {
+  fireAcademy("academy_lesson_viewed", props);
+}
+
+/** A related lesson link was clicked. */
+export function trackAcademyRelatedLessonClicked(props?: AcademyEventProps): void {
+  fireAcademy("academy_related_lesson_clicked", props);
+}
+
+/** A related BlackPebble feature link was clicked from a lesson. */
+export function trackAcademyRelatedFeatureClicked(
+  props?: AcademyEventProps,
+): void {
+  fireAcademy("academy_related_feature_clicked", props);
+}
+
+/** An interactive module was opened (first per module per session). */
+export function trackAcademyInteractiveStarted(props?: AcademyEventProps): void {
+  const key = `academy_interactive_started:${props?.moduleId ?? "unknown"}`;
+  if (oncePerSession(key)) fireAcademy("academy_interactive_started", props);
+}
+
+/** The user meaningfully completed an interactive module (first per module). */
+export function trackAcademyInteractiveCompleted(
+  props?: AcademyEventProps,
+): void {
+  const key = `academy_interactive_completed:${props?.moduleId ?? "unknown"}`;
+  if (oncePerSession(key)) fireAcademy("academy_interactive_completed", props);
+}
+
+/** A practice challenge / practice CTA was started (first per module). */
+export function trackAcademyPracticeStarted(props?: AcademyEventProps): void {
+  const key = `academy_practice_started:${props?.moduleId ?? "unknown"}`;
+  if (oncePerSession(key)) fireAcademy("academy_practice_started", props);
+}
+
+/** A lesson share action was used. */
+export function trackAcademyShareClicked(props?: AcademyEventProps): void {
+  fireAcademy("academy_share_clicked", props);
+}
+
+/** A learning path was started (first per path per session). */
+export function trackAcademyPathStarted(props?: AcademyEventProps): void {
+  const key = `academy_path_started:${props?.learningPathId ?? "unknown"}`;
+  if (oncePerSession(key)) fireAcademy("academy_path_started", props);
+}
+
+/** A learning-path step was viewed. */
+export function trackAcademyPathStepViewed(props?: AcademyEventProps): void {
+  fireAcademy("academy_path_step_viewed", props);
+}
+
+/** A learning path was completed (first per path per session). */
+export function trackAcademyPathCompleted(props?: AcademyEventProps): void {
+  const key = `academy_path_completed:${props?.learningPathId ?? "unknown"}`;
+  if (oncePerSession(key)) fireAcademy("academy_path_completed", props);
 }

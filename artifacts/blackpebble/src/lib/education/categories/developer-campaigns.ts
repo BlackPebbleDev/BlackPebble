@@ -18,7 +18,7 @@ export const developerCampaignsCategory: AcademyCategory = {
       "Campaign Basics",
       "A campaign is a community funding round with a clear goal, deadline, and transparent contribution ledger. Organizers create campaigns; contributors fund them.",
       "Campaigns enable coordinated community action with accountability.",
-      { aliases: ["campaign", "funding round"], related: { label: "Community Campaigns", path: "/utilities/campaigns" } },
+      { aliases: ["campaign", "funding round"], related: { label: "Community Campaigns", path: "/campaigns" } },
     ),
     L(
       "funding-and-ledger",

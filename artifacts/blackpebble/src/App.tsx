@@ -1,6 +1,6 @@
 import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useMemo, useEffect, useRef } from "react";
+import { useMemo, useEffect, useRef, lazy, Suspense } from "react";
 import {
   ConnectionProvider,
   WalletProvider,
@@ -46,8 +46,22 @@ import TradingJournal from "@/pages/journal";
 import TradingAnalysisPage from "@/pages/trading-analysis";
 import CampaignsPage, { CampaignDetailPage } from "@/pages/campaigns";
 import Safety from "@/pages/safety";
-import LearnPage from "@/pages/learn";
 import { api } from "@/lib/api";
+
+// Academy routes are lazy-loaded so lesson content and interactive modules stay
+// out of the initial application bundle.
+const LearnPage = lazy(() => import("@/pages/learn"));
+const LearnCategoryPage = lazy(() => import("@/pages/learn-category"));
+const LearnLessonPage = lazy(() => import("@/pages/learn-lesson"));
+const LearnPathPage = lazy(() => import("@/pages/learn-path"));
+
+function AcademyRouteFallback() {
+  return (
+    <div className="mx-auto flex w-full max-w-3xl items-center justify-center px-4 py-24 text-sm text-muted-foreground">
+      Loading Academy…
+    </div>
+  );
+}
 
 // Sensible global cache defaults so navigating back to a page you just visited
 // paints instantly from cache instead of blanking to a spinner and refetching.
@@ -95,6 +109,7 @@ function Router() {
     <AppShell>
       <ScrollToTop />
       <RouteMeta />
+      <Suspense fallback={<AcademyRouteFallback />}>
       <Switch>
         <Route path="/" component={TradingDesk} />
         <Route path="/markets" component={Markets} />
@@ -117,10 +132,14 @@ function Router() {
         <Route path="/features" component={Features} />
         <Route path="/roadmap" component={Roadmap} />
         <Route path="/safety" component={Safety} />
+        <Route path="/learn/path/:slug" component={LearnPathPage} />
+        <Route path="/learn/:category/:lesson" component={LearnLessonPage} />
+        <Route path="/learn/:category" component={LearnCategoryPage} />
         <Route path="/learn" component={LearnPage} />
         <Route path="/admin" component={AdminPage} />
         <Route component={NotFound} />
       </Switch>
+      </Suspense>
     </AppShell>
   );
 }

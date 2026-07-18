@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { asyncHandler } from "../lib/asyncHandler.js";
 import { dbRun } from "../lib/database.js";
+import { sanitizeAnalyticsProps } from "../lib/analytics-props.js";
 
 const router: IRouter = Router();
 
@@ -42,6 +43,22 @@ const ALLOWED_EVENTS = new Set([
   "full_reset_executed",
   "social_reset_executed",
   "journal_reset_executed",
+  // Academy (education) funnel - type-only beacons, no PII.
+  "academy_viewed",
+  "academy_search_performed",
+  "academy_search_zero_results",
+  "academy_category_viewed",
+  "academy_lesson_viewed",
+  "academy_related_lesson_clicked",
+  "academy_related_feature_clicked",
+  "academy_interactive_started",
+  "academy_interactive_completed",
+  "academy_practice_started",
+  "academy_share_clicked",
+  // Academy Phase 2 - learning paths.
+  "academy_path_started",
+  "academy_path_step_viewed",
+  "academy_path_completed",
 ]);
 
 let ensured = false;
@@ -61,6 +78,10 @@ export async function ensureAnalyticsTable(): Promise<void> {
   await dbRun(
     `CREATE INDEX IF NOT EXISTS idx_analytics_events_created ON analytics_events (created_at)`,
   );
+  // Additive, idempotent: optional validated event properties (Academy Phase 2).
+  await dbRun(
+    `ALTER TABLE analytics_events ADD COLUMN IF NOT EXISTS props_json TEXT`,
+  );
   ensured = true;
 }
 
@@ -75,10 +96,12 @@ router.post(
     if (!ALLOWED_EVENTS.has(type)) {
       return res.status(400).json({ ok: false, error: "Unknown event type" });
     }
+    const props = sanitizeAnalyticsProps(req.body?.props);
+    const propsJson = props ? JSON.stringify(props) : null;
     await ensureAnalyticsTable();
     await dbRun(
-      `INSERT INTO analytics_events (event_type, anon_id) VALUES ($1, $2)`,
-      [type, anonId],
+      `INSERT INTO analytics_events (event_type, anon_id, props_json) VALUES ($1, $2, $3)`,
+      [type, anonId, propsJson],
     );
     return res.json({ ok: true });
   }),

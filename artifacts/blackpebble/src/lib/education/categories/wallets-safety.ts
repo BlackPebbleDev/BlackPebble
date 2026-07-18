@@ -11,7 +11,79 @@ export const walletsSafetyCategory: AcademyCategory = {
       "Connecting vs Signing",
       "Connecting a wallet shares your public address with a site for read-only access. Signing a message proves ownership without moving funds. Signing a transaction authorizes an on-chain action that can move assets.",
       "Always distinguish connection (safe) from signing a transaction (can spend).",
-      { aliases: ["connect wallet", "sign message", "sign transaction"], callout: { type: "safety", text: "Connecting is low risk. Signing a transaction is high risk. Review every signing prompt." }, related: { label: "Wallet Safety", path: "/safety" } },
+      {
+        aliases: ["connect wallet", "sign message", "sign transaction", "wallet signing", "connecting wallet", "wallet connection", "approvals"],
+        keywords: ["approve", "token approval", "read-only", "permission", "drainer"],
+        shortAnswer:
+          "Connecting shares your public address (low risk). Signing a message proves ownership without moving funds. Signing a transaction or approval can move or spend your assets — review it carefully.",
+        difficulty: "beginner",
+        estimatedMinutes: 6,
+        chainScope: "multichain",
+        interactiveModules: [{ id: "wallet-signing-challenge" }],
+        version: 1,
+        updatedAt: "July 2026",
+        learningObjectives: [
+          "Separate connecting, message signing, and transaction signing",
+          "Recognize which wallet requests can move funds",
+          "Never approve requests blindly",
+        ],
+        sections: [
+          {
+            kind: "quick-answer",
+            body: "Connecting a wallet is read-only: it shares your public address. Signing a message proves you control the wallet without spending. Signing a transaction or token approval can move or authorize spending your assets. Treat those very differently.",
+          },
+          {
+            kind: "what",
+            body: "A connection request is generally low risk. A message signature is usually safe but should still make sense for what you are doing. A transaction signature and a token approval can move funds or grant spending rights — these are the requests attackers abuse.",
+          },
+          {
+            kind: "why",
+            body: "Wallet drainers rely on users approving dangerous requests out of habit. The challenge below shows realistic but fictional prompts and asks you to classify each by risk, so you build the habit of reading before approving.",
+          },
+          {
+            kind: "safety",
+            body: "No legitimate site ever needs your seed phrase or private key. A request for either is always a scam. Verify the destination, amount, and token on any transaction before you sign.",
+          },
+        ],
+        commonMistakes: [
+          "Treating a transaction signature like a harmless connection.",
+          "Approving unlimited token spending without reading the prompt.",
+        ],
+        relatedLessonSlugs: ["wallet-permissions", "private-key-and-seed", "wallet-attacks", "verify-before-signing"],
+        callout: { type: "safety", text: "Connecting is low risk. Signing a transaction or approval is high risk. The challenge uses clearly fictional prompts and never asks for real credentials." },
+        related: { label: "Wallet Safety", path: "/safety" },
+        quiz: {
+          id: "connecting-vs-signing-quiz",
+          questions: [
+            {
+              id: "q1",
+              prompt: "Which wallet request can actually move your funds?",
+              options: [
+                "Connecting a wallet",
+                "Signing a plain message",
+                "Signing a transaction or token approval",
+                "Viewing your public address",
+              ],
+              correctIndex: 2,
+              explanation:
+                "Transaction signatures and token approvals authorize on-chain actions that can move or spend assets.",
+            },
+            {
+              id: "q2",
+              prompt: "A site asks you to type your seed phrase to 'verify' your wallet. You should:",
+              options: [
+                "Enter it quickly",
+                "Never enter it — this is a scam",
+                "Enter only half of it",
+                "Ask for support first",
+              ],
+              correctIndex: 1,
+              explanation:
+                "No legitimate service ever needs your seed phrase. Any request for it is a scam.",
+            },
+          ],
+        },
+      },
     ),
     L(
       "read-only-analysis",

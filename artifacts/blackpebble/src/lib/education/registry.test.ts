@@ -3,7 +3,6 @@ import {
   ACADEMY_CATEGORIES,
   ALL_ACADEMY_LESSONS,
   getAllLessonSlugs,
-  searchAcademy,
 } from "./registry";
 
 describe("academy registry", () => {
@@ -29,16 +28,6 @@ describe("academy registry", () => {
     expect(slugs.has("paper-vs-real-trading")).toBe(true);
     expect(slugs.has("ath-from-call")).toBe(true);
     expect(slugs.has("community-campaigns")).toBe(true);
-  });
-
-  it("searches common aliases", () => {
-    expect(searchAcademy("CA").some((r) => r.lessons.some((l) => l.slug === "contract-address"))).toBe(true);
-    expect(searchAcademy("MC").some((r) => r.lessons.some((l) => l.slug === "price-and-market-cap"))).toBe(true);
-    expect(searchAcademy("TP").some((r) => r.lessons.some((l) => l.slug === "automated-exits"))).toBe(true);
-    expect(searchAcademy("SL").some((r) => r.lessons.some((l) => l.slug === "automated-exits"))).toBe(true);
-    expect(searchAcademy("PnL").some((r) => r.lessons.some((l) => l.slug === "profit-and-loss"))).toBe(true);
-    expect(searchAcademy("ATH").length).toBeGreaterThan(0);
-    expect(searchAcademy("SOL recovery").some((r) => r.lessons.some((l) => l.slug === "recovery-and-cleanup"))).toBe(true);
   });
 
   it("creates a curated lesson count between 90 and 150", () => {

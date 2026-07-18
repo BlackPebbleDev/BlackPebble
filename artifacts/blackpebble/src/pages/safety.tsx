@@ -15,6 +15,7 @@ import {
   AccordionTrigger,
   AccordionContent,
 } from "@/components/ui/accordion";
+import { LearnLink } from "@/components/education/learn-link";
 
 type SafetySection = {
   id: string;
@@ -22,6 +23,9 @@ type SafetySection = {
   title: string;
   summary: string;
   points: string[];
+  /** Optional Academy lesson explaining this concept in depth. */
+  learnSlug?: string;
+  learnLabel?: string;
 };
 
 const SECTIONS: SafetySection[] = [
@@ -80,6 +84,8 @@ const SECTIONS: SafetySection[] = [
     icon: KeyRound,
     title: "What BlackPebble never asks for",
     summary: "No seed phrases. No private keys. No custody.",
+    learnSlug: "private-key-and-seed",
+    learnLabel: "Learn: seed phrases & private keys",
     points: [
       "BlackPebble never asks for your seed phrase.",
       "BlackPebble never asks for your private key.",
@@ -93,6 +99,8 @@ const SECTIONS: SafetySection[] = [
     icon: PenLine,
     title: "Before you connect or sign",
     summary: "Test carefully. Review every transaction.",
+    learnSlug: "connecting-vs-signing",
+    learnLabel: "Learn: connecting vs signing",
     points: [
       "Testing a wallet tool for the first time? Start with a burner wallet, keep valuable assets separate, and review every transaction before signing.",
       "Testing wallet intelligence for the first time? Use a burner wallet or low-value wallet, keep valuable assets separate, and review what data is being analyzed.",
@@ -162,6 +170,15 @@ export default function Safety() {
                     </li>
                   ))}
                 </ul>
+                {section.learnSlug ? (
+                  <div className="pl-11 pt-3">
+                    <LearnLink
+                      slug={section.learnSlug}
+                      sourceSurface="product-wallet"
+                      label={section.learnLabel ?? "Learn more"}
+                    />
+                  </div>
+                ) : null}
               </AccordionContent>
             </AccordionItem>
           );

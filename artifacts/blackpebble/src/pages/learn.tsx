@@ -1,16 +1,49 @@
 import { useEffect, useMemo, useState } from "react";
-import { GraduationCap, Search } from "lucide-react";
+import { Link, useLocation } from "wouter";
+import {
+  ArrowRight,
+  Bookmark,
+  Clock,
+  GraduationCap,
+  Route as RouteIcon,
+  Search,
+  Sparkles,
+} from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import {
   ACADEMY_CATEGORIES,
-  searchAcademy,
+  getCategoryForLesson,
+  getLessonBySlug,
+  getNormalizedLesson,
 } from "@/lib/education/registry";
+import { searchLessons, classifyIntent } from "@/lib/education/search";
+import {
+  computePathCompletion,
+  getPublishedLearningPaths,
+} from "@/lib/education/learning-paths";
+import { useAcademyProgress } from "@/lib/education/use-progress";
+import { categoryPath, learningPathPath, lessonPath } from "@/lib/education/routes";
 import { AcademyCategorySection } from "@/components/education/academy-category";
+import { CategoryGlyph } from "@/components/education/category-icon";
+import { LessonCard, type LessonCardData } from "@/components/education/lesson-card";
+import type { CategoryLevel } from "@/lib/education/types";
+import {
+  trackAcademySearchPerformed,
+  trackAcademySearchZeroResults,
+  trackAcademyViewed,
+} from "@/lib/analytics";
 
 const OPEN_KEY = "bp-academy-open-categories";
 const DEFAULT_OPEN = ["start-here"];
+
+const LEVEL_LABELS: Record<CategoryLevel, string> = {
+  beginner: "New to crypto",
+  intermediate: "Developing traders",
+  advanced: "Experienced traders",
+};
+const LEVEL_ORDER: CategoryLevel[] = ["beginner", "intermediate", "advanced"];
 
 function readOpenCategories(): string[] {
   try {
@@ -31,13 +64,47 @@ function writeOpenCategories(ids: string[]) {
   }
 }
 
+function toCardData(slug: string): LessonCardData | null {
+  const lesson = getNormalizedLesson(slug);
+  if (!lesson) return null;
+  return {
+    slug: lesson.slug,
+    title: lesson.title,
+    categoryId: lesson.categoryId,
+    categoryTitle: lesson.categoryTitle,
+    description: lesson.shortAnswer ?? lesson.summary,
+    difficulty: lesson.difficulty,
+    estimatedMinutes: lesson.estimatedMinutes,
+    chainScope: lesson.chainScope,
+    interactive: !!lesson.interactiveModule,
+  };
+}
+
+function SectionHeading({
+  title,
+  action,
+}: {
+  title: string;
+  action?: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-end justify-between gap-3">
+      <h2 className="text-base font-semibold text-foreground sm:text-lg">
+        {title}
+      </h2>
+      {action}
+    </div>
+  );
+}
+
 export default function LearnPage() {
+  const [, navigate] = useLocation();
   const [query, setQuery] = useState("");
   const [openCategories, setOpenCategories] = useState<string[]>(DEFAULT_OPEN);
-  const [activeLessonSlug, setActiveLessonSlug] = useState<string | null>(null);
-  const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
+  const progress = useAcademyProgress();
 
   useEffect(() => {
+    trackAcademyViewed({ sourceSurface: "academy-home" });
     setOpenCategories(readOpenCategories());
   }, []);
 
@@ -45,63 +112,53 @@ export default function LearnPage() {
     writeOpenCategories(openCategories);
   }, [openCategories]);
 
-  const searchResults = useMemo(
-    () => (query.trim() ? searchAcademy(query) : null),
-    [query],
-  );
-
-  const visibleCategories = useMemo(() => {
-    if (!searchResults) return ACADEMY_CATEGORIES;
-    const ids = new Set(searchResults.map((result) => result.category.id));
-    return ACADEMY_CATEGORIES.filter((category) => ids.has(category.id));
-  }, [searchResults]);
-
-  const matchedLessonMap = useMemo(() => {
-    if (!searchResults) return null;
-    const map = new Map<string, Set<string>>();
-    for (const result of searchResults) {
-      map.set(
-        result.category.id,
-        new Set(result.lessons.map((lesson) => lesson.slug)),
-      );
-    }
-    return map;
-  }, [searchResults]);
-
+  // Legacy hash compatibility: /learn#<lesson-slug> and /learn#<category-id>
+  // resolve to the new dedicated routes.
   useEffect(() => {
-    if (searchResults && searchResults.length > 0) {
-      setOpenCategories(searchResults.map((result) => result.category.id));
-    }
-  }, [searchResults]);
-
-  useEffect(() => {
-    function syncHash() {
-      const slug = window.location.hash.replace(/^#/, "");
-      if (!slug) {
-        setActiveLessonSlug(null);
+    function resolveHash() {
+      const hash = window.location.hash.replace(/^#/, "");
+      if (!hash) return;
+      const lesson = getLessonBySlug(hash);
+      if (lesson) {
+        const category = getCategoryForLesson(hash);
+        if (category) navigate(lessonPath(category.id, hash), { replace: true });
         return;
       }
-      const category = ACADEMY_CATEGORIES.find((item) =>
-        item.lessons.some((lesson) => lesson.slug === slug),
-      );
-      if (!category) return;
-      setActiveLessonSlug(slug);
-      setActiveCategoryId(category.id);
-      setOpenCategories((prev) =>
-        prev.includes(category.id) ? prev : [...prev, category.id],
-      );
-      window.requestAnimationFrame(() => {
-        document.getElementById(slug)?.scrollIntoView({
-          behavior: "smooth",
-          block: "start",
-        });
-      });
+      if (ACADEMY_CATEGORIES.some((c) => c.id === hash)) {
+        navigate(categoryPath(hash), { replace: true });
+      }
     }
+    resolveHash();
+    window.addEventListener("hashchange", resolveHash);
+    return () => window.removeEventListener("hashchange", resolveHash);
+  }, [navigate]);
 
-    syncHash();
-    window.addEventListener("hashchange", syncHash);
-    return () => window.removeEventListener("hashchange", syncHash);
-  }, []);
+  const trimmed = query.trim();
+  const results = useMemo(
+    () => (trimmed ? searchLessons(trimmed, 40) : []),
+    [trimmed],
+  );
+
+  useEffect(() => {
+    if (!trimmed) return;
+    const t = window.setTimeout(() => {
+      const queryIntent = classifyIntent(trimmed);
+      trackAcademySearchPerformed({
+        queryLength: trimmed.length,
+        resultCount: results.length,
+        queryIntent,
+        sourceSurface: "academy-home",
+      });
+      if (results.length === 0) {
+        trackAcademySearchZeroResults({
+          queryLength: trimmed.length,
+          queryIntent,
+          sourceSurface: "academy-home",
+        });
+      }
+    }, 500);
+    return () => window.clearTimeout(t);
+  }, [trimmed, results.length]);
 
   function toggleCategory(id: string) {
     setOpenCategories((prev) =>
@@ -109,33 +166,68 @@ export default function LearnPage() {
     );
   }
 
-  function jumpToCategory(id: string) {
-    setOpenCategories((prev) => (prev.includes(id) ? prev : [...prev, id]));
-    setActiveCategoryId(id);
-    document.getElementById(id)?.scrollIntoView({
-      behavior: "smooth",
-      block: "start",
-    });
-  }
+  const beginnerPath = getPublishedLearningPaths()[0];
+  const pathProgress = beginnerPath
+    ? computePathCompletion(beginnerPath.lessonSlugs, (s) =>
+        progress.isLessonCompleted(s),
+      )
+    : undefined;
+  const recentCards = useMemo(
+    () =>
+      progress
+        .getRecent(4)
+        .map((slug) => toCardData(slug))
+        .filter((c): c is LessonCardData => !!c),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [progress.getSnapshotToken()],
+  );
+  const bookmarkCards = useMemo(
+    () =>
+      progress
+        .listBookmarks()
+        .slice(0, 4)
+        .map((slug) => toCardData(slug))
+        .filter((c): c is LessonCardData => !!c),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [progress.getSnapshotToken()],
+  );
+
+  const startHere = ACADEMY_CATEGORIES.find((c) => c.id === "start-here");
+  const featuredInteractive = useMemo(
+    () =>
+      ACADEMY_CATEGORIES.flatMap((c) => c.lessons)
+        .filter((l) => !!l.interactiveModule)
+        .map((l) => toCardData(l.slug))
+        .filter((c): c is LessonCardData => !!c),
+    [],
+  );
+  const safetyLessons = useMemo(() => {
+    const safetyCats = ["wallets-safety", "scam-awareness"];
+    return ACADEMY_CATEGORIES.filter((c) => safetyCats.includes(c.id))
+      .flatMap((c) => c.lessons.slice(0, 3))
+      .map((l) => toCardData(l.slug))
+      .filter((c): c is LessonCardData => !!c);
+  }, []);
 
   return (
-    <div className="flex w-full max-w-5xl flex-col gap-5 px-4 py-5 sm:gap-6 md:px-6 sm:py-6 mx-auto pb-24 md:pb-10 min-w-0">
+    <div className="flex w-full max-w-5xl flex-col gap-6 px-4 py-5 sm:gap-7 md:px-6 sm:py-6 mx-auto pb-24 md:pb-10 min-w-0">
       <PageHeader
         icon={GraduationCap}
         title="BlackPebble Academy"
         subtitle={
           <div className="space-y-1">
             <p>
-              Learn the platform. Understand the market. Trade with more
-              confidence.
+              Understand crypto, trade with more confidence, and practice safely.
             </p>
             <p className="text-xs text-muted-foreground/80">
-              Built for beginners, useful for every trader.
+              Built for beginners, useful for every trader. Currently focused on
+              Solana, with multichain expansion built into the roadmap.
             </p>
           </div>
         }
       />
 
+      {/* Search */}
       <div className="rounded-2xl bg-card shadow-card p-4 sm:p-5 space-y-4">
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -148,58 +240,280 @@ export default function LearnPage() {
             data-testid="input-academy-search"
           />
         </div>
-
         <div
           className="flex gap-2 overflow-x-auto pb-0.5 no-scrollbar"
-          role="tablist"
           aria-label="Academy categories"
         >
-          {ACADEMY_CATEGORIES.map((category) => {
-            const active = activeCategoryId === category.id;
-            return (
-              <button
-                key={category.id}
-                type="button"
-                role="tab"
-                aria-selected={active}
-                onClick={() => jumpToCategory(category.id)}
-                className={cn(
-                  "flex-shrink-0 rounded-full border px-3.5 py-1.5 text-xs font-medium transition-colors whitespace-nowrap",
-                  active
-                    ? "border-accent/40 bg-accent/10 text-accent"
-                    : "border-border bg-surface-2 text-muted-foreground hover:text-foreground hover:border-accent/30",
-                )}
-              >
-                {category.title}
-              </button>
-            );
-          })}
+          {ACADEMY_CATEGORIES.map((category) => (
+            <Link
+              key={category.id}
+              href={categoryPath(category.id)}
+              className="flex-shrink-0 rounded-full border border-border bg-surface-2 px-3.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors whitespace-nowrap hover:text-foreground hover:border-accent/30"
+              data-testid={`academy-pill-${category.id}`}
+            >
+              {category.title}
+            </Link>
+          ))}
         </div>
       </div>
 
-      {query.trim() && visibleCategories.length === 0 ? (
-        <div className="rounded-2xl bg-card shadow-card px-5 py-10 text-center text-sm text-muted-foreground">
-          No lessons matched your search. Try CA, MC, TP, SL, PnL, ATH, or a feature name.
+      {trimmed ? (
+        /* Search results mode */
+        <div className="space-y-3">
+          <SectionHeading title={`Results for "${trimmed}"`} />
+          {results.length === 0 ? (
+            <div className="rounded-2xl bg-card shadow-card px-5 py-10 text-center text-sm text-muted-foreground">
+              No lessons matched your search. Try CA, MC, TP, SL, PnL, ATH, or a
+              feature name.
+            </div>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {results.map((r) => (
+                <LessonCard
+                  key={r.slug}
+                  showCategory
+                  lesson={{
+                    slug: r.slug,
+                    title: r.title,
+                    categoryId: r.categoryId,
+                    categoryTitle: r.categoryTitle,
+                    description: r.shortDescription,
+                    difficulty: r.difficulty,
+                    estimatedMinutes: r.estimatedMinutes,
+                    chainScope: r.chainScope,
+                    interactive: r.kind === "flagship",
+                  }}
+                />
+              ))}
+            </div>
+          )}
         </div>
-      ) : null}
+      ) : (
+        /* Homepage mode */
+        <>
+          {/* Beginner Essentials path */}
+          {beginnerPath ? (
+            <Link
+              href={learningPathPath(beginnerPath.slug)}
+              className="group flex flex-col gap-3 rounded-2xl border border-accent/30 bg-accent/[0.06] p-4 shadow-card transition-colors hover:bg-accent/10 sm:p-5"
+              data-testid="path-banner"
+            >
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-accent/12">
+                  <RouteIcon className="h-5 w-5 text-accent" aria-hidden />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-base font-semibold text-foreground sm:text-lg">
+                      {beginnerPath.title}
+                    </h2>
+                  </div>
+                  <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-muted-foreground sm:text-sm">
+                    {beginnerPath.description}
+                  </p>
+                </div>
+                <ArrowRight
+                  className="mt-1 h-4 w-4 flex-shrink-0 text-accent transition-transform group-hover:translate-x-0.5 motion-reduce:transition-none"
+                  aria-hidden
+                />
+              </div>
+              {pathProgress && pathProgress.completed > 0 ? (
+                <div>
+                  <div className="mb-1 flex items-center justify-between text-[11px] text-muted-foreground">
+                    <span>
+                      {pathProgress.completed} of {pathProgress.total} complete
+                    </span>
+                    <span>{pathProgress.pct}%</span>
+                  </div>
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-2">
+                    <div
+                      className="h-full rounded-full bg-accent"
+                      style={{ width: `${pathProgress.pct}%` }}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <span className="text-[11px] font-medium text-accent">
+                  {beginnerPath.lessonSlugs.length} lessons · {beginnerPath.estimatedMinutes} min · Start the guided path
+                </span>
+              )}
+            </Link>
+          ) : null}
 
-      <div className="space-y-4">
-        {visibleCategories.map((category) => (
-          <AcademyCategorySection
-            key={category.id}
-            category={category}
-            open={
-              openCategories.includes(category.id) ||
-              activeCategoryId === category.id ||
-              !!searchResults
-            }
-            onToggle={() => toggleCategory(category.id)}
-            matchedLessonSlugs={matchedLessonMap?.get(category.id)}
-            activeLessonSlug={activeLessonSlug}
-            forceOpenLessons={!!searchResults && !!query.trim()}
-          />
-        ))}
-      </div>
+          {/* Continue learning (recently viewed) */}
+          {recentCards.length > 0 ? (
+            <section className="space-y-3">
+              <SectionHeading
+                title="Continue learning"
+                action={
+                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground/70">
+                    <Clock className="h-3 w-3 text-accent" aria-hidden /> Recently viewed
+                  </span>
+                }
+              />
+              <div className="grid gap-3 sm:grid-cols-2">
+                {recentCards.map((c) => (
+                  <LessonCard key={c.slug} lesson={c} showCategory />
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          {/* Bookmarks */}
+          {bookmarkCards.length > 0 ? (
+            <section className="space-y-3">
+              <SectionHeading
+                title="Saved lessons"
+                action={
+                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground/70">
+                    <Bookmark className="h-3 w-3 text-accent" aria-hidden /> Bookmarked
+                  </span>
+                }
+              />
+              <div className="grid gap-3 sm:grid-cols-2">
+                {bookmarkCards.map((c) => (
+                  <LessonCard key={c.slug} lesson={c} showCategory />
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          {/* Start Here */}
+          {startHere ? (
+            <section className="space-y-3">
+              <SectionHeading
+                title="Start here"
+                action={
+                  <Link
+                    href={categoryPath(startHere.id)}
+                    className="inline-flex items-center gap-1 text-xs font-medium text-accent hover:text-accent/80"
+                  >
+                    View path <ArrowRight className="h-3 w-3" aria-hidden />
+                  </Link>
+                }
+              />
+              <div className="grid gap-3 sm:grid-cols-2">
+                {startHere.lessons
+                  .map((l) => toCardData(l.slug))
+                  .filter((c): c is LessonCardData => !!c)
+                  .map((c) => (
+                    <LessonCard key={c.slug} lesson={c} />
+                  ))}
+              </div>
+            </section>
+          ) : null}
+
+          {/* Featured interactive */}
+          {featuredInteractive.length > 0 ? (
+            <section className="space-y-3">
+              <SectionHeading title="Interactive lessons" />
+              <div className="grid gap-3 sm:grid-cols-2">
+                {featuredInteractive.map((c) => (
+                  <LessonCard key={c.slug} lesson={c} />
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          {/* Browse by topic */}
+          <section className="space-y-3">
+            <SectionHeading title="Browse by topic" />
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {ACADEMY_CATEGORIES.map((category) => (
+                <Link
+                  key={category.id}
+                  href={categoryPath(category.id)}
+                  data-testid={`category-card-${category.id}`}
+                  className="group flex flex-col gap-2 rounded-2xl bg-card p-4 shadow-card transition-colors hover:bg-secondary/30"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-accent/12">
+                      <CategoryGlyph icon={category.icon} className="h-4 w-4 text-accent" />
+                    </div>
+                    <h3 className="m-0 min-w-0 flex-1 text-sm font-semibold text-foreground">
+                      {category.title}
+                    </h3>
+                  </div>
+                  {category.description ? (
+                    <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+                      {category.description}
+                    </p>
+                  ) : null}
+                  <span className="mt-auto text-[11px] text-muted-foreground/70">
+                    {category.lessons.length} lessons
+                  </span>
+                </Link>
+              ))}
+            </div>
+          </section>
+
+          {/* Browse by experience level */}
+          <section className="space-y-3">
+            <SectionHeading title="Browse by experience level" />
+            <div className="space-y-3">
+              {LEVEL_ORDER.map((level) => {
+                const cats = ACADEMY_CATEGORIES.filter(
+                  (c) => c.level === level,
+                );
+                if (cats.length === 0) return null;
+                return (
+                  <div key={level} className="rounded-2xl bg-card p-4 shadow-card">
+                    <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-foreground/80">
+                      {LEVEL_LABELS[level]}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {cats.map((c) => (
+                        <Link
+                          key={c.id}
+                          href={categoryPath(c.id)}
+                          className="rounded-full border border-border bg-surface-2 px-3 py-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground hover:border-accent/30"
+                        >
+                          {c.title}
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+
+          {/* Safety essentials */}
+          {safetyLessons.length > 0 ? (
+            <section className="space-y-3">
+              <SectionHeading title="Safety essentials" />
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {safetyLessons.map((c) => (
+                  <LessonCard key={c.slug} lesson={c} showCategory />
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          {/* Browse all (accordion fallback) */}
+          <section className="space-y-3">
+            <SectionHeading
+              title="Browse all lessons"
+              action={
+                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground/70">
+                  <Sparkles className="h-3 w-3 text-accent" aria-hidden />
+                  Expand any topic
+                </span>
+              }
+            />
+            <div className="space-y-4">
+              {ACADEMY_CATEGORIES.map((category) => (
+                <AcademyCategorySection
+                  key={category.id}
+                  category={category}
+                  open={openCategories.includes(category.id)}
+                  onToggle={() => toggleCategory(category.id)}
+                />
+              ))}
+            </div>
+          </section>
+        </>
+      )}
     </div>
   );
 }
