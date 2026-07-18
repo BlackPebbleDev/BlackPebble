@@ -15,10 +15,12 @@ import { cn } from "@/lib/utils";
 import {
   ACADEMY_CATEGORIES,
   getCategoryForLesson,
+  getInteractiveLessons,
   getLessonBySlug,
   getLessonRef,
   getNormalizedLesson,
 } from "@/lib/education/registry";
+import { interactiveTypeLabel } from "@/lib/education/interactive/labels";
 import { computeMilestones } from "@/lib/education/milestones";
 import { AcademyWelcome } from "@/components/education/academy-welcome";
 import { AcademyJourney } from "@/components/education/academy-journey";
@@ -53,8 +55,6 @@ const LEVEL_LABELS: Record<CategoryLevel, string> = {
   intermediate: "Developing traders",
   advanced: "Experienced traders",
 };
-const LEVEL_ORDER: CategoryLevel[] = ["beginner", "intermediate", "advanced"];
-
 function readOpenCategories(): string[] {
   try {
     const raw = sessionStorage.getItem(OPEN_KEY);
@@ -77,6 +77,7 @@ function writeOpenCategories(ids: string[]) {
 function toCardData(slug: string): LessonCardData | null {
   const lesson = getNormalizedLesson(slug);
   if (!lesson) return null;
+  const firstModule = lesson.interactiveModules[0];
   return {
     slug: lesson.slug,
     title: lesson.title,
@@ -86,7 +87,11 @@ function toCardData(slug: string): LessonCardData | null {
     difficulty: lesson.difficulty,
     estimatedMinutes: lesson.estimatedMinutes,
     chainScope: lesson.chainScope,
-    interactive: !!lesson.interactiveModule,
+    interactive: lesson.interactiveModules.length > 0,
+    interactiveType: firstModule ? interactiveTypeLabel(firstModule.id) : undefined,
+    hasQuiz: !!lesson.quiz && lesson.quiz.questions.length > 0,
+    hasDiagram: lesson.diagrams.length > 0,
+    hasStory: !!lesson.story,
   };
 }
 
@@ -232,10 +237,10 @@ export default function LearnPage() {
   );
 
   const startHere = ACADEMY_CATEGORIES.find((c) => c.id === "start-here");
+  const interactiveCount = useMemo(() => getInteractiveLessons().length, []);
   const featuredInteractive = useMemo(
     () =>
-      ACADEMY_CATEGORIES.flatMap((c) => c.lessons)
-        .filter((l) => !!l.interactiveModule)
+      getInteractiveLessons()
         .map((l) => toCardData(l.slug))
         .filter((c): c is LessonCardData => !!c),
     [],
@@ -371,23 +376,12 @@ export default function LearnPage() {
             </div>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2">
-              {results.map((r) => (
-                <LessonCard
-                  key={r.slug}
-                  showCategory
-                  lesson={{
-                    slug: r.slug,
-                    title: r.title,
-                    categoryId: r.categoryId,
-                    categoryTitle: r.categoryTitle,
-                    description: r.shortDescription,
-                    difficulty: r.difficulty,
-                    estimatedMinutes: r.estimatedMinutes,
-                    chainScope: r.chainScope,
-                    interactive: r.kind === "flagship",
-                  }}
-                />
-              ))}
+              {results.map((r) => {
+                const card = toCardData(r.slug);
+                return card ? (
+                  <LessonCard key={r.slug} showCategory lesson={card} />
+                ) : null;
+              })}
             </div>
           )}
         </div>
@@ -527,15 +521,39 @@ export default function LearnPage() {
             </section>
           ) : null}
 
-          {/* Featured interactive */}
+          {/* Interactive lessons */}
           {featuredInteractive.length > 0 ? (
             <section className="space-y-3">
-              <SectionHeading title="Interactive lessons" />
-              <div className="grid gap-3 sm:grid-cols-2">
-                {featuredInteractive.map((c) => (
-                  <LessonCard key={c.slug} lesson={c} />
+              <SectionHeading
+                title="Learn by doing"
+                action={
+                  <Link
+                    href="/learn/interactive"
+                    className="inline-flex items-center gap-1 text-xs font-medium text-accent hover:text-accent/80"
+                    data-testid="view-all-interactive"
+                  >
+                    View all {interactiveCount} <ArrowRight className="h-3 w-3" aria-hidden />
+                  </Link>
+                }
+              />
+              <p className="-mt-1 text-xs text-muted-foreground">
+                {interactiveCount} hands-on lessons — simulators, calculators,
+                scenarios and predictions that let you try each concept yourself.
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {featuredInteractive.slice(0, 6).map((c) => (
+                  <LessonCard key={c.slug} lesson={c} showCategory />
                 ))}
               </div>
+              {featuredInteractive.length > 6 ? (
+                <Link
+                  href="/learn/interactive"
+                  className="flex items-center justify-center gap-1.5 rounded-xl border border-border/60 bg-card/60 px-4 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:border-accent/30 hover:text-foreground"
+                >
+                  Browse all {interactiveCount} interactive lessons
+                  <ArrowRight className="h-4 w-4" aria-hidden />
+                </Link>
+              ) : null}
             </section>
           ) : null}
 
@@ -563,42 +581,18 @@ export default function LearnPage() {
                       {category.description}
                     </p>
                   ) : null}
-                  <span className="mt-auto text-[11px] text-muted-foreground/70">
-                    {category.lessons.length} lessons
-                  </span>
+                  <div className="mt-auto flex items-center justify-between gap-2 pt-1">
+                    <span className="text-[11px] text-muted-foreground/70">
+                      {category.lessons.length} lessons
+                    </span>
+                    {category.level ? (
+                      <span className="rounded-full border border-border bg-surface-2 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                        {LEVEL_LABELS[category.level]}
+                      </span>
+                    ) : null}
+                  </div>
                 </Link>
               ))}
-            </div>
-          </section>
-
-          {/* Browse by experience level */}
-          <section className="space-y-3">
-            <SectionHeading title="Browse by experience level" />
-            <div className="space-y-3">
-              {LEVEL_ORDER.map((level) => {
-                const cats = ACADEMY_CATEGORIES.filter(
-                  (c) => c.level === level,
-                );
-                if (cats.length === 0) return null;
-                return (
-                  <div key={level} className="rounded-2xl bg-card p-4 shadow-card">
-                    <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-foreground/80">
-                      {LEVEL_LABELS[level]}
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {cats.map((c) => (
-                        <Link
-                          key={c.id}
-                          href={categoryPath(c.id)}
-                          className="rounded-full border border-border bg-surface-2 px-3 py-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground hover:border-accent/30"
-                        >
-                          {c.title}
-                        </Link>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
             </div>
           </section>
 

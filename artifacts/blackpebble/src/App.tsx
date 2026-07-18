@@ -51,6 +51,7 @@ import { api } from "@/lib/api";
 // Academy routes are lazy-loaded so lesson content and interactive modules stay
 // out of the initial application bundle.
 const LearnPage = lazy(() => import("@/pages/learn"));
+const LearnInteractivePage = lazy(() => import("@/pages/learn-interactive"));
 const LearnCategoryPage = lazy(() => import("@/pages/learn-category"));
 const LearnLessonPage = lazy(() => import("@/pages/learn-lesson"));
 const LearnPathPage = lazy(() => import("@/pages/learn-path"));
@@ -157,6 +158,7 @@ function Router() {
         <Route path="/roadmap" component={Roadmap} />
         <Route path="/safety" component={Safety} />
         <Route path="/learn/path/:slug" component={LearnPathPage} />
+        <Route path="/learn/interactive" component={LearnInteractivePage} />
         <Route path="/learn/:category/:lesson" component={LearnLessonPage} />
         <Route path="/learn/:category" component={LearnCategoryPage} />
         <Route path="/learn" component={LearnPage} />
