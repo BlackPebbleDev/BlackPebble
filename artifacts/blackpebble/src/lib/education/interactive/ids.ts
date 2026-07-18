@@ -26,6 +26,7 @@ export const INTERACTIVE_MODULE_IDS = [
   "concept-reveal",
   "sequence-builder",
   "spot-the-scam",
+  "predict-outcome",
 ] as const satisfies readonly InteractiveModuleId[];
 
 const ID_SET = new Set<string>(INTERACTIVE_MODULE_IDS);

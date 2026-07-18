@@ -134,7 +134,8 @@ export type InteractiveModuleId =
   | "trading-psychology-scenarios"
   | "concept-reveal"
   | "sequence-builder"
-  | "spot-the-scam";
+  | "spot-the-scam"
+  | "predict-outcome";
 
 /** Where a module renders relative to the lesson body. */
 export type InteractivePlacement = "inline" | "after-sections" | "standalone";

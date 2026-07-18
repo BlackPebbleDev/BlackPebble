@@ -123,6 +123,11 @@ const MODULES: Record<InteractiveModuleId, ModuleComponent> = {
       default: m.SpotTheScam,
     })),
   ),
+  "predict-outcome": lazy(() =>
+    import("./modules/predict-outcome").then((m) => ({
+      default: m.PredictOutcome,
+    })),
+  ),
 };
 
 export function hasInteractiveModule(id: string): id is InteractiveModuleId {

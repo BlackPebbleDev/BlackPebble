@@ -61,7 +61,36 @@ export const marketDataCategory: AcademyCategory = {
         difficulty: "beginner",
         estimatedMinutes: 6,
         chainScope: "universal",
-        interactiveModules: [{ id: "slippage-simulator" }],
+        interactiveModules: [
+          {
+            id: "predict-outcome",
+            config: {
+              scenario:
+                "Trevor wants to buy $100 of a thin, low-liquidity token and sets slippage tolerance to just 1%.",
+              question: "What is the most likely outcome?",
+              options: [
+                {
+                  label: "He pays exactly $100 for the expected amount of tokens",
+                  result:
+                    "Unlikely on a thin pool — his own order pushes the price up as it fills.",
+                },
+                {
+                  label: "His order fails, or fills for noticeably fewer tokens",
+                  correct: true,
+                  result:
+                    "Right. Low liquidity means big price impact, so a tight 1% tolerance often makes the swap fail — or it fills at a worse price than shown.",
+                },
+                {
+                  label: "He gets more tokens than expected",
+                  result: "Price impact works against a buyer, never for them.",
+                },
+              ],
+              takeaway:
+                "On thin tokens, expect real price impact. Widen tolerance a little to let orders fill, but never so wide that a sandwich bot can exploit you.",
+            },
+          },
+          { id: "slippage-simulator" },
+        ],
         diagrams: [
           { id: "slippage", placement: "top" },
           { id: "price-impact", placement: "inline", caption: "The bigger your order relative to the pool, the more the price moves against you before it fills." },

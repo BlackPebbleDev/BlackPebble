@@ -19,7 +19,37 @@ export const tradingBasicsCategory: AcademyCategory = {
         difficulty: "beginner",
         estimatedMinutes: 5,
         chainScope: "universal",
-        interactiveModules: [{ id: "market-cap-calculator" }],
+        interactiveModules: [
+          {
+            id: "predict-outcome",
+            config: {
+              scenario:
+                "Token A trades at $0.01 with 1,000,000,000 tokens. Token B trades at $10 with 1,000,000 tokens.",
+              question: "Which token is 'bigger' by total value?",
+              options: [
+                {
+                  label: "Token B — its price is 1,000x higher",
+                  result:
+                    "Price alone is misleading. $10 x 1,000,000 = $10,000,000 market cap.",
+                },
+                {
+                  label: "Token A — it has far more tokens",
+                  result:
+                    "Supply alone is misleading too. $0.01 x 1,000,000,000 = $10,000,000 market cap.",
+                },
+                {
+                  label: "They are the same size",
+                  correct: true,
+                  result:
+                    "Correct. Both have a $10,000,000 market cap. Price x supply is what matters — not the price sticker.",
+                },
+              ],
+              takeaway:
+                "A low price does not mean 'cheap' and a high price does not mean 'expensive'. Always compare market cap, not price.",
+            },
+          },
+          { id: "market-cap-calculator" },
+        ],
         diagrams: [{ id: "market-cap" }],
         version: 1,
         updatedAt: "July 2026",
