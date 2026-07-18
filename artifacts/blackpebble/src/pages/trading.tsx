@@ -48,6 +48,7 @@ import {
   THESIS_CONTENT_MAX,
 } from "@/lib/api";
 import { MoreMenu } from "@/components/more-menu";
+import { LearnLink } from "@/components/education/learn-link";
 import { PageHeader } from "@/components/page-header";
 import { ShareToken } from "@/components/share-token";
 import { TradeList } from "@/components/trade-list";
@@ -574,6 +575,13 @@ function TradeEstimate({
           <div className="flex justify-between">
             <span className="text-muted-foreground">Trade value</span>
             <span className="font-mono">{fmtUsd(quote.tradeUsdValue)}</span>
+          </div>
+          <div className="flex justify-end pt-1">
+            <LearnLink
+              slug="price-impact-and-slippage"
+              sourceSurface="product-trading-desk"
+              label="Learn slippage & price impact"
+            />
           </div>
         </div>
       )}

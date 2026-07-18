@@ -158,6 +158,32 @@ function injectContent(html, contentHtml) {
   return html.replace(/(<div id="root">)/, `$1${contentHtml}`);
 }
 
+/** Crawlable inner HTML for a learning-path overview page. */
+function pathContentHtml(path, academy, site) {
+  const parts = [];
+  parts.push(
+    `<main id="bp-academy-content" style="max-width:760px;margin:0 auto;padding:32px 20px;">`,
+  );
+  parts.push(`<nav><a href="${site}/learn">BlackPebble Academy</a></nav>`);
+  parts.push(`<h1>${escapeHtml(path.title)}</h1>`);
+  parts.push(`<p>${escapeHtml(path.description)}</p>`);
+  if (path.outcomes?.length) {
+    parts.push(`<h2>What you'll be able to do</h2><ul>`);
+    for (const o of path.outcomes) parts.push(`<li>${escapeHtml(o)}</li>`);
+    parts.push(`</ul>`);
+  }
+  parts.push(`<h2>Lesson sequence</h2><ol>`);
+  for (const slug of path.lessonSlugs) {
+    const ref = academy.getLessonRef(slug);
+    if (!ref) continue;
+    parts.push(
+      `<li><a href="${site}${academy.lessonPath(ref.categoryId, ref.slug)}">${escapeHtml(ref.title)}</a></li>`,
+    );
+  }
+  parts.push(`</ol></main>`);
+  return parts.join("\n");
+}
+
 function injectJsonLd(html, jsonLd) {
   const scripts = jsonLd
     .map(
@@ -226,9 +252,14 @@ async function main() {
     lessonsByCat.get(l.categoryId).push(l);
   }
 
+  const paths = academy
+    .getPublishedLearningPaths()
+    .filter((p) => p.status === "published");
+
   const sitemapEntries = [];
   let lessonPages = 0;
   let categoryPages = 0;
+  let pathPages = 0;
 
   // Category pages.
   for (const category of categories) {
@@ -266,9 +297,23 @@ async function main() {
     });
   }
 
+  // Learning-path overview pages.
+  for (const path of paths) {
+    const canonical = `${site}${academy.learningPathPath(path.slug)}`;
+    const title = `${path.title} | BlackPebble Academy`;
+    const description = String(path.description).slice(0, 158);
+    let html = applyMeta(baseHtml, { title, description, canonical });
+    html = injectContent(html, pathContentHtml(path, academy, site));
+    const outDir = join(distDir, "learn", "path", path.slug);
+    mkdirSync(outDir, { recursive: true });
+    writeFileSync(join(outDir, "index.html"), html, "utf8");
+    pathPages += 1;
+    sitemapEntries.push({ loc: canonical, priority: "0.7" });
+  }
+
   const sitemapCount = writeSitemap(sitemapEntries);
   console.log(
-    `[prerender-academy] wrote ${categoryPages} category + ${lessonPages} lesson page(s); ${sitemapCount} sitemap URL(s).`,
+    `[prerender-academy] wrote ${categoryPages} category + ${lessonPages} lesson + ${pathPages} path page(s); ${sitemapCount} sitemap URL(s).`,
   );
 }
 

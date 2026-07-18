@@ -7,6 +7,11 @@
  * lesson HTML and sitemap are generated from the exact same registry the app
  * renders from.
  */
-export { ACADEMY_CATEGORIES, getAllNormalizedLessons } from "./registry";
-export { lessonPath, categoryPath } from "./routes";
+export {
+  ACADEMY_CATEGORIES,
+  getAllNormalizedLessons,
+  getLessonRef,
+} from "./registry";
+export { lessonPath, categoryPath, learningPathPath } from "./routes";
 export { lessonJsonLd } from "./structured-data";
+export { getPublishedLearningPaths } from "./learning-paths";

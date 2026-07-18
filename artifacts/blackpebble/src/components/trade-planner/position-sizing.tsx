@@ -1,6 +1,7 @@
 /** Section 2 - Position Sizing. Mode A (risk-based) or Mode B (fixed size). */
 import { SectionCard, SegmentedToggle, PlannerField, Stat } from "./primitives";
 import { fmtUnitAmt, fmtPct } from "./util";
+import { LearnLink } from "@/components/education/learn-link";
 import type { SizingMode, PlanErrors, PlanResult, Unit } from "@/lib/trade-planner";
 
 export interface SizingFields {
@@ -36,6 +37,13 @@ export function PositionSizing({
   return (
     <SectionCard title="Position Sizing" subtitle={subtitle}>
       <div className="space-y-4">
+        <div className="flex justify-end">
+          <LearnLink
+            slug="position-sizing-and-risk"
+            sourceSurface="product-trading-desk"
+            label="Learn position sizing"
+          />
+        </div>
         <SegmentedToggle
           ariaLabel="Sizing mode"
           value={sizingMode}
