@@ -56,9 +56,33 @@ const LearnLessonPage = lazy(() => import("@/pages/learn-lesson"));
 const LearnPathPage = lazy(() => import("@/pages/learn-path"));
 
 function AcademyRouteFallback() {
+  // A lightweight layout skeleton (not a spinner) so the page feels like it is
+  // already painting while the Academy chunk finishes loading. Purely
+  // decorative; the pulse is disabled under reduced motion via Tailwind.
   return (
-    <div className="mx-auto flex w-full max-w-3xl items-center justify-center px-4 py-24 text-sm text-muted-foreground">
-      Loading Academy…
+    <div
+      className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-6 px-4 py-6 md:px-6 lg:grid-cols-[210px_minmax(0,1fr)] lg:gap-8"
+      role="status"
+      aria-label="Loading Academy"
+    >
+      <div className="hidden lg:block">
+        <div className="space-y-2">
+          <div className="h-3 w-24 rounded bg-surface-2 motion-safe:animate-pulse" />
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="h-7 w-full rounded-lg bg-surface-2 motion-safe:animate-pulse" />
+          ))}
+        </div>
+      </div>
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 lg:max-w-none">
+        <div className="h-3 w-40 rounded bg-surface-2 motion-safe:animate-pulse" />
+        <div className="h-8 w-3/4 rounded-lg bg-surface-2 motion-safe:animate-pulse" />
+        <div className="h-4 w-full rounded bg-surface-2 motion-safe:animate-pulse" />
+        <div className="h-4 w-5/6 rounded bg-surface-2 motion-safe:animate-pulse" />
+        <div className="h-40 w-full rounded-2xl bg-surface-2 motion-safe:animate-pulse" />
+        <div className="h-4 w-full rounded bg-surface-2 motion-safe:animate-pulse" />
+        <div className="h-4 w-2/3 rounded bg-surface-2 motion-safe:animate-pulse" />
+      </div>
+      <span className="sr-only">Loading Academy…</span>
     </div>
   );
 }
