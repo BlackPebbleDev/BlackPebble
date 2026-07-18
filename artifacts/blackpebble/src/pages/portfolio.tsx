@@ -33,6 +33,7 @@ import { accountStatusFromGuest } from "@/lib/account-status";
 import { useXAuth } from "@/hooks/use-x-auth";
 import { UserIdentity } from "@/components/user-identity";
 import { PageHeader } from "@/components/page-header";
+import { LearnLink } from "@/components/education/learn-link";
 import { api, type PortfolioStats, type FeatureFlags } from "@/lib/api";
 import { OpenPositions } from "@/components/open-positions";
 import { LeveragePortfolioSection } from "@/components/leverage-portfolio";
@@ -308,14 +309,21 @@ export default function Portfolio() {
         icon={Wallet}
         title="Portfolio"
         actions={
-          isGuest ? (
-            <span
-              data-testid="badge-portfolio-guest"
-              className="text-[11px] font-semibold uppercase tracking-wider text-accent border border-accent/30 bg-accent/10 px-2.5 py-1 rounded-full"
-            >
-              Connect X to rank
-            </span>
-          ) : undefined
+          <div className="flex flex-wrap items-center gap-2">
+            <LearnLink
+              slug="profit-and-loss"
+              sourceSurface="product-portfolio"
+              label="Learn: Profit & Loss"
+            />
+            {isGuest ? (
+              <span
+                data-testid="badge-portfolio-guest"
+                className="text-[11px] font-semibold uppercase tracking-wider text-accent border border-accent/30 bg-accent/10 px-2.5 py-1 rounded-full"
+              >
+                Connect X to rank
+              </span>
+            ) : null}
+          </div>
         }
       />
 

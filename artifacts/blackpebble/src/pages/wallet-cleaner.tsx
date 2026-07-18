@@ -31,6 +31,7 @@ import {
 } from "@/components/wallet-cleaner/token-cleanup";
 import { BurnPreviewDialog } from "@/components/wallet-cleaner/burn-preview-dialog";
 import { UtilityPageHeader } from "@/components/utility-page-header";
+import { LearnLink } from "@/components/education/learn-link";
 import { getUtility } from "@/lib/utilities-meta";
 
 const WALLET_CLEANUP = getUtility("wallet_cleanup");
@@ -121,7 +122,16 @@ export default function WalletCleaner() {
 
   return (
     <div className="flex flex-col gap-5 px-4 md:px-6 py-5 sm:py-6 max-w-5xl mx-auto pb-32 sm:pb-10">
-      <UtilityPageHeader utility={WALLET_CLEANUP} />
+      <UtilityPageHeader
+        utility={WALLET_CLEANUP}
+        actions={
+          <LearnLink
+            slug="recovery-and-cleanup"
+            sourceSurface="product-wallet"
+            label="Learn: how this works"
+          />
+        }
+      />
 
       <SafetyBanner />
 
