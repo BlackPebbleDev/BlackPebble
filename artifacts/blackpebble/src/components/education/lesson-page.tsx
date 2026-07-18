@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -53,7 +53,21 @@ import {
   computePathCompletion,
   getPathForLesson,
 } from "@/lib/education/learning-paths";
-import { getCategoryById, getLessonRef } from "@/lib/education/registry";
+import {
+  getCategoryById,
+  getLessonBySlug,
+  getLessonRef,
+} from "@/lib/education/registry";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   trackAcademyRelatedFeatureClicked,
   trackAcademyRelatedLessonClicked,
@@ -101,6 +115,9 @@ export function LessonPageView({
   const [outlineSheetOpen, setOutlineSheetOpen] = useState(false);
   // Sticky reading-progress used by the mobile floating contents button.
   const [readPct, setReadPct] = useState(0);
+  // Gentle beginner-protection interstitial for advanced related lessons.
+  const [guardTarget, setGuardTarget] = useState<RelatedLessonRef | null>(null);
+  const [, navigate] = useLocation();
   const progress = useAcademyProgress();
   const completed = progress.isLessonCompleted(lesson.slug);
   const bookmarked = progress.isBookmarked(lesson.slug);
@@ -326,6 +343,24 @@ export function LessonPageView({
 
   const railTitle = path?.title ?? category?.title;
   const canJump = outline.length > 1;
+
+  // Beginner protection: while a learner is partway through a beginner path,
+  // gently intercept links that jump ahead to harder material outside the path.
+  const beginnerGuardActive = !!(
+    path &&
+    path.difficulty === "beginner" &&
+    pathCompletion &&
+    pathCompletion.pct < 100
+  );
+  const pathSlugSet = useMemo(
+    () => new Set(path?.lessonSlugs ?? []),
+    [path],
+  );
+  function shouldGuardLesson(r: RelatedLessonRef): boolean {
+    if (!beginnerGuardActive || pathSlugSet.has(r.slug)) return false;
+    const d = getLessonBySlug(r.slug)?.difficulty;
+    return d === "intermediate" || d === "advanced";
+  }
 
   return (
     <div className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-6 px-4 py-5 sm:py-6 md:px-6 pb-24 md:pb-10 min-w-0 lg:grid-cols-[210px_minmax(0,1fr)] lg:gap-8 xl:grid-cols-[220px_minmax(0,1fr)_230px]">
@@ -750,13 +785,18 @@ export function LessonPageView({
                 <Link
                   key={r.slug}
                   href={lessonPath(r.categoryId, r.slug)}
-                  onClick={() =>
+                  onClick={(e) => {
+                    if (shouldGuardLesson(r)) {
+                      e.preventDefault();
+                      setGuardTarget(r);
+                      return;
+                    }
                     trackAcademyRelatedLessonClicked({
                       lessonSlug: r.slug,
                       categoryId: r.categoryId,
                       sourceSurface: "lesson-page",
-                    })
-                  }
+                    });
+                  }}
                   className="flex items-center justify-between gap-2 rounded-lg border border-border/60 bg-card/60 px-3 py-2 text-sm text-foreground transition-colors hover:border-accent/30"
                   data-testid={`related-lesson-${r.slug}`}
                 >
@@ -935,6 +975,48 @@ export function LessonPageView({
           )}
         </button>
       ) : null}
+
+      {/* Beginner protection: gentle warning before jumping ahead */}
+      <AlertDialog
+        open={!!guardTarget}
+        onOpenChange={(open) => {
+          if (!open) setGuardTarget(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Maybe finish your path first?</AlertDialogTitle>
+            <AlertDialogDescription>
+              “{guardTarget?.title}” is a more advanced lesson. You're{" "}
+              {pathCompletion?.pct ?? 0}% through {path?.title ?? "your path"}, and
+              each step builds on the one before — finishing in order is the
+              fastest way to feel confident. You can still explore if you'd like.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="guard-stay">
+              Stay on my path
+            </AlertDialogCancel>
+            <AlertDialogAction
+              data-testid="guard-continue"
+              onClick={() => {
+                const target = guardTarget;
+                setGuardTarget(null);
+                if (target) {
+                  trackAcademyRelatedLessonClicked({
+                    lessonSlug: target.slug,
+                    categoryId: target.categoryId,
+                    sourceSurface: "lesson-page",
+                  });
+                  navigate(lessonPath(target.categoryId, target.slug));
+                }
+              }}
+            >
+              Explore anyway
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Mobile learning-path drawer */}
       <Sheet open={pathSheetOpen} onOpenChange={setPathSheetOpen}>
