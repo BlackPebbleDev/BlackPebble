@@ -20,6 +20,7 @@ export const ordersRiskCategory: AcademyCategory = {
         estimatedMinutes: 5,
         chainScope: "universal",
         interactiveModules: [{ id: "order-type-challenge" }],
+        diagrams: [{ id: "order-types", placement: "top" }],
         version: 1,
         updatedAt: "July 2026",
         learningObjectives: [
@@ -41,9 +42,33 @@ export const ordersRiskCategory: AcademyCategory = {
             body: "Choosing the wrong order type is a common beginner mistake. Chasing a fast mover with a market order can fill far from the price you saw; a limit order in a runaway market may leave you on the sidelines. The scenario challenge below builds this judgment.",
           },
           {
+            kind: "stakes",
+            body: "Pick the wrong order type and you either overpay or miss out. A market order into a fast, thin mover can fill far above the price you saw; a limit order set too far away can leave you watching a token run without you. The order type is a choice between certainty of price and certainty of fill.",
+          },
+          {
             kind: "common-mistakes",
             body: "Using a market order in a thin, fast market and getting a poor fill, or setting a limit so far away it never triggers.",
           },
+        ],
+        story: {
+          character: "Nadia",
+          setup:
+            "A token is spiking and Nadia doesn't want to miss it, so she slams a market buy at what looks like $0.010.",
+          expectation: "She expects to get in near $0.010.",
+          reality:
+            "By the time her order clears the thin order flow, it fills at $0.013 — 30% higher. A patient limit at $0.011 would have filled seconds later on the pullback.",
+          lesson:
+            "Market orders trade price for speed. When something is moving fast in a thin market, a limit order protects the price you actually pay.",
+          beats: [
+            { label: "The spike", detail: "Token running, fear of missing out", value: "FOMO", tone: "negative" },
+            { label: "Market buy", detail: "Filled at $0.013, not $0.010", value: "+30%", tone: "negative" },
+            { label: "The lesson", detail: "A limit order controls the price", value: "patience", tone: "positive" },
+          ],
+        },
+        tips: [
+          "Use a market order when getting filled matters more than the exact price.",
+          "Use a limit order when the price you pay matters more than speed.",
+          "In fast, thin markets, a market order can fill well away from the last price you saw.",
         ],
         commonMistakes: [
           "Market-buying a thin token and eating large slippage.",
@@ -80,6 +105,7 @@ export const ordersRiskCategory: AcademyCategory = {
         estimatedMinutes: 6,
         chainScope: "universal",
         interactiveModules: [{ id: "stop-loss-take-profit-planner" }],
+        diagrams: [{ id: "stop-loss-take-profit", placement: "top" }],
         version: 1,
         updatedAt: "July 2026",
         learningObjectives: [
@@ -101,9 +127,34 @@ export const ordersRiskCategory: AcademyCategory = {
             body: "Deciding exits in advance removes emotional decisions mid-trade. It does not guarantee the fill: in volatile memecoins, price can gap through a stop and fill worse than planned.",
           },
           {
+            kind: "stakes",
+            body: "Enter without a planned exit and you leave the two hardest decisions — when to cut a loss and when to take a gain — to your emotions in the worst possible moment. That is how a small red trade becomes a portfolio-denting one, and how a big winner gives all its gains back.",
+          },
+          {
             kind: "safety",
             body: "Stops can slip or fail to fill cleanly when liquidity collapses. Treat a stop as risk control, not a guarantee, and size positions so a slipped stop is survivable.",
           },
+        ],
+        story: {
+          character: "Leo",
+          setup:
+            "Leo buys at $1.00 with no exit plan. It runs to $1.80 and he feels like a genius, so he holds for more.",
+          expectation: "He expects it to keep climbing and plans to 'sell at the top.'",
+          reality:
+            "It reverses. Every bounce, he waits to get back to $1.80. He finally sells at $0.70 — turning a big winner into a loss because he never decided his exits.",
+          lesson:
+            "Deciding a stop and a take profit before entering turns emotion into a plan. A take profit banks gains; a stop caps losses — both work best set in advance.",
+          beats: [
+            { label: "Entry", detail: "Buys at $1.00, no plan", value: "$1.00", tone: "neutral" },
+            { label: "Peak", detail: "Runs to $1.80, holds for more", value: "+80%", tone: "positive" },
+            { label: "Exit", detail: "Panic-sells the reversal", value: "$0.70", tone: "negative" },
+            { label: "The lesson", detail: "Set the exit before you enter", value: "plan", tone: "positive" },
+          ],
+        },
+        tips: [
+          "Decide your stop and target before you buy, not while you're watching the candle.",
+          "A take profit protects gains from your own 'just a little more' instinct.",
+          "Remember a stop is risk control, not a guarantee — it can slip in thin markets.",
         ],
         commonMistakes: [
           "Setting a target without a stop, so losses run unbounded.",
@@ -177,6 +228,7 @@ export const ordersRiskCategory: AcademyCategory = {
         estimatedMinutes: 6,
         chainScope: "universal",
         interactiveModules: [{ id: "position-size-calculator" }],
+        diagrams: [{ id: "portfolio", placement: "top" }],
         version: 1,
         updatedAt: "July 2026",
         learningObjectives: [
@@ -198,9 +250,34 @@ export const ordersRiskCategory: AcademyCategory = {
             body: "Fixed risk per trade is what keeps one bad trade from dominating your account. It also makes results comparable: every trade risks a similar amount, so your edge shows over time instead of being masked by wildly different bet sizes.",
           },
           {
+            kind: "stakes",
+            body: "Position sizing is the difference between a survivable loss and a wipeout. Go 'all in' on one idea and a single wrong call can erase your account with no way to recover. Risk a small, fixed slice each time and no one trade can take you out — you always live to trade again.",
+          },
+          {
             kind: "common-mistakes",
             body: "Sizing by 'how much I want to make' instead of 'how much I can lose if I am wrong', or ignoring fees and slippage that make the real loss larger than the stop suggests.",
           },
+        ],
+        story: {
+          character: "Sam",
+          setup:
+            "Sam is sure about a token and puts 80% of his account into one trade to 'make it count.'",
+          expectation: "He expects one big win to grow his account fast.",
+          reality:
+            "The token drops 40%. His account is down 32% on a single trade, and he now needs a ~47% gain just to break even. A trader who risked 2% would be down less than 1%.",
+          lesson:
+            "How much you make when you're right matters less than how much you lose when you're wrong. Fixed, small risk per trade keeps any one loss survivable.",
+          beats: [
+            { label: "The bet", detail: "80% of account in one token", value: "all-in", tone: "negative" },
+            { label: "The drop", detail: "Token falls 40%", value: "-32%", tone: "negative" },
+            { label: "The hole", detail: "Needs ~47% just to recover", value: "hard", tone: "negative" },
+            { label: "The lesson", detail: "Risk 2%, not 80%", value: "survive", tone: "positive" },
+          ],
+        },
+        tips: [
+          "Size from 'how much can I lose if I'm wrong,' not 'how much do I want to make.'",
+          "A common starting rule is risking about 1-2% of your account per trade.",
+          "Wider stop = smaller position. Let the stop distance set your size.",
         ],
         commonMistakes: [
           "Risking a large, inconsistent share of the account per trade.",

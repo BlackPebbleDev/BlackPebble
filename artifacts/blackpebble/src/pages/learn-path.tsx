@@ -24,6 +24,7 @@ import {
   DifficultyBadge,
   EstimatedTime,
 } from "@/components/education/lesson-meta";
+import { PathGraduation } from "@/components/education/path-graduation";
 import {
   trackAcademyPathStarted,
   trackAcademyPathStepViewed,
@@ -153,6 +154,11 @@ export default function LearnPathPage({
           {total} lessons
         </span>
       </div>
+
+      {/* Graduation: shown once every lesson in the path is complete */}
+      {total > 0 && completedCount === total ? (
+        <PathGraduation path={path} />
+      ) : null}
 
       {/* Progress + resume */}
       <div className="rounded-2xl bg-card p-4 shadow-card sm:p-5">

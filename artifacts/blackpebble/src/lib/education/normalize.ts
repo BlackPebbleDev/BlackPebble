@@ -12,8 +12,10 @@ import type {
   LessonSectionKind,
   LessonSource,
   LessonStatus,
+  LessonStory,
 } from "./types";
 import type { ChainScope } from "./chains";
+import type { LessonDiagramRef } from "./diagrams";
 import { classifyLesson } from "./classification";
 
 export const SECTION_LABELS: Record<LessonSectionKind, string> = {
@@ -21,6 +23,7 @@ export const SECTION_LABELS: Record<LessonSectionKind, string> = {
   what: "What it means",
   why: "Why it matters",
   how: "How it works",
+  stakes: "What happens if you ignore this",
   example: "Example",
   "common-mistakes": "Common mistakes",
   safety: "Safety considerations",
@@ -78,6 +81,12 @@ export interface NormalizedLesson {
   interactiveModule?: InteractiveModuleId;
   /** All interactive modules, ordered. Empty when the lesson has none. */
   interactiveModules: AcademyInteractiveModuleRef[];
+  /** Visual diagrams for the lesson. Empty when the lesson has none. */
+  diagrams: LessonDiagramRef[];
+  /** Optional narrative story. */
+  story?: LessonStory;
+  /** Beginner tips. Empty when the lesson has none. */
+  tips: string[];
   quiz?: LessonQuiz;
   aliases: string[];
   keywords: string[];
@@ -240,6 +249,9 @@ export function normalizeLesson(
     sources: lesson.sources ?? [],
     interactiveModule: buildInteractiveModules(lesson)[0]?.id,
     interactiveModules: buildInteractiveModules(lesson),
+    diagrams: lesson.diagrams ?? [],
+    story: lesson.story,
+    tips: lesson.tips ?? [],
     quiz: lesson.quiz,
     aliases: lesson.aliases ?? [],
     keywords: lesson.keywords ?? [],

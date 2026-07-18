@@ -119,6 +119,20 @@ export function getAllLessonSlugs(): string[] {
   return ALL_ACADEMY_LESSONS.map((lesson) => lesson.slug);
 }
 
+/**
+ * Every published lesson that offers a hands-on interactive module, computed
+ * dynamically from content (both the legacy `interactiveModule` field and the
+ * `interactiveModules` array). Powers the homepage interactive rail and the
+ * dedicated interactive browse page so no interactive lesson is ever hidden.
+ */
+export function getInteractiveLessons(): NormalizedLesson[] {
+  return getAllNormalizedLessons().filter(
+    (lesson) =>
+      (lesson.status ?? "published") === "published" &&
+      lesson.interactiveModules.length > 0,
+  );
+}
+
 export function getAllLessonTitles(): string[] {
   return ALL_ACADEMY_LESSONS.map((lesson) => lesson.title);
 }

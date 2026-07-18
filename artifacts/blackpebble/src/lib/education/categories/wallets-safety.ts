@@ -20,6 +20,10 @@ export const walletsSafetyCategory: AcademyCategory = {
         estimatedMinutes: 6,
         chainScope: "multichain",
         interactiveModules: [{ id: "wallet-signing-challenge" }],
+        diagrams: [
+          { id: "connect-vs-sign", placement: "top" },
+          { id: "wallet-keys", placement: "inline", caption: "Connecting only ever shares your public address — never your keys." },
+        ],
         version: 1,
         updatedAt: "July 2026",
         learningObjectives: [
@@ -41,9 +45,33 @@ export const walletsSafetyCategory: AcademyCategory = {
             body: "Wallet drainers rely on users approving dangerous requests out of habit. The challenge below shows realistic but fictional prompts and asks you to classify each by risk, so you build the habit of reading before approving.",
           },
           {
+            kind: "stakes",
+            body: "Approve the wrong request and there is no reversal. A single blind 'approve all' on a fake site can hand an attacker permission to move your tokens whenever they like — even days later. The whole skill is pausing to read before you sign.",
+          },
+          {
             kind: "safety",
             body: "No legitimate site ever needs your seed phrase or private key. A request for either is always a scam. Verify the destination, amount, and token on any transaction before you sign.",
           },
+        ],
+        story: {
+          character: "Devon",
+          setup:
+            "Devon clicks a link to 'claim a free airdrop.' The site pops a wallet request that looks routine, so he approves it the way he's approved dozens of connections.",
+          expectation: "He thinks he's just connecting to see his airdrop.",
+          reality:
+            "It wasn't a connection — it was a token approval granting the site permission to move his tokens. Hours later, his wallet is emptied.",
+          lesson:
+            "Connecting and signing look similar in the moment but do completely different things. Read what each prompt actually asks for; only a signature can move funds.",
+          beats: [
+            { label: "The bait", detail: "'Free airdrop — connect to claim'", value: "urgency", tone: "negative" },
+            { label: "The prompt", detail: "Looked like a connection, was an approval", value: "signed", tone: "negative" },
+            { label: "The lesson", detail: "Read before you sign — every time", value: "habit", tone: "neutral" },
+          ],
+        },
+        tips: [
+          "Connecting is safe and reversible; signing can be permanent. Know which one you're doing.",
+          "If a prompt says 'approve' and you didn't intend to authorize spending, reject it.",
+          "Slow down when a site pushes urgency — that pressure is the point.",
         ],
         commonMistakes: [
           "Treating a transaction signature like a harmless connection.",
@@ -139,7 +167,80 @@ export const walletsSafetyCategory: AcademyCategory = {
       "SOL Recovery and Wallet Cleanup",
       "SOL recovery retrieves rent deposits from closed accounts. Wallet Cleanup finds empty token accounts, dust, and spam NFTs that can be closed or burned. Both involve real on-chain transactions after your review and signature.",
       "Recovering rent SOL consolidates scattered funds into usable balance.",
-      { aliases: ["SOL recovery", "cleanup", "dust"], related: { label: "Wallet Cleanup", path: "/utilities/wallet-cleaner" } },
+      {
+        aliases: ["SOL recovery", "cleanup", "dust", "rent", "wallet cleanup", "close accounts"],
+        keywords: ["rent", "empty token account", "dust", "spam NFT", "reclaim SOL"],
+        shortAnswer:
+          "Empty token accounts lock small amounts of SOL as rent. Wallet Cleanup finds them and closes them so that SOL comes back to you — after you review and sign.",
+        difficulty: "beginner",
+        estimatedMinutes: 4,
+        chainScope: "solana",
+        diagrams: [{ id: "wallet-cleanup", placement: "top" }],
+        version: 1,
+        updatedAt: "July 2026",
+        learningObjectives: [
+          "Explain why empty accounts lock up SOL as rent",
+          "Understand what Wallet Cleanup recovers and how",
+          "Know that cleanup is real, signed, and reviewable",
+        ],
+        sections: [
+          {
+            kind: "quick-answer",
+            body: "Every token account on Solana holds a small amount of SOL as 'rent'. When an account is empty, that rent is just sitting there. Wallet Cleanup finds those accounts and closes them so the rent returns to your balance.",
+          },
+          {
+            kind: "what",
+            body: "Over time you accumulate empty token accounts, dust (tiny leftover balances), and spam NFTs. Each empty account has recoverable rent. SOL recovery and Wallet Cleanup batch these into transactions you review and sign.",
+          },
+          {
+            kind: "why",
+            body: "It is your SOL — it's just locked in accounts you no longer use. Recovering it consolidates scattered funds back into a usable balance, and clearing spam makes your wallet easier to read.",
+          },
+          {
+            kind: "stakes",
+            body: "Cleanup involves real, irreversible on-chain transactions. Closing an account you still need, or burning a token you meant to keep, cannot be undone — so review the list before you sign, and never approve a cleanup you don't understand.",
+          },
+          {
+            kind: "try-in-blackpebble",
+            body: "Open Wallet Cleanup, connect a wallet (a burner is fine to start), and it scans read-only for recoverable rent and junk. Nothing happens on-chain until you review the list and sign.",
+          },
+        ],
+        tips: [
+          "Empty token accounts are your SOL locked as rent — cleanup gives it back.",
+          "Review every account before signing; closing and burning are permanent.",
+          "Try it with a burner wallet first to see how the flow works.",
+        ],
+        relatedLessonSlugs: ["burning-and-closing", "connecting-vs-signing", "verify-before-signing"],
+        relatedFeatures: [{ label: "Wallet Cleanup", path: "/utilities/wallet-cleaner" }],
+        related: { label: "Wallet Cleanup", path: "/utilities/wallet-cleaner" },
+        quiz: {
+          id: "recovery-and-cleanup-quiz",
+          questions: [
+            {
+              id: "q1",
+              prompt: "Why does closing an empty token account return some SOL?",
+              options: [
+                "It's a reward for cleaning up",
+                "The account held SOL as rent, which is refunded on close",
+                "The network pays interest",
+                "It sells the token for you",
+              ],
+              correctIndex: 1,
+              explanation:
+                "Token accounts hold a small rent deposit in SOL. Closing an empty account refunds that rent to you.",
+            },
+            {
+              id: "q2",
+              prompt: "Wallet Cleanup can move funds without your signature.",
+              kind: "boolean",
+              options: ["True", "False"],
+              correctIndex: 1,
+              explanation:
+                "Cleanup only creates real on-chain transactions after you review the list and sign. Nothing happens without your approval.",
+            },
+          ],
+        },
+      },
     ),
     L(
       "burning-and-closing",

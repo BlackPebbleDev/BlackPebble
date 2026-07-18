@@ -8,6 +8,7 @@ import {
 import { TrendingUp, Sparkles, RefreshCw } from "lucide-react";
 import { LiveIndicator } from "@/components/live-indicator";
 import { PageHeader } from "@/components/page-header";
+import { LearnLink } from "@/components/education/learn-link";
 import { Watchlist } from "@/components/watchlist";
 import { FilterPills } from "@/components/filter-pills";
 import { Sparkline } from "@/components/sparkline";
@@ -485,6 +486,12 @@ export default function Markets() {
         // list starts higher.
         actions={
           <div className="flex items-center gap-2">
+            <LearnLink
+              slug="price-and-market-cap"
+              sourceSurface="product-markets"
+              label="Learn: Market cap"
+              className="hidden sm:inline-flex"
+            />
             {isListFeed && dataUpdatedAt > 0 && (
               <div className="min-w-0 overflow-hidden">
                 <LiveIndicator dataUpdatedAt={dataUpdatedAt} compact />

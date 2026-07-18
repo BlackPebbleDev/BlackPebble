@@ -4,6 +4,7 @@ import { Eye, ArrowRight } from "lucide-react";
 import { useFeatureFlags } from "@/hooks/use-feature-flags";
 import { RealTradingAnalysisFull } from "@/components/real-trading-analysis";
 import { UtilityPageHeader } from "@/components/utility-page-header";
+import { LearnLink } from "@/components/education/learn-link";
 import {
   Accordion,
   AccordionItem,
@@ -98,6 +99,13 @@ export default function TradingAnalysisPage() {
       <UtilityPageHeader
         utility={TRADING_ANALYSIS}
         subtitle={TRADING_ANALYSIS_SUBTITLE}
+        actions={
+          <LearnLink
+            slug="trade-performance-metrics"
+            sourceSurface="product-trader-intelligence"
+            label="Learn: reading your metrics"
+          />
+        }
       />
 
       <ReadOnlySafetyCard />

@@ -143,6 +143,7 @@ export type AcademySourceSurface =
   | "learning-path"
   | "product-portfolio"
   | "product-trading-desk"
+  | "product-markets"
   | "product-wallet"
   | "product-trader-intelligence";
 

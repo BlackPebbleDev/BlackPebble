@@ -3,7 +3,7 @@ import { Link } from "wouter";
 import { ChevronRight, GraduationCap, Home } from "lucide-react";
 import { getCategoryBySlug, getNormalizedLesson } from "@/lib/education/registry";
 import { academyHomePath } from "@/lib/education/routes";
-import { LessonCard } from "@/components/education/lesson-card";
+import { LessonCard, lessonCardData } from "@/components/education/lesson-card";
 import { useCategoryMeta } from "@/lib/education/use-academy-meta";
 import { trackAcademyCategoryViewed } from "@/lib/analytics";
 
@@ -88,21 +88,8 @@ export default function LearnCategoryPage({
       <div className="grid gap-3 sm:grid-cols-2">
         {category.lessons.map((lesson) => {
           const normalized = getNormalizedLesson(lesson.slug);
-          return (
-            <LessonCard
-              key={lesson.slug}
-              lesson={{
-                slug: lesson.slug,
-                title: lesson.title,
-                categoryId: category.id,
-                description: normalized?.shortAnswer ?? normalized?.summary,
-                difficulty: normalized?.difficulty,
-                estimatedMinutes: normalized?.estimatedMinutes,
-                chainScope: normalized?.chainScope,
-                interactive: !!normalized?.interactiveModule,
-              }}
-            />
-          );
+          if (!normalized) return null;
+          return <LessonCard key={lesson.slug} lesson={lessonCardData(normalized)} />;
         })}
       </div>
     </div>
