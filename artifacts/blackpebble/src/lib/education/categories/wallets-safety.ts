@@ -20,6 +20,10 @@ export const walletsSafetyCategory: AcademyCategory = {
         estimatedMinutes: 6,
         chainScope: "multichain",
         interactiveModules: [{ id: "wallet-signing-challenge" }],
+        diagrams: [
+          { id: "connect-vs-sign", placement: "top" },
+          { id: "wallet-keys", placement: "inline", caption: "Connecting only ever shares your public address — never your keys." },
+        ],
         version: 1,
         updatedAt: "July 2026",
         learningObjectives: [
@@ -41,9 +45,33 @@ export const walletsSafetyCategory: AcademyCategory = {
             body: "Wallet drainers rely on users approving dangerous requests out of habit. The challenge below shows realistic but fictional prompts and asks you to classify each by risk, so you build the habit of reading before approving.",
           },
           {
+            kind: "stakes",
+            body: "Approve the wrong request and there is no reversal. A single blind 'approve all' on a fake site can hand an attacker permission to move your tokens whenever they like — even days later. The whole skill is pausing to read before you sign.",
+          },
+          {
             kind: "safety",
             body: "No legitimate site ever needs your seed phrase or private key. A request for either is always a scam. Verify the destination, amount, and token on any transaction before you sign.",
           },
+        ],
+        story: {
+          character: "Devon",
+          setup:
+            "Devon clicks a link to 'claim a free airdrop.' The site pops a wallet request that looks routine, so he approves it the way he's approved dozens of connections.",
+          expectation: "He thinks he's just connecting to see his airdrop.",
+          reality:
+            "It wasn't a connection — it was a token approval granting the site permission to move his tokens. Hours later, his wallet is emptied.",
+          lesson:
+            "Connecting and signing look similar in the moment but do completely different things. Read what each prompt actually asks for; only a signature can move funds.",
+          beats: [
+            { label: "The bait", detail: "'Free airdrop — connect to claim'", value: "urgency", tone: "negative" },
+            { label: "The prompt", detail: "Looked like a connection, was an approval", value: "signed", tone: "negative" },
+            { label: "The lesson", detail: "Read before you sign — every time", value: "habit", tone: "neutral" },
+          ],
+        },
+        tips: [
+          "Connecting is safe and reversible; signing can be permanent. Know which one you're doing.",
+          "If a prompt says 'approve' and you didn't intend to authorize spending, reject it.",
+          "Slow down when a site pushes urgency — that pressure is the point.",
         ],
         commonMistakes: [
           "Treating a transaction signature like a harmless connection.",
