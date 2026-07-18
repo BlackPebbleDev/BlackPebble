@@ -451,7 +451,7 @@ const RULES: BehaviorRule[] = [
       sampleSize: byMint.size,
       evidenceCount: persistent.length,
       classification: "observation",
-      guidance: "Re-trading a familiar token can be an edge — track whether it truly pays off.",
+      guidance: "Re-trading a familiar token can be an edge. Track whether it truly pays off.",
       trend: "insufficient_history",
     };
   },
@@ -505,7 +505,7 @@ const RULES: BehaviorRule[] = [
         key: "strong_recovery",
         category: "strength",
         title: "Recovers well from drawdowns",
-        description: `You climbed back to new highs after ${recovered} of ${episodes.length} realized drawdowns — a sign of resilience.`,
+        description: `You climbed back to new highs after ${recovered} of ${episodes.length} realized drawdowns, a sign of resilience.`,
         severity: "positive",
         confidence: 0.75,
         sampleSize: episodes.length,

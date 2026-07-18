@@ -54,7 +54,7 @@ export function HolderConcentrationExplorer(props: InteractiveModuleProps) {
       assumptions={
         <Assumptions>
           this uses a fictional distribution to build intuition. There is no
-          universal "safe" threshold — concentration is one signal among many.
+          universal "safe" threshold. Concentration is one signal among many.
           Always combine it with liquidity, authority, and behavior checks.
         </Assumptions>
       }

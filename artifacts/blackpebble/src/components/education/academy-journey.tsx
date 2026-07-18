@@ -47,7 +47,7 @@ export function AcademyJourney({
             </h2>
             <p className="text-xs text-muted-foreground">
               {pct >= 100
-                ? "Beginner Essentials complete — nicely done."
+                ? "Beginner Essentials complete. Nicely done."
                 : `${pct}% through ${pathTitle}`}
             </p>
           </div>
@@ -89,7 +89,7 @@ export function AcademyJourney({
           <div className="min-w-0 text-xs">
             <span className="font-semibold text-foreground">Next goal: </span>
             <span className="text-muted-foreground">
-              {nextMilestone.label} — {nextMilestone.description}
+              {nextMilestone.label}: {nextMilestone.description}
             </span>
           </div>
         </div>

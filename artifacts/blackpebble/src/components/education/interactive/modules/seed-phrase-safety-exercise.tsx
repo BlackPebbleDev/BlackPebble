@@ -13,7 +13,7 @@ const ROUNDS: ScenarioRound[] = [
     fictionLabel: "Simulated scam message",
     options: [
       { id: "share", label: "Share it to get help", correct: false },
-      { id: "refuse", label: "Refuse — real support never asks for it", correct: true, note: "This is always a scam." },
+      { id: "refuse", label: "Refuse: real support never asks for it", correct: true, note: "This is always a scam." },
     ],
     explanation:
       "Real support will never ask for your recovery phrase. Anyone who has it controls your wallet completely. Never share or type it into a chat.",
@@ -40,7 +40,7 @@ const ROUNDS: ScenarioRound[] = [
     fictionLabel: "Simulated phishing site",
     options: [
       { id: "paste", label: "Paste it to claim the airdrop", correct: false },
-      { id: "leave", label: "Leave — legitimate airdrops never need your phrase", correct: true },
+      { id: "leave", label: "Leave: legitimate airdrops never need your phrase", correct: true },
     ],
     explanation:
       "Legitimate airdrops are claimed with a normal wallet connection or signature, never by importing your seed phrase into a website.",

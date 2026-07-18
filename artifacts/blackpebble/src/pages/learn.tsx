@@ -524,7 +524,7 @@ export default function LearnPage() {
                 }
               />
               <p className="-mt-1 text-xs text-muted-foreground">
-                {interactiveCount} hands-on lessons — simulators, calculators,
+                {interactiveCount} hands-on lessons: simulators, calculators,
                 scenarios and predictions that let you try each concept yourself.
               </p>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">

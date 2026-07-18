@@ -21,9 +21,9 @@ export const startHereCategory: AcademyCategory = {
         interactiveModules: [{ id: "concept-reveal", config: {
           prompt: "Guess before you reveal each card. Knowing what is simulated versus real is the single most important thing on BlackPebble.",
           cards: [
-            { front: "Paper trading a token — does this spend real SOL?", back: "Simulated. Live prices, virtual funds, zero risk. Nothing leaves your wallet." },
-            { front: "Wallet Cleanup closing accounts — does this touch the chain?", back: "Real. It creates on-chain transactions — but only after you review and sign each one." },
-            { front: "Viewing a trader's profile or calls — read or write?", back: "Read-only. You are looking at public history, not moving anything." },
+            { front: "Paper trading a token: does this spend real SOL?", back: "Simulated. Live prices, virtual funds, zero risk. Nothing leaves your wallet." },
+            { front: "Wallet Cleanup closing accounts: does this touch the chain?", back: "Real. It creates on-chain transactions, but only after you review and sign each one." },
+            { front: "Viewing a trader's profile or calls: read or write?", back: "Read-only. You are looking at public history, not moving anything." },
           ],
         } }],
         diagrams: [{ id: "paper-trading", placement: "top" }],
@@ -45,7 +45,7 @@ export const startHereCategory: AcademyCategory = {
           },
           {
             kind: "why",
-            body: "New traders usually lose money learning on real funds. BlackPebble lets you build the exact same skills — reading a chart, sizing a trade, spotting a scam — before a single real dollar is at risk.",
+            body: "New traders usually lose money learning on real funds. BlackPebble lets you build the exact same skills (reading a chart, sizing a trade, spotting a scam) before a single real dollar is at risk.",
           },
           {
             kind: "stakes",
@@ -53,7 +53,7 @@ export const startHereCategory: AcademyCategory = {
           },
           {
             kind: "try-in-blackpebble",
-            body: "Open the Trading Desk and place a paper trade — no wallet needed. When you are ready to explore real tools, Wallet Cleanup and others always show you exactly what they will do before you approve.",
+            body: "Open the Trading Desk and place a paper trade. No wallet needed. When you are ready to explore real tools, Wallet Cleanup and others always show you exactly what they will do before you approve.",
           },
         ],
         examples: [
@@ -61,7 +61,7 @@ export const startHereCategory: AcademyCategory = {
         ],
         tips: [
           "Start with paper trading. You cannot lose real money doing it.",
-          "If anything asks you to sign, slow down and read what it does — that is the only place real funds move.",
+          "If anything asks you to sign, slow down and read what it does. That is the only place real funds move.",
           "You do not need a wallet at all to learn here.",
         ],
         relatedLessonSlugs: ["paper-vs-real-trading", "use-blackpebble-safely"],
@@ -82,7 +82,7 @@ export const startHereCategory: AcademyCategory = {
               prompt: "When you paper trade on BlackPebble, what happens to your real SOL?",
               options: [
                 "It is spent at live prices",
-                "Nothing — paper trading uses simulated funds",
+                "Nothing, paper trading uses simulated funds",
                 "It is locked until you close the trade",
                 "It is sent to the token creator",
               ],
@@ -101,7 +101,7 @@ export const startHereCategory: AcademyCategory = {
               ],
               correctIndex: 2,
               explanation:
-                "Wallet utilities like Wallet Cleanup can create real transactions — but only after you review and sign them.",
+                "Wallet utilities like Wallet Cleanup can create real transactions, but only after you review and sign them.",
             },
           ],
         },
@@ -131,7 +131,7 @@ export const startHereCategory: AcademyCategory = {
         sections: [
           {
             kind: "quick-answer",
-            body: "Paper trading practices at live market prices using simulated funds — nothing leaves your wallet. Real wallet actions (like recovering SOL or burning tokens) spend real SOL and require your signature.",
+            body: "Paper trading practices at live market prices using simulated funds. Nothing leaves your wallet. Real wallet actions (like recovering SOL or burning tokens) spend real SOL and require your signature.",
           },
           {
             kind: "what",
@@ -139,7 +139,7 @@ export const startHereCategory: AcademyCategory = {
           },
           {
             kind: "why",
-            body: "Practicing first lets you make your beginner mistakes for free. You learn how it feels to hold through a dip, take profit too early, or size too big — without paying tuition in real losses.",
+            body: "Practicing first lets you make your beginner mistakes for free. You learn how it feels to hold through a dip, take profit too early, or size too big, without paying tuition in real losses.",
           },
           {
             kind: "stakes",
@@ -156,10 +156,10 @@ export const startHereCategory: AcademyCategory = {
         story: {
           character: "Maya",
           setup:
-            "Maya's first week paper trading goes great — she's up 60% on virtual funds and feels ready for the real thing.",
+            "Maya's first week paper trading goes great: she's up 60% on virtual funds and feels ready for the real thing.",
           expectation: "She assumes real trading will feel exactly the same.",
           reality:
-            "With real money, a normal 20% dip suddenly feels terrifying. She panic-sells at the bottom — something she never did on paper, where losses didn't sting.",
+            "With real money, a normal 20% dip suddenly feels terrifying. She panic-sells at the bottom, something she never did on paper, where losses didn't sting.",
           lesson:
             "Paper trading teaches the mechanics perfectly, but real emotion is a separate skill. Use paper trading to practice a plan you can actually stick to when it's real.",
           beats: [
@@ -169,7 +169,7 @@ export const startHereCategory: AcademyCategory = {
           ],
         },
         tips: [
-          "Treat paper trades seriously — pretend the virtual money is real so the habits transfer.",
+          "Treat paper trades seriously: pretend the virtual money is real so the habits transfer.",
           "A green paper number is practice, not profit. Nothing is real until real SOL moves.",
           "Before your first real trade, re-read the wallet safety lessons.",
         ],
@@ -217,7 +217,7 @@ export const startHereCategory: AcademyCategory = {
         chainScope: "universal",
         diagrams: [
           { id: "connect-vs-sign", placement: "top" },
-          { id: "transaction-flow", placement: "inline", caption: "Real actions become on-chain transactions once you sign — and confirmed transactions cannot be reversed." },
+          { id: "transaction-flow", placement: "inline", caption: "Real actions become on-chain transactions once you sign. Confirmed transactions cannot be reversed." },
         ],
         version: 1,
         updatedAt: "July 2026",
@@ -249,7 +249,7 @@ export const startHereCategory: AcademyCategory = {
           },
         ],
         tips: [
-          "No real service — including BlackPebble — will ever ask for your seed phrase.",
+          "No real service, including BlackPebble, will ever ask for your seed phrase.",
           "Keep a separate 'burner' wallet for experimenting with new tools.",
           "Always match the token's contract address, not just its name or logo.",
           "When in doubt on a signing prompt, reject it. You can always try again.",

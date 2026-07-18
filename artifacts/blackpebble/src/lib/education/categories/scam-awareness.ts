@@ -17,12 +17,12 @@ export const scamAwarenessCategory: AcademyCategory = {
       "phishing-and-drainers",
       "Phishing and Wallet Drainers",
       "Phishing sites mimic real wallet or exchange interfaces to steal seed phrases or trick you into signing a draining transaction. Fake support accounts start the con in your DMs.",
-      "Most beginners who lose funds are not out-traded — they are tricked into signing or sharing something. Learning the pattern is the single highest-value safety skill.",
+      "Most beginners who lose funds are not out-traded. They are tricked into signing or sharing something. Learning the pattern is the single highest-value safety skill.",
       {
         aliases: ["phishing", "drainer", "fake support", "wallet drainer", "scam dm"],
         keywords: ["phishing", "drainer", "seed phrase", "approval", "fake support", "impersonation"],
         shortAnswer:
-          "Phishing tricks you into revealing your seed phrase or signing a malicious transaction. Real support never DMs you first and never needs your recovery phrase — treat any such request as a scam.",
+          "Phishing tricks you into revealing your seed phrase or signing a malicious transaction. Real support never DMs you first and never needs your recovery phrase. Treat any such request as a scam.",
         difficulty: "beginner",
         estimatedMinutes: 7,
         chainScope: "universal",
@@ -34,7 +34,7 @@ export const scamAwarenessCategory: AcademyCategory = {
         sections: [
           {
             kind: "what",
-            body: "Phishing is social engineering: a scammer builds a convincing fake — a website, a support 'agent', a pop-up — to get you to hand over access. A wallet drainer is the transaction they want you to sign: once approved, it moves your assets out.",
+            body: "Phishing is social engineering: a scammer builds a convincing fake (a website, a support 'agent', a pop-up) to get you to hand over access. A wallet drainer is the transaction they want you to sign: once approved, it moves your assets out.",
           },
           {
             kind: "why",
@@ -50,18 +50,18 @@ export const scamAwarenessCategory: AcademyCategory = {
           },
           {
             kind: "safety",
-            body: "Bookmark official sites and open them yourself — never from a link in chat or email. Never type your seed phrase anywhere. If a request feels urgent, that is a reason to slow down, not speed up.",
+            body: "Bookmark official sites and open them yourself, never from a link in chat or email. Never type your seed phrase anywhere. If a request feels urgent, that is a reason to slow down, not speed up.",
           },
         ],
         story: {
           character: "Maya",
           setup:
-            "Maya gets a friendly DM: 'BlackPebble Support here — we detected suspicious activity. Verify your wallet in the next 10 minutes or it will be locked.'",
+            "Maya gets a friendly DM: 'BlackPebble Support here. We detected suspicious activity. Verify your wallet in the next 10 minutes or it will be locked.'",
           expectation: "She thinks she is protecting her funds by acting fast.",
           reality:
             "The 'agent' asks for her 12-word recovery phrase to 'restore access.' The moment she pastes it, the wallet is emptied.",
           lesson:
-            "Support never messages first and never needs your recovery phrase. Urgency is the tell — real security processes don't put a countdown on your funds.",
+            "Support never messages first and never needs your recovery phrase. Urgency is the tell. Real security processes don't put a countdown on your funds.",
           beats: [
             { label: "Unsolicited DM", detail: "Support 'reaches out' first", tone: "negative" },
             { label: "Manufactured urgency", detail: "'10 minutes or it locks'", tone: "negative" },
@@ -71,7 +71,7 @@ export const scamAwarenessCategory: AcademyCategory = {
         },
         tips: [
           "If someone contacts you first about your wallet, assume it's a scam until proven otherwise.",
-          "Your seed phrase is the one thing you never type into a website, form, or chat — ever.",
+          "Your seed phrase is the one thing you never type into a website, form, or chat. Ever.",
           "Reduce urgency by having a rule: you never sign or share anything within 60 seconds of being asked.",
         ],
         commonMistakes: [
@@ -98,7 +98,7 @@ export const scamAwarenessCategory: AcademyCategory = {
               options: [
                 "Share it so they can help",
                 "Share only the first six words",
-                "Never share it — this is a scam",
+                "Never share it, this is a scam",
                 "Ask them to verify their identity first",
               ],
               correctIndex: 2,
@@ -147,7 +147,7 @@ export const scamAwarenessCategory: AcademyCategory = {
           },
           {
             kind: "why",
-            body: "During a hype moment, scammers flood chats with a fake CA. Buyers in a hurry paste it and buy the copycat — which the scammer controls.",
+            body: "During a hype moment, scammers flood chats with a fake CA. Buyers in a hurry paste it and buy the copycat, which the scammer controls.",
           },
           {
             kind: "stakes",
@@ -159,7 +159,7 @@ export const scamAwarenessCategory: AcademyCategory = {
           },
         ],
         tips: [
-          "The token symbol is not proof of anything — the contract address is.",
+          "The token symbol is not proof of anything. The contract address is.",
           "Copy the CA from an official source and compare the first and last few characters carefully.",
           "If a CA is only available 'in the group chat,' that's a red flag, not convenience.",
         ],
@@ -181,7 +181,7 @@ export const scamAwarenessCategory: AcademyCategory = {
                   prompt: "Which are red flags? (Select all that apply.)",
                   context:
                     "A reply under a popular token's post says: 'Official CA just dropped 👇 buy fast before it 10x! CA: 7xKf...9adQ (only shared here!)'",
-                  fictionLabel: "Simulated post — not real",
+                  fictionLabel: "Simulated post (not real)",
                   multi: true,
                   options: [
                     { id: "reply", label: "CA comes from a reply, not the project", correct: true, note: "Verify from the official source." },
@@ -233,7 +233,7 @@ export const scamAwarenessCategory: AcademyCategory = {
           },
           {
             kind: "why",
-            body: "It weaponizes FOMO. The chart only goes up — because almost no one can sell — which pulls in more buyers whose money is then stuck.",
+            body: "It weaponizes FOMO. The chart only goes up because almost no one can sell, which pulls in more buyers whose money is then stuck.",
           },
           {
             kind: "stakes",
@@ -250,14 +250,14 @@ export const scamAwarenessCategory: AcademyCategory = {
             "Leo buys a token that's up 300% with a chart that never dips. It feels like free money.",
           expectation: "He plans to sell half at 5x and ride the rest.",
           reality:
-            "When he tries to sell, every attempt fails. The token is a honeypot — buys work, sells don't. His balance is frozen at a fake number.",
+            "When he tries to sell, every attempt fails. The token is a honeypot: buys work, sells don't. His balance is frozen at a fake number.",
           lesson:
             "A price that only goes up can be a warning, not a gift. A small test sell right after buying would have revealed the trap for a few cents.",
         },
         tips: [
           "A chart that literally never goes down is suspicious, not reassuring.",
           "Do a small test sell soon after buying something brand-new and unaudited.",
-          "If a sell fails or is taxed extremely, don't 'average in' — get out of the mindset, not deeper in.",
+          "If a sell fails or is taxed extremely, don't 'average in': get out of the mindset, not deeper in.",
         ],
         commonMistakes: [
           "Treating a one-directional chart as proof of a healthy token.",
@@ -268,10 +268,10 @@ export const scamAwarenessCategory: AcademyCategory = {
           {
             id: "concept-reveal",
             config: {
-              prompt: "A honeypot in two questions — guess, then reveal.",
+              prompt: "A honeypot in two questions: guess, then reveal.",
               cards: [
-                { front: "Can you BUY a honeypot token?", back: "Yes — buying is allowed and often looks great. That's the bait." },
-                { front: "Can you SELL a honeypot token?", back: "No — selling is blocked or taxed to zero for normal wallets. That's the trap." },
+                { front: "Can you BUY a honeypot token?", back: "Yes, buying is allowed and often looks great. That's the bait." },
+                { front: "Can you SELL a honeypot token?", back: "No, selling is blocked or taxed to zero for normal wallets. That's the trap." },
               ],
             },
           },
@@ -302,7 +302,7 @@ export const scamAwarenessCategory: AcademyCategory = {
       "fake-airdrops",
       "Fake Airdrops and Malicious NFTs",
       "Unrequested tokens or NFTs can appear in your wallet as bait. 'Claiming' them often means connecting to a malicious site and signing an approval that drains your wallet.",
-      "The danger isn't receiving the airdrop — it's interacting with it. Curiosity is the attack vector.",
+      "The danger isn't receiving the airdrop. It's interacting with it. Curiosity is the attack vector.",
       {
         aliases: ["airdrop scam", "malicious NFT", "spam NFT", "fake airdrop", "dust attack"],
         keywords: ["airdrop", "nft", "claim", "approval", "spam", "burn"],
@@ -318,7 +318,7 @@ export const scamAwarenessCategory: AcademyCategory = {
           },
           {
             kind: "why",
-            body: "It exploits curiosity and greed — a surprise item that appears to be worth thousands. But value you didn't earn appearing from nowhere is the hook.",
+            body: "It exploits curiosity and greed: a surprise item that appears to be worth thousands. But value you didn't earn appearing from nowhere is the hook.",
           },
           {
             kind: "stakes",
@@ -330,7 +330,7 @@ export const scamAwarenessCategory: AcademyCategory = {
           },
         ],
         tips: [
-          "Receiving a spam token is not dangerous — clicking or 'claiming' it is.",
+          "Receiving a spam token is not dangerous. Clicking or 'claiming' it is.",
           "Treat any 'you won' surprise in your wallet as spam by default.",
           "Use a burner wallet for experiments so a bad signature can't touch your main funds.",
         ],
@@ -341,7 +341,7 @@ export const scamAwarenessCategory: AcademyCategory = {
         diagrams: [{ id: "connect-vs-sign" }],
         relatedLessonSlugs: ["phishing-and-drainers", "warning-signs"],
         related: { label: "Wallet Cleanup", path: "/utilities/wallet-cleaner" },
-        callout: { type: "safety", text: "Interacting with unknown airdrops can trigger wallet-draining approvals. Ignore or burn them — never claim." },
+        callout: { type: "safety", text: "Interacting with unknown airdrops can trigger wallet-draining approvals. Ignore or burn them. Never claim." },
         quiz: {
           id: "fake-airdrops-quiz",
           questions: [
@@ -356,7 +356,7 @@ export const scamAwarenessCategory: AcademyCategory = {
               ],
               correctIndex: 2,
               explanation:
-                "Unexpected airdrops are often bait. Interacting can trigger draining approvals — ignore or safely burn them.",
+                "Unexpected airdrops are often bait. Interacting can trigger draining approvals. Ignore or safely burn them.",
             },
           ],
         },
@@ -366,7 +366,7 @@ export const scamAwarenessCategory: AcademyCategory = {
       "distribution-risks",
       "Supply Distribution and Insider Risk",
       "Bundled supply hides how much a developer or insiders control across many wallets. Concentrated holders can dump together, and unlocked liquidity means the creator can pull it at any time.",
-      "Who holds the supply — and whether liquidity is locked — often matters more than the chart. It's the difference between a trade and a trap.",
+      "Who holds the supply (and whether liquidity is locked) often matters more than the chart. It's the difference between a trade and a trap.",
       {
         aliases: ["bundled", "concentrated holders", "unlocked LP", "insider supply", "supply distribution"],
         keywords: ["distribution", "holders", "bundle", "liquidity lock", "insider", "concentration"],
@@ -390,7 +390,7 @@ export const scamAwarenessCategory: AcademyCategory = {
           },
         ],
         tips: [
-          "Look past the holder count — many wallets can still be one insider (bundling).",
+          "Look past the holder count: many wallets can still be one insider (bundling).",
           "Locked liquidity and broad distribution reduce risk; they never guarantee safety.",
           "Always size positions as if total loss is possible, because with these tokens it is.",
         ],
@@ -446,13 +446,13 @@ export const scamAwarenessCategory: AcademyCategory = {
           },
           {
             kind: "stakes",
-            body: "If a creator keeps these authorities, they can inflate supply, freeze your ability to sell, or bleed you through taxes — all after you've bought in.",
+            body: "If a creator keeps these authorities, they can inflate supply, freeze your ability to sell, or bleed you through taxes, all after you've bought in.",
           },
         ],
         tips: [
           "Prefer tokens where mint and freeze authorities are revoked.",
           "A small, disclosed tax can be legitimate; a hidden or extreme tax is not.",
-          "Authorities being revoked reduces certain risks — it never makes a token 'safe.'",
+          "Authorities being revoked reduces certain risks. It never makes a token 'safe.'",
         ],
         commonMistakes: [
           "Ignoring authority status because the token is trending.",
@@ -460,7 +460,7 @@ export const scamAwarenessCategory: AcademyCategory = {
         ],
         diagrams: [{ id: "rug-pull" }],
         relatedLessonSlugs: ["distribution-risks", "honeypots", "warning-signs"],
-        callout: { type: "safety", text: "Revoked authorities and no transfer tax are safer defaults — but never a guarantee." },
+        callout: { type: "safety", text: "Revoked authorities and no transfer tax are safer defaults, but never a guarantee." },
         quiz: {
           id: "token-mechanics-quiz",
           questions: [
@@ -509,7 +509,7 @@ export const scamAwarenessCategory: AcademyCategory = {
           },
         ],
         tips: [
-          "Compare volume across independent sources — inflated numbers often don't match.",
+          "Compare volume across independent sources. Inflated numbers often don't match.",
           "Look for specific, varied conversation, not repetitive one-line hype replies.",
           "A large follower count with tiny genuine engagement is a warning, not a green light.",
         ],
@@ -561,7 +561,7 @@ export const scamAwarenessCategory: AcademyCategory = {
         sections: [
           {
             kind: "what",
-            body: "Individual signals — a spike in slippage, a dip in liquidity, a quiet developer — can have innocent explanations. The skill is noticing when several stack up at once.",
+            body: "Individual signals (a spike in slippage, a dip in liquidity, a quiet developer) can have innocent explanations. The skill is noticing when several stack up at once.",
           },
           {
             kind: "why",

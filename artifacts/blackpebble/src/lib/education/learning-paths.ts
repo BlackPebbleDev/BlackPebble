@@ -33,7 +33,7 @@ const BEGINNER_ESSENTIALS: LearningPath = {
   slug: "beginner-essentials",
   title: "Crypto & Memecoin Beginner Essentials",
   description:
-    "Start from zero. Understand how BlackPebble works, how tokens are priced, how to read risk, how to protect your wallet, and how to practice safely — then place a guided paper trade.",
+    "Start from zero. Understand how BlackPebble works, how tokens are priced, how to read risk, how to protect your wallet, and how to practice safely, then place a guided paper trade.",
   audience: "Complete beginners",
   difficulty: "beginner",
   estimatedMinutes: 75,

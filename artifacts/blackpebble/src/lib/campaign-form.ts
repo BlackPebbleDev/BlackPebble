@@ -131,7 +131,7 @@ export function campaignFormIssues(
       issues.push({
         field: "token",
         kind: "invalid",
-        message: "Token not recognized — check the contract address.",
+        message: "Token not recognized. Check the contract address.",
       });
     }
   }
@@ -140,7 +140,7 @@ export function campaignFormIssues(
     issues.push({
       field: "banner",
       kind: "missing",
-      message: "Add a banner image URL — this service needs it for fulfillment.",
+      message: "Add a banner image URL. This service needs it for fulfillment.",
     });
   }
 

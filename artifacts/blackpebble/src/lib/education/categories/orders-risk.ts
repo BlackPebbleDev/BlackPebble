@@ -56,7 +56,7 @@ export const ordersRiskCategory: AcademyCategory = {
             "A token is spiking and Nadia doesn't want to miss it, so she slams a market buy at what looks like $0.010.",
           expectation: "She expects to get in near $0.010.",
           reality:
-            "By the time her order clears the thin order flow, it fills at $0.013 — 30% higher. A patient limit at $0.011 would have filled seconds later on the pullback.",
+            "By the time her order clears the thin order flow, it fills at $0.013: 30% higher. A patient limit at $0.011 would have filled seconds later on the pullback.",
           lesson:
             "Market orders trade price for speed. When something is moving fast in a thin market, a limit order protects the price you actually pay.",
           beats: [
@@ -128,7 +128,7 @@ export const ordersRiskCategory: AcademyCategory = {
           },
           {
             kind: "stakes",
-            body: "Enter without a planned exit and you leave the two hardest decisions — when to cut a loss and when to take a gain — to your emotions in the worst possible moment. That is how a small red trade becomes a portfolio-denting one, and how a big winner gives all its gains back.",
+            body: "Enter without a planned exit and you leave the two hardest decisions (when to cut a loss and when to take a gain) to your emotions in the worst possible moment. That is how a small red trade becomes a portfolio-denting one, and how a big winner gives all its gains back.",
           },
           {
             kind: "safety",
@@ -141,9 +141,9 @@ export const ordersRiskCategory: AcademyCategory = {
             "Leo buys at $1.00 with no exit plan. It runs to $1.80 and he feels like a genius, so he holds for more.",
           expectation: "He expects it to keep climbing and plans to 'sell at the top.'",
           reality:
-            "It reverses. Every bounce, he waits to get back to $1.80. He finally sells at $0.70 — turning a big winner into a loss because he never decided his exits.",
+            "It reverses. Every bounce, he waits to get back to $1.80. He finally sells at $0.70, turning a big winner into a loss because he never decided his exits.",
           lesson:
-            "Deciding a stop and a take profit before entering turns emotion into a plan. A take profit banks gains; a stop caps losses — both work best set in advance.",
+            "Deciding a stop and a take profit before entering turns emotion into a plan. A take profit banks gains; a stop caps losses. Both work best set in advance.",
           beats: [
             { label: "Entry", detail: "Buys at $1.00, no plan", value: "$1.00", tone: "neutral" },
             { label: "Peak", detail: "Runs to $1.80, holds for more", value: "+80%", tone: "positive" },
@@ -154,7 +154,7 @@ export const ordersRiskCategory: AcademyCategory = {
         tips: [
           "Decide your stop and target before you buy, not while you're watching the candle.",
           "A take profit protects gains from your own 'just a little more' instinct.",
-          "Remember a stop is risk control, not a guarantee — it can slip in thin markets.",
+          "Remember a stop is risk control, not a guarantee. It can slip in thin markets.",
         ],
         commonMistakes: [
           "Setting a target without a stop, so losses run unbounded.",
@@ -251,7 +251,7 @@ export const ordersRiskCategory: AcademyCategory = {
           },
           {
             kind: "stakes",
-            body: "Position sizing is the difference between a survivable loss and a wipeout. Go 'all in' on one idea and a single wrong call can erase your account with no way to recover. Risk a small, fixed slice each time and no one trade can take you out — you always live to trade again.",
+            body: "Position sizing is the difference between a survivable loss and a wipeout. Go 'all in' on one idea and a single wrong call can erase your account with no way to recover. Risk a small, fixed slice each time and no one trade can take you out. You always live to trade again.",
           },
           {
             kind: "common-mistakes",

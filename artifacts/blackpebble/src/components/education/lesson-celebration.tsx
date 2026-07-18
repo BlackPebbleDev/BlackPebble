@@ -59,7 +59,7 @@ export function LessonCelebration({
         <div className="min-w-0 flex-1">
           <h2 className="text-base font-bold text-foreground">Lesson complete</h2>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            Nice work — you understand this one. Keep the momentum going.
+            Nice work. You understand this one. Keep the momentum going.
           </p>
 
           {pathTitle && pathTotal ? (

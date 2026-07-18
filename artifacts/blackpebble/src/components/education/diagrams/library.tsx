@@ -256,7 +256,7 @@ function Slippage() {
       </g>
       <DiagramLabel x={235} y={92} className="text-foreground" size={13}>$108</DiagramLabel>
       <DiagramLabel x={235} y={110} className="text-warning" size={9}>actually paid</DiagramLabel>
-      <DiagramLabel x={160} y={158} className="text-muted-foreground" size={9} weight={500}>The 8% gap is slippage — set a tolerance to cap it</DiagramLabel>
+      <DiagramLabel x={160} y={158} className="text-muted-foreground" size={9} weight={500}>The 8% gap is slippage: set a tolerance to cap it</DiagramLabel>
     </>
   );
 }
@@ -566,7 +566,7 @@ export interface DiagramEntry {
 export const DIAGRAM_LIBRARY: Record<LessonDiagramId, DiagramEntry> = {
   "wallet-keys": {
     title: "Public address vs private key",
-    caption: "Your public address is safe to share so people can send you tokens. Your private key and seed phrase control everything — never share them.",
+    caption: "Your public address is safe to share so people can send you tokens. Your private key and seed phrase control everything. Never share them.",
     Component: WalletKeys,
     animated: true,
   },
@@ -578,7 +578,7 @@ export const DIAGRAM_LIBRARY: Record<LessonDiagramId, DiagramEntry> = {
   },
   "connect-vs-sign": {
     title: "Connecting vs signing",
-    caption: "Connecting is read-only and shares your public address. Signing authorizes an action that can move or spend your funds — always read it first.",
+    caption: "Connecting is read-only and shares your public address. Signing authorizes an action that can move or spend your funds. Always read it first.",
     Component: ConnectVsSign,
   },
   "transaction-flow": {
@@ -589,7 +589,7 @@ export const DIAGRAM_LIBRARY: Record<LessonDiagramId, DiagramEntry> = {
   },
   "market-cap": {
     title: "Market cap = price × supply",
-    caption: "Market cap multiplies price by circulating supply. A tiny price can still be a huge market cap, so judge value by market cap — not price alone.",
+    caption: "Market cap multiplies price by circulating supply. A tiny price can still be a huge market cap, so judge value by market cap, not price alone.",
     Component: MarketCap,
   },
   fdv: {
@@ -663,7 +663,7 @@ export const DIAGRAM_LIBRARY: Record<LessonDiagramId, DiagramEntry> = {
   },
   "trader-intelligence": {
     title: "Trader Intelligence",
-    caption: "Trader Intelligence studies real historical trades to surface patterns and deterministic insights — never predictions or advice.",
+    caption: "Trader Intelligence studies real historical trades to surface patterns and deterministic insights, never predictions or advice.",
     Component: TraderIntelligence,
   },
   "wallet-cleanup": {
@@ -673,7 +673,7 @@ export const DIAGRAM_LIBRARY: Record<LessonDiagramId, DiagramEntry> = {
   },
   "realized-unrealized": {
     title: "Realized vs unrealized PnL",
-    caption: "Realized PnL is locked in once you sell. Unrealized PnL is only a paper gain or loss on what you still hold — it can still change or vanish before you sell.",
+    caption: "Realized PnL is locked in once you sell. Unrealized PnL is only a paper gain or loss on what you still hold. It can still change or vanish before you sell.",
     Component: RealizedUnrealized,
   },
   "emotion-cycle": {

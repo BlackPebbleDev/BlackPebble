@@ -57,7 +57,7 @@ export function OrderTypeChallenge({
   return (
     <ScenarioShell
       title="Order-type decision challenge"
-      description="Pick the order type that best fits each situation. There is often more than one reasonable choice — focus on why."
+      description="Pick the order type that best fits each situation. There is often more than one reasonable choice, so focus on why."
       icon={ListChecks}
       rounds={ROUNDS}
       testId="order-type-challenge"

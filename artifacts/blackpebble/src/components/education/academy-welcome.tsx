@@ -73,7 +73,7 @@ export function AcademyWelcome({
       </h2>
       <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-muted-foreground">
         No jargon, no pressure, and nothing at risk. In about an hour you'll
-        understand wallets, prices, risk, memecoins, and scams — and you'll
+        understand wallets, prices, risk, memecoins, and scams, and you'll
         practice safely with simulated funds before ever using real money.
       </p>
 
@@ -81,7 +81,7 @@ export function AcademyWelcome({
         {[
           { icon: Sparkles, text: "Learn by doing, not just reading" },
           { icon: ShieldCheck, text: "Spot scams before they cost you" },
-          { icon: Heart, text: "Go at your own pace — progress saves" },
+          { icon: Heart, text: "Go at your own pace. Progress saves" },
         ].map((item) => (
           <li key={item.text} className="flex items-start gap-2 text-xs text-foreground/90">
             <item.icon className="mt-0.5 h-4 w-4 flex-shrink-0 text-accent" aria-hidden />
