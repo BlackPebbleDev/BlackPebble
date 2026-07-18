@@ -70,7 +70,7 @@ export function TrustBadge({ score }: { score: number }) {
         "inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold leading-none",
         tone,
       )}
-      title="Campaign trust score — creator reputation, campaign history, account age, and campaign completeness"
+      title="Campaign trust score: creator reputation, campaign history, account age, and campaign completeness"
     >
       <ShieldCheck className="w-3 h-3" />
       Trust {score}
@@ -373,7 +373,7 @@ export function TokenContract({
       address={address}
       variant="token"
       subtitle="Never send SOL to this address."
-      tooltip="The token's contract address — never send funds here."
+      tooltip="The token's contract address. Never send funds here."
       stopClicks={stopClicks}
     />
   );
@@ -393,7 +393,7 @@ export function EscrowWallet({
       address={address}
       variant="escrow"
       subtitle="This is the only wallet that accepts campaign contributions."
-      tooltip="Every contribution goes to this dedicated escrow wallet — nowhere else."
+      tooltip="Every contribution goes to this dedicated escrow wallet, nowhere else."
       stopClicks={stopClicks}
     />
   );

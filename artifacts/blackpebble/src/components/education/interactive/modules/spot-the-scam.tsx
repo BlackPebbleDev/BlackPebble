@@ -23,7 +23,7 @@ const DEFAULT_ROUNDS: ScenarioRound[] = [
     prompt: "Which parts are red flags? (Select all that apply.)",
     context:
       '"Hi, this is BlackPebble Support. We noticed suspicious activity. To secure your wallet, please share your 12-word recovery phrase so we can restore access. Act within 10 minutes or your funds may be locked."',
-    fictionLabel: "Simulated DM — not real",
+    fictionLabel: "Simulated DM (not real)",
     multi: true,
     options: [
       { id: "dm-first", label: "Support messaged you first", correct: true, note: "Real support doesn't DM you first." },
@@ -39,7 +39,7 @@ const DEFAULT_ROUNDS: ScenarioRound[] = [
     prompt: "What should make you stop? (Select all that apply.)",
     context:
       "A link in a chat leads to a site that looks like your wallet. It asks you to \"re-validate\" by signing a transaction that requests unlimited spending approval on all your tokens.",
-    fictionLabel: "Simulated site — not real",
+    fictionLabel: "Simulated site (not real)",
     multi: true,
     options: [
       { id: "link", label: "You arrived via a chat link", correct: true, note: "Bookmark official sites; don't trust links." },
@@ -48,14 +48,14 @@ const DEFAULT_ROUNDS: ScenarioRound[] = [
       { id: "wallet-ui", label: "It looks like your wallet", correct: false, note: "Looks are easy to fake." },
     ],
     explanation:
-      "Phishing sites copy real interfaces exactly. Judge by how you arrived and what is being requested — an unlimited approval you didn't initiate is a stop sign.",
+      "Phishing sites copy real interfaces exactly. Judge by how you arrived and what is being requested. An unlimited approval you didn't initiate is a stop sign.",
   },
   {
     id: "airdrop",
     prompt: "A surprise token appears in your wallet worth '$4,000'. What's safe?",
     context:
       "The token's description contains a link to 'claim' your reward by connecting and signing.",
-    fictionLabel: "Simulated airdrop — not real",
+    fictionLabel: "Simulated airdrop (not real)",
     options: [
       { id: "claim", label: "Connect and claim it before it expires", correct: false },
       { id: "ignore", label: "Ignore it and never interact with the link", correct: true, note: "Interacting is how the trap springs." },
@@ -76,7 +76,7 @@ export function SpotTheScam({
       title={config?.title ?? "Spot the scam"}
       description={
         config?.description ??
-        "Every example below is fictional and safe. Find the warning signs — this is exactly how these scams look in real life."
+        "Every example below is fictional and safe. Find the warning signs. This is exactly how these scams look in real life."
       }
       icon={ShieldAlert}
       rounds={rounds}

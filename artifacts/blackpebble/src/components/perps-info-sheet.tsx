@@ -55,7 +55,7 @@ export function PerpsInfoSheet({ trigger }: { trigger?: React.ReactNode }) {
           </InfoBlock>
           <InfoBlock title="Long vs. Short">
             A long profits when the token&apos;s market cap rises. A short
-            profits when it falls. Both track the token&apos;s USD market cap —
+            profits when it falls. Both track the token&apos;s USD market cap,
             the same number you see on the chart.
           </InfoBlock>
           <InfoBlock title="Liquidation">
@@ -68,8 +68,8 @@ export function PerpsInfoSheet({ trigger }: { trigger?: React.ReactNode }) {
           <InfoBlock title="How this differs from real perps">
             Real perpetual futures charge funding rates and trading fees, and
             losses can exceed initial margin on some venues. This simulation
-            has no funding or fees, and your loss is always capped at margin —
-            it&apos;s a learning and strategy tool, not an execution venue.
+            has no funding or fees, and your loss is always capped at margin.
+            It&apos;s a learning and strategy tool, not an execution venue.
           </InfoBlock>
           <InfoBlock title="How stats are recorded">
             Every open, close, and liquidation writes a permanent history entry

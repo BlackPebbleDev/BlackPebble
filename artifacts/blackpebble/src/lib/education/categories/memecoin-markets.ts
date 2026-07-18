@@ -15,7 +15,7 @@ export const memecoinMarketsCategory: AcademyCategory = {
         aliases: ["bonding curve", "migration", "graduation", "new pair", "launch lifecycle", "memecoin launch"],
         keywords: ["pump.fun", "launchpad", "graduation", "liquidity migration", "early buyers"],
         shortAnswer:
-          "A memecoin usually moves through creation, early buying on a curve, graduation/migration to a DEX, then open-market trading — each phase carries different liquidity and risk.",
+          "A memecoin usually moves through creation, early buying on a curve, graduation/migration to a DEX, then open-market trading. Each phase carries different liquidity and risk.",
         difficulty: "beginner",
         estimatedMinutes: 6,
         chainScope: "multichain",
@@ -43,7 +43,7 @@ export const memecoinMarketsCategory: AcademyCategory = {
           },
           {
             kind: "stakes",
-            body: "Buy without knowing the phase and you can walk straight into the top. Most attention — and most buying — arrives near the peak, right before early buyers take profit and the token fades. Recognizing the lifecycle is how you avoid being the exit liquidity for someone who got in far cheaper.",
+            body: "Buy without knowing the phase and you can walk straight into the top. Most attention (and most buying) arrives near the peak, right before early buyers take profit and the token fades. Recognizing the lifecycle is how you avoid being the exit liquidity for someone who got in far cheaper.",
           },
           {
             kind: "common-mistakes",
@@ -53,7 +53,7 @@ export const memecoinMarketsCategory: AcademyCategory = {
         story: {
           character: "Aria",
           setup:
-            "Aria sees a token trending everywhere — group chats, feeds, big green candles — and buys because 'everyone' is in it.",
+            "Aria sees a token trending everywhere (group chats, feeds, big green candles) and buys because 'everyone' is in it.",
           expectation: "She expects the momentum to keep going up.",
           reality:
             "The hype she saw was the peak. Early buyers who entered near launch use the wave of new attention to sell into, and the token fades over the next hours.",
@@ -62,13 +62,13 @@ export const memecoinMarketsCategory: AcademyCategory = {
           beats: [
             { label: "Launch", detail: "Quiet, cheap, early buyers enter", value: "cheap", tone: "positive" },
             { label: "Pump", detail: "Attention builds, price climbs", value: "hype", tone: "neutral" },
-            { label: "Peak", detail: "Everyone's talking — Aria buys", value: "top", tone: "negative" },
+            { label: "Peak", detail: "Everyone's talking, Aria buys", value: "top", tone: "negative" },
             { label: "Fade", detail: "Early buyers sell into the hype", value: "down", tone: "negative" },
           ],
         },
         tips: [
           "Loud hype often means late, not early. Check where the token is in its lifecycle.",
-          "Pre-migration liquidity is thin and moves fast — treat it with extra caution.",
+          "Pre-migration liquidity is thin and moves fast. Treat it with extra caution.",
           "Being 'early' is about the phase, not about how excited the chat is.",
         ],
         commonMistakes: [
@@ -134,7 +134,7 @@ export const memecoinMarketsCategory: AcademyCategory = {
           },
           {
             kind: "stakes",
-            body: "If you don't understand the curve, a fast-rising price feels like proof the token is 'winning' — when it's just the formula charging later buyers more. Buy high on the curve and the same mechanism that lifted the price will drop it just as fast the moment buying slows.",
+            body: "If you don't understand the curve, a fast-rising price feels like proof the token is 'winning,' when it's just the formula charging later buyers more. Buy high on the curve and the same mechanism that lifted the price will drop it just as fast the moment buying slows.",
           },
           {
             kind: "advanced",
@@ -148,7 +148,7 @@ export const memecoinMarketsCategory: AcademyCategory = {
             "Marco watches a brand-new token's price tick up every few seconds and reads it as unstoppable momentum, so he buys near the top of the curve.",
           expectation: "He expects the steady climb to keep going.",
           reality:
-            "The climb was just the curve charging each new buyer more. When buying pauses, sells push the price right back down the same curve — and he's underwater almost immediately.",
+            "The climb was just the curve charging each new buyer more. When buying pauses, sells push the price right back down the same curve, and he's underwater almost immediately.",
           lesson:
             "On a bonding curve, price rises because people are buying, not because the token is 'succeeding.' The earliest buyers pay the least; late buyers carry the most risk.",
           beats: [
@@ -160,11 +160,11 @@ export const memecoinMarketsCategory: AcademyCategory = {
         },
         tips: [
           "A rising curve price means more buying, not a guarantee the token will keep climbing.",
-          "The earlier you are on a curve, the cheaper your cost basis — and the later, the riskier.",
+          "The earlier you are on a curve, the cheaper your cost basis; the later, the riskier.",
           "Selling moves price back down the same curve, so exits can be sharp.",
         ],
         commonMistakes: [
-          "Assuming the curve guarantees the price keeps rising — selling moves back down it.",
+          "Assuming the curve guarantees the price keeps rising: selling moves back down it.",
           "Treating one launchpad's curve as if every curve is identical.",
         ],
         relatedLessonSlugs: ["launch-lifecycle", "liquidity-seeding", "price-impact-and-slippage"],
@@ -240,7 +240,7 @@ export const memecoinMarketsCategory: AcademyCategory = {
           },
           {
             kind: "stakes",
-            body: "Skip the holder check and you might be buying a token where one wallet can end the game whenever it wants. If a single holder controls most of the supply, they can dump on every buyer at once — and you'd be one of them. This is a two-minute check that avoids a permanent loss.",
+            body: "Skip the holder check and you might be buying a token where one wallet can end the game whenever it wants. If a single holder controls most of the supply, they can dump on every buyer at once, and you'd be one of them. This is a two-minute check that avoids a permanent loss.",
           },
           {
             kind: "common-mistakes",
@@ -263,7 +263,7 @@ export const memecoinMarketsCategory: AcademyCategory = {
           ],
         },
         tips: [
-          "Check the top holders before buying — concentration is a two-minute look that can save you.",
+          "Check the top holders before buying. Concentration is a two-minute look that can save you.",
           "One wallet holding a large share means one person can move the price alone.",
           "Watch for clustered wallets: several addresses controlled by the same party hide real concentration.",
         ],
@@ -361,7 +361,7 @@ export const memecoinMarketsCategory: AcademyCategory = {
           },
           {
             kind: "stakes",
-            body: "A rug pull is not a bad trade you can recover from — it is a total loss. When the creator pulls liquidity, there is no one left to sell to at any price, and the chain won't reverse it. The whole defense is spotting the warning signs before you buy, because there is no after.",
+            body: "A rug pull is not a bad trade you can recover from. It is a total loss. When the creator pulls liquidity, there is no one left to sell to at any price, and the chain won't reverse it. The whole defense is spotting the warning signs before you buy, because there is no after.",
           },
           {
             kind: "common-mistakes",
@@ -374,9 +374,9 @@ export const memecoinMarketsCategory: AcademyCategory = {
             "Elena finds a token with a slick website, a busy chat, and a chart that's straight up. Everyone says it's the next big thing, so she buys.",
           expectation: "She expects to ride the momentum for a quick multiple.",
           reality:
-            "The liquidity was never locked and one wallet held most of the supply. Overnight the creator pulls the liquidity — the price goes to near zero and her sell button does nothing.",
+            "The liquidity was never locked and one wallet held most of the supply. Overnight the creator pulls the liquidity: the price goes to near zero and her sell button does nothing.",
           lesson:
-            "A polished website and loud hype are marketing, not safety. On-chain facts — locked liquidity, holder spread, revoked authorities — are what actually protect you.",
+            "A polished website and loud hype are marketing, not safety. On-chain facts (locked liquidity, holder spread, revoked authorities) are what actually protect you.",
           beats: [
             { label: "The lure", detail: "Slick site, hype, vertical chart", value: "looks legit", tone: "neutral" },
             { label: "Ignored facts", detail: "Unlocked liquidity, one big wallet", value: "red flags", tone: "negative" },
@@ -385,7 +385,7 @@ export const memecoinMarketsCategory: AcademyCategory = {
           ],
         },
         tips: [
-          "Hype and a nice website prove nothing — check liquidity locks, holders, and authorities.",
+          "Hype and a nice website prove nothing. Check liquidity locks, holders, and authorities.",
           "If liquidity isn't locked or burned, the creator can remove it at any time.",
           "No single green flag outweighs several red ones. Weigh the signals together.",
           "When something feels too good and too urgent, that's the feeling scammers engineer.",

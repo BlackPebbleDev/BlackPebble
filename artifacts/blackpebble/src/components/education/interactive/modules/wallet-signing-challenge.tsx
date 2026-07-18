@@ -10,7 +10,7 @@ const ROUNDS: ScenarioRound[] = [
     id: "connect",
     prompt: "How risky is this request, by itself?",
     context: "A well-known site asks: \"Connect wallet to view your portfolio.\" It requests no signature.",
-    fictionLabel: "Simulated request — not real",
+    fictionLabel: "Simulated request (not real)",
     options: [
       { id: "low", label: "Generally low risk", correct: true, note: "Connecting shares your public address only." },
       { id: "review", label: "Review carefully", correct: false },
@@ -49,7 +49,7 @@ const ROUNDS: ScenarioRound[] = [
   {
     id: "seed",
     prompt: "How should you treat this?",
-    context: "A popup says: \"Verify your wallet — enter your 12-word recovery phrase to continue.\"",
+    context: "A popup says: \"Verify your wallet. Enter your 12-word recovery phrase to continue.\"",
     fictionLabel: "Simulated phishing prompt",
     options: [
       { id: "low", label: "Generally low risk", correct: false },

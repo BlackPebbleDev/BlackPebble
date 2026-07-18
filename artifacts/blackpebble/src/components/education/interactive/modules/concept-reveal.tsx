@@ -21,7 +21,7 @@ interface ConceptRevealConfig {
 
 const DEFAULT_CARDS: RevealCard[] = [
   { front: "What can someone do with your public address?", back: "Only send you tokens and view your history. They can't move your funds." },
-  { front: "What can someone do with your seed phrase?", back: "Everything. It restores your whole wallet — so it never goes into a website or chat." },
+  { front: "What can someone do with your seed phrase?", back: "Everything. It restores your whole wallet, so it never goes into a website or chat." },
 ];
 
 export function ConceptReveal({
@@ -64,7 +64,7 @@ export function ConceptReveal({
         </p>
       ) : (
         <p className="border-b border-border/60 px-4 py-2.5 text-xs leading-relaxed text-muted-foreground">
-          Think about your answer first — then tap to check.
+          Think about your answer first, then tap to check.
         </p>
       )}
       <div className="grid gap-3 p-4 sm:grid-cols-2">

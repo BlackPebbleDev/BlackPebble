@@ -46,10 +46,10 @@ export function PathGraduation({ path }: { path: LearningPath }) {
   }
 
   const encouragement = allConfident
-    ? "You've got the fundamentals down. Time to put them to work — with zero real money at risk."
+    ? "You've got the fundamentals down. Time to put them to work, with zero real money at risk."
     : confidentCount === 0
       ? "Tick off what already feels solid. Anything you leave unchecked is worth a quick review before you trade."
-      : "Great progress. Revisit the unchecked topics whenever you like — they'll click fast the second time.";
+      : "Great progress. Revisit the unchecked topics whenever you like. They'll click fast the second time.";
 
   return (
     <section

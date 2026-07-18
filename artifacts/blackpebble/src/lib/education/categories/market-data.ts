@@ -72,13 +72,13 @@ export const marketDataCategory: AcademyCategory = {
                 {
                   label: "He pays exactly $100 for the expected amount of tokens",
                   result:
-                    "Unlikely on a thin pool — his own order pushes the price up as it fills.",
+                    "Unlikely on a thin pool. His own order pushes the price up as it fills.",
                 },
                 {
                   label: "His order fails, or fills for noticeably fewer tokens",
                   correct: true,
                   result:
-                    "Right. Low liquidity means big price impact, so a tight 1% tolerance often makes the swap fail — or it fills at a worse price than shown.",
+                    "Right. Low liquidity means big price impact, so a tight 1% tolerance often makes the swap fail, or it fills at a worse price than shown.",
                 },
                 {
                   label: "He gets more tokens than expected",
@@ -117,7 +117,7 @@ export const marketDataCategory: AcademyCategory = {
           },
           {
             kind: "stakes",
-            body: "If you ignore slippage, the price you see is not the price you pay. On a thin token you can lose several percent the instant you buy — and several percent again when you sell — turning a 'winning' idea into a loss before the market even moves. Set a tolerance so a bad fill cancels instead of costing you.",
+            body: "If you ignore slippage, the price you see is not the price you pay. On a thin token you can lose several percent the instant you buy, and several percent again when you sell, turning a 'winning' idea into a loss before the market even moves. Set a tolerance so a bad fill cancels instead of costing you.",
           },
           {
             kind: "common-mistakes",
@@ -130,7 +130,7 @@ export const marketDataCategory: AcademyCategory = {
             "Trevor spots a thin new token and market-buys what he expects to be $100 worth.",
           expectation: "He expects to pay about $100 for his tokens.",
           reality:
-            "His own order is large compared to the tiny pool, so it pushes the price up as it fills. He actually pays $108 — an 8% loss before the token has moved at all.",
+            "His own order is large compared to the tiny pool, so it pushes the price up as it fills. He actually pays $108: an 8% loss before the token has moved at all.",
           lesson:
             "In a thin pool your own buy moves the price against you (price impact), and the gap between expected and paid is slippage. A slippage tolerance caps that gap; smaller orders and deeper pools shrink it.",
           beats: [
@@ -141,7 +141,7 @@ export const marketDataCategory: AcademyCategory = {
           ],
         },
         tips: [
-          "The price you see is a quote, not a promise — slippage is the gap to what you actually pay.",
+          "The price you see is a quote, not a promise. Slippage is the gap to what you actually pay.",
           "On thin tokens, split a big order into smaller pieces to reduce impact.",
           "Set a slippage tolerance so a bad fill cancels the trade instead of soaking the loss.",
         ],

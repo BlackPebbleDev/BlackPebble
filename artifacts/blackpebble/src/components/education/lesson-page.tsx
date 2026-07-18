@@ -856,7 +856,7 @@ export function LessonPageView({
                   ) : (
                     <span className="text-foreground/80">{s.label}</span>
                   )}
-                  {s.note ? <span> — {s.note}</span> : null}
+                  {s.note ? <span>: {s.note}</span> : null}
                 </li>
               ))}
             </ul>
@@ -950,7 +950,7 @@ export function LessonPageView({
           type="button"
           onClick={() => setOutlineSheetOpen(true)}
           className="fixed bottom-20 right-4 z-30 grid h-12 w-12 place-items-center rounded-full border border-border bg-card/95 shadow-lg backdrop-blur transition-transform active:scale-95 lg:hidden"
-          aria-label={`Lesson contents — ${Math.round(readPct)}% read`}
+          aria-label={`Lesson contents, ${Math.round(readPct)}% read`}
           data-testid="mobile-contents-fab"
         >
           <svg className="absolute inset-0 h-full w-full -rotate-90" viewBox="0 0 48 48" aria-hidden>
@@ -989,7 +989,7 @@ export function LessonPageView({
             <AlertDialogDescription>
               “{guardTarget?.title}” is a more advanced lesson. You're{" "}
               {pathCompletion?.pct ?? 0}% through {path?.title ?? "your path"}, and
-              each step builds on the one before — finishing in order is the
+              each step builds on the one before. Finishing in order is the
               fastest way to feel confident. You can still explore if you'd like.
             </AlertDialogDescription>
           </AlertDialogHeader>

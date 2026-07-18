@@ -25,7 +25,7 @@ const STAGES: Stage[] = [
   {
     title: "Initial pricing / bonding curve",
     body: "Early pricing is often set by a bonding curve where each purchase raises the price for the next buyer. Early buyers pay less than later buyers.",
-    risk: "Being early is not automatically safe — many tokens fade before maturing.",
+    risk: "Being early is not automatically safe. Many tokens fade before maturing.",
   },
   {
     title: "Early buyers and attention",
@@ -41,7 +41,7 @@ const STAGES: Stage[] = [
   {
     title: "Open-market trading",
     body: "The token trades freely. Price is now driven by supply, demand, liquidity depth, and holder behavior.",
-    risk: "Thin liquidity means large trades — including exits — move price sharply.",
+    risk: "Thin liquidity means large trades (including exits) move price sharply.",
   },
   {
     title: "Developer and community activity",

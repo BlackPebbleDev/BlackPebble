@@ -15,14 +15,14 @@ export const walletsSafetyCategory: AcademyCategory = {
         aliases: ["connect wallet", "sign message", "sign transaction", "wallet signing", "connecting wallet", "wallet connection", "approvals"],
         keywords: ["approve", "token approval", "read-only", "permission", "drainer"],
         shortAnswer:
-          "Connecting shares your public address (low risk). Signing a message proves ownership without moving funds. Signing a transaction or approval can move or spend your assets — review it carefully.",
+          "Connecting shares your public address (low risk). Signing a message proves ownership without moving funds. Signing a transaction or approval can move or spend your assets. Review it carefully.",
         difficulty: "beginner",
         estimatedMinutes: 6,
         chainScope: "multichain",
         interactiveModules: [{ id: "wallet-signing-challenge" }],
         diagrams: [
           { id: "connect-vs-sign", placement: "top" },
-          { id: "wallet-keys", placement: "inline", caption: "Connecting only ever shares your public address — never your keys." },
+          { id: "wallet-keys", placement: "inline", caption: "Connecting only ever shares your public address, never your keys." },
         ],
         version: 1,
         updatedAt: "July 2026",
@@ -38,7 +38,7 @@ export const walletsSafetyCategory: AcademyCategory = {
           },
           {
             kind: "what",
-            body: "A connection request is generally low risk. A message signature is usually safe but should still make sense for what you are doing. A transaction signature and a token approval can move funds or grant spending rights — these are the requests attackers abuse.",
+            body: "A connection request is generally low risk. A message signature is usually safe but should still make sense for what you are doing. A transaction signature and a token approval can move funds or grant spending rights. These are the requests attackers abuse.",
           },
           {
             kind: "why",
@@ -46,7 +46,7 @@ export const walletsSafetyCategory: AcademyCategory = {
           },
           {
             kind: "stakes",
-            body: "Approve the wrong request and there is no reversal. A single blind 'approve all' on a fake site can hand an attacker permission to move your tokens whenever they like — even days later. The whole skill is pausing to read before you sign.",
+            body: "Approve the wrong request and there is no reversal. A single blind 'approve all' on a fake site can hand an attacker permission to move your tokens whenever they like, even days later. The whole skill is pausing to read before you sign.",
           },
           {
             kind: "safety",
@@ -59,19 +59,19 @@ export const walletsSafetyCategory: AcademyCategory = {
             "Devon clicks a link to 'claim a free airdrop.' The site pops a wallet request that looks routine, so he approves it the way he's approved dozens of connections.",
           expectation: "He thinks he's just connecting to see his airdrop.",
           reality:
-            "It wasn't a connection — it was a token approval granting the site permission to move his tokens. Hours later, his wallet is emptied.",
+            "It wasn't a connection. It was a token approval granting the site permission to move his tokens. Hours later, his wallet is emptied.",
           lesson:
             "Connecting and signing look similar in the moment but do completely different things. Read what each prompt actually asks for; only a signature can move funds.",
           beats: [
-            { label: "The bait", detail: "'Free airdrop — connect to claim'", value: "urgency", tone: "negative" },
+            { label: "The bait", detail: "'Free airdrop, connect to claim'", value: "urgency", tone: "negative" },
             { label: "The prompt", detail: "Looked like a connection, was an approval", value: "signed", tone: "negative" },
-            { label: "The lesson", detail: "Read before you sign — every time", value: "habit", tone: "neutral" },
+            { label: "The lesson", detail: "Read before you sign, every time", value: "habit", tone: "neutral" },
           ],
         },
         tips: [
           "Connecting is safe and reversible; signing can be permanent. Know which one you're doing.",
           "If a prompt says 'approve' and you didn't intend to authorize spending, reject it.",
-          "Slow down when a site pushes urgency — that pressure is the point.",
+          "Slow down when a site pushes urgency. That pressure is the point.",
         ],
         commonMistakes: [
           "Treating a transaction signature like a harmless connection.",
@@ -101,7 +101,7 @@ export const walletsSafetyCategory: AcademyCategory = {
               prompt: "A site asks you to type your seed phrase to 'verify' your wallet. You should:",
               options: [
                 "Enter it quickly",
-                "Never enter it — this is a scam",
+                "Never enter it, this is a scam",
                 "Enter only half of it",
                 "Ask for support first",
               ],
@@ -171,7 +171,7 @@ export const walletsSafetyCategory: AcademyCategory = {
         aliases: ["SOL recovery", "cleanup", "dust", "rent", "wallet cleanup", "close accounts"],
         keywords: ["rent", "empty token account", "dust", "spam NFT", "reclaim SOL"],
         shortAnswer:
-          "Empty token accounts lock small amounts of SOL as rent. Wallet Cleanup finds them and closes them so that SOL comes back to you — after you review and sign.",
+          "Empty token accounts lock small amounts of SOL as rent. Wallet Cleanup finds them and closes them so that SOL comes back to you, after you review and sign.",
         difficulty: "beginner",
         estimatedMinutes: 4,
         chainScope: "solana",
@@ -194,11 +194,11 @@ export const walletsSafetyCategory: AcademyCategory = {
           },
           {
             kind: "why",
-            body: "It is your SOL — it's just locked in accounts you no longer use. Recovering it consolidates scattered funds back into a usable balance, and clearing spam makes your wallet easier to read.",
+            body: "It is your SOL, just locked in accounts you no longer use. Recovering it consolidates scattered funds back into a usable balance, and clearing spam makes your wallet easier to read.",
           },
           {
             kind: "stakes",
-            body: "Cleanup involves real, irreversible on-chain transactions. Closing an account you still need, or burning a token you meant to keep, cannot be undone — so review the list before you sign, and never approve a cleanup you don't understand.",
+            body: "Cleanup involves real, irreversible on-chain transactions. Closing an account you still need, or burning a token you meant to keep, cannot be undone, so review the list before you sign, and never approve a cleanup you don't understand.",
           },
           {
             kind: "try-in-blackpebble",
@@ -206,7 +206,7 @@ export const walletsSafetyCategory: AcademyCategory = {
           },
         ],
         tips: [
-          "Empty token accounts are your SOL locked as rent — cleanup gives it back.",
+          "Empty token accounts are your SOL locked as rent. Cleanup gives it back.",
           "Review every account before signing; closing and burning are permanent.",
           "Try it with a burner wallet first to see how the flow works.",
         ],

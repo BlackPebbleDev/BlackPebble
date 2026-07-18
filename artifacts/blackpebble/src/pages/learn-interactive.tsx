@@ -145,7 +145,7 @@ export default function LearnInteractivePage() {
         title="Interactive lessons"
         subtitle={
           <p>
-            {entries.length} hands-on lessons — simulators, calculators, scenarios
+            {entries.length} hands-on lessons: simulators, calculators, scenarios
             and predictions. Learn each concept by trying it yourself.
           </p>
         }

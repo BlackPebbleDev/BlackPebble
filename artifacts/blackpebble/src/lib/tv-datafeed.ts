@@ -259,7 +259,7 @@ export function createDatafeed(
         name: opts.displaySymbol,
         ticker: encodeTicker(useMint, marketCap),
         description: marketCap
-          ? `${opts.displaySymbol} — Market Cap`
+          ? `${opts.displaySymbol}: Market Cap`
           : opts.displaySymbol,
         type: "crypto",
         session: "24x7",

@@ -28,12 +28,12 @@ export const tradingBasicsCategory: AcademyCategory = {
               question: "Which token is 'bigger' by total value?",
               options: [
                 {
-                  label: "Token B — its price is 1,000x higher",
+                  label: "Token B: its price is 1,000x higher",
                   result:
                     "Price alone is misleading. $10 x 1,000,000 = $10,000,000 market cap.",
                 },
                 {
-                  label: "Token A — it has far more tokens",
+                  label: "Token A: it has far more tokens",
                   result:
                     "Supply alone is misleading too. $0.01 x 1,000,000,000 = $10,000,000 market cap.",
                 },
@@ -41,7 +41,7 @@ export const tradingBasicsCategory: AcademyCategory = {
                   label: "They are the same size",
                   correct: true,
                   result:
-                    "Correct. Both have a $10,000,000 market cap. Price x supply is what matters — not the price sticker.",
+                    "Correct. Both have a $10,000,000 market cap. Price x supply is what matters, not the price sticker.",
                 },
               ],
               takeaway:
@@ -73,7 +73,7 @@ export const tradingBasicsCategory: AcademyCategory = {
           },
           {
             kind: "stakes",
-            body: "If you buy because a token 'only costs $0.0001', you can pour money into something already valued at hundreds of millions — with almost no room to grow and lots of room to fall. Ignoring market cap is how beginners overpay for 'cheap' tokens.",
+            body: "If you buy because a token 'only costs $0.0001', you can pour money into something already valued at hundreds of millions, with almost no room to grow and lots of room to fall. Ignoring market cap is how beginners overpay for 'cheap' tokens.",
           },
           {
             kind: "common-mistakes",
@@ -86,17 +86,17 @@ export const tradingBasicsCategory: AcademyCategory = {
             "Sam sees two memecoins. Coin A costs $0.000005; Coin B costs $2. 'A is way cheaper,' he thinks, 'so it has more upside.'",
           expectation: "He expects the $0.000005 coin to 100x more easily.",
           reality:
-            "Coin A has 500 billion tokens (a $2.5M cap) — but Coin B has only 500,000 tokens (a $1M cap). The 'expensive' coin is actually the smaller, earlier one.",
+            "Coin A has 500 billion tokens (a $2.5M cap), but Coin B has only 500,000 tokens (a $1M cap). The 'expensive' coin is actually the smaller, earlier one.",
           lesson:
             "Unit price tells you almost nothing. Market cap (price × supply) is the real size. Always compare caps, not sticker prices.",
           beats: [
-            { label: "Coin A price", detail: "$0.000005 — looks cheap", value: "$2.5M cap", tone: "negative" },
-            { label: "Coin B price", detail: "$2 — looks expensive", value: "$1M cap", tone: "positive" },
+            { label: "Coin A price", detail: "$0.000005 (looks cheap)", value: "$2.5M cap", tone: "negative" },
+            { label: "Coin B price", detail: "$2 (looks expensive)", value: "$1M cap", tone: "positive" },
             { label: "The real question", detail: "Which is bigger? Compare caps", value: "B < A", tone: "neutral" },
           ],
         },
         tips: [
-          "Before you judge if a token is 'cheap,' find its market cap — not its unit price.",
+          "Before you judge if a token is 'cheap,' find its market cap, not its unit price.",
           "A tiny price with a massive supply is not the same as being early.",
           "On BlackPebble Markets, sort and compare by market cap to size things up fairly.",
         ],
@@ -168,7 +168,7 @@ export const tradingBasicsCategory: AcademyCategory = {
           },
           {
             kind: "stakes",
-            body: "Ignore supply and you can badly misjudge what you're buying. A token can look tiny by price yet be huge once you multiply by a massive supply — or look small today but be set to double its circulating tokens through upcoming unlocks. Either way, the surprise usually costs the buyer.",
+            body: "Ignore supply and you can badly misjudge what you're buying. A token can look tiny by price yet be huge once you multiply by a massive supply, or look small today but be set to double its circulating tokens through upcoming unlocks. Either way, the surprise usually costs the buyer.",
           },
           {
             kind: "common-mistakes",
@@ -194,7 +194,7 @@ export const tradingBasicsCategory: AcademyCategory = {
         tips: [
           "Market cap uses circulating supply, so always find that number, not just total supply.",
           "A large chunk of locked supply is future dilution waiting to happen.",
-          "Big supply does not make a token 'cheap' — only market cap tells you its size.",
+          "Big supply does not make a token 'cheap': only market cap tells you its size.",
         ],
         relatedLessonSlugs: ["price-and-market-cap", "fdv"],
         relatedFeatures: [{ label: "Markets", path: "/markets" }],
@@ -229,7 +229,7 @@ export const tradingBasicsCategory: AcademyCategory = {
     L(
       "fdv",
       "Fully Diluted Valuation (FDV)",
-      "Fully Diluted Valuation (FDV) is what the market cap would be if every token — including locked, vested, and unminted supply — were circulating at the current price. Market cap uses only circulating supply; FDV uses total or maximum supply.",
+      "Fully Diluted Valuation (FDV) is what the market cap would be if every token (including locked, vested, and unminted supply) were circulating at the current price. Market cap uses only circulating supply; FDV uses total or maximum supply.",
       "A large gap between market cap and FDV means many tokens are not yet circulating, and future unlocks can add selling pressure.",
       {
         aliases: ["FDV", "fully diluted valuation", "fdv meaning", "market cap vs fdv", "diluted valuation"],
@@ -278,7 +278,7 @@ export const tradingBasicsCategory: AcademyCategory = {
           reality:
             "Only 25% of supply is circulating. The FDV is $40M, and scheduled unlocks keep adding sellers. Every time the price rises, freshly-unlocked tokens are sold into it.",
           lesson:
-            "Market cap shows the size today; FDV shows the size if everything unlocks at this price. A big gap means dilution is coming — factor it in before assuming a token is 'small.'",
+            "Market cap shows the size today; FDV shows the size if everything unlocks at this price. A big gap means dilution is coming. Factor it in before assuming a token is 'small.'",
           beats: [
             { label: "Looks small", detail: "$10M market cap", value: "$10M", tone: "positive" },
             { label: "The catch", detail: "Only 25% circulating", value: "FDV $40M", tone: "negative" },
@@ -287,7 +287,7 @@ export const tradingBasicsCategory: AcademyCategory = {
         },
         tips: [
           "Compare market cap to FDV: a big gap means lots of supply is still locked.",
-          "Check the unlock schedule — that's when locked tokens can start selling.",
+          "Check the unlock schedule: that's when locked tokens can start selling.",
           "A low circulating percentage is a dilution flag, not automatically a bargain.",
         ],
         commonMistakes: [
@@ -374,9 +374,9 @@ export const tradingBasicsCategory: AcademyCategory = {
             "Ravi buys a token showing big 24h volume, assuming that means he can get out easily whenever he wants.",
           expectation: "He expects a smooth exit since 'volume is high.'",
           reality:
-            "The pool is actually thin — the volume came from lots of tiny trades. When he tries to sell his position, his own order tanks the price and he exits far below what he saw.",
+            "The pool is actually thin: the volume came from lots of tiny trades. When he tries to sell his position, his own order tanks the price and he exits far below what he saw.",
           lesson:
-            "Volume and liquidity aren't the same. High volume can hide a shallow pool. Liquidity — the depth you trade against — is what determines whether you can exit without wrecking the price.",
+            "Volume and liquidity aren't the same. High volume can hide a shallow pool. Liquidity (the depth you trade against) is what determines whether you can exit without wrecking the price.",
           beats: [
             { label: "Looks liquid", detail: "Big 24h volume number", value: "high vol", tone: "positive" },
             { label: "The reality", detail: "Thin pool, many tiny trades", value: "shallow", tone: "negative" },
@@ -385,7 +385,7 @@ export const tradingBasicsCategory: AcademyCategory = {
         },
         tips: [
           "Before you buy, ask: can I sell this size without crashing the price?",
-          "High volume can still hide a thin pool — check liquidity depth, not just volume.",
+          "High volume can still hide a thin pool. Check liquidity depth, not just volume.",
           "Thin liquidity hurts most on the way out, in a rush, when you least want it.",
         ],
         relatedLessonSlugs: ["price-impact-and-slippage", "liquidity-pool", "top-holders"],
@@ -470,7 +470,7 @@ export const tradingBasicsCategory: AcademyCategory = {
         interactiveModule: "pnl-simulator",
         diagrams: [
           { id: "realized-unrealized", placement: "top" },
-          { id: "trader-intelligence", placement: "inline", caption: "BlackPebble's Trading Intelligence reads your real, realized trade history to surface patterns — never predictions." },
+          { id: "trader-intelligence", placement: "inline", caption: "BlackPebble's Trading Intelligence reads your real, realized trade history to surface patterns, never predictions." },
         ],
         version: 1,
         updatedAt: "July 2026",
@@ -494,7 +494,7 @@ export const tradingBasicsCategory: AcademyCategory = {
           },
           {
             kind: "stakes",
-            body: "Confuse unrealized gains for real money and you'll make real decisions on imaginary profit — spending, sizing up, or refusing to sell a winner that's quietly round-tripping. Paper gains can vanish entirely before you lock them in. Knowing realized from unrealized keeps your scoreboard honest.",
+            body: "Confuse unrealized gains for real money and you'll make real decisions on imaginary profit: spending, sizing up, or refusing to sell a winner that's quietly round-tripping. Paper gains can vanish entirely before you lock them in. Knowing realized from unrealized keeps your scoreboard honest.",
           },
           {
             kind: "how",
@@ -515,7 +515,7 @@ export const tradingBasicsCategory: AcademyCategory = {
             "Bea's position is up 300% on screen. She tells friends she 'made' several thousand dollars and mentally spends it, holding for a 10x.",
           expectation: "She expects to lock in that gain later, at an even higher price.",
           reality:
-            "The token fades back toward her entry. Because she never sold, the 'profit' was only ever unrealized — and it disappears. Her realized PnL ends up near zero.",
+            "The token fades back toward her entry. Because she never sold, the 'profit' was only ever unrealized, and it disappears. Her realized PnL ends up near zero.",
           lesson:
             "Unrealized PnL is a number on a screen, not money in your pocket. It only becomes real when you sell. Deciding in advance what to realize protects gains from evaporating.",
           beats: [
@@ -526,7 +526,7 @@ export const tradingBasicsCategory: AcademyCategory = {
           ],
         },
         tips: [
-          "A green number isn't profit until you sell — that's the realized/unrealized difference.",
+          "A green number isn't profit until you sell. That's the realized/unrealized difference.",
           "Judge yourself over many trades, not one screenshot-worthy winner.",
           "Fees and slippage make real PnL lower than entry-to-exit price suggests.",
         ],
@@ -560,8 +560,8 @@ export const tradingBasicsCategory: AcademyCategory = {
               id: "q1",
               prompt: "You are up 200% on a token you still hold. This gain is:",
               options: [
-                "Realized — it's money you've kept",
-                "Unrealized — it can still change until you sell",
+                "Realized: it's money you've kept",
+                "Unrealized: it can still change until you sell",
                 "Guaranteed to grow",
                 "Already in your wallet as cash",
               ],
@@ -589,7 +589,7 @@ export const tradingBasicsCategory: AcademyCategory = {
               ],
               correctIndices: [0, 1, 3],
               explanation:
-                "Unrealized gains are fragile, costs reduce real PnL, and skill shows across many realized trades — not one lucky outcome.",
+                "Unrealized gains are fragile, costs reduce real PnL, and skill shows across many realized trades, not one lucky outcome.",
             },
           ],
         },
@@ -687,7 +687,7 @@ export const tradingBasicsCategory: AcademyCategory = {
           },
           {
             kind: "stakes",
-            body: "Trade without checking R:R and you can win most of your trades yet still lose money — because a few oversized losses erase many small wins. Poor risk-to-reward is a slow leak that discipline on entries alone can't fix.",
+            body: "Trade without checking R:R and you can win most of your trades yet still lose money, because a few oversized losses erase many small wins. Poor risk-to-reward is a slow leak that discipline on entries alone can't fix.",
           },
           {
             kind: "common-mistakes",
@@ -712,7 +712,7 @@ export const tradingBasicsCategory: AcademyCategory = {
         },
         tips: [
           "Aiming for at least 1:2 lets you be wrong often and still profit.",
-          "Never widen your stop mid-trade to avoid being stopped out — that destroys your R:R.",
+          "Never widen your stop mid-trade to avoid being stopped out. That destroys your R:R.",
           "Cutting winners early and holding losers is the opposite of good risk-to-reward.",
         ],
         relatedLessonSlugs: [
@@ -792,7 +792,7 @@ export const tradingBasicsCategory: AcademyCategory = {
           },
           {
             kind: "stakes",
-            body: "Emotion is the most expensive thing in trading. FOMO buys the top, panic sells the bottom, and revenge trading turns one loss into three. You can know every concept in this Academy and still blow up if you can't follow your own plan under pressure — which is exactly when it counts.",
+            body: "Emotion is the most expensive thing in trading. FOMO buys the top, panic sells the bottom, and revenge trading turns one loss into three. You can know every concept in this Academy and still blow up if you can't follow your own plan under pressure, which is exactly when it counts.",
           },
           {
             kind: "common-mistakes",
@@ -802,7 +802,7 @@ export const tradingBasicsCategory: AcademyCategory = {
         story: {
           character: "Kai",
           setup:
-            "Kai takes a small planned loss, then feels the urge to 'win it back' immediately. He doubles his size on the next setup — one he never actually planned.",
+            "Kai takes a small planned loss, then feels the urge to 'win it back' immediately. He doubles his size on the next setup, one he never actually planned.",
           expectation: "He expects to quickly erase the loss and feel in control again.",
           reality:
             "The revenge trade also loses, but now at double size. One disciplined -$20 loss has become -$60, and he's trading angrier and bigger with each attempt.",
@@ -816,7 +816,7 @@ export const tradingBasicsCategory: AcademyCategory = {
           ],
         },
         tips: [
-          "Losses are part of the process — you don't need to 'win them back' immediately.",
+          "Losses are part of the process. You don't need to 'win them back' immediately.",
           "Write your plan before you enter, so the emotional moment has less to decide.",
           "If you feel FOMO or anger, that's the signal to step away, not to size up.",
         ],

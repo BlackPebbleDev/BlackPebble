@@ -128,7 +128,7 @@ export const SIGNAL_DETAIL_META: Record<SignalKey, SignalDetailMeta> = {
   },
   risk: {
     measures: "How aggressive your sizing and token selection are across buys.",
-    expectedImpact: "Higher risk widens the range of outcomes in both directions — it is a style, not a grade.",
+    expectedImpact: "Higher risk widens the range of outcomes in both directions. It is a style, not a grade.",
     improvement: ["There is no target here; lower is not automatically better"],
     limitations: ["Descriptive only. It does not judge whether your risk paid off."],
   },
@@ -146,7 +146,7 @@ export const SIGNAL_DETAIL_META: Record<SignalKey, SignalDetailMeta> = {
   },
   patience: {
     measures: "How long you let positions develop before exiting.",
-    expectedImpact: "Longer holds suit trend styles; short holds suit scalping — neither is better by default.",
+    expectedImpact: "Longer holds suit trend styles; short holds suit scalping. Neither is better by default.",
     improvement: ["There is no target here; it reflects your natural hold style"],
     limitations: ["Descriptive only. Hold time is a style, not a skill grade."],
   },
@@ -164,7 +164,7 @@ export const SIGNAL_DETAIL_META: Record<SignalKey, SignalDetailMeta> = {
   },
   conviction: {
     measures: "How much larger your biggest positions are versus your average.",
-    expectedImpact: "Concentrated conviction amplifies both good and bad outcomes — a style reading.",
+    expectedImpact: "Concentrated conviction amplifies both good and bad outcomes: a style reading.",
     improvement: ["There is no target here; it reflects how you allocate"],
     limitations: ["Descriptive only. High conviction can be skilled or unskilled."],
   },

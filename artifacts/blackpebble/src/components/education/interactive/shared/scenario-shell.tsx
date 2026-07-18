@@ -93,7 +93,7 @@ export function ScenarioShell({
         </div>
         <p className="mt-1 text-xs text-muted-foreground">
           Learning exercise complete. There is not always a single perfect
-          decision — focus on the reasoning.
+          decision. Focus on the reasoning.
         </p>
         <button
           type="button"
@@ -137,7 +137,7 @@ export function ScenarioShell({
         {round.context ? (
           <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
             <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-amber-300/80">
-              {round.fictionLabel ?? "Simulated example — not real"}
+              {round.fictionLabel ?? "Simulated example (not real)"}
             </div>
             <p className="whitespace-pre-line text-sm text-foreground/90">
               {round.context}

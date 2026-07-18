@@ -67,11 +67,11 @@ export const solanaBasicsCategory: AcademyCategory = {
           },
           {
             kind: "stakes",
-            body: "Your seed phrase is not a password you can reset — it is the wallet itself. If someone gets it, they can restore your wallet on their own device and drain it, and nothing can stop them or reverse it. Leak it once and every token you own is at risk instantly.",
+            body: "Your seed phrase is not a password you can reset. It is the wallet itself. If someone gets it, they can restore your wallet on their own device and drain it, and nothing can stop them or reverse it. Leak it once and every token you own is at risk instantly.",
           },
           {
             kind: "safety",
-            body: "Write the phrase down offline and store it securely. No legitimate service — including BlackPebble — will ever ask for it. If any site, app, or person asks for your seed phrase or private key, it is a scam.",
+            body: "Write the phrase down offline and store it securely. No legitimate service, including BlackPebble, will ever ask for it. If any site, app, or person asks for your seed phrase or private key, it is a scam.",
           },
         ],
         story: {
@@ -82,16 +82,16 @@ export const solanaBasicsCategory: AcademyCategory = {
           reality:
             "There is no support agent. The moment she sends the words, they restore her wallet elsewhere and empty it in seconds.",
           lesson:
-            "Real support never needs your seed phrase — because the phrase IS the wallet. Anyone asking for it is trying to steal it, no matter how helpful they seem.",
+            "Real support never needs your seed phrase, because the phrase IS the wallet. Anyone asking for it is trying to steal it, no matter how helpful they seem.",
           beats: [
             { label: "The setup", detail: "Wallet glitch + 'helpful' DM", value: "trust", tone: "neutral" },
             { label: "The ask", detail: "'Confirm your 12 words to validate'", value: "the scam", tone: "negative" },
-            { label: "The lesson", detail: "The phrase is the wallet — never share it", value: "safe", tone: "positive" },
+            { label: "The lesson", detail: "The phrase is the wallet. Never share it", value: "safe", tone: "positive" },
           ],
         },
         tips: [
           "Write your seed phrase on paper, not in your phone, photos, email, or cloud notes.",
-          "Real support will never ask for your recovery phrase — anyone who does is a scammer.",
+          "Real support will never ask for your recovery phrase. Anyone who does is a scammer.",
           "A fake 'wallet validation' or 'sync' page is a classic trap. Close it.",
         ],
         commonMistakes: [

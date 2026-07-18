@@ -32,13 +32,13 @@ const DEFAULT_CONFIG: Required<Pick<PredictOutcomeConfig, "scenario" | "question
   options: [
     {
       label: "He pays exactly $100 of tokens",
-      result: "Unlikely on a thin pool — his own order moves the price as it fills.",
+      result: "Unlikely on a thin pool. His own order moves the price as it fills.",
     },
     {
       label: "His order fails or fills for noticeably fewer tokens",
       correct: true,
       result:
-        "Right. On low liquidity, price impact is large, so a tight 1% slippage often makes the order fail — or it fills at a worse price.",
+        "Right. On low liquidity, price impact is large, so a tight 1% slippage often makes the order fail, or it fills at a worse price.",
     },
     {
       label: "He gets more tokens than expected",
@@ -141,7 +141,7 @@ export function PredictOutcome({
                 gotItRight ? "text-success" : "text-warning",
               )}
             >
-              {gotItRight ? "Nice — that's right." : "Not quite — see the highlighted answer."}
+              {gotItRight ? "Nice, that's right." : "Not quite. See the highlighted answer."}
             </span>
             <button
               type="button"

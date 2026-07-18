@@ -632,7 +632,7 @@ function CreateCampaignDialog() {
               `Required ~${fmt(bal.requiredLamports)} SOL (amount + network fee), ` +
               `Available ${fmt(bal.availableLamports)} SOL, ` +
               `Shortfall ~${fmt(bal.shortfallLamports)} SOL. ` +
-              `Add SOL and try again — no funds were sent.`,
+              `Add SOL and try again. No funds were sent.`,
           );
         }
 
@@ -1691,7 +1691,7 @@ function CreateCampaignDialog() {
                     <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                     <span>
                       Confirmation is taking longer than expected. Your
-                      transaction may still confirm on-chain — we will not ask
+                      transaction may still confirm on-chain. We will not ask
                       you to send funds again.
                     </span>
                   </div>
@@ -2202,7 +2202,7 @@ export function CampaignDetailPage() {
           <MetricTile
             label="Goal Remaining"
             value={`${fmtSol(acct?.remainingLamports ?? 0)} SOL`}
-            hint="SOL still held in escrow after payouts, refunds, and fees. Must match the on-chain balance — mismatches freeze the campaign."
+            hint="SOL still held in escrow after payouts, refunds, and fees. Must match the on-chain balance. Mismatches freeze the campaign."
             className="h-full"
           />
           <MetricTile
@@ -2214,7 +2214,7 @@ export function CampaignDetailPage() {
           <MetricTile
             label="Paid / Refunded"
             value={`${fmtSol((acct?.paidOutLamports ?? 0) + (acct?.refundedLamports ?? 0))} SOL`}
-            hint="SOL that has left escrow as fulfillment payouts or contributor refunds — every transfer is signed in the ledger."
+            hint="SOL that has left escrow as fulfillment payouts or contributor refunds. Every transfer is signed in the ledger."
             className="h-full"
           />
         </div>
@@ -2356,7 +2356,7 @@ export function CampaignDetailPage() {
             {
               q: "What is being funded?",
               a: c.goalLabel
-                ? `${TYPE_LABELS[c.typeKey] ?? c.typeKey} — "${c.goalLabel}"${c.goalUsd != null ? ` (${fmtUsd(c.goalUsd)})` : ""}. Funds pay for a third-party service, never tokens or trading activity.`
+                ? `${TYPE_LABELS[c.typeKey] ?? c.typeKey}: "${c.goalLabel}"${c.goalUsd != null ? ` (${fmtUsd(c.goalUsd)})` : ""}. Funds pay for a third-party service, never tokens or trading activity.`
                 : "A third-party service priced at the campaign goal. Funds never buy tokens or create trading activity.",
             },
             {
@@ -2377,7 +2377,7 @@ export function CampaignDetailPage() {
             },
             {
               q: "Are there platform fees?",
-              a: "Only on success — a small fee included in the tier price is taken at settlement and recorded in the ledger. Failed campaigns pay no fee.",
+              a: "Only on success: a small fee included in the tier price is taken at settlement and recorded in the ledger. Failed campaigns pay no fee.",
             },
           ].map((item) => (
             <div
@@ -2400,7 +2400,7 @@ export function CampaignDetailPage() {
           <div className="min-w-0">
             <h2 className="font-bold">Escrow Ledger</h2>
             <p className="text-xs text-muted-foreground">
-              Append-only money trail — every transfer signed on-chain.
+              Append-only money trail. Every transfer signed on-chain.
             </p>
           </div>
           <Button
@@ -2537,7 +2537,7 @@ function CampaignTimeline({
       <div>
         <h2 className="font-bold">Timeline</h2>
         <p className="text-xs text-muted-foreground">
-          Campaign lifecycle — current step highlighted, upcoming steps ready.
+          Campaign lifecycle. Current step highlighted, upcoming steps ready.
         </p>
       </div>
       <ol className="relative space-y-0 pl-1">

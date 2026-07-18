@@ -52,7 +52,7 @@ export function PositionSizeCalculator(props: InteractiveModuleProps) {
       }}
       assumptions={
         <Assumptions>
-          uses a simulated account balance only — it never reads your real funds.
+          uses a simulated account balance only. It never reads your real funds.
           Position size = amount risked / stop distance. Fees and slippage are
           not included and would increase the real loss at the stop.
         </Assumptions>

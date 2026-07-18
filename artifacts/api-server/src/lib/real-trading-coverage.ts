@@ -138,12 +138,12 @@ export function computeCoverage(input: CoverageInput): ReportCoverage {
 
   const summary =
     tier === "high"
-      ? "High coverage — a reliable, well-populated analysis."
+      ? "High coverage: a reliable, well-populated analysis."
       : tier === "moderate"
-        ? "Moderate coverage — the core analysis is reliable with minor gaps."
+        ? "Moderate coverage: the core analysis is reliable with minor gaps."
         : tier === "limited"
-          ? "Limited coverage — some data was unavailable; read the limitations below."
-          : "Insufficient data — not enough completed trades to score reliably yet.";
+          ? "Limited coverage: some data was unavailable; read the limitations below."
+          : "Insufficient data: not enough completed trades to score reliably yet.";
 
   return {
     parsedSwaps: input.parsedSwaps,
