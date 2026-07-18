@@ -1,6 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { ArrowRight, GraduationCap, Search, Sparkles } from "lucide-react";
+import {
+  ArrowRight,
+  Bookmark,
+  Clock,
+  GraduationCap,
+  Route as RouteIcon,
+  Search,
+  Sparkles,
+} from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -11,7 +19,9 @@ import {
   getNormalizedLesson,
 } from "@/lib/education/registry";
 import { searchLessons, classifyIntent } from "@/lib/education/search";
-import { categoryPath, lessonPath } from "@/lib/education/routes";
+import { getPublishedLearningPaths } from "@/lib/education/learning-paths";
+import { useAcademyProgress } from "@/lib/education/use-progress";
+import { categoryPath, learningPathPath, lessonPath } from "@/lib/education/routes";
 import { AcademyCategorySection } from "@/components/education/academy-category";
 import { CategoryGlyph } from "@/components/education/category-icon";
 import { LessonCard, type LessonCardData } from "@/components/education/lesson-card";
@@ -88,6 +98,7 @@ export default function LearnPage() {
   const [, navigate] = useLocation();
   const [query, setQuery] = useState("");
   const [openCategories, setOpenCategories] = useState<string[]>(DEFAULT_OPEN);
+  const progress = useAcademyProgress();
 
   useEffect(() => {
     trackAcademyViewed({ sourceSurface: "academy-home" });
@@ -151,6 +162,35 @@ export default function LearnPage() {
       prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
     );
   }
+
+  const beginnerPath = getPublishedLearningPaths()[0];
+  const pathProgress = beginnerPath
+    ? {
+        total: beginnerPath.lessonSlugs.length,
+        completed: beginnerPath.lessonSlugs.filter((s) =>
+          progress.isLessonCompleted(s),
+        ).length,
+      }
+    : undefined;
+  const recentCards = useMemo(
+    () =>
+      progress
+        .getRecent(4)
+        .map((slug) => toCardData(slug))
+        .filter((c): c is LessonCardData => !!c),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [progress.getSnapshotToken()],
+  );
+  const bookmarkCards = useMemo(
+    () =>
+      progress
+        .listBookmarks()
+        .slice(0, 4)
+        .map((slug) => toCardData(slug))
+        .filter((c): c is LessonCardData => !!c),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [progress.getSnapshotToken()],
+  );
 
   const startHere = ACADEMY_CATEGORIES.find((c) => c.id === "start-here");
   const featuredInteractive = useMemo(
@@ -251,6 +291,102 @@ export default function LearnPage() {
       ) : (
         /* Homepage mode */
         <>
+          {/* Beginner Essentials path */}
+          {beginnerPath ? (
+            <Link
+              href={learningPathPath(beginnerPath.slug)}
+              className="group flex flex-col gap-3 rounded-2xl border border-accent/30 bg-accent/[0.06] p-4 shadow-card transition-colors hover:bg-accent/10 sm:p-5"
+              data-testid="path-banner"
+            >
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-accent/12">
+                  <RouteIcon className="h-5 w-5 text-accent" aria-hidden />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-base font-semibold text-foreground sm:text-lg">
+                      {beginnerPath.title}
+                    </h2>
+                  </div>
+                  <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-muted-foreground sm:text-sm">
+                    {beginnerPath.description}
+                  </p>
+                </div>
+                <ArrowRight
+                  className="mt-1 h-4 w-4 flex-shrink-0 text-accent transition-transform group-hover:translate-x-0.5 motion-reduce:transition-none"
+                  aria-hidden
+                />
+              </div>
+              {pathProgress && pathProgress.completed > 0 ? (
+                <div>
+                  <div className="mb-1 flex items-center justify-between text-[11px] text-muted-foreground">
+                    <span>
+                      {pathProgress.completed} of {pathProgress.total} complete
+                    </span>
+                    <span>
+                      {Math.round(
+                        (pathProgress.completed / pathProgress.total) * 100,
+                      )}
+                      %
+                    </span>
+                  </div>
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-2">
+                    <div
+                      className="h-full rounded-full bg-accent"
+                      style={{
+                        width: `${Math.round(
+                          (pathProgress.completed / pathProgress.total) * 100,
+                        )}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <span className="text-[11px] font-medium text-accent">
+                  {beginnerPath.lessonSlugs.length} lessons · {beginnerPath.estimatedMinutes} min · Start the guided path
+                </span>
+              )}
+            </Link>
+          ) : null}
+
+          {/* Continue learning (recently viewed) */}
+          {recentCards.length > 0 ? (
+            <section className="space-y-3">
+              <SectionHeading
+                title="Continue learning"
+                action={
+                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground/70">
+                    <Clock className="h-3 w-3 text-accent" aria-hidden /> Recently viewed
+                  </span>
+                }
+              />
+              <div className="grid gap-3 sm:grid-cols-2">
+                {recentCards.map((c) => (
+                  <LessonCard key={c.slug} lesson={c} showCategory />
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          {/* Bookmarks */}
+          {bookmarkCards.length > 0 ? (
+            <section className="space-y-3">
+              <SectionHeading
+                title="Saved lessons"
+                action={
+                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground/70">
+                    <Bookmark className="h-3 w-3 text-accent" aria-hidden /> Bookmarked
+                  </span>
+                }
+              />
+              <div className="grid gap-3 sm:grid-cols-2">
+                {bookmarkCards.map((c) => (
+                  <LessonCard key={c.slug} lesson={c} showCategory />
+                ))}
+              </div>
+            </section>
+          ) : null}
+
           {/* Start Here */}
           {startHere ? (
             <section className="space-y-3">

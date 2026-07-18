@@ -22,6 +22,16 @@ export function lessonPath(categoryId: string, lessonSlug: string): string {
   return `${ACADEMY_ROOT}/${categoryId}/${lessonSlug}`;
 }
 
+/** Learning-path overview page. Uses a reserved `path` segment. */
+export function learningPathPath(slug: string): string {
+  return `${ACADEMY_ROOT}/path/${slug}`;
+}
+
+/** Absolute canonical URL for a learning path. */
+export function learningPathCanonicalUrl(siteUrl: string, slug: string): string {
+  return `${siteUrl.replace(/\/$/, "")}${learningPathPath(slug)}`;
+}
+
 /** Absolute canonical URL for a lesson (used by SEO/meta). */
 export function lessonCanonicalUrl(
   siteUrl: string,

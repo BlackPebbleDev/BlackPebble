@@ -1,8 +1,9 @@
 import { useEffect } from "react";
 import { canonicalUrl } from "@/lib/seo";
 import { lessonJsonLd } from "./structured-data";
-import { categoryPath, lessonPath } from "./routes";
+import { categoryPath, learningPathPath, lessonPath } from "./routes";
 import type { NormalizedLesson } from "./normalize";
+import type { LearningPath } from "./learning-paths";
 
 const JSONLD_ID = "academy-jsonld";
 
@@ -67,6 +68,24 @@ export function useLessonMeta(lesson: NormalizedLesson | undefined) {
     setJsonLd(lessonJsonLd(lesson, canonicalUrl("/")));
     return () => clearJsonLd();
   }, [lesson]);
+}
+
+/** Head metadata for a learning-path overview page. */
+export function usePathMeta(path: LearningPath | undefined) {
+  useEffect(() => {
+    if (!path) return;
+    const url = canonicalUrl(learningPathPath(path.slug));
+    const title = `${path.title} | BlackPebble Academy`;
+    const description = path.description.slice(0, 158);
+    document.title = title;
+    setMetaByName("description", description);
+    setCanonical(url);
+    setMetaByProperty("og:title", title);
+    setMetaByProperty("og:description", description);
+    setMetaByProperty("og:url", url);
+    setMetaByName("twitter:title", title);
+    setMetaByName("twitter:description", description);
+  }, [path]);
 }
 
 /** Head metadata for a category page. */

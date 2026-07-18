@@ -53,6 +53,7 @@ import { api } from "@/lib/api";
 const LearnPage = lazy(() => import("@/pages/learn"));
 const LearnCategoryPage = lazy(() => import("@/pages/learn-category"));
 const LearnLessonPage = lazy(() => import("@/pages/learn-lesson"));
+const LearnPathPage = lazy(() => import("@/pages/learn-path"));
 
 function AcademyRouteFallback() {
   return (
@@ -131,6 +132,7 @@ function Router() {
         <Route path="/features" component={Features} />
         <Route path="/roadmap" component={Roadmap} />
         <Route path="/safety" component={Safety} />
+        <Route path="/learn/path/:slug" component={LearnPathPage} />
         <Route path="/learn/:category/:lesson" component={LearnLessonPage} />
         <Route path="/learn/:category" component={LearnCategoryPage} />
         <Route path="/learn" component={LearnPage} />

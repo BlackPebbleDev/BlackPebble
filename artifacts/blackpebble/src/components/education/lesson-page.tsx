@@ -4,7 +4,10 @@ import {
   ArrowLeft,
   ArrowRight,
   BookOpen,
+  Bookmark,
+  BookmarkCheck,
   Check,
+  CheckCircle2,
   ChevronRight,
   ExternalLink,
   Home,
@@ -30,6 +33,7 @@ import {
 } from "@/components/education/interactive/registry";
 import { QuizShell } from "@/components/education/interactive/shared/quiz-shell";
 import { academyProgress } from "@/lib/education/progress";
+import { useAcademyProgress } from "@/lib/education/use-progress";
 import {
   trackAcademyRelatedFeatureClicked,
   trackAcademyRelatedLessonClicked,
@@ -67,6 +71,9 @@ export function LessonPageView({
 }) {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [shared, setShared] = useState(false);
+  const progress = useAcademyProgress();
+  const completed = progress.isLessonCompleted(lesson.slug);
+  const bookmarked = progress.isBookmarked(lesson.slug);
 
   const baseSections = useMemo(
     () => lesson.sections.filter((s) => !s.advanced),
@@ -154,7 +161,42 @@ export function LessonPageView({
             <EstimatedTime minutes={lesson.estimatedMinutes} />
           ) : null}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => progress.markLessonCompleted(lesson.slug)}
+            aria-pressed={completed}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors",
+              completed
+                ? "border-accent/30 bg-accent/10 text-accent"
+                : "border-border bg-surface-2 text-muted-foreground hover:text-foreground",
+            )}
+            data-testid="lesson-complete"
+          >
+            <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />
+            {completed ? "Completed" : "Mark complete"}
+          </button>
+          <button
+            type="button"
+            onClick={() => progress.toggleBookmark(lesson.slug)}
+            aria-pressed={bookmarked}
+            aria-label={bookmarked ? "Remove bookmark" : "Bookmark this lesson"}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors",
+              bookmarked
+                ? "border-accent/30 bg-accent/10 text-accent"
+                : "border-border bg-surface-2 text-muted-foreground hover:text-foreground",
+            )}
+            data-testid="lesson-bookmark"
+          >
+            {bookmarked ? (
+              <BookmarkCheck className="h-3.5 w-3.5" aria-hidden />
+            ) : (
+              <Bookmark className="h-3.5 w-3.5" aria-hidden />
+            )}
+            {bookmarked ? "Saved" : "Save"}
+          </button>
           <button
             type="button"
             onClick={onShare}
