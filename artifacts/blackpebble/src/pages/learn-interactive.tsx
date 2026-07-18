@@ -10,7 +10,11 @@ import {
   INTERACTIVE_TYPES,
   type InteractiveType,
 } from "@/lib/education/interactive/labels";
-import { LessonCard, type LessonCardData } from "@/components/education/lesson-card";
+import {
+  LessonCard,
+  lessonCardData,
+  type LessonCardData,
+} from "@/components/education/lesson-card";
 import { academyHomePath } from "@/lib/education/routes";
 import { useAcademyProgress } from "@/lib/education/use-progress";
 import { trackAcademyViewed } from "@/lib/analytics";
@@ -77,21 +81,7 @@ export default function LearnInteractivePage() {
     return getInteractiveLessons().map((lesson) => {
       const primary = lesson.interactiveModules[0];
       const t = primary ? interactiveTypeLabel(primary.id) : "Simulator";
-      const card: LessonCardData = {
-        slug: lesson.slug,
-        title: lesson.title,
-        categoryId: lesson.categoryId,
-        categoryTitle: lesson.categoryTitle,
-        description: lesson.shortAnswer ?? lesson.summary,
-        difficulty: lesson.difficulty,
-        estimatedMinutes: lesson.estimatedMinutes,
-        chainScope: lesson.chainScope,
-        interactive: true,
-        interactiveType: t,
-        hasQuiz: !!lesson.quiz && lesson.quiz.questions.length > 0,
-        hasDiagram: lesson.diagrams.length > 0,
-        hasStory: !!lesson.story,
-      };
+      const card: LessonCardData = lessonCardData(lesson);
       return {
         card,
         type: t,

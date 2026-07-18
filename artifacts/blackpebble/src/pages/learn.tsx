@@ -20,7 +20,6 @@ import {
   getLessonRef,
   getNormalizedLesson,
 } from "@/lib/education/registry";
-import { interactiveTypeLabel } from "@/lib/education/interactive/labels";
 import { computeMilestones } from "@/lib/education/milestones";
 import { AcademyWelcome } from "@/components/education/academy-welcome";
 import { AcademyJourney } from "@/components/education/academy-journey";
@@ -39,7 +38,11 @@ import { useAcademyProgress } from "@/lib/education/use-progress";
 import { categoryPath, learningPathPath, lessonPath } from "@/lib/education/routes";
 import { AcademyCategorySection } from "@/components/education/academy-category";
 import { CategoryGlyph } from "@/components/education/category-icon";
-import { LessonCard, type LessonCardData } from "@/components/education/lesson-card";
+import {
+  LessonCard,
+  lessonCardData,
+  type LessonCardData,
+} from "@/components/education/lesson-card";
 import type { CategoryLevel } from "@/lib/education/types";
 import {
   trackAcademySearchPerformed,
@@ -76,23 +79,7 @@ function writeOpenCategories(ids: string[]) {
 
 function toCardData(slug: string): LessonCardData | null {
   const lesson = getNormalizedLesson(slug);
-  if (!lesson) return null;
-  const firstModule = lesson.interactiveModules[0];
-  return {
-    slug: lesson.slug,
-    title: lesson.title,
-    categoryId: lesson.categoryId,
-    categoryTitle: lesson.categoryTitle,
-    description: lesson.shortAnswer ?? lesson.summary,
-    difficulty: lesson.difficulty,
-    estimatedMinutes: lesson.estimatedMinutes,
-    chainScope: lesson.chainScope,
-    interactive: lesson.interactiveModules.length > 0,
-    interactiveType: firstModule ? interactiveTypeLabel(firstModule.id) : undefined,
-    hasQuiz: !!lesson.quiz && lesson.quiz.questions.length > 0,
-    hasDiagram: lesson.diagrams.length > 0,
-    hasStory: !!lesson.story,
-  };
+  return lesson ? lessonCardData(lesson) : null;
 }
 
 function SectionHeading({

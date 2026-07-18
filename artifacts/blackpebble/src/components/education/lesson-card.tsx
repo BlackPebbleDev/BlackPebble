@@ -15,6 +15,7 @@ import {
   EstimatedTime,
 } from "@/components/education/lesson-meta";
 import { useAcademyProgress } from "@/lib/education/use-progress";
+import { interactiveTypeLabel } from "@/lib/education/interactive/labels";
 import type { NormalizedLesson } from "@/lib/education/normalize";
 
 export interface LessonCardData {
@@ -32,6 +33,31 @@ export interface LessonCardData {
   hasQuiz?: boolean;
   hasDiagram?: boolean;
   hasStory?: boolean;
+}
+
+/**
+ * Single source of truth for turning a normalized lesson into card data, so
+ * every surface (home, category, interactive browse, search) shows the same
+ * metadata — including a correct interactive flag derived from both the legacy
+ * field and the interactiveModules array.
+ */
+export function lessonCardData(lesson: NormalizedLesson): LessonCardData {
+  const firstModule = lesson.interactiveModules[0];
+  return {
+    slug: lesson.slug,
+    title: lesson.title,
+    categoryId: lesson.categoryId,
+    categoryTitle: lesson.categoryTitle,
+    description: lesson.shortAnswer ?? lesson.summary,
+    difficulty: lesson.difficulty,
+    estimatedMinutes: lesson.estimatedMinutes,
+    chainScope: lesson.chainScope,
+    interactive: lesson.interactiveModules.length > 0,
+    interactiveType: firstModule ? interactiveTypeLabel(firstModule.id) : undefined,
+    hasQuiz: !!lesson.quiz && lesson.quiz.questions.length > 0,
+    hasDiagram: lesson.diagrams.length > 0,
+    hasStory: !!lesson.story,
+  };
 }
 
 function FeatureDot({
