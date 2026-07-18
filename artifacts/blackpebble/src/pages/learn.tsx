@@ -10,7 +10,7 @@ import {
   getLessonBySlug,
   getNormalizedLesson,
 } from "@/lib/education/registry";
-import { searchLessons } from "@/lib/education/search";
+import { searchLessons, classifyIntent } from "@/lib/education/search";
 import { categoryPath, lessonPath } from "@/lib/education/routes";
 import { AcademyCategorySection } from "@/components/education/academy-category";
 import { CategoryGlyph } from "@/components/education/category-icon";
@@ -90,7 +90,7 @@ export default function LearnPage() {
   const [openCategories, setOpenCategories] = useState<string[]>(DEFAULT_OPEN);
 
   useEffect(() => {
-    trackAcademyViewed();
+    trackAcademyViewed({ sourceSurface: "academy-home" });
     setOpenCategories(readOpenCategories());
   }, []);
 
@@ -128,8 +128,20 @@ export default function LearnPage() {
   useEffect(() => {
     if (!trimmed) return;
     const t = window.setTimeout(() => {
-      trackAcademySearchPerformed();
-      if (results.length === 0) trackAcademySearchZeroResults();
+      const queryIntent = classifyIntent(trimmed);
+      trackAcademySearchPerformed({
+        queryLength: trimmed.length,
+        resultCount: results.length,
+        queryIntent,
+        sourceSurface: "academy-home",
+      });
+      if (results.length === 0) {
+        trackAcademySearchZeroResults({
+          queryLength: trimmed.length,
+          queryIntent,
+          sourceSurface: "academy-home",
+        });
+      }
     }, 500);
     return () => window.clearTimeout(t);
   }, [trimmed, results.length]);

@@ -77,7 +77,11 @@ export function LessonPageView({
   );
 
   async function onShare() {
-    trackAcademyShareClicked();
+    trackAcademyShareClicked({
+      lessonSlug: lesson.slug,
+      categoryId: lesson.categoryId,
+      sourceSurface: "lesson-page",
+    });
     const url = `${window.location.origin}${lessonPath(
       lesson.categoryId,
       lesson.slug,
@@ -319,7 +323,13 @@ export function LessonPageView({
               <Link
                 key={f.path}
                 href={f.path}
-                onClick={() => trackAcademyRelatedFeatureClicked()}
+                onClick={() =>
+                  trackAcademyRelatedFeatureClicked({
+                    lessonSlug: lesson.slug,
+                    categoryId: lesson.categoryId,
+                    sourceSurface: "lesson-page",
+                  })
+                }
                 className="inline-flex items-center gap-1.5 rounded-lg border border-accent/30 bg-accent/10 px-3 py-1.5 text-xs font-semibold text-accent transition-colors hover:bg-accent/15"
                 data-testid={`lesson-feature-${f.path}`}
               >
@@ -339,7 +349,13 @@ export function LessonPageView({
               <Link
                 key={r.slug}
                 href={lessonPath(r.categoryId, r.slug)}
-                onClick={() => trackAcademyRelatedLessonClicked()}
+                onClick={() =>
+                  trackAcademyRelatedLessonClicked({
+                    lessonSlug: r.slug,
+                    categoryId: r.categoryId,
+                    sourceSurface: "lesson-page",
+                  })
+                }
                 className="flex items-center justify-between gap-2 rounded-lg border border-border/60 bg-card/60 px-3 py-2 text-sm text-foreground transition-colors hover:border-accent/30"
                 data-testid={`related-lesson-${r.slug}`}
               >

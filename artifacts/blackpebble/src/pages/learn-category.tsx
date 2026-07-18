@@ -26,7 +26,12 @@ export default function LearnCategoryPage({
   );
 
   useEffect(() => {
-    if (category) trackAcademyCategoryViewed();
+    if (category) {
+      trackAcademyCategoryViewed({
+        categoryId: category.id,
+        sourceSurface: "category-page",
+      });
+    }
   }, [category, params.category]);
 
   if (!category) {

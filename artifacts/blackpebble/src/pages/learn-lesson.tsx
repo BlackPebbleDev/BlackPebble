@@ -55,8 +55,16 @@ export default function LearnLessonPage({
   useLessonMeta(valid ? lesson : undefined);
 
   useEffect(() => {
-    if (valid) trackAcademyLessonViewed();
-  }, [valid, params.lesson]);
+    if (valid && lesson) {
+      trackAcademyLessonViewed({
+        lessonSlug: lesson.slug,
+        categoryId: lesson.categoryId,
+        difficulty: lesson.difficulty,
+        chainScope: lesson.chainScope,
+        sourceSurface: "lesson-page",
+      });
+    }
+  }, [valid, lesson, params.lesson]);
 
   if (!category) {
     return (

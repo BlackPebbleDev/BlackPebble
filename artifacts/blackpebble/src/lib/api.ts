@@ -390,7 +390,33 @@ export type AnalyticsEventType =
   | "academy_interactive_started"
   | "academy_interactive_completed"
   | "academy_practice_started"
-  | "academy_share_clicked";
+  | "academy_share_clicked"
+  // Academy Phase 2 - learning paths.
+  | "academy_path_started"
+  | "academy_path_step_viewed"
+  | "academy_path_completed";
+
+/**
+ * Small, typed, non-sensitive properties an analytics event may carry. The
+ * backend re-validates against an allowlist (see analytics-props.ts); never put
+ * wallet data, seed phrases, raw inputs, or free-form user content here.
+ */
+export interface AnalyticsEventProps {
+  lessonSlug?: string;
+  categoryId?: string;
+  moduleId?: string;
+  resultType?: string;
+  queryIntent?: string;
+  chainScope?: string;
+  sourceSurface?: string;
+  learningPathId?: string;
+  stepId?: string;
+  completionType?: string;
+  difficulty?: string;
+  resultCount?: number;
+  queryLength?: number;
+  isGuest?: boolean;
+}
 
 export interface AdminHealth {
   api: { ok: boolean; uptimeSeconds: number; node: string };
@@ -3237,10 +3263,18 @@ export const api = {
 
   // Lightweight funnel / activity beacons (public, fire-and-forget).
   analytics: {
-    track: (type: AnalyticsEventType, anonId?: string | null) =>
+    track: (
+      type: AnalyticsEventType,
+      anonId?: string | null,
+      props?: AnalyticsEventProps,
+    ) =>
       request<{ ok: boolean }>("/analytics/event", {
         method: "POST",
-        body: JSON.stringify({ type, anonId: anonId ?? null }),
+        body: JSON.stringify({
+          type,
+          anonId: anonId ?? null,
+          ...(props && Object.keys(props).length > 0 ? { props } : {}),
+        }),
       }),
   },
 
