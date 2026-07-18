@@ -92,3 +92,34 @@ export function getPublishedLearningPaths(): LearningPath[] {
     (a, b) => a.order - b.order,
   );
 }
+
+export interface PathCompletion {
+  total: number;
+  completed: number;
+  pct: number;
+  /** Index of the first not-yet-completed step, or -1 when all are complete. */
+  resumeIndex: number;
+  isComplete: boolean;
+}
+
+/**
+ * Pure progress calculation for a path given a predicate for completed lessons.
+ * Kept UI-agnostic so it can be unit tested and reused across the path page and
+ * the homepage banner.
+ */
+export function computePathCompletion(
+  lessonSlugs: string[],
+  isCompleted: (slug: string) => boolean,
+): PathCompletion {
+  const total = lessonSlugs.length;
+  const completed = lessonSlugs.filter((s) => isCompleted(s)).length;
+  const resumeIndex = lessonSlugs.findIndex((s) => !isCompleted(s));
+  const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+  return {
+    total,
+    completed,
+    pct,
+    resumeIndex,
+    isComplete: total > 0 && completed === total,
+  };
+}

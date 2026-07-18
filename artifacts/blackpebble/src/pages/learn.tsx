@@ -19,7 +19,10 @@ import {
   getNormalizedLesson,
 } from "@/lib/education/registry";
 import { searchLessons, classifyIntent } from "@/lib/education/search";
-import { getPublishedLearningPaths } from "@/lib/education/learning-paths";
+import {
+  computePathCompletion,
+  getPublishedLearningPaths,
+} from "@/lib/education/learning-paths";
 import { useAcademyProgress } from "@/lib/education/use-progress";
 import { categoryPath, learningPathPath, lessonPath } from "@/lib/education/routes";
 import { AcademyCategorySection } from "@/components/education/academy-category";
@@ -165,12 +168,9 @@ export default function LearnPage() {
 
   const beginnerPath = getPublishedLearningPaths()[0];
   const pathProgress = beginnerPath
-    ? {
-        total: beginnerPath.lessonSlugs.length,
-        completed: beginnerPath.lessonSlugs.filter((s) =>
-          progress.isLessonCompleted(s),
-        ).length,
-      }
+    ? computePathCompletion(beginnerPath.lessonSlugs, (s) =>
+        progress.isLessonCompleted(s),
+      )
     : undefined;
   const recentCards = useMemo(
     () =>
@@ -323,21 +323,12 @@ export default function LearnPage() {
                     <span>
                       {pathProgress.completed} of {pathProgress.total} complete
                     </span>
-                    <span>
-                      {Math.round(
-                        (pathProgress.completed / pathProgress.total) * 100,
-                      )}
-                      %
-                    </span>
+                    <span>{pathProgress.pct}%</span>
                   </div>
                   <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-2">
                     <div
                       className="h-full rounded-full bg-accent"
-                      style={{
-                        width: `${Math.round(
-                          (pathProgress.completed / pathProgress.total) * 100,
-                        )}%`,
-                      }}
+                      style={{ width: `${pathProgress.pct}%` }}
                     />
                   </div>
                 </div>

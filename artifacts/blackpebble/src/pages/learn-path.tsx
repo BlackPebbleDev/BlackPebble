@@ -12,7 +12,10 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/page-header";
-import { getLearningPath } from "@/lib/education/learning-paths";
+import {
+  computePathCompletion,
+  getLearningPath,
+} from "@/lib/education/learning-paths";
 import { getLessonRef } from "@/lib/education/registry";
 import { academyHomePath, lessonPath } from "@/lib/education/routes";
 import { usePathMeta } from "@/lib/education/use-academy-meta";
@@ -46,14 +49,17 @@ export default function LearnPathPage({
     [path],
   );
 
-  const completedCount = useMemo(
-    () => steps.filter((s) => progress.isLessonCompleted(s.slug)).length,
-    [steps, progress],
+  const completion = useMemo(
+    () =>
+      computePathCompletion(
+        steps.map((s) => s.slug),
+        (slug) => progress.isLessonCompleted(slug),
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [steps, progress.getSnapshotToken()],
   );
-  const total = steps.length;
-  const pct = total > 0 ? Math.round((completedCount / total) * 100) : 0;
+  const { total, completed: completedCount, pct, resumeIndex } = completion;
   // First not-yet-completed step is the resume target; fall back to the first.
-  const resumeIndex = steps.findIndex((s) => !progress.isLessonCompleted(s.slug));
   const resume = resumeIndex >= 0 ? steps[resumeIndex] : steps[0];
   const started = !!(path && progress.getPathProgress(path.id)?.started);
 
