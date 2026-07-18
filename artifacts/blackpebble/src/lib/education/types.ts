@@ -85,19 +85,68 @@ export interface LessonSeoOverride {
  * interactive UI by a safe id resolved through the interactive registry — never
  * by storing executable component code inside content data.
  */
-export type InteractiveModuleId = "pnl-simulator";
+export type InteractiveModuleId =
+  | "pnl-simulator"
+  | "market-cap-calculator"
+  | "market-cap-fdv-simulator"
+  | "liquidity-price-impact-simulator"
+  | "slippage-simulator"
+  | "order-type-challenge"
+  | "stop-loss-take-profit-planner"
+  | "position-size-calculator"
+  | "wallet-signing-challenge"
+  | "seed-phrase-safety-exercise"
+  | "holder-concentration-explorer"
+  | "memecoin-launch-lifecycle"
+  | "bonding-curve-simulator"
+  | "rug-pull-scenario"
+  | "trading-psychology-scenarios";
 
-/** Seam type for a future quiz system (currently unused/feature-flagged). */
+/** Where a module renders relative to the lesson body. */
+export type InteractivePlacement = "inline" | "after-sections" | "standalone";
+
+/** What counts as "completing" an interactive module. */
+export type InteractiveCompletionRule = "view" | "interact" | "complete";
+
+/**
+ * A reference from lesson content to an interactive module. Configuration is a
+ * plain serializable object validated by the module; never executable code.
+ */
+export interface AcademyInteractiveModuleRef {
+  id: InteractiveModuleId;
+  /** Serializable, module-specific configuration (defaults, scenarios, ...). */
+  config?: Record<string, unknown>;
+  title?: string;
+  description?: string;
+  placement?: InteractivePlacement;
+  required?: boolean;
+  order?: number;
+  estimatedMinutes?: number;
+  completionRule?: InteractiveCompletionRule;
+}
+
+export type LessonQuizQuestionKind = "single" | "multiple" | "boolean";
+
+/** One knowledge-check question. */
 export interface LessonQuizQuestion {
   id: string;
   prompt: string;
+  /** Defaults to "single" when omitted. */
+  kind?: LessonQuizQuestionKind;
   options: string[];
-  correctIndex: number;
-  explanation?: string;
+  /** For single/boolean questions. */
+  correctIndex?: number;
+  /** For multiple-choice questions (order independent). */
+  correctIndices?: number[];
+  /** Shown after answering. Required by content validation. */
+  explanation: string;
 }
 export interface LessonQuiz {
   id: string;
+  title?: string;
   questions: LessonQuizQuestion[];
+  /** Optional passing threshold (0-1) for messaging only; not gating. */
+  passRatio?: number;
 }
 
 /**
@@ -145,7 +194,10 @@ export interface AcademyLesson {
   sources?: LessonSource[];
   chainScope?: ChainScope;
   chainModules?: LessonChainModule[];
+  /** @deprecated Prefer `interactiveModules`. Still supported for back-compat. */
   interactiveModule?: InteractiveModuleId;
+  /** One or more interactive modules, rendered in `order`. */
+  interactiveModules?: AcademyInteractiveModuleRef[];
   quiz?: LessonQuiz;
   seo?: LessonSeoOverride;
   kind?: LessonKind;

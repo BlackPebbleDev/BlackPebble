@@ -25,11 +25,12 @@ import {
 } from "@/components/education/lesson-meta";
 import { getChain } from "@/lib/education/chains";
 import {
-  InteractiveModule,
+  InteractiveModuleHost,
   hasInteractiveModule,
 } from "@/components/education/interactive/registry";
+import { QuizShell } from "@/components/education/interactive/shared/quiz-shell";
+import { academyProgress } from "@/lib/education/progress";
 import {
-  trackAcademyInteractiveStarted,
   trackAcademyRelatedFeatureClicked,
   trackAcademyRelatedLessonClicked,
   trackAcademyShareClicked,
@@ -99,8 +100,10 @@ export function LessonPageView({
     }
   }
 
-  const hasInteractive =
-    lesson.interactiveModule && hasInteractiveModule(lesson.interactiveModule);
+  const interactiveModules = useMemo(
+    () => lesson.interactiveModules.filter((m) => hasInteractiveModule(m.id)),
+    [lesson.interactiveModules],
+  );
 
   return (
     <div className="flex w-full max-w-3xl flex-col gap-6 px-4 py-5 sm:py-6 md:px-6 mx-auto pb-24 md:pb-10 min-w-0">
@@ -220,11 +223,24 @@ export function LessonPageView({
         ))}
       </div>
 
-      {/* Interactive module */}
-      {hasInteractive ? (
-        <div onPointerDown={() => trackAcademyInteractiveStarted()}>
-          <InteractiveModule id={lesson.interactiveModule!} />
-        </div>
+      {/* Interactive modules (in order) */}
+      {interactiveModules.map((moduleRef) => (
+        <InteractiveModuleHost
+          key={moduleRef.id}
+          lesson={lesson}
+          moduleRef={moduleRef}
+          sourceSurface="lesson-page"
+        />
+      ))}
+
+      {/* Knowledge check */}
+      {lesson.quiz && lesson.quiz.questions.length > 0 ? (
+        <QuizShell
+          quiz={lesson.quiz}
+          onComplete={() =>
+            academyProgress.markQuizCompleted(lesson.slug, lesson.quiz!.id)
+          }
+        />
       ) : null}
 
       {/* Examples */}

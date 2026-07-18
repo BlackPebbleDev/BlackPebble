@@ -1,11 +1,13 @@
 import type {
   AcademyCategory,
+  AcademyInteractiveModuleRef,
   AcademyLesson,
   InteractiveModuleId,
   LessonCallout,
   LessonChainModule,
   LessonDifficulty,
   LessonKind,
+  LessonQuiz,
   LessonRelated,
   LessonSectionKind,
   LessonSource,
@@ -72,7 +74,11 @@ export interface NormalizedLesson {
   relatedLessons: RelatedLessonRef[];
   relatedFeatures: LessonRelated[];
   sources: LessonSource[];
+  /** @deprecated First module id, kept for back-compat. Use `interactiveModules`. */
   interactiveModule?: InteractiveModuleId;
+  /** All interactive modules, ordered. Empty when the lesson has none. */
+  interactiveModules: AcademyInteractiveModuleRef[];
+  quiz?: LessonQuiz;
   aliases: string[];
   keywords: string[];
   updatedAt?: string;
@@ -164,6 +170,27 @@ function buildRelatedFeatures(lesson: AcademyLesson): LessonRelated[] {
 }
 
 /**
+ * Unify the legacy singular `interactiveModule` and the enhanced
+ * `interactiveModules` array into one ordered list. Sorted by `order` (default
+ * source order) so lessons can control module sequence deterministically.
+ */
+function buildInteractiveModules(
+  lesson: AcademyLesson,
+): AcademyInteractiveModuleRef[] {
+  const refs: AcademyInteractiveModuleRef[] = [];
+  if (lesson.interactiveModules && lesson.interactiveModules.length > 0) {
+    refs.push(...lesson.interactiveModules);
+  }
+  if (lesson.interactiveModule) {
+    const alreadyPresent = refs.some((r) => r.id === lesson.interactiveModule);
+    if (!alreadyPresent) refs.push({ id: lesson.interactiveModule });
+  }
+  return refs
+    .map((r, i) => ({ ...r, order: r.order ?? i }))
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+}
+
+/**
  * Transform a lesson (legacy or enhanced) plus its category into a normalized,
  * presentation-ready view. `resolve` links related-lesson / prerequisite slugs
  * to their titles; unresolved references are dropped (validated by tests).
@@ -211,7 +238,9 @@ export function normalizeLesson(
     relatedLessons,
     relatedFeatures: buildRelatedFeatures(lesson),
     sources: lesson.sources ?? [],
-    interactiveModule: lesson.interactiveModule,
+    interactiveModule: buildInteractiveModules(lesson)[0]?.id,
+    interactiveModules: buildInteractiveModules(lesson),
+    quiz: lesson.quiz,
     aliases: lesson.aliases ?? [],
     keywords: lesson.keywords ?? [],
     updatedAt: lesson.updatedAt,

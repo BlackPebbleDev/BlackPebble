@@ -9,6 +9,7 @@ import {
 import { academyHomePath, categoryPath } from "@/lib/education/routes";
 import { LessonPageView } from "@/components/education/lesson-page";
 import { useLessonMeta } from "@/lib/education/use-academy-meta";
+import { academyProgress } from "@/lib/education/progress";
 import { trackAcademyLessonViewed } from "@/lib/analytics";
 import type { RelatedLessonRef } from "@/lib/education/normalize";
 
@@ -56,6 +57,7 @@ export default function LearnLessonPage({
 
   useEffect(() => {
     if (valid && lesson) {
+      academyProgress.markLessonViewed(lesson.slug);
       trackAcademyLessonViewed({
         lessonSlug: lesson.slug,
         categoryId: lesson.categoryId,
