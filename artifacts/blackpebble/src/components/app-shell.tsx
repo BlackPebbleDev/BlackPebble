@@ -86,7 +86,7 @@ function SiteFooter() {
                   className={iconLinkClass}
                   data-testid="link-footer-academy"
                 >
-                  <GraduationCap className="w-4 h-4" aria-hidden />
+                  <GraduationCap className="w-[18px] h-[18px]" aria-hidden />
                 </Link>
               </TooltipTrigger>
               <TooltipContent>BlackPebble Academy</TooltipContent>
