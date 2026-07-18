@@ -67,6 +67,49 @@ const EQUIVALENCE_GROUPS: string[][] = [
   ["rr", "r:r", "risk reward", "risk-reward", "risk to reward"],
 ];
 
+/**
+ * Plain-English synonyms mapped to canonical Academy concepts. Beginners rarely
+ * search using the "correct" term, so "gas" should find fees, "rugged" should
+ * find rug pulls, and "coin" should find token lessons. Keyed by exact
+ * normalized word/phrase to avoid substring false positives.
+ */
+const SYNONYMS: Record<string, string[]> = {
+  coin: ["token"],
+  coins: ["token"],
+  gas: ["fees", "network fee", "transaction fee"],
+  fee: ["fees", "network fee"],
+  hack: ["scam", "drainer", "phishing"],
+  hacked: ["scam", "drainer", "phishing"],
+  stolen: ["scam", "drainer", "phishing"],
+  rugged: ["rug pull", "rug"],
+  rug: ["rug pull"],
+  scammed: ["scam", "phishing"],
+  "wallet key": ["seed phrase", "private key"],
+  "recovery phrase": ["seed phrase"],
+  "secret phrase": ["seed phrase"],
+  seed: ["seed phrase"],
+  ape: ["buy"],
+  aping: ["buy"],
+  dump: ["sell"],
+  dumping: ["sell"],
+  bag: ["position", "holdings"],
+  bags: ["position", "holdings"],
+  chart: ["price chart", "candles"],
+  candle: ["candles", "price chart"],
+  liq: ["liquidity"],
+  lp: ["liquidity"],
+  pool: ["liquidity"],
+  meme: ["memecoin"],
+  "meme coin": ["memecoin"],
+  shitcoin: ["memecoin"],
+  phantom: ["wallet"],
+  solflare: ["wallet"],
+  cheap: ["price"],
+  expensive: ["price", "market cap"],
+  safe: ["safety", "scam"],
+  safety: ["safety"],
+};
+
 function normalizeText(text: string): string {
   return text.toLowerCase().replace(/\s+/g, " ").trim();
 }
@@ -81,7 +124,47 @@ export function expandQuery(query: string): string[] {
       for (const member of group) terms.add(member);
     }
   }
+  // Synonyms: whole-query and per-word exact mapping to canonical concepts.
+  const candidates = [q, ...q.split(" ")];
+  for (const c of candidates) {
+    const syn = SYNONYMS[c];
+    if (syn) for (const s of syn) terms.add(s);
+  }
   return [...terms];
+}
+
+/**
+ * Levenshtein edit distance, capped for efficiency. Powers typo tolerance and
+ * did-you-mean without any fuzzy/opaque ranking — the distance is explicit.
+ */
+export function editDistance(a: string, b: string, max = 3): number {
+  if (a === b) return 0;
+  const al = a.length;
+  const bl = b.length;
+  if (Math.abs(al - bl) > max) return max + 1;
+  if (al === 0) return bl;
+  if (bl === 0) return al;
+  let prev = new Array(bl + 1);
+  let curr = new Array(bl + 1);
+  for (let j = 0; j <= bl; j++) prev[j] = j;
+  for (let i = 1; i <= al; i++) {
+    curr[0] = i;
+    let rowMin = curr[0];
+    for (let j = 1; j <= bl; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      curr[j] = Math.min(prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + cost);
+      if (curr[j] < rowMin) rowMin = curr[j];
+    }
+    if (rowMin > max) return max + 1;
+    [prev, curr] = [curr, prev];
+  }
+  return prev[bl];
+}
+
+function fuzzyThreshold(len: number): number {
+  if (len <= 4) return 1;
+  if (len <= 7) return 2;
+  return 3;
 }
 
 export interface LessonSearchResult {
@@ -114,6 +197,18 @@ interface LessonDoc {
   aliasesLower: string[];
   keywordsLower: string[];
   bodyLower: string;
+  /** Single-word tokens (len >= 3) for typo-tolerant matching. */
+  tokens: string[];
+}
+
+function tokenize(...parts: string[]): string[] {
+  const set = new Set<string>();
+  for (const p of parts) {
+    for (const w of p.toLowerCase().split(/[^a-z0-9]+/)) {
+      if (w.length >= 3) set.add(w);
+    }
+  }
+  return [...set];
 }
 
 function truncate(text: string, max = 140): string {
@@ -156,8 +251,67 @@ const LESSON_DOCS: LessonDoc[] = getAllNormalizedLessons()
       aliasesLower: lesson.aliases.map((a) => a.toLowerCase()),
       keywordsLower: lesson.keywords.map((k) => k.toLowerCase()),
       bodyLower: bodyParts.join(" ").toLowerCase(),
+      tokens: tokenize(
+        lesson.title,
+        lesson.aliases.join(" "),
+        lesson.keywords.join(" "),
+      ),
     };
   });
+
+/**
+ * Vocabulary of concepts for did-you-mean: lesson titles, aliases, and the
+ * canonical terms from equivalence/synonym maps. Deduped and length-bounded.
+ */
+const SEARCH_VOCAB: string[] = (() => {
+  const set = new Set<string>();
+  for (const doc of LESSON_DOCS) {
+    set.add(doc.titleLower);
+    for (const a of doc.aliasesLower) set.add(a);
+    for (const t of doc.tokens) set.add(t);
+  }
+  for (const group of EQUIVALENCE_GROUPS) for (const m of group) set.add(m);
+  for (const list of Object.values(SYNONYMS)) for (const s of list) set.add(s);
+  return [...set].filter((t) => t.length >= 3 && t.length <= 40);
+})();
+
+/**
+ * Suggest a corrected query ("did you mean …") when the query is close to a
+ * known concept but not an exact match. Returns undefined when the query
+ * already matches a vocabulary term or nothing is close enough.
+ */
+export function suggestQuery(query: string): string | undefined {
+  const q = normalizeText(query.replace(/^[$@]/, ""));
+  if (q.length < 3) return undefined;
+  let best: string | undefined;
+  let bestD = Infinity;
+  for (const term of SEARCH_VOCAB) {
+    if (term === q) return undefined;
+    const d = editDistance(q, term, 3);
+    if (d < bestD) {
+      bestD = d;
+      best = term;
+    }
+    if (bestD === 1) break;
+  }
+  const threshold = fuzzyThreshold(q.length);
+  return best && bestD > 0 && bestD <= threshold ? best : undefined;
+}
+
+/** Curated beginner lessons shown when a search returns nothing useful. */
+const POPULAR_SLUGS = [
+  "what-is-blackpebble",
+  "paper-vs-real-trading",
+  "connecting-vs-signing",
+  "price-and-market-cap",
+  "price-impact-and-slippage",
+  "phishing-and-drainers",
+];
+
+export function popularLessonSlugs(): string[] {
+  const known = new Set(LESSON_DOCS.map((d) => d.slug));
+  return POPULAR_SLUGS.filter((s) => known.has(s));
+}
 
 interface ScoreOutcome {
   score: number;
@@ -199,6 +353,22 @@ function scoreDoc(doc: LessonDoc, terms: string[]): ScoreOutcome {
       best = Math.max(best, 12);
     }
     if (doc.bodyLower.includes(term)) best = Math.max(best, 8);
+
+    // Typo tolerance: only for single-word terms not already matched exactly.
+    // Compares against single-word doc tokens by edit distance, so "slipage"
+    // finds "slippage" and "walet" finds "wallet" — deterministically.
+    if (best < 30 && term.length >= 4 && !term.includes(" ")) {
+      const threshold = fuzzyThreshold(term.length);
+      let fuzzyHit = false;
+      for (const tok of doc.tokens) {
+        if (Math.abs(tok.length - term.length) > threshold) continue;
+        if (editDistance(term, tok, threshold) <= threshold) {
+          fuzzyHit = true;
+          break;
+        }
+      }
+      if (fuzzyHit) best = Math.max(best, 28);
+    }
   }
   if (best > 0 && doc.kind === "flagship") best += 3;
   return { score: best, matchedAlias };

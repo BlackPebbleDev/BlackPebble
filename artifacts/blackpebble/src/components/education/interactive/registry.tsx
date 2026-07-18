@@ -108,6 +108,26 @@ const MODULES: Record<InteractiveModuleId, ModuleComponent> = {
       default: m.TradingPsychologyScenarios,
     })),
   ),
+  "concept-reveal": lazy(() =>
+    import("./modules/concept-reveal").then((m) => ({
+      default: m.ConceptReveal,
+    })),
+  ),
+  "sequence-builder": lazy(() =>
+    import("./modules/sequence-builder").then((m) => ({
+      default: m.SequenceBuilder,
+    })),
+  ),
+  "spot-the-scam": lazy(() =>
+    import("./modules/spot-the-scam").then((m) => ({
+      default: m.SpotTheScam,
+    })),
+  ),
+  "predict-outcome": lazy(() =>
+    import("./modules/predict-outcome").then((m) => ({
+      default: m.PredictOutcome,
+    })),
+  ),
 };
 
 export function hasInteractiveModule(id: string): id is InteractiveModuleId {

@@ -41,6 +41,10 @@ export const solanaBasicsCategory: AcademyCategory = {
         estimatedMinutes: 6,
         chainScope: "universal",
         interactiveModules: [{ id: "seed-phrase-safety-exercise" }],
+        diagrams: [
+          { id: "seed-phrase", placement: "top" },
+          { id: "wallet-keys", placement: "inline", caption: "Your public address is for receiving. Your private key and seed phrase control everything." },
+        ],
         version: 1,
         updatedAt: "July 2026",
         learningObjectives: [
@@ -62,9 +66,33 @@ export const solanaBasicsCategory: AcademyCategory = {
             body: "Most catastrophic losses come from leaking recovery material, not from bad trades. Scammers impersonate support, run fake 'wallet validation' sites, and offer fake airdrops that ask you to 'import' your phrase. The exercise below drills these scenarios with clearly fictional prompts.",
           },
           {
+            kind: "stakes",
+            body: "Your seed phrase is not a password you can reset — it is the wallet itself. If someone gets it, they can restore your wallet on their own device and drain it, and nothing can stop them or reverse it. Leak it once and every token you own is at risk instantly.",
+          },
+          {
             kind: "safety",
             body: "Write the phrase down offline and store it securely. No legitimate service — including BlackPebble — will ever ask for it. If any site, app, or person asks for your seed phrase or private key, it is a scam.",
           },
+        ],
+        story: {
+          character: "Priya",
+          setup:
+            "Priya's wallet acts glitchy, so she searches for help and a friendly 'support agent' DMs her offering to fix it. They ask her to confirm her 12-word recovery phrase 'to validate the wallet.'",
+          expectation: "She thinks she's verifying her identity so support can help.",
+          reality:
+            "There is no support agent. The moment she sends the words, they restore her wallet elsewhere and empty it in seconds.",
+          lesson:
+            "Real support never needs your seed phrase — because the phrase IS the wallet. Anyone asking for it is trying to steal it, no matter how helpful they seem.",
+          beats: [
+            { label: "The setup", detail: "Wallet glitch + 'helpful' DM", value: "trust", tone: "neutral" },
+            { label: "The ask", detail: "'Confirm your 12 words to validate'", value: "the scam", tone: "negative" },
+            { label: "The lesson", detail: "The phrase is the wallet — never share it", value: "safe", tone: "positive" },
+          ],
+        },
+        tips: [
+          "Write your seed phrase on paper, not in your phone, photos, email, or cloud notes.",
+          "Real support will never ask for your recovery phrase — anyone who does is a scammer.",
+          "A fake 'wallet validation' or 'sync' page is a classic trap. Close it.",
         ],
         commonMistakes: [
           "Storing the seed phrase in a screenshot, notes app, or cloud drive.",

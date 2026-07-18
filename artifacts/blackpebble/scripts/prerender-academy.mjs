@@ -110,9 +110,22 @@ function lessonContentHtml(lesson, academy, site) {
     parts.push(`<h2>${escapeHtml(section.title)}</h2>`);
     parts.push(`<p>${escapeHtml(section.body)}</p>`);
   }
+  if (lesson.story) {
+    const s = lesson.story;
+    parts.push(`<h2>Story</h2>`);
+    parts.push(`<p>${escapeHtml(s.setup)}</p>`);
+    if (s.expectation) parts.push(`<p>${escapeHtml(s.expectation)}</p>`);
+    if (s.reality) parts.push(`<p>${escapeHtml(s.reality)}</p>`);
+    parts.push(`<p>${escapeHtml(s.lesson)}</p>`);
+  }
   if (lesson.examples.length) {
     parts.push(`<h2>Examples</h2>`);
     for (const ex of lesson.examples) parts.push(`<p>${escapeHtml(ex)}</p>`);
+  }
+  if (lesson.tips.length) {
+    parts.push(`<h2>Beginner tips</h2><ul>`);
+    for (const t of lesson.tips) parts.push(`<li>${escapeHtml(t)}</li>`);
+    parts.push(`</ul>`);
   }
   if (lesson.commonMistakes.length) {
     parts.push(`<h2>Common mistakes</h2><ul>`);
