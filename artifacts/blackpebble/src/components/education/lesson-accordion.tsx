@@ -1,15 +1,15 @@
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { AcademyLesson } from "@/lib/education/types";
-import { LessonBody } from "./lesson-body";
+import type { NormalizedLesson } from "@/lib/education/normalize";
+import { NormalizedLessonBody } from "./lesson-body";
 
 export function LessonAccordionRow({
   lesson,
   defaultOpen = false,
   highlight = false,
 }: {
-  lesson: AcademyLesson;
+  lesson: NormalizedLesson;
   defaultOpen?: boolean;
   highlight?: boolean;
 }) {
@@ -53,13 +53,7 @@ export function LessonAccordionRow({
           aria-labelledby={buttonId}
           className="border-t border-border/60 px-4 py-4"
         >
-          <LessonBody
-            what={lesson.what}
-            why={lesson.why}
-            example={lesson.example}
-            related={lesson.related}
-            callout={lesson.callout}
-          />
+          <NormalizedLessonBody lesson={lesson} />
         </div>
       ) : null}
     </div>

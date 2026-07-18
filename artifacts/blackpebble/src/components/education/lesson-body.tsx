@@ -1,6 +1,14 @@
 import { Link } from "wouter";
+import { ArrowRight, Beaker, GraduationCap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { LessonCallout, CalloutType } from "@/lib/education/types";
+import type { NormalizedLesson } from "@/lib/education/normalize";
+import { lessonPath } from "@/lib/education/routes";
+import {
+  ChainScopeBadge,
+  DifficultyBadge,
+  EstimatedTime,
+} from "./lesson-meta";
 
 const CALLOUT_STYLES: Record<
   CalloutType,
@@ -57,61 +65,93 @@ export function LessonCalloutBox({ callout }: { callout: LessonCallout }) {
   );
 }
 
-export function LessonBody({
-  what,
-  why,
-  example,
-  related,
-  callout,
-}: {
-  what: string;
-  why: string;
-  example?: string;
-  related?: { label: string; path: string };
-  callout?: LessonCallout;
-}) {
-  const hasWhat = !!what.trim();
-  const hasWhy = !!why.trim();
+/**
+ * Compact, abbreviated renderer for the homepage accordion. Consumes the same
+ * NormalizedLesson as the dedicated lesson page (one rendering model), but shows
+ * an intentionally short preview and links out for the full lesson. Interactive
+ * modules and quizzes are advertised as chips, not mounted here, to keep the
+ * homepage light.
+ */
+export function NormalizedLessonBody({ lesson }: { lesson: NormalizedLesson }) {
+  const preview = lesson.sections.filter((s) => !s.advanced).slice(0, 2);
+  const previewCallouts = lesson.callouts.slice(0, 1);
+  const hasInteractive = lesson.interactiveModules.length > 0;
+  const hasQuiz = !!lesson.quiz && lesson.quiz.questions.length > 0;
+
   return (
     <div className="space-y-3 text-sm leading-relaxed text-muted-foreground">
-      {hasWhat ? (
-        <div>
-          <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-foreground/80">
-            What it means
-          </div>
-          <p>{what}</p>
+      {(lesson.difficulty || lesson.estimatedMinutes || lesson.chainScope) && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {lesson.chainScope ? <ChainScopeBadge scope={lesson.chainScope} /> : null}
+          {lesson.difficulty ? (
+            <DifficultyBadge difficulty={lesson.difficulty} />
+          ) : null}
+          {lesson.estimatedMinutes ? (
+            <EstimatedTime minutes={lesson.estimatedMinutes} />
+          ) : null}
         </div>
+      )}
+
+      {lesson.shortAnswer ? (
+        <p className="font-medium text-foreground/90">{lesson.shortAnswer}</p>
       ) : null}
-      {hasWhy ? (
-        <div>
+
+      {preview.map((s) => (
+        <div key={s.kind + s.title}>
           <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-foreground/80">
-            Why it matters
+            {s.title}
           </div>
-          <p>{why}</p>
+          <p className="line-clamp-4 whitespace-pre-line">{s.body}</p>
         </div>
-      ) : null}
-      {example ? (
-        <div>
-          <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-foreground/80">
-            Example
-          </div>
-          <p>{example}</p>
+      ))}
+
+      {previewCallouts.map((c, i) => (
+        <LessonCalloutBox key={i} callout={c} />
+      ))}
+
+      {(hasInteractive || hasQuiz) && (
+        <div className="flex flex-wrap gap-1.5">
+          {hasInteractive ? (
+            <span className="inline-flex items-center gap-1 rounded-full border border-accent/30 bg-accent/10 px-2 py-0.5 text-[10px] font-semibold text-accent">
+              <Beaker className="h-3 w-3" aria-hidden /> Interactive
+            </span>
+          ) : null}
+          {hasQuiz ? (
+            <span className="inline-flex items-center gap-1 rounded-full border border-border bg-surface-2 px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
+              <GraduationCap className="h-3 w-3" aria-hidden /> Quiz
+            </span>
+          ) : null}
         </div>
-      ) : null}
-      {related ? (
+      )}
+
+      {lesson.relatedFeatures.length > 0 ? (
         <div className="pt-0.5">
           <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-foreground/80">
             Related BlackPebble feature
           </div>
-          <Link
-            href={related.path}
-            className="inline-flex items-center gap-1 text-accent transition-colors hover:text-accent/80"
-          >
-            {related.label}
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            {lesson.relatedFeatures.map((f) => (
+              <Link
+                key={f.path}
+                href={f.path}
+                className="inline-flex items-center gap-1 text-accent transition-colors hover:text-accent/80"
+              >
+                {f.label}
+              </Link>
+            ))}
+          </div>
         </div>
       ) : null}
-      {callout ? <LessonCalloutBox callout={callout} /> : null}
+
+      <Link
+        href={lessonPath(lesson.categoryId, lesson.slug)}
+        className="inline-flex items-center gap-1 text-xs font-semibold text-accent transition-colors hover:text-accent/80"
+        data-testid={`accordion-open-lesson-${lesson.slug}`}
+      >
+        Open full lesson
+        <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+      </Link>
     </div>
   );
 }
+

@@ -1,6 +1,7 @@
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { AcademyCategory } from "@/lib/education/types";
+import { getNormalizedLesson } from "@/lib/education/registry";
 import { CATEGORY_ICONS } from "./category-icon";
 import { LessonAccordionRow } from "./lesson-accordion";
 
@@ -64,10 +65,13 @@ export function AcademyCategorySection({
             aria-labelledby={buttonId}
             className="space-y-2 border-t border-border/60 px-3 py-3 sm:px-4 sm:py-4"
           >
-            {visibleLessons.map((lesson) => (
+            {visibleLessons.map((lesson) => {
+              const normalized = getNormalizedLesson(lesson.slug);
+              if (!normalized) return null;
+              return (
               <LessonAccordionRow
                 key={lesson.slug}
-                lesson={lesson}
+                lesson={normalized}
                 defaultOpen={
                   forceOpenLessons ||
                   activeLessonSlug === lesson.slug ||
@@ -76,7 +80,8 @@ export function AcademyCategorySection({
                 }
                 highlight={activeLessonSlug === lesson.slug}
               />
-            ))}
+              );
+            })}
           </div>
         ) : null}
       </div>
