@@ -16,8 +16,13 @@ import {
   ACADEMY_CATEGORIES,
   getCategoryForLesson,
   getLessonBySlug,
+  getLessonRef,
   getNormalizedLesson,
 } from "@/lib/education/registry";
+import { computeMilestones } from "@/lib/education/milestones";
+import { AcademyWelcome } from "@/components/education/academy-welcome";
+import { AcademyJourney } from "@/components/education/academy-journey";
+import type { RelatedLessonRef } from "@/lib/education/normalize";
 import {
   searchLessons,
   classifyIntent,
@@ -188,6 +193,24 @@ export default function LearnPage() {
         progress.isLessonCompleted(s),
       )
     : undefined;
+  const summary = progress.getSummary();
+  const journeySteps = useMemo<RelatedLessonRef[]>(
+    () =>
+      (beginnerPath?.lessonSlugs ?? [])
+        .map((s) => getLessonRef(s))
+        .filter((r): r is RelatedLessonRef => !!r),
+    [beginnerPath],
+  );
+  const milestones = useMemo(
+    () =>
+      computeMilestones({
+        summary,
+        pathPct: pathProgress?.pct,
+        pathComplete: pathProgress?.isComplete,
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [progress.getSnapshotToken(), pathProgress?.pct, pathProgress?.isComplete],
+  );
   const recentCards = useMemo(
     () =>
       progress
@@ -371,8 +394,29 @@ export default function LearnPage() {
       ) : (
         /* Homepage mode */
         <>
-          {/* Beginner Essentials path */}
+          {/* New-user welcome (only before any progress) */}
           {beginnerPath ? (
+            <AcademyWelcome
+              path={beginnerPath}
+              hasProgress={summary.hasAnyProgress}
+            />
+          ) : null}
+
+          {/* Learner journey + milestones (once there's progress) */}
+          {beginnerPath && summary.hasAnyProgress && pathProgress && journeySteps.length > 0 ? (
+            <AcademyJourney
+              pathTitle={beginnerPath.title}
+              pathSlug={beginnerPath.slug}
+              steps={journeySteps}
+              isCompleted={(s) => progress.isLessonCompleted(s)}
+              resumeIndex={pathProgress.resumeIndex}
+              pct={pathProgress.pct}
+              milestones={milestones}
+            />
+          ) : null}
+
+          {/* Beginner Essentials path (banner for users without progress yet) */}
+          {beginnerPath && !summary.hasAnyProgress ? (
             <Link
               href={learningPathPath(beginnerPath.slug)}
               className="group flex flex-col gap-3 rounded-2xl border border-accent/30 bg-accent/[0.06] p-4 shadow-card transition-colors hover:bg-accent/10 sm:p-5"
