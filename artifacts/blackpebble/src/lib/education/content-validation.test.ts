@@ -9,6 +9,7 @@ import {
 import { isChainKey } from "./chains";
 import { CATEGORY_META } from "./category-meta";
 import { INTERACTIVE_MODULE_IDS, isRegisteredInteractiveId } from "./interactive/ids";
+import { isRegisteredDiagramId } from "./diagrams";
 import { getPublishedLearningPaths, LEARNING_PATHS } from "./learning-paths";
 
 // Real, registered app routes a related-feature link may point to (see App.tsx).
@@ -101,6 +102,16 @@ describe("academy content validation", () => {
           isRegisteredInteractiveId(ref.id),
           `${lesson.slug} -> ${ref.id}`,
         ).toBe(true);
+      }
+    }
+  });
+
+  it("uses only registered diagram ids", () => {
+    for (const lesson of ALL_ACADEMY_LESSONS) {
+      for (const ref of lesson.diagrams ?? []) {
+        expect(isRegisteredDiagramId(ref.id), `${lesson.slug} -> ${ref.id}`).toBe(
+          true,
+        );
       }
     }
   });

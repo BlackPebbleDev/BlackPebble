@@ -1,4 +1,5 @@
 import type { ChainKey, ChainScope } from "./chains";
+import type { LessonDiagramRef } from "./diagrams";
 
 export type CalloutType =
   | "why"
@@ -33,6 +34,7 @@ export type LessonSectionKind =
   | "what"
   | "why"
   | "how"
+  | "stakes"
   | "example"
   | "common-mistakes"
   | "safety"
@@ -53,6 +55,35 @@ export interface LessonSection {
 export interface LessonRelated {
   label: string;
   path: string;
+}
+
+/**
+ * A short, concrete narrative used to teach a concept as a story rather than a
+ * definition. Stories are far stickier for beginners: a named (fictional)
+ * trader, what they expected, what actually happened, and why. `beats` power an
+ * optional visual "replay" walkthrough.
+ */
+export interface LessonStory {
+  /** Fictional character name, e.g. "Trevor". Kept clearly illustrative. */
+  character?: string;
+  /** The setup: what the trader is doing. */
+  setup: string;
+  /** What they expected to happen. */
+  expectation?: string;
+  /** What actually happened. */
+  reality?: string;
+  /** Why it happened — the teachable moment. */
+  lesson: string;
+  /** Optional ordered replay beats for a step-through walkthrough. */
+  beats?: LessonStoryBeat[];
+}
+
+export interface LessonStoryBeat {
+  label: string;
+  detail: string;
+  /** Optional signed value to color the beat (e.g. "-8%", "+40%"). */
+  value?: string;
+  tone?: "neutral" | "positive" | "negative";
 }
 
 export interface LessonCallout {
@@ -198,6 +229,12 @@ export interface AcademyLesson {
   interactiveModule?: InteractiveModuleId;
   /** One or more interactive modules, rendered in `order`. */
   interactiveModules?: AcademyInteractiveModuleRef[];
+  /** Lightweight SVG diagrams that explain the concept visually. */
+  diagrams?: LessonDiagramRef[];
+  /** Optional narrative that teaches the concept as a short, concrete story. */
+  story?: LessonStory;
+  /** Beginner-friendly tips (encouraging, practical, non-advisory). */
+  tips?: string[];
   quiz?: LessonQuiz;
   seo?: LessonSeoOverride;
   kind?: LessonKind;

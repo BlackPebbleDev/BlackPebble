@@ -93,6 +93,15 @@ export function getPublishedLearningPaths(): LearningPath[] {
   );
 }
 
+/**
+ * First published path that contains a given lesson slug. Used by the lesson
+ * page to show path context (left rail, celebration progress) when a lesson is
+ * part of a guided path.
+ */
+export function getPathForLesson(slug: string): LearningPath | undefined {
+  return getPublishedLearningPaths().find((p) => p.lessonSlugs.includes(slug));
+}
+
 export interface PathCompletion {
   total: number;
   completed: number;
