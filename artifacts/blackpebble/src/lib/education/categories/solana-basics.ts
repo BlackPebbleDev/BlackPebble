@@ -32,7 +32,65 @@ export const solanaBasicsCategory: AcademyCategory = {
       "Private Key and Seed Phrase",
       "Your private key is the secret that signs transactions. Your seed phrase (recovery phrase) generates all your private keys. Never share either with anyone, ever.",
       "Anyone with your seed phrase can drain your wallet. Store it offline, not in screenshots or cloud notes.",
-      { aliases: ["seed phrase", "recovery phrase", "secret key"], callout: { type: "safety", text: "No legitimate service will ever ask for your seed phrase. If one does, it is a scam." } },
+      {
+        aliases: ["seed phrase", "recovery phrase", "secret key", "private key", "mnemonic", "seed words"],
+        keywords: ["phishing", "fake support", "recovery", "offline storage", "backup"],
+        shortAnswer:
+          "Your private key signs transactions and your seed phrase regenerates all your keys. Anyone who gets either controls your funds, so never share or type them into a website.",
+        difficulty: "beginner",
+        estimatedMinutes: 6,
+        chainScope: "universal",
+        interactiveModules: [{ id: "seed-phrase-safety-exercise" }],
+        version: 1,
+        updatedAt: "July 2026",
+        learningObjectives: [
+          "Explain what a seed phrase and private key control",
+          "Recognize phishing and fake-support scams",
+          "Store recovery material safely offline",
+        ],
+        sections: [
+          {
+            kind: "quick-answer",
+            body: "A seed phrase (recovery phrase) generates every private key in your wallet, and a private key signs transactions. Whoever holds either can move all your funds. They should never be typed into a website, shared with 'support', or stored in a screenshot or cloud note.",
+          },
+          {
+            kind: "what",
+            body: "When you create a wallet you get a seed phrase (often 12 or 24 words). From it, the wallet derives your private keys and addresses. The seed phrase is the master backup; the private key is the per-account secret.",
+          },
+          {
+            kind: "why",
+            body: "Most catastrophic losses come from leaking recovery material, not from bad trades. Scammers impersonate support, run fake 'wallet validation' sites, and offer fake airdrops that ask you to 'import' your phrase. The exercise below drills these scenarios with clearly fictional prompts.",
+          },
+          {
+            kind: "safety",
+            body: "Write the phrase down offline and store it securely. No legitimate service — including BlackPebble — will ever ask for it. If any site, app, or person asks for your seed phrase or private key, it is a scam.",
+          },
+        ],
+        commonMistakes: [
+          "Storing the seed phrase in a screenshot, notes app, or cloud drive.",
+          "Trusting 'support' who direct messages you and asks to verify your wallet.",
+        ],
+        relatedLessonSlugs: ["connecting-vs-signing", "wallet-address", "no-seed-phrase-needed"],
+        callout: { type: "safety", text: "No legitimate service will ever ask for your seed phrase. This exercise never asks you to type a real one." },
+        quiz: {
+          id: "private-key-and-seed-quiz",
+          questions: [
+            {
+              id: "q1",
+              prompt: "Where should you store your seed phrase?",
+              options: [
+                "In a cloud notes app",
+                "In a screenshot on your phone",
+                "Written down offline and kept private",
+                "In a reply to wallet support",
+              ],
+              correctIndex: 2,
+              explanation:
+                "Recovery phrases belong offline and private, never in the cloud, screenshots, or messages.",
+            },
+          ],
+        },
+      },
     ),
     L(
       "token-accounts",
